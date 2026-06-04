@@ -1,0 +1,523 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import { Toggle } from "@/components/ui/Toggle";
+import { NumberStepper } from "@/components/ui/NumberStepper";
+import { ButtonAction } from "@/components/ui/Button";
+import { FileDrop, type FileFieldKey } from "./FileDrop";
+import { StripePayment } from "./StripePayment";
+import {
+  calculerTarif,
+  euro,
+  montantParEcheance,
+  nbEcheances,
+  type ModePaiement,
+} from "@/lib/pricing";
+import type { InscriptionPayload } from "@/lib/inscription";
+
+const STEPS = ["Informations", "Options", "Documents", "Paiement"];
+
+type FileState = Record<FileFieldKey, { url: string | null; name: string }>;
+const EMPTY_FILE = { url: null, name: "" };
+
+const PAYMENTS: { mode: ModePaiement; icon: string; label: string }[] = [
+  { mode: "stripe_1x", icon: "💳", label: "Carte — 1 fois" },
+  { mode: "stripe_2x", icon: "💳", label: "Carte — 2 fois" },
+  { mode: "stripe_3x", icon: "💳", label: "Carte — 3 fois" },
+  { mode: "stripe_4x", icon: "💳", label: "Carte — 4 fois" },
+  { mode: "especes", icon: "💵", label: "Espèces au prochain cours" },
+];
+
+export function InscriptionForm() {
+  const router = useRouter();
+  const [adherentId] = useState(() =>
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `pbnp-${Date.now()}`,
+  );
+  const [step, setStep] = useState(0);
+
+  // Champs
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [dateNaissance, setDateNaissance] = useState("");
+  const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [adresse, setAdresse] = useState("");
+  const [ville, setVille] = useState("");
+  const [codePostal, setCodePostal] = useState("");
+
+  const [nouveauMembre, setNouveauMembre] = useState(true);
+  const [prepa, setPrepa] = useState(false);
+  const [nbFamille, setNbFamille] = useState(0);
+
+  const [files, setFiles] = useState<FileState>({
+    fiche_inscription: EMPTY_FILE,
+    certificat_medical: EMPTY_FILE,
+    reglement: EMPTY_FILE,
+    photo: EMPTY_FILE,
+  });
+
+  const [mode, setMode] = useState<ModePaiement | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Stripe
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [echeanceInfo, setEcheanceInfo] = useState<{ n: number; montant: number }>({
+    n: 1,
+    montant: 0,
+  });
+
+  const tarif = useMemo(
+    () =>
+      calculerTarif({
+        dateNaissance,
+        nouveauMembre,
+        optionPrepaPhysique: prepa,
+        nbMembresFamille: nbFamille,
+      }),
+    [dateNaissance, nouveauMembre, prepa, nbFamille],
+  );
+
+  const payload = (): InscriptionPayload => ({
+    nom,
+    prenom,
+    date_naissance: dateNaissance,
+    email,
+    telephone,
+    adresse,
+    ville,
+    code_postal: codePostal,
+    nouveau_membre: nouveauMembre,
+    option_prepa_physique: prepa,
+    nb_membres_famille: nbFamille,
+    mode_paiement: mode ?? "especes",
+    photo_url: files.photo.url,
+    fiche_inscription_url: files.fiche_inscription.url,
+    certificat_medical_url: files.certificat_medical.url,
+    reglement_url: files.reglement.url,
+  });
+
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  const step1Ok = nom.trim() && prenom.trim() && dateNaissance && emailOk;
+  const allFiles = (Object.keys(files) as FileFieldKey[]).every(
+    (k) => files[k].name,
+  );
+
+  function onFile(field: FileFieldKey, v: { url: string | null; name: string }) {
+    setFiles((f) => ({ ...f, [field]: v }));
+  }
+
+  function next() {
+    setError("");
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+  }
+  function prev() {
+    setError("");
+    setClientSecret(null);
+    setStep((s) => Math.max(0, s - 1));
+  }
+
+  async function submitEspeces() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/adherents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload(), mode_paiement: "especes" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors de l'inscription.");
+      router.push("/inscription/merci?mode=especes");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue.");
+      setBusy(false);
+    }
+  }
+
+  async function startStripe() {
+    if (!mode) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/create-payment-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload()),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Paiement indisponible.");
+      setClientSecret(data.clientSecret);
+      setEcheanceInfo({ n: data.nbEcheances, montant: data.montantEcheance });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur Stripe.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[2rem] border border-line bg-white">
+      {/* Stepper */}
+      <div className="border-b border-line bg-paper-2 px-6 py-5 sm:px-8">
+        <div className="flex items-center justify-between">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex flex-1 items-center last:flex-none">
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                    i < step
+                      ? "bg-orange text-white"
+                      : i === step
+                        ? "bg-ink text-white"
+                        : "bg-white text-smoke ring-1 ring-line"
+                  }`}
+                >
+                  {i < step ? "✓" : i + 1}
+                </span>
+                <span
+                  className={`hidden text-sm font-semibold sm:block ${
+                    i === step ? "text-ink" : "text-smoke"
+                  }`}
+                >
+                  {s}
+                </span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className="mx-3 h-px flex-1 bg-line" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-6 sm:p-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ duration: 0.3 }}
+          >
+            {step === 0 && (
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Input label="Nom" value={nom} onChange={setNom} required />
+                <Input label="Prénom" value={prenom} onChange={setPrenom} required />
+                <Input
+                  label="Date de naissance"
+                  type="date"
+                  value={dateNaissance}
+                  onChange={setDateNaissance}
+                  required
+                />
+                <Input
+                  label="Téléphone"
+                  type="tel"
+                  value={telephone}
+                  onChange={setTelephone}
+                />
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={setEmail}
+                    required
+                    error={email.length > 3 && !emailOk ? "Email invalide" : ""}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Input label="Adresse" value={adresse} onChange={setAdresse} />
+                </div>
+                <Input label="Code postal" value={codePostal} onChange={setCodePostal} />
+                <Input label="Ville" value={ville} onChange={setVille} />
+                {dateNaissance && (
+                  <p className="sm:col-span-2 text-sm text-smoke">
+                    Catégorie détectée :{" "}
+                    <span className="font-bold text-orange">
+                      {tarif.typeAdherent === "jeune" ? "Jeune" : "Adulte"}
+                    </span>{" "}
+                    ({euro(tarif.cotisationBase)} de cotisation de base)
+                  </p>
+                )}
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="space-y-4">
+                <Toggle
+                  label="Nouveau membre ?"
+                  hint="Adhésion de 30€ la première année."
+                  value={nouveauMembre}
+                  onChange={setNouveauMembre}
+                />
+                <Toggle
+                  label="Option Préparation Physique"
+                  hint="2 séances/semaine — +100€/an."
+                  value={prepa}
+                  onChange={setPrepa}
+                />
+                <div className="rounded-xl border border-line bg-white p-4">
+                  <p className="font-semibold text-ink">
+                    Membres de votre famille déjà inscrits
+                  </p>
+                  <p className="mt-0.5 mb-3 text-xs text-smoke">
+                    La réduction s&apos;applique à partir du 3ème membre, sur la
+                    cotisation uniquement.
+                  </p>
+                  <NumberStepper value={nbFamille} onChange={setNbFamille} min={0} max={4} />
+                  {tarif.remisePct > 0 && (
+                    <p className="mt-3 text-sm font-semibold text-orange">
+                      Vous bénéficiez de −{tarif.remisePct}% sur la cotisation.
+                    </p>
+                  )}
+                </div>
+                <LivePrice tarif={tarif} />
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-4">
+                <p className="text-sm text-smoke">
+                  Téléchargez les documents (section au-dessus), remplissez-les,
+                  signez-les puis déposez-les ici. Photo d&apos;identité requise.
+                </p>
+                <FileDrop
+                  field="fiche_inscription"
+                  adherentId={adherentId}
+                  label="Fiche d'inscription signée"
+                  hint="PDF, max 5 Mo — glissez ou cliquez"
+                  accept={{ "application/pdf": [".pdf"] }}
+                  maxSizeMb={5}
+                  onChange={onFile}
+                />
+                <FileDrop
+                  field="certificat_medical"
+                  adherentId={adherentId}
+                  label="Certificat médical signé"
+                  hint="PDF, max 5 Mo"
+                  accept={{ "application/pdf": [".pdf"] }}
+                  maxSizeMb={5}
+                  onChange={onFile}
+                />
+                <FileDrop
+                  field="reglement"
+                  adherentId={adherentId}
+                  label="Règlement intérieur signé"
+                  hint="PDF, max 5 Mo"
+                  accept={{ "application/pdf": [".pdf"] }}
+                  maxSizeMb={5}
+                  onChange={onFile}
+                />
+                <FileDrop
+                  field="photo"
+                  adherentId={adherentId}
+                  label="Photo d'identité"
+                  hint="JPG ou PNG, max 2 Mo"
+                  accept={{ "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"] }}
+                  maxSizeMb={2}
+                  onChange={onFile}
+                />
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6">
+                <LivePrice tarif={tarif} big />
+
+                {!clientSecret && (
+                  <div>
+                    <p className="mb-3 font-display text-lg font-extrabold uppercase text-ink">
+                      Mode de règlement
+                    </p>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {PAYMENTS.map((p) => {
+                        const active = mode === p.mode;
+                        const n = nbEcheances(p.mode);
+                        const perEch = montantParEcheance(tarif.total, n);
+                        return (
+                          <button
+                            key={p.mode}
+                            type="button"
+                            onClick={() => {
+                              setMode(p.mode);
+                              setClientSecret(null);
+                            }}
+                            className={`flex items-center justify-between rounded-xl border-2 p-4 text-left transition-colors ${
+                              active
+                                ? "border-orange bg-orange-50"
+                                : "border-line bg-white hover:border-orange/40"
+                            }`}
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="text-xl">{p.icon}</span>
+                              <span>
+                                <span className="block font-semibold text-ink">
+                                  {p.label}
+                                </span>
+                                {p.mode !== "especes" && (
+                                  <span className="text-xs text-smoke">
+                                    {n > 1 ? `${euro(perEch)} × ${n}` : euro(tarif.total)}
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                            <span
+                              className={`h-5 w-5 rounded-full border-2 ${
+                                active ? "border-orange bg-orange" : "border-line"
+                              }`}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {clientSecret && mode && (
+                  <StripePayment
+                    clientSecret={clientSecret}
+                    adherentId={adherentId}
+                    montantEcheance={echeanceInfo.montant}
+                    nbEcheances={echeanceInfo.n}
+                    onSuccess={() => router.push("/inscription/merci")}
+                  />
+                )}
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        {error && (
+          <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
+            {error}
+          </p>
+        )}
+
+        {/* Navigation */}
+        {!clientSecret && (
+          <div className="mt-8 flex items-center justify-between gap-3">
+            {step > 0 ? (
+              <button
+                onClick={prev}
+                className="text-sm font-semibold text-smoke transition-colors hover:text-ink"
+              >
+                ← Retour
+              </button>
+            ) : (
+              <span />
+            )}
+
+            {step < 3 && (
+              <ButtonAction
+                onClick={next}
+                size="lg"
+                disabled={
+                  (step === 0 && !step1Ok) || (step === 2 && !allFiles)
+                }
+              >
+                Continuer
+              </ButtonAction>
+            )}
+
+            {step === 3 && mode === "especes" && (
+              <ButtonAction onClick={submitEspeces} size="lg" disabled={busy}>
+                {busy ? "Validation…" : "Valider mon inscription"}
+              </ButtonAction>
+            )}
+            {step === 3 && mode && mode !== "especes" && (
+              <ButtonAction onClick={startStripe} size="lg" disabled={busy}>
+                {busy ? "Préparation…" : "Procéder au paiement"}
+              </ButtonAction>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Input({
+  label,
+  value,
+  onChange,
+  type = "text",
+  required,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  required?: boolean;
+  error?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-sm font-semibold text-ink">
+        {label} {required && <span className="text-orange">*</span>}
+      </span>
+      <input
+        type={type}
+        value={value}
+        required={required}
+        inputMode={type === "tel" ? "tel" : undefined}
+        onChange={(e) => onChange(e.target.value)}
+        className={`focus-ring w-full rounded-xl border bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange ${
+          error ? "border-red-300" : "border-line"
+        }`}
+      />
+      {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
+    </label>
+  );
+}
+
+function LivePrice({
+  tarif,
+  big,
+}: {
+  tarif: ReturnType<typeof calculerTarif>;
+  big?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-line bg-paper-2 p-5">
+      <div className="space-y-2">
+        {tarif.lines.map((l) => (
+          <div
+            key={l.label}
+            className="flex items-center justify-between text-sm"
+          >
+            <span className={l.amount < 0 ? "text-orange" : "text-smoke"}>
+              {l.label}
+            </span>
+            <span
+              className={`font-semibold ${
+                l.amount < 0 ? "text-orange" : "text-ink"
+              }`}
+            >
+              {l.amount < 0 ? "−" : ""}
+              {euro(Math.abs(l.amount))}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
+        <span className="font-display text-lg font-extrabold uppercase text-ink">
+          Total
+        </span>
+        <span
+          className={`font-display font-black text-orange ${
+            big ? "text-4xl" : "text-2xl"
+          }`}
+        >
+          {euro(tarif.total)}
+        </span>
+      </div>
+    </div>
+  );
+}
