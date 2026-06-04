@@ -26,7 +26,7 @@ export const STATS = [
   { value: 300, suffix: "+", label: "Adhérents par saison" },
   { value: 4, suffix: "", label: "Salles d'entraînement" },
   { value: 25, suffix: "+", label: "Ans d'existence" },
-  { value: 10, suffix: "", label: "Mois de cours par an" },
+  { value: 5, suffix: "", label: "Cours par semaine" },
 ] as const;
 
 export type Salle = {
