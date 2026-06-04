@@ -222,7 +222,7 @@ export default function InfosPage() {
           <Reveal>
             <span className="eyebrow text-orange">Nos salles</span>
             <h2 className="font-display mt-4 text-3xl font-extrabold uppercase sm:text-4xl">
-              4 salles d&apos;entraînement
+              3 salles d&apos;entraînement
             </h2>
           </Reveal>
 
