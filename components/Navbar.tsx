@@ -66,9 +66,13 @@ export function Navbar() {
               href="/admin/login"
               aria-label="Espace administrateur"
               title="Espace administrateur"
-              className="hidden h-10 w-10 items-center justify-center rounded-full text-ink/40 transition-colors hover:bg-paper-2 hover:text-ink sm:flex"
+              className="group hidden h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-paper-2 sm:flex"
             >
-              <Lock className="h-5 w-5" strokeWidth={1.7} aria-hidden />
+              <Lock
+                className="h-4 w-4 opacity-40 transition-opacity group-hover:opacity-100"
+                strokeWidth={1.7}
+                aria-hidden
+              />
             </Link>
             <Button href="/inscription" size="md" className="hidden sm:inline-flex">
               S&apos;inscrire

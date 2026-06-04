@@ -48,17 +48,22 @@ export default function AdminLoginPage() {
             Réservé à la gestion du club.
           </p>
 
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <form
+            onSubmit={submit}
+            className="mt-6 space-y-4"
+            autoComplete="off"
+          >
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-ink">
                 Identifiant
               </span>
               <input
                 type="text"
+                name="pbnp-admin-user"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                autoComplete="username"
+                autoComplete="off"
                 placeholder="Pascal"
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 outline-none focus:border-orange"
               />
@@ -69,10 +74,11 @@ export default function AdminLoginPage() {
               </span>
               <input
                 type="password"
+                name="pbnp-admin-pass"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 outline-none focus:border-orange"
               />
             </label>
