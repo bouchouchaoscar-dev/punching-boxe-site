@@ -111,7 +111,7 @@ export default function ActivitesPage() {
             par an.
           </p>
           <div className="mt-6">
-            <Button href="/infos" variant="dark">
+            <Button href="/infos">
               Voir les deux formules &amp; tarifs
             </Button>
           </div>

@@ -81,10 +81,10 @@ export default function InfosPage() {
                 </ul>
 
                 <div
-                  className={`mt-5 rounded-xl p-3 text-sm text-ink ${
+                  className={`mt-5 rounded-xl p-3 text-sm ${
                     p.id === "boxe_classique"
-                      ? "border border-orange/30 bg-white"
-                      : "bg-orange-50"
+                      ? "bg-[#111111] text-white"
+                      : "bg-orange-50 text-ink"
                   }`}
                 >
                   {p.option ?? "Préparation Physique incluse, sans supplément."}
