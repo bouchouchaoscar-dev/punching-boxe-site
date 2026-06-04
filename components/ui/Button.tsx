@@ -17,7 +17,7 @@ const variants: Record<Variant, string> = {
     "bg-orange text-white shadow-[0_10px_30px_-10px_rgba(255,107,0,0.7)] hover:shadow-[0_16px_40px_-12px_rgba(255,107,0,0.85)] hover:-translate-y-0.5 active:translate-y-0",
   dark: "bg-ink text-white hover:bg-ink-soft hover:-translate-y-0.5 active:translate-y-0",
   outline:
-    "border border-ink/15 text-ink hover:border-ink hover:-translate-y-0.5 bg-white/60 backdrop-blur",
+    "border border-ink text-ink bg-transparent hover:bg-ink/[0.04] hover:-translate-y-0.5 active:translate-y-0",
   ghost: "text-white border border-white/30 hover:bg-white/10 backdrop-blur",
 };
 
