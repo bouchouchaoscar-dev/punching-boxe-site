@@ -14,7 +14,9 @@ import {
   montantParEcheance,
   nbEcheances,
   type ModePaiement,
+  type PackageType,
 } from "@/lib/pricing";
+import { PACKAGES } from "@/lib/constants";
 import type { InscriptionPayload } from "@/lib/inscription";
 
 const STEPS = ["Informations", "Options", "Documents", "Paiement"];
@@ -49,6 +51,7 @@ export function InscriptionForm() {
   const [ville, setVille] = useState("");
   const [codePostal, setCodePostal] = useState("");
 
+  const [packageType, setPackageType] = useState<PackageType>("boxe_classique");
   const [nouveauMembre, setNouveauMembre] = useState(true);
   const [prepa, setPrepa] = useState(false);
   const [nbFamille, setNbFamille] = useState(0);
@@ -75,11 +78,12 @@ export function InscriptionForm() {
     () =>
       calculerTarif({
         dateNaissance,
+        packageType,
         nouveauMembre,
         optionPrepaPhysique: prepa,
         nbMembresFamille: nbFamille,
       }),
-    [dateNaissance, nouveauMembre, prepa, nbFamille],
+    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille],
   );
 
   const payload = (): InscriptionPayload => ({
@@ -91,6 +95,7 @@ export function InscriptionForm() {
     adresse,
     ville,
     code_postal: codePostal,
+    package: packageType,
     nouveau_membre: nouveauMembre,
     option_prepa_physique: prepa,
     nb_membres_famille: nbFamille,
@@ -250,18 +255,80 @@ export function InscriptionForm() {
 
             {step === 1 && (
               <div className="space-y-4">
+                {/* Choix de la formule */}
+                <div>
+                  <p className="mb-1 font-display text-lg font-extrabold uppercase text-ink">
+                    Votre formule
+                  </p>
+                  <p className="mb-3 text-xs text-smoke">
+                    Même tarif, deux orientations. Choisissez la vôtre.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {PACKAGES.map((p) => {
+                      const active = packageType === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setPackageType(p.id)}
+                          className={`rounded-2xl border-2 p-4 text-left transition-colors ${
+                            active
+                              ? "border-orange bg-orange-50"
+                              : "border-line bg-white hover:border-orange/40"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-display text-base font-extrabold uppercase text-ink">
+                              {p.nom}
+                            </span>
+                            <span
+                              className={`h-5 w-5 shrink-0 rounded-full border-2 ${
+                                active ? "border-orange bg-orange" : "border-line"
+                              }`}
+                            />
+                          </div>
+                          <p className="mt-1 text-xs text-smoke">{p.accroche}</p>
+                          <ul className="mt-3 space-y-1">
+                            {p.inclus.slice(0, 3).map((i) => (
+                              <li key={i} className="flex gap-1.5 text-xs text-ink">
+                                <span className="text-orange">✓</span>
+                                {i}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="mt-2 text-[0.7rem] font-semibold uppercase tracking-wide text-orange">
+                            {p.orientation}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <Toggle
                   label="Nouveau membre ?"
                   hint="Adhésion de 30€ la première année."
                   value={nouveauMembre}
                   onChange={setNouveauMembre}
                 />
-                <Toggle
-                  label="Option Préparation Physique"
-                  hint="2 séances/semaine — +100€/an."
-                  value={prepa}
-                  onChange={setPrepa}
-                />
+
+                {packageType === "boxe_classique" ? (
+                  <Toggle
+                    label="Option Préparation Physique"
+                    hint="2 séances/semaine (mardi & jeudi 20h) — +100€/an."
+                    value={prepa}
+                    onChange={setPrepa}
+                  />
+                ) : (
+                  <div className="flex items-center gap-3 rounded-xl border border-orange/20 bg-orange-50 p-4 text-sm text-ink">
+                    <span className="text-lg">✓</span>
+                    <span>
+                      <strong>Préparation Physique incluse</strong> dans le package
+                      Savate &amp; Forme (mardi &amp; jeudi 20h), sans supplément.
+                    </span>
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-line bg-white p-4">
                   <p className="font-semibold text-ink">
                     Membres de votre famille déjà inscrits
@@ -497,11 +564,10 @@ function LivePrice({
             </span>
             <span
               className={`font-semibold ${
-                l.amount < 0 ? "text-orange" : "text-ink"
+                l.muted ? "text-orange" : l.amount < 0 ? "text-orange" : "text-ink"
               }`}
             >
-              {l.amount < 0 ? "−" : ""}
-              {euro(Math.abs(l.amount))}
+              {l.muted ? "Inclus" : `${l.amount < 0 ? "−" : ""}${euro(Math.abs(l.amount))}`}
             </span>
           </div>
         ))}

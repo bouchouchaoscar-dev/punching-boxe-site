@@ -75,13 +75,13 @@ export function Hero() {
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 0.25, ease }}
-          className="relative lg:h-[100svh]"
+          className="relative lg:h-[100svh] lg:pt-24"
         >
           {/* Bloc orange décoratif derrière, pour la profondeur */}
-          <div className="absolute -right-6 top-8 hidden h-[88%] w-3/4 rounded-[2rem] bg-orange/10 lg:block" />
+          <div className="absolute -right-6 top-28 hidden h-[70%] w-3/4 rounded-[2rem] bg-orange/10 lg:block" />
 
           <div
-            className="relative h-[22rem] w-full overflow-hidden rounded-[2rem] sm:h-[30rem] lg:h-[82vh] lg:rounded-none"
+            className="relative h-[22rem] w-full overflow-hidden rounded-[2rem] sm:h-[30rem] lg:h-[calc(100svh-8rem)] lg:rounded-none"
             style={{
               // Clip diagonal sur le bord gauche pour casser le rectangle (desktop)
               clipPath: "polygon(7% 0, 100% 0, 100% 100%, 0 100%)",

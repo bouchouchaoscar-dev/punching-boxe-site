@@ -45,7 +45,7 @@ export default function ActivitesPage() {
                   a.inclus ? "bg-orange text-white" : "bg-white text-ink"
                 }`}
               >
-                {a.inclus ? "Inclus dans l'adhésion" : "Option +100€/an"}
+                {a.tag}
               </span>
             </Reveal>
 
@@ -100,17 +100,19 @@ export default function ActivitesPage() {
       <section className="container-px mx-auto max-w-7xl pb-8">
         <Reveal className="rounded-[2rem] border border-orange/20 bg-orange-50 p-8 sm:p-12">
           <h3 className="font-display text-2xl font-extrabold uppercase text-ink sm:text-3xl">
-            Bon à savoir
+            Deux formules au choix
           </h3>
           <p className="mt-3 max-w-2xl text-smoke">
-            L&apos;adhésion annuelle donne accès à <strong>tous les cours de
-            Boxe Française et de Savate Fitness</strong>. La seule option
-            supplémentaire est la Préparation Physique (+100€/an). Cours
-            dispensés de septembre à fin juin, soit 10 mois par an.
+            <strong>Boxe Classique</strong> donne accès à tous les cours de Boxe
+            Française (enfants &amp; adultes), avec la Préparation Physique en
+            option (+100€/an). <strong>Savate &amp; Forme</strong> regroupe la
+            Savate Fitness (mercredi 18h30) et la Préparation Physique, orientée
+            remise en forme. Cours dispensés de septembre à fin juin, soit 10 mois
+            par an.
           </p>
           <div className="mt-6">
             <Button href="/infos" variant="dark">
-              Voir les tarifs détaillés
+              Voir les deux formules &amp; tarifs
             </Button>
           </div>
         </Reveal>

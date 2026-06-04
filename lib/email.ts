@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { CLUB, SITE_URL } from "./constants";
-import { euro, type ModePaiement } from "./pricing";
+import { euro, PACKAGE_LABEL, type ModePaiement, type PackageType } from "./pricing";
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -27,10 +27,14 @@ type MailData = {
   nom: string;
   email: string;
   type_adherent: string;
+  package?: PackageType | null;
   montant_total: number;
   mode_paiement: ModePaiement;
   adherentId?: string;
 };
+
+const packageLabel = (p?: PackageType | null) =>
+  p ? PACKAGE_LABEL[p] : "—";
 
 function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
@@ -53,6 +57,7 @@ export async function sendAdherentConfirmation(d: MailData) {
     <h1 style="font-size:22px;margin:0 0 8px">Bienvenue ${d.prenom} !</h1>
     <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> pour la saison ${CLUB.saison} a bien été enregistrée.</p>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:18px 0">
+      <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
       <p style="margin:4px 0"><strong>Type :</strong> ${d.type_adherent}</p>
       <p style="margin:4px 0"><strong>Montant :</strong> ${euro(d.montant_total)}</p>
       <p style="margin:4px 0"><strong>Règlement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
@@ -88,6 +93,7 @@ export async function sendAdminNotification(d: MailData) {
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
       <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
       <p style="margin:4px 0">${d.email}</p>
+      <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
       <p style="margin:4px 0"><strong>Type :</strong> ${d.type_adherent}</p>
       <p style="margin:4px 0"><strong>Montant :</strong> ${euro(d.montant_total)}</p>
       <p style="margin:4px 0"><strong>Règlement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>

@@ -1,4 +1,4 @@
-import { calculerTarif, type ModePaiement } from "./pricing";
+import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { CLUB } from "./constants";
 import type { NewAdherent } from "./types";
 
@@ -12,6 +12,7 @@ export interface InscriptionPayload {
   adresse?: string;
   ville?: string;
   code_postal?: string;
+  package: PackageType;
   nouveau_membre: boolean;
   option_prepa_physique: boolean;
   nb_membres_famille: number;
@@ -28,6 +29,9 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.date_naissance) return "La date de naissance est requise.";
   if (!p.email?.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email))
     return "Un email valide est requis.";
+  const packages: PackageType[] = ["boxe_classique", "savate_forme"];
+  if (!p.package || !packages.includes(p.package))
+    return "Formule (package) invalide.";
   const modes: ModePaiement[] = [
     "stripe_1x",
     "stripe_2x",
@@ -50,6 +54,7 @@ export function buildAdherentInsert(
 ): NewAdherent {
   const tarif = calculerTarif({
     dateNaissance: p.date_naissance,
+    packageType: p.package,
     nouveauMembre: p.nouveau_membre,
     optionPrepaPhysique: p.option_prepa_physique,
     nbMembresFamille: p.nb_membres_famille,
@@ -65,8 +70,11 @@ export function buildAdherentInsert(
     ville: p.ville?.trim() || null,
     code_postal: p.code_postal?.trim() || null,
     type_adherent: tarif.typeAdherent,
+    package: p.package,
     nouveau_membre: !!p.nouveau_membre,
-    option_prepa_physique: !!p.option_prepa_physique,
+    // En Savate & Forme, la prépa physique est toujours incluse.
+    option_prepa_physique:
+      p.package === "savate_forme" ? true : !!p.option_prepa_physique,
     nb_membres_famille: Number(p.nb_membres_famille) || 0,
     montant_total: tarif.total,
     mode_paiement: p.mode_paiement,

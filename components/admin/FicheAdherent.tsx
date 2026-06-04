@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
-import { euro } from "@/lib/pricing";
+import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
 
 const MODE_LABEL: Record<string, string> = {
@@ -192,6 +192,10 @@ export function FicheAdherent({ id }: { id: string }) {
             </div>
 
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              <Info
+                label="Formule"
+                value={a.package ? PACKAGE_LABEL[a.package] : "—"}
+              />
               <Info label="Date de naissance" value={new Date(a.date_naissance).toLocaleDateString("fr-FR")} />
               <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} />
               <EditableInfo label="Téléphone" editing={editing} value={form.telephone ?? ""} onChange={(v) => setForm({ ...form, telephone: v })} display={a.telephone ?? "—"} />

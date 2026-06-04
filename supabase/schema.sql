@@ -21,6 +21,7 @@ create table if not exists public.adherents (
   ville                     text,
   code_postal               text,
   type_adherent             text check (type_adherent in ('adulte','jeune')),
+  package                   text check (package in ('boxe_classique','savate_forme')),
   nouveau_membre            boolean not null default false,
   option_prepa_physique     boolean not null default false,
   nb_membres_famille        integer not null default 0,
@@ -37,6 +38,10 @@ create table if not exists public.adherents (
   certificat_medical_url    text,
   reglement_url             text
 );
+
+-- Migration pour une base déjà créée (ajoute la colonne package si absente) :
+alter table public.adherents
+  add column if not exists package text check (package in ('boxe_classique','savate_forme'));
 
 create index if not exists adherents_saison_idx       on public.adherents (saison);
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);

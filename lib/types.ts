@@ -1,4 +1,4 @@
-import type { ModePaiement, TypeAdherent } from "./pricing";
+import type { ModePaiement, PackageType, TypeAdherent } from "./pricing";
 
 export type StatutPaiement = "en_attente" | "paye" | "confirme_especes";
 
@@ -14,6 +14,7 @@ export interface Adherent {
   ville: string | null;
   code_postal: string | null;
   type_adherent: TypeAdherent;
+  package: PackageType;
   nouveau_membre: boolean;
   option_prepa_physique: boolean;
   nb_membres_famille: number;

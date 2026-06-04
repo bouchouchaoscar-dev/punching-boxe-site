@@ -1,5 +1,5 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { PDF_COLORS, styles } from "./theme";
+import { styles } from "./theme";
 import { PdfFooter, PdfHeader } from "./Shared";
 import { CLUB } from "@/lib/constants";
 import { TARIFS } from "@/lib/pricing";
@@ -64,13 +64,11 @@ export function FicheInscriptionDoc() {
         <FieldRow items={[{ label: "Adresse :" }]} />
         <FieldRow items={[{ label: "Code postal :", flex: 0.8 }, { label: "Ville :", flex: 1.4 }]} />
 
-        {/* Tarifs */}
-        <Text style={[styles.h2, f.h2]}>Cotisation</Text>
-        <View style={[styles.priceRow, f.priceRow]}>
-          <Text>
-            <Text style={styles.bold}>Adhésion-club</Text> (1ère année)
-          </Text>
-          <Text style={styles.price}>{TARIFS.adhesion} €</Text>
+        {/* Formule + Tarifs */}
+        <Text style={[styles.h2, f.h2]}>Formule & cotisation</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 4 }}>
+          <Check label="Package Boxe Classique" />
+          <Check label="Package Savate & Forme" />
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
@@ -86,7 +84,13 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Préparation Physique</Text> (option)
+            <Text style={styles.bold}>Adhésion-club</Text> (1ère année)
+          </Text>
+          <Text style={styles.price}>{TARIFS.adhesion} €</Text>
+        </View>
+        <View style={[styles.priceRow, f.priceRow]}>
+          <Text>
+            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Classique · incluse en Savate & Forme)
           </Text>
           <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
         </View>
@@ -138,21 +142,6 @@ export function FicheInscriptionDoc() {
             </Text>
             <View style={{ height: 14 }} />
           </View>
-        </View>
-
-        <View
-          style={{
-            marginTop: 8,
-            backgroundColor: PDF_COLORS.paper2,
-            borderRadius: 4,
-            padding: 7,
-          }}
-        >
-          <Text style={[styles.small, f.small]}>
-            L&apos;adhésion donne accès à <Text style={styles.bold}>tous les cours
-            de Boxe Française et de Savate Fitness</Text>. Inscription possible
-            également en ligne sur punching-boxe.com.
-          </Text>
         </View>
 
         <PdfFooter />

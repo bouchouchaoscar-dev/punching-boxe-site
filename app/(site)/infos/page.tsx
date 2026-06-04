@@ -3,21 +3,14 @@ import { Reveal } from "@/components/ui/Reveal";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { Button } from "@/components/ui/Button";
-import { EQUIPEMENT, HORAIRES, SALLES } from "@/lib/constants";
+import { EQUIPEMENT, HORAIRES, PACKAGES, SALLES } from "@/lib/constants";
 import { TARIFS, euro } from "@/lib/pricing";
 
 export const metadata: Metadata = {
-  title: "Infos & Tarifs — Cotisations, horaires et salles",
+  title: "Infos & Tarifs — Nos deux formules, horaires et salles",
   description:
-    "Tarifs 2026-2027 : adhésion 30€, cotisation adulte 430€, jeune 410€, option prépa physique +100€, tarif famille dégressif. Horaires et adresses des 3 salles.",
+    "Saison 2026-2027 : deux formules à 430€ adulte / 410€ jeune (+30€ adhésion 1ère année). Boxe Classique (option prépa +100€) ou Savate & Forme. Tarif famille dégressif, horaires et 3 salles.",
 };
-
-const GRILLE = [
-  { label: "Adhésion au club", value: `${euro(TARIFS.adhesion)}`, note: "1ère année uniquement" },
-  { label: "Cotisation + licence — Adultes", value: `${euro(TARIFS.cotisationAdulte)}`, note: "Accès Boxe Française + Savate Fitness" },
-  { label: "Cotisation + licence — Jeunes", value: `${euro(TARIFS.cotisationJeune)}`, note: "Né(e) après le 01/01/2013" },
-  { label: "Option Préparation Physique", value: `+${euro(TARIFS.prepaPhysique)}`, note: "2 séances/semaine, mardi & jeudi 20h" },
-];
 
 const FAMILLE = [
   { rang: "1er & 2ème membre", remise: "Tarif normal" },
@@ -35,70 +28,134 @@ export default function InfosPage() {
         intro="Tarifs de la saison 2026-2027, horaires complets, équipement nécessaire et adresses des salles. Aucune surprise, aucun engagement caché."
       />
 
-      {/* ---------- Tarifs ---------- */}
+      {/* ---------- Packages ---------- */}
       <section className="container-px mx-auto max-w-7xl py-16 sm:py-24">
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
-          <Reveal>
-            <h2 className="font-display text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-              La grille tarifaire
-            </h2>
-            <div className="mt-7 divide-y divide-line overflow-hidden rounded-[1.5rem] border border-line">
-              {GRILLE.map((g) => (
-                <div
-                  key={g.label}
-                  className="flex items-center justify-between gap-4 bg-white p-5"
-                >
-                  <div>
-                    <p className="font-semibold text-ink">{g.label}</p>
-                    <p className="text-xs text-smoke">{g.note}</p>
-                  </div>
-                  <span className="font-display whitespace-nowrap text-2xl font-extrabold text-orange">
-                    {g.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6">
-              <Button href="/inscription" size="lg">
-                Calculer mon tarif & m&apos;inscrire
-              </Button>
-            </div>
-          </Reveal>
+        <Reveal>
+          <span className="eyebrow">Nos formules</span>
+          <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+            Deux formules, un même tarif
+          </h2>
+          <p className="mt-3 max-w-2xl text-smoke">
+            {euro(TARIFS.cotisationAdulte)} / an pour les adultes,{" "}
+            {euro(TARIFS.cotisationJeune)} / an pour les jeunes (né·e·s après le
+            01/01/2013), licence incluse. + {euro(TARIFS.adhesion)} d&apos;adhésion
+            la première année seulement.
+          </p>
+        </Reveal>
 
-          <Reveal delay={0.1}>
-            <h2 className="font-display text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-              Tarif famille
-            </h2>
-            <p className="mt-3 text-smoke">
-              À partir de 3 membres d&apos;une même famille inscrits, une réduction
-              s&apos;applique <strong>uniquement sur la cotisation</strong> (ni sur
-              l&apos;adhésion de 30€, ni sur la prépa physique).
-            </p>
-            <div className="mt-7 overflow-hidden rounded-[1.5rem] border border-line">
-              {FAMILLE.map((f, i) => (
-                <div
-                  key={f.rang}
-                  className={`flex items-center justify-between p-5 ${
-                    i % 2 ? "bg-paper-2" : "bg-white"
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          {PACKAGES.map((p, i) => (
+            <Reveal key={p.id} delay={i * 0.1}>
+              <div
+                className={`card-lift flex h-full flex-col rounded-[1.75rem] border p-7 sm:p-8 ${
+                  p.id === "boxe_classique"
+                    ? "border-ink bg-ink text-white"
+                    : "border-line bg-white"
+                }`}
+              >
+                <span
+                  className={`text-xs font-bold uppercase tracking-[0.18em] ${
+                    p.id === "boxe_classique" ? "text-orange" : "text-orange"
                   }`}
                 >
-                  <span className="font-semibold text-ink">{f.rang}</span>
+                  {p.orientation}
+                </span>
+                <h3 className="font-display mt-3 text-3xl font-black uppercase">
+                  {p.nom}
+                </h3>
+                <p
+                  className={`mt-2 text-sm ${
+                    p.id === "boxe_classique" ? "text-white/70" : "text-smoke"
+                  }`}
+                >
+                  {p.accroche}
+                </p>
+
+                <div className="mt-5 flex items-end gap-2">
+                  <span className="font-display text-5xl font-black text-orange">
+                    {euro(p.tarifs.adulte)}
+                  </span>
                   <span
-                    className={`text-sm font-bold ${
-                      f.remise === "Tarif normal" ? "text-smoke" : "text-orange"
+                    className={`mb-1.5 text-sm ${
+                      p.id === "boxe_classique" ? "text-white/60" : "text-smoke"
                     }`}
                   >
-                    {f.remise}
+                    / an adulte · {euro(p.tarifs.jeune)} jeune
                   </span>
                 </div>
-              ))}
-            </div>
-            <div className="mt-6 rounded-2xl border border-orange/20 bg-orange-50 p-5 text-sm text-ink">
-              <strong>Exemple :</strong> une famille de 3 adultes paie 430€ pour
-              les deux premiers, puis 430€ −10% = 387€ pour le troisième.
-            </div>
-          </Reveal>
+
+                <ul className="mt-6 flex-1 space-y-2.5">
+                  {p.inclus.map((it) => (
+                    <li key={it} className="flex items-start gap-2.5 text-sm">
+                      <span className="mt-0.5 text-orange">✓</span>
+                      <span
+                        className={
+                          p.id === "boxe_classique" ? "text-white/90" : "text-ink"
+                        }
+                      >
+                        {it}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div
+                  className={`mt-5 rounded-xl p-3 text-sm ${
+                    p.id === "boxe_classique"
+                      ? "bg-white/10 text-white/80"
+                      : "bg-orange-50 text-ink"
+                  }`}
+                >
+                  {p.option ?? "Préparation Physique incluse, sans supplément."}
+                </div>
+
+                <div className="mt-6">
+                  <Button
+                    href="/inscription"
+                    variant={p.id === "boxe_classique" ? "primary" : "dark"}
+                    size="lg"
+                    className="w-full"
+                  >
+                    Choisir {p.nom}
+                  </Button>
+                </div>
+              </div>
+            </Reveal>
+          ))}
         </div>
+
+        {/* Tarif famille */}
+        <Reveal className="mt-12">
+          <h3 className="font-display text-2xl font-extrabold uppercase text-ink sm:text-3xl">
+            Tarif famille
+          </h3>
+          <p className="mt-3 max-w-2xl text-smoke">
+            À partir de 3 membres d&apos;une même famille inscrits, une réduction
+            s&apos;applique <strong>uniquement sur la cotisation</strong> (ni sur
+            l&apos;adhésion de 30€, ni sur la prépa physique).
+          </p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {FAMILLE.map((f) => (
+              <div
+                key={f.rang}
+                className="rounded-2xl border border-line bg-white p-5"
+              >
+                <p className="font-semibold text-ink">{f.rang}</p>
+                <p
+                  className={`mt-1 text-sm font-bold ${
+                    f.remise === "Tarif normal" ? "text-smoke" : "text-orange"
+                  }`}
+                >
+                  {f.remise}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 rounded-2xl border border-orange/20 bg-orange-50 p-5 text-sm text-ink">
+            <strong>Exemple :</strong> une famille de 3 adultes paie 430€ pour les
+            deux premiers, puis 430€ −10% = 387€ pour le troisième.
+          </div>
+        </Reveal>
       </section>
 
       {/* ---------- Horaires ---------- */}

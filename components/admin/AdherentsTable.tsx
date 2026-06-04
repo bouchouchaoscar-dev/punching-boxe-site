@@ -51,6 +51,7 @@ export function AdherentsTable() {
       "Email",
       "Téléphone",
       "Type",
+      "Formule",
       "Statut",
       "Mode",
       "Montant",
@@ -63,6 +64,7 @@ export function AdherentsTable() {
       a.email,
       a.telephone ?? "",
       a.type_adherent,
+      a.package === "savate_forme" ? "Savate & Forme" : "Boxe Classique",
       a.statut_paiement,
       a.mode_paiement,
       String(a.montant_total),
@@ -194,7 +196,8 @@ function Row({
       </td>
       <td className="p-4 font-display font-bold text-ink">{euro(a.montant_total)}</td>
       <td className="p-4 text-xs text-smoke">
-        {a.option_prepa_physique ? "Prépa physique" : "—"}
+        {a.package === "savate_forme" ? "Savate & Forme" : "Boxe Classique"}
+        {a.option_prepa_physique ? " · Prépa" : ""}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>
       <td className="p-4 text-smoke">

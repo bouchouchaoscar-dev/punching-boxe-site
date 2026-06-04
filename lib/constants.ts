@@ -67,17 +67,17 @@ export type Creneau = {
 };
 
 export const HORAIRES: Creneau[] = [
+  { jour: "Lundi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
   { jour: "Lundi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
   { jour: "Mardi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
   { jour: "Mardi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Mardi", heure: "20h00 – 21h00", cours: "Savate Fitness", public: "Tous niveaux" },
-  { jour: "Mardi", heure: "20h00", cours: "Préparation Physique", public: "Option" },
+  { jour: "Mardi", heure: "20h00", cours: "Préparation Physique", public: "Tous niveaux" },
   { jour: "Mercredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
+  { jour: "Mercredi", heure: "18h30 – 19h30", cours: "Savate Fitness", public: "Tous niveaux" },
   { jour: "Mercredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
   { jour: "Jeudi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
   { jour: "Jeudi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Jeudi", heure: "20h00 – 21h00", cours: "Savate Fitness", public: "Tous niveaux" },
-  { jour: "Jeudi", heure: "20h00", cours: "Préparation Physique", public: "Option" },
+  { jour: "Jeudi", heure: "20h00", cours: "Préparation Physique", public: "Tous niveaux" },
   { jour: "Vendredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
   { jour: "Vendredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
 ];
@@ -100,18 +100,18 @@ export const ACTIVITES = [
     sousTitre: "Savate · le sport de combat à la française",
     image: "/images/IMG_0558.jpg",
     inclus: true,
+    tag: "Package Boxe Classique",
     resume:
       "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
     points: [
-      "Enfants 18h00 – 19h30, Adultes 19h30 – 21h00",
+      "Enfants : 18h00 – 19h30 · Adultes : 19h30 – 21h00",
+      "5 cours par semaine, sur 2 salles",
       "Tous niveaux, dès 5 ans",
-      "Travail technique, déplacements et assauts",
       "Encadrement par des moniteurs fédéraux",
     ],
     creneaux: [
-      "Lun 19h30 (adultes)",
-      "Mar · Mer · Jeu · Ven 18h00 (enfants)",
-      "Mar · Mer · Jeu · Ven 19h30 (adultes)",
+      "Lun → Ven 18h00 (enfants)",
+      "Lun → Ven 19h30 (adultes)",
     ],
   },
   {
@@ -120,29 +120,63 @@ export const ACTIVITES = [
     sousTitre: "La boxe en musique, cardio & tonus",
     image: "/images/IMG_0544.jpg",
     inclus: true,
+    tag: "Package Savate & Forme",
     resume:
-      "Un cours dynamique qui reprend les gestes de la savate sur fond musical. Cardio, renforcement et défoulement garanti, sans contact.",
+      "Un cours dynamique qui reprend les gestes de la savate sur fond musical. Cardio, renforcement et défoulement garanti, sans contact. Orienté remise en forme.",
     points: [
       "Cours collectif en musique, mixte tous niveaux",
       "Renforcement musculaire et travail cardio",
-      "Inclus dans l'adhésion, sans supplément",
+      "Inclus dans le package Savate & Forme",
     ],
-    creneaux: ["Mardi 20h00", "Jeudi 20h00"],
+    creneaux: ["Mercredi 18h30 – 19h30"],
   },
   {
     slug: "preparation-physique",
     titre: "Préparation Physique",
-    sousTitre: "Option +100€/an · puissance & conditionnement",
+    sousTitre: "Puissance, cardio & conditionnement",
     image: "/images/IMG_0548.jpg",
     inclus: false,
+    tag: "Option Boxe Classique · incluse en Savate & Forme",
     resume:
-      "Une option pour aller plus loin : deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité.",
+      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Classique, incluse dans le package Savate & Forme.",
     points: [
       "2 séances par semaine (mardi & jeudi 20h)",
       "Renforcement musculaire + cardio intensif",
-      "En complément des cours inclus dans l'adhésion",
+      "Option +100€ avec Boxe Classique · incluse en Savate & Forme",
     ],
     creneaux: ["Mardi 20h00", "Jeudi 20h00"],
+  },
+];
+
+// Les deux formules proposées au club.
+export const PACKAGES = [
+  {
+    id: "boxe_classique" as const,
+    nom: "Boxe Classique",
+    accroche: "L'apprentissage complet de la Boxe Française, enfants et adultes.",
+    tarifs: { adulte: 430, jeune: 410 },
+    inclus: [
+      "Tous les cours de Boxe Française (enfants ET adultes)",
+      "5 cours par semaine, sur 2 salles",
+      "Enfants 18h00 – 19h30 · Adultes 19h30 – 21h00",
+      "Licence fédérale incluse",
+    ],
+    option: "+100€/an : ajouter la Préparation Physique (mardi & jeudi 20h)",
+    orientation: "Technique & compétition",
+  },
+  {
+    id: "savate_forme" as const,
+    nom: "Savate & Forme",
+    accroche: "La remise en forme par la savate, sans esprit de compétition.",
+    tarifs: { adulte: 430, jeune: 410 },
+    inclus: [
+      "Savate Fitness (mercredi 18h30 – 19h30)",
+      "Préparation Physique (mardi & jeudi 20h)",
+      "Cardio, renforcement et tonus",
+      "Licence fédérale incluse",
+    ],
+    option: null,
+    orientation: "Fitness & remise en forme",
   },
 ];
 

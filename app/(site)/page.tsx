@@ -105,15 +105,13 @@ export default function HomePage() {
                       className="object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-ink/50 to-transparent" />
-                    {a.inclus ? (
-                      <span className="absolute left-4 top-4 rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                        Inclus
-                      </span>
-                    ) : (
-                      <span className="absolute left-4 top-4 rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-ink">
-                        Option
-                      </span>
-                    )}
+                    <span
+                      className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                        a.inclus ? "bg-orange text-white" : "bg-white text-ink"
+                      }`}
+                    >
+                      {a.tag}
+                    </span>
                   </div>
                   <div className="p-6">
                     <h3 className="font-display text-2xl font-extrabold uppercase text-ink">

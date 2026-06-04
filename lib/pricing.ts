@@ -12,11 +12,20 @@ export const TARIFS = {
 
 export type TypeAdherent = "adulte" | "jeune";
 
+// Deux formules au choix.
+export type PackageType = "boxe_classique" | "savate_forme";
+
+export const PACKAGE_LABEL: Record<PackageType, string> = {
+  boxe_classique: "Package Boxe Classique",
+  savate_forme: "Package Savate & Forme",
+};
+
 export type PricingInput = {
   dateNaissance?: string; // ISO yyyy-mm-dd — sert à déduire le type
   typeAdherent?: TypeAdherent; // override possible
+  packageType: PackageType;
   nouveauMembre: boolean;
-  optionPrepaPhysique: boolean;
+  optionPrepaPhysique: boolean; // ne s'applique (et n'est facturé) que pour Boxe Classique
   nbMembresFamille: number; // nombre de membres DÉJÀ inscrits dans la famille
 };
 
@@ -24,6 +33,7 @@ export type PricingLine = { label: string; amount: number; muted?: boolean };
 
 export type PricingResult = {
   typeAdherent: TypeAdherent;
+  packageType: PackageType;
   cotisationBase: number;
   remisePct: number;
   remiseMontant: number;
@@ -73,13 +83,19 @@ export function calculerTarif(input: PricingInput): PricingResult {
   const cotisationNette = cotisationBase - remiseMontant;
 
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
-  const prepa = input.optionPrepaPhysique ? TARIFS.prepaPhysique : 0;
+
+  // La Préparation Physique n'est facturée (+100€) que dans le package
+  // Boxe Classique. Dans Savate & Forme, elle est incluse (0€).
+  const prepa =
+    input.packageType === "boxe_classique" && input.optionPrepaPhysique
+      ? TARIFS.prepaPhysique
+      : 0;
 
   const total = cotisationNette + adhesion + prepa;
 
   const lines: PricingLine[] = [
     {
-      label: `Cotisation + licence (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})`,
+      label: `${PACKAGE_LABEL[input.packageType]} (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})`,
       amount: cotisationBase,
     },
   ];
@@ -95,9 +111,17 @@ export function calculerTarif(input: PricingInput): PricingResult {
   if (prepa > 0) {
     lines.push({ label: "Option Préparation Physique", amount: prepa });
   }
+  if (input.packageType === "savate_forme") {
+    lines.push({
+      label: "Savate Fitness + Préparation Physique inclus",
+      amount: 0,
+      muted: true,
+    });
+  }
 
   return {
     typeAdherent,
+    packageType: input.packageType,
     cotisationBase,
     remisePct,
     remiseMontant,
