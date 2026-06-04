@@ -23,7 +23,7 @@ export function CTABanner({
             <Button href="/inscription" size="lg">
               S&apos;inscrire en ligne <ArrowIcon />
             </Button>
-            <Button href="/contact" variant="outline" size="lg">
+            <Button href="/contact" variant="dark" size="lg">
               Réserver ma séance d&apos;essai
             </Button>
           </div>

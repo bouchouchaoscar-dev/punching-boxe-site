@@ -41,15 +41,14 @@ export default function ContactPage() {
               <InfoCard title="Adresse principale" value={CLUB.adresse} />
             </div>
 
-            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-orange/20 bg-ink p-8 text-white">
-              <div className="grain absolute" />
-              <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide">
+            <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-[#E5E5E5] bg-white p-8 text-ink shadow-[0_18px_45px_-28px_rgba(0,0,0,0.25)]">
+              <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
                 Gratuit
               </span>
-              <h3 className="font-display mt-4 text-2xl font-extrabold uppercase">
+              <h3 className="font-display mt-4 text-2xl font-extrabold uppercase text-[#111111]">
                 Séance d&apos;essai
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-white/70">
+              <p className="mt-2 text-sm leading-relaxed text-[#555555]">
                 Venez tester un cours sans engagement. Tenue de sport requise,
                 gants prêtés sur place. Choisissez le créneau qui vous arrange et
                 présentez-vous au professeur.
@@ -58,7 +57,7 @@ export default function ContactPage() {
                 <Button href="/inscription" size="md">
                   S&apos;inscrire en ligne
                 </Button>
-                <Button href="/infos" variant="ghost" size="md">
+                <Button href="/infos" variant="outline" size="md">
                   Voir les horaires
                 </Button>
               </div>
