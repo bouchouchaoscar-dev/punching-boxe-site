@@ -48,39 +48,25 @@ export default function InfosPage() {
           {PACKAGES.map((p, i) => (
             <Reveal key={p.id} delay={i * 0.1}>
               <div
-                className={`card-lift flex h-full flex-col rounded-[1.75rem] border p-7 sm:p-8 ${
+                className={`card-lift flex h-full flex-col rounded-[1.75rem] border p-7 sm:p-8 text-ink ${
                   p.id === "boxe_classique"
-                    ? "border-ink bg-ink text-white"
+                    ? "border-orange/30 bg-[#FFF5EE]"
                     : "border-line bg-white"
                 }`}
               >
-                <span
-                  className={`text-xs font-bold uppercase tracking-[0.18em] ${
-                    p.id === "boxe_classique" ? "text-orange" : "text-orange"
-                  }`}
-                >
+                <span className="text-xs font-bold uppercase tracking-[0.18em] text-orange">
                   {p.orientation}
                 </span>
-                <h3 className="font-display mt-3 text-3xl font-black uppercase">
+                <h3 className="font-display mt-3 text-3xl font-black uppercase text-[#111111]">
                   {p.nom}
                 </h3>
-                <p
-                  className={`mt-2 text-sm ${
-                    p.id === "boxe_classique" ? "text-white/70" : "text-smoke"
-                  }`}
-                >
-                  {p.accroche}
-                </p>
+                <p className="mt-2 text-sm text-smoke">{p.accroche}</p>
 
                 <div className="mt-5 flex items-end gap-2">
                   <span className="font-display text-5xl font-black text-orange">
                     {euro(p.tarifs.adulte)}
                   </span>
-                  <span
-                    className={`mb-1.5 text-sm ${
-                      p.id === "boxe_classique" ? "text-white/60" : "text-smoke"
-                    }`}
-                  >
+                  <span className="mb-1.5 text-sm text-smoke">
                     / an adulte · {euro(p.tarifs.jeune)} jeune
                   </span>
                 </div>
@@ -89,22 +75,16 @@ export default function InfosPage() {
                   {p.inclus.map((it) => (
                     <li key={it} className="flex items-start gap-2.5 text-sm">
                       <span className="mt-0.5 text-orange">✓</span>
-                      <span
-                        className={
-                          p.id === "boxe_classique" ? "text-white/90" : "text-ink"
-                        }
-                      >
-                        {it}
-                      </span>
+                      <span className="text-[#333333]">{it}</span>
                     </li>
                   ))}
                 </ul>
 
                 <div
-                  className={`mt-5 rounded-xl p-3 text-sm ${
+                  className={`mt-5 rounded-xl p-3 text-sm text-ink ${
                     p.id === "boxe_classique"
-                      ? "bg-white/10 text-white/80"
-                      : "bg-orange-50 text-ink"
+                      ? "border border-orange/30 bg-white"
+                      : "bg-orange-50"
                   }`}
                 >
                   {p.option ?? "Préparation Physique incluse, sans supplément."}
