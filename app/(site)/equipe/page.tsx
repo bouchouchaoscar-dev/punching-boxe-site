@@ -90,6 +90,24 @@ export default function EquipePage() {
           </div>
         </Reveal>
 
+        {/* Vidéo de présentation */}
+        <Reveal className="mx-auto mt-12 max-w-[800px] text-center">
+          <span className="eyebrow justify-center">Le club en vidéo</span>
+          <p className="mt-3 text-smoke">
+            Pascal Bouchoucha présente le Punching Boxe de Nogent-Le Perreux
+          </p>
+          <div className="mt-5 aspect-video overflow-hidden rounded-xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.3)]">
+            <iframe
+              src="https://www.youtube-nocookie.com/embed/baOTRFpSw7k"
+              title="Pascal Bouchoucha présente le Punching Boxe de Nogent-Le Perreux"
+              className="h-full w-full"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        </Reveal>
+
         {/* Autres coachs */}
         <div className="mt-6 grid gap-6 sm:grid-cols-3">
           {EQUIPE.slice(1).map((c, i) => (
