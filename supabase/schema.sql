@@ -1,7 +1,8 @@
 -- ============================================================
 -- Punching Boxe — Schéma Supabase
 -- À exécuter dans : Supabase → SQL Editor
--- RLS désactivé (outil interne, accès via service role key côté serveur)
+-- RLS ACTIVÉ sans policy : accès réservé au serveur via service role key
+-- (la clé anon publique ne peut donc rien lire). Outil interne.
 -- ============================================================
 
 -- Extension UUID (généralement déjà active sur Supabase)
@@ -50,9 +51,12 @@ create table if not exists public.admin_users (
   created_at    timestamptz not null default now()
 );
 
--- RLS désactivé explicitement (outil interne)
-alter table public.adherents   disable row level security;
-alter table public.admin_users disable row level security;
+-- RLS ACTIVÉ sans policy : la table n'est accessible que côté serveur via
+-- la SUPABASE_SERVICE_ROLE_KEY (qui contourne RLS). La clé anon publique
+-- ne peut donc PAS lire les données personnelles des adhérents.
+-- → Indispensable : renseigner SUPABASE_SERVICE_ROLE_KEY dans l'environnement.
+alter table public.adherents   enable row level security;
+alter table public.admin_users enable row level security;
 
 -- ============================================================
 -- STORAGE : bucket public pour les documents des adhérents
