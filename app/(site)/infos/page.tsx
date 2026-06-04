@@ -24,13 +24,14 @@ export default function InfosPage() {
   return (
     <>
       <PageHero
+        compact
         eyebrow="Infos & Tarifs"
         title={<>Tout, en toute clarté</>}
         intro="Tarifs de la saison 2026-2027, horaires complets, équipement nécessaire et adresses des salles. Aucune surprise, aucun engagement caché."
       />
 
       {/* ---------- Packages ---------- */}
-      <section className="container-px mx-auto max-w-7xl py-16 sm:py-24">
+      <section className="container-px mx-auto max-w-7xl pt-10 pb-16 sm:pt-12 sm:pb-24">
         <Reveal>
           <span className="eyebrow">Nos formules</span>
           <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
