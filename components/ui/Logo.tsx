@@ -5,15 +5,17 @@ import { CLUB } from "@/lib/constants";
 export function Logo({
   variant = "dark",
   className = "",
+  gapClassName = "gap-4",
 }: {
   variant?: "dark" | "light";
   className?: string;
+  gapClassName?: string;
 }) {
   return (
     <Link
       href="/"
       aria-label={`${CLUB.nom} — accueil`}
-      className={`group inline-flex items-center gap-4 ${className}`}
+      className={`group inline-flex items-center ${gapClassName} ${className}`}
     >
       <span className="relative h-[3.25rem] w-[3.25rem] shrink-0 bg-transparent sm:h-[3.5rem] sm:w-[3.5rem]">
         <Image

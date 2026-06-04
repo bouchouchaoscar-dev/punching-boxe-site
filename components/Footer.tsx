@@ -9,7 +9,7 @@ export function Footer() {
       <div className="container-px relative mx-auto max-w-7xl py-16 sm:py-20">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
           <div>
-            <Logo variant="light" />
+            <Logo variant="light" gapClassName="gap-5" />
             <p className="mt-5 max-w-xs text-sm leading-relaxed text-white/60">
               Club de Boxe Française & Savate au cœur du Val-de-Marne depuis{" "}
               {CLUB.creeEn}. Tous niveaux, dès 5 ans.
@@ -75,7 +75,12 @@ export function Footer() {
                   {CLUB.email}
                 </a>
               </li>
-              <li className="text-white/50">{CLUB.adresse}</li>
+              <li className="text-white/50">
+                <span className="block">19 bis rue Paul Bert</span>
+                <span className="block">
+                  94130 <span className="whitespace-nowrap">Nogent-sur-Marne</span>
+                </span>
+              </li>
             </ul>
           </div>
         </div>
