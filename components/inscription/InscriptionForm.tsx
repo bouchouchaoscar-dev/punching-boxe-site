@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/Toggle";
 import { NumberStepper } from "@/components/ui/NumberStepper";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { ButtonAction } from "@/components/ui/Button";
 import { FileDrop, type FileFieldKey } from "./FileDrop";
 import { StripePayment } from "./StripePayment";
@@ -213,9 +214,8 @@ export function InscriptionForm() {
               <div className="grid gap-5 sm:grid-cols-2">
                 <Input label="Nom" value={nom} onChange={setNom} required />
                 <Input label="Prénom" value={prenom} onChange={setPrenom} required />
-                <Input
+                <DatePicker
                   label="Date de naissance"
-                  type="date"
                   value={dateNaissance}
                   onChange={setDateNaissance}
                   required

@@ -15,13 +15,13 @@ export function Logo({
       aria-label={`${CLUB.nom} — accueil`}
       className={`group inline-flex items-center gap-2.5 ${className}`}
     >
-      <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl bg-ink ring-1 ring-black/5 sm:h-11 sm:w-11">
+      <span className="relative h-[3.25rem] w-[3.25rem] shrink-0 bg-transparent sm:h-[3.5rem] sm:w-[3.5rem]">
         <Image
           src="/logo/logo.png"
           alt={`Logo ${CLUB.nom}`}
           fill
-          sizes="44px"
-          className="object-contain p-0.5"
+          sizes="56px"
+          className="bg-transparent object-contain"
           priority
         />
       </span>

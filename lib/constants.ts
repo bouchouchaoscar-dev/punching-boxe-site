@@ -194,8 +194,8 @@ export const POURQUOI = [
     texte: "Des professeurs et moniteurs fédéraux, dirigés par Pascal Bouchoucha, B.E.E.S 1er degré.",
   },
   {
-    titre: "Tout inclus dans l'adhésion",
-    texte: "Boxe Française ET Savate Fitness compris : pas besoin de choisir, vous accédez à tous les cours.",
+    titre: "Deux formules au choix",
+    texte: "Boxe Classique pour la pratique et la compétition, Savate & Forme pour la remise en forme. À chacun sa voie.",
   },
 ];
 

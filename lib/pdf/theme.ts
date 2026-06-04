@@ -54,14 +54,16 @@ export const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   clubSub: { fontSize: 7.5, color: PDF_COLORS.smoke, textTransform: "uppercase", letterSpacing: 1 },
-  docTitleWrap: { alignItems: "flex-end" },
+  docTitleWrap: { alignItems: "flex-end", maxWidth: 220 },
   docTitle: {
     fontFamily: "Helvetica-Bold",
     fontSize: 16,
+    lineHeight: 1.1,
     color: PDF_COLORS.orange,
     textTransform: "uppercase",
+    textAlign: "right",
   },
-  docSeason: { fontSize: 8, color: PDF_COLORS.smoke },
+  docSeason: { fontSize: 9, marginTop: 2, color: PDF_COLORS.smoke },
   h2: {
     fontFamily: "Helvetica-Bold",
     fontSize: 11,

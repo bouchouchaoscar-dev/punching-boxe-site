@@ -3,8 +3,9 @@ import { Reveal } from "@/components/ui/Reveal";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { Button } from "@/components/ui/Button";
-import { EQUIPEMENT, HORAIRES, PACKAGES, SALLES } from "@/lib/constants";
+import { EQUIPEMENT, PACKAGES, SALLES } from "@/lib/constants";
 import { TARIFS, euro } from "@/lib/pricing";
+import { WeeklyPlanning } from "@/components/infos/WeeklyPlanning";
 
 export const metadata: Metadata = {
   title: "Infos & Tarifs — Nos deux formules, horaires et salles",
@@ -164,45 +165,24 @@ export default function InfosPage() {
           <Reveal>
             <span className="eyebrow">Planning</span>
             <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-              Horaires des cours
+              La semaine au club
             </h2>
-            <p className="mt-3 text-smoke">Septembre à fin juin · 10 mois de cours par an.</p>
+            <p className="mt-3 text-smoke">
+              Septembre à fin juin · 10 mois de cours par an.
+            </p>
           </Reveal>
 
-          <Reveal delay={0.1} className="mt-8 overflow-x-auto">
-            <table className="w-full min-w-[34rem] border-collapse overflow-hidden rounded-[1.5rem] bg-white text-left">
-              <thead>
-                <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
-                  <th className="p-4 font-bold">Jour</th>
-                  <th className="p-4 font-bold">Horaire</th>
-                  <th className="p-4 font-bold">Cours</th>
-                  <th className="p-4 font-bold">Public</th>
-                </tr>
-              </thead>
-              <tbody>
-                {HORAIRES.map((h, i) => (
-                  <tr key={i} className="border-b border-line last:border-0">
-                    <td className="p-4 font-bold text-ink">{h.jour}</td>
-                    <td className="p-4 text-smoke">{h.heure}</td>
-                    <td className="p-4">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          h.cours === "Préparation Physique"
-                            ? "bg-ink text-white"
-                            : h.cours === "Savate Fitness"
-                              ? "bg-orange-50 text-orange"
-                              : "bg-orange/10 text-orange"
-                        }`}
-                      >
-                        {h.cours}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm text-smoke">{h.public}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Reveal>
+          <div className="mt-8">
+            <WeeklyPlanning />
+          </div>
+
+          {/* Légende */}
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-smoke">
+            <Legend color="bg-orange-50 ring-1 ring-orange/20" label="Boxe Française — Enfants" />
+            <Legend color="bg-orange" label="Boxe Française — Adultes" />
+            <Legend style={{ backgroundColor: "#ff9a52" }} label="Savate Fitness" />
+            <Legend color="bg-ink" label="Préparation Physique" />
+          </div>
         </div>
       </section>
 
@@ -276,5 +256,22 @@ export default function InfosPage() {
 
       <CTABanner />
     </>
+  );
+}
+
+function Legend({
+  color,
+  style,
+  label,
+}: {
+  color?: string;
+  style?: React.CSSProperties;
+  label: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={`h-3 w-3 rounded ${color ?? ""}`} style={style} />
+      {label}
+    </span>
   );
 }

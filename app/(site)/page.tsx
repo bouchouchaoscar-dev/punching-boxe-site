@@ -7,6 +7,7 @@ import { Counter } from "@/components/ui/Counter";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { Button, ArrowIcon } from "@/components/ui/Button";
+import { FormulesCards } from "@/components/home/FormulesCards";
 import { ACTIVITES, POURQUOI, STATS } from "@/lib/constants";
 
 export default function HomePage() {
@@ -137,6 +138,18 @@ export default function HomePage() {
               Voir toutes les activités <ArrowIcon />
             </Button>
           </div>
+        </div>
+      </section>
+
+      {/* ---------- Deux formules ---------- */}
+      <section className="container-px mx-auto max-w-7xl py-20 sm:py-28">
+        <SectionHeading
+          eyebrow="Deux formules"
+          title={<>Choisissez votre voie</>}
+          intro="Même tarif, deux orientations. La pratique de la boxe, ou la remise en forme par la savate."
+        />
+        <div className="mt-12">
+          <FormulesCards />
         </div>
       </section>
 
