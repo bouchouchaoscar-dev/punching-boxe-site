@@ -110,13 +110,6 @@ export function ContactForm() {
       >
         {status === "sending" ? "Envoi…" : "Envoyer mon message"}
       </ButtonAction>
-
-      {!formspreeId && (
-        <p className="mt-3 text-xs text-smoke">
-          Astuce config : renseignez <code>NEXT_PUBLIC_FORMSPREE_ID</code> pour
-          recevoir les messages par email.
-        </p>
-      )}
     </form>
   );
 }

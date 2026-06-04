@@ -57,7 +57,7 @@ export default function ContactPage() {
                 <Button href="/inscription" size="md">
                   S&apos;inscrire en ligne
                 </Button>
-                <Button href="/infos" variant="outline" size="md">
+                <Button href="/infos" variant="dark" size="md">
                   Voir les horaires
                 </Button>
               </div>
@@ -66,7 +66,7 @@ export default function ContactPage() {
             <p className="mt-6 text-sm font-semibold uppercase tracking-wide text-smoke">
               Nos salles
             </p>
-            <ul className="mt-3 space-y-2 text-sm text-smoke">
+            <ul className="mt-3 space-y-2 text-xs text-smoke">
               {SALLES.map((s) => (
                 <li key={s.nom}>
                   <span className="font-semibold text-ink">{s.nom}</span> —{" "}
