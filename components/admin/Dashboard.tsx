@@ -20,7 +20,6 @@ import { CLUB } from "@/lib/constants";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
-const PIE = [ORANGE, INK, "#FFA866", "#7a7a7a", "#ffcaa3"];
 
 export function Dashboard() {
   const { adherents, loading, error } = useAdherents();
@@ -38,7 +37,15 @@ export function Dashboard() {
     const attenteEspeces = adherents.filter(
       (a) => a.statut_paiement === "en_attente",
     ).length;
-    const prepa = adherents.filter((a) => a.option_prepa_physique).length;
+    const formuleBoxe = adherents.filter(
+      (a) => a.package === "boxe_classique" && !a.option_prepa_physique,
+    ).length;
+    const boxePrepa = adherents.filter(
+      (a) => a.package === "boxe_classique" && a.option_prepa_physique,
+    ).length;
+    const savateForme = adherents.filter(
+      (a) => a.package === "savate_forme",
+    ).length;
 
     // Les 12 mois de la saison (Juil → Juin), juillet/août inclus (à 0).
     const SEASON_LABELS = [
@@ -91,11 +98,13 @@ export function Dashboard() {
       encaisse,
       nouveauxMois,
       attenteEspeces,
-      prepa,
+      formuleBoxe,
+      boxePrepa,
+      savateForme,
       byMonth,
       typeData: [
-        { name: "Adultes", value: adultes },
-        { name: "Jeunes", value: jeunes },
+        { name: "Adultes", value: adultes, color: ORANGE },
+        { name: "Jeunes", value: jeunes, color: INK },
       ].filter((x) => x.value > 0),
       repartitionMode,
       repartitionFormule,
@@ -128,12 +137,14 @@ export function Dashboard() {
       )}
 
       {/* KPIs */}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Adhérents" value={String(data.total)} accent />
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
         <Kpi label="Nouveaux ce mois" value={String(data.nouveauxMois)} />
         <Kpi label="En attente espèces" value={String(data.attenteEspeces)} warn />
-        <Kpi label="Option prépa physique" value={String(data.prepa)} />
+        <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
+        <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
+        <Kpi label="Savate & Forme" value={String(data.savateForme)} />
       </div>
 
       {data.total === 0 ? (
@@ -183,7 +194,7 @@ export function Dashboard() {
           </ChartCard>
 
           <ChartCard title="Adultes / Jeunes">
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
                   data={data.typeData}
@@ -192,26 +203,25 @@ export function Dashboard() {
                   innerRadius={55}
                   outerRadius={85}
                   paddingAngle={3}
-                  label={(e) => `${e.name} (${e.value})`}
                 >
-                  {data.typeData.map((_, i) => (
-                    <Cell key={i} fill={PIE[i % PIE.length]} />
+                  {data.typeData.map((d, i) => (
+                    <Cell key={i} fill={d.color} />
                   ))}
                 </Pie>
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            <ChartLegend items={data.typeData} />
           </ChartCard>
 
           <ChartCard title="Modes de paiement">
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
                   data={data.repartitionMode}
                   dataKey="value"
                   nameKey="name"
                   outerRadius={85}
-                  label={(e) => `${e.name} (${e.value})`}
                 >
                   {data.repartitionMode.map((d, i) => (
                     <Cell key={i} fill={d.color} />
@@ -220,10 +230,11 @@ export function Dashboard() {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            <ChartLegend items={data.repartitionMode} />
           </ChartCard>
 
           <ChartCard title="Répartition des formules">
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie
                   data={data.repartitionFormule}
@@ -232,7 +243,6 @@ export function Dashboard() {
                   innerRadius={55}
                   outerRadius={85}
                   paddingAngle={3}
-                  label={(e) => `${e.name} (${e.value})`}
                 >
                   {data.repartitionFormule.map((d, i) => (
                     <Cell key={i} fill={d.color} />
@@ -241,9 +251,33 @@ export function Dashboard() {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
+            <ChartLegend items={data.repartitionFormule} />
           </ChartCard>
         </div>
       )}
+    </div>
+  );
+}
+
+function ChartLegend({
+  items,
+}: {
+  items: { name: string; value: number; color: string }[];
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
+      {items.map((it) => (
+        <span
+          key={it.name}
+          className="inline-flex items-center gap-2 text-sm font-bold text-ink"
+        >
+          <span
+            className="h-3.5 w-3.5 rounded-[4px]"
+            style={{ backgroundColor: it.color }}
+          />
+          {it.name} <span className="font-semibold text-smoke">({it.value})</span>
+        </span>
+      ))}
     </div>
   );
 }
