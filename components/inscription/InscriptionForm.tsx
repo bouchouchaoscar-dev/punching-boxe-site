@@ -9,6 +9,8 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { ButtonAction } from "@/components/ui/Button";
 import { FileDrop, type FileFieldKey } from "./FileDrop";
 import { StripePayment } from "./StripePayment";
+import { PostalCityFields } from "./PostalCityFields";
+import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
   euro,
@@ -223,8 +225,9 @@ export function InscriptionForm() {
                 <Input
                   label="Téléphone"
                   type="tel"
-                  value={telephone}
-                  onChange={setTelephone}
+                  value={formatPhone(telephone)}
+                  onChange={(v) => setTelephone(normalizePhone(v))}
+                  placeholder="06 10 81 49 98"
                 />
                 <div className="sm:col-span-2">
                   <Input
@@ -239,8 +242,12 @@ export function InscriptionForm() {
                 <div className="sm:col-span-2">
                   <Input label="Adresse" value={adresse} onChange={setAdresse} />
                 </div>
-                <Input label="Code postal" value={codePostal} onChange={setCodePostal} />
-                <Input label="Ville" value={ville} onChange={setVille} />
+                <PostalCityFields
+                  codePostal={codePostal}
+                  setCodePostal={setCodePostal}
+                  ville={ville}
+                  setVille={setVille}
+                />
                 {dateNaissance && (
                   <p className="sm:col-span-2 text-sm text-smoke">
                     Catégorie détectée :{" "}
@@ -516,6 +523,7 @@ function Input({
   type = "text",
   required,
   error,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -523,6 +531,7 @@ function Input({
   type?: string;
   required?: boolean;
   error?: string;
+  placeholder?: string;
 }) {
   return (
     <label className="block">
@@ -533,6 +542,7 @@ function Input({
         type={type}
         value={value}
         required={required}
+        placeholder={placeholder}
         inputMode={type === "tel" ? "tel" : undefined}
         onChange={(e) => onChange(e.target.value)}
         className={`focus-ring w-full rounded-xl border bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange ${
