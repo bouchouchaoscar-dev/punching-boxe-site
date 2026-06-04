@@ -24,7 +24,7 @@ export function SectionHeading({
         </span>
       )}
       <h2
-        className={`font-display mt-4 text-4xl font-extrabold uppercase sm:text-5xl lg:text-6xl ${
+        className={`font-display mt-3 text-4xl font-extrabold uppercase sm:text-5xl lg:text-6xl ${
           light ? "text-white" : "text-ink"
         }`}
       >
@@ -32,7 +32,7 @@ export function SectionHeading({
       </h2>
       {intro && (
         <p
-          className={`mt-5 text-base leading-relaxed sm:text-lg ${
+          className={`mt-4 text-base leading-relaxed sm:text-lg ${
             light ? "text-white/70" : "text-smoke"
           }`}
         >

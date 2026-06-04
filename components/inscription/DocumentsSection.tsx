@@ -20,7 +20,7 @@ const DOCS = [
 
 export function DocumentsSection() {
   return (
-    <section className="container-px mx-auto max-w-7xl py-14 sm:py-20">
+    <section className="container-px mx-auto max-w-7xl pt-12 pb-16 sm:pt-16 sm:pb-20">
       <Reveal>
         <span className="eyebrow">Étape préalable</span>
         <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">

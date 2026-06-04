@@ -56,7 +56,7 @@ export default function EquipePage() {
         intro="Une équipe pédagogique diplômée et passionnée, fédéralement formée, au service de votre progression — quel que soit votre niveau."
       />
 
-      <section className="container-px mx-auto max-w-7xl py-16 sm:py-24">
+      <section className="container-px mx-auto max-w-7xl pt-12 pb-16 sm:pt-16 sm:pb-24">
         {/* Coach principal */}
         <Reveal className="card-lift overflow-hidden rounded-[2rem] border border-line bg-white">
           <div className="grid lg:grid-cols-[0.9fr_1.4fr]">
