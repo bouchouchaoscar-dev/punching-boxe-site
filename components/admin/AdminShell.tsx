@@ -29,10 +29,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center border-b border-line px-5">
+        <div className="flex items-center border-b border-line px-5 pb-5 pt-6">
           <Logo />
         </div>
-        <nav className="space-y-1 p-3">
+        <nav className="space-y-1 p-4">
           {NAV.map((n) => {
             const active =
               n.href === "/admin"

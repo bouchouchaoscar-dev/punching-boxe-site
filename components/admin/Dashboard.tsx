@@ -40,15 +40,18 @@ export function Dashboard() {
     ).length;
     const prepa = adherents.filter((a) => a.option_prepa_physique).length;
 
-    // 10 derniers mois
-    const months: { key: string; label: string }[] = [];
-    for (let i = 9; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        key: `${d.getFullYear()}-${d.getMonth()}`,
-        label: d.toLocaleDateString("fr-FR", { month: "short" }),
-      });
-    }
+    // Les 12 mois de la saison (Juil → Juin), juillet/août inclus (à 0).
+    const SEASON_LABELS = [
+      "Juil", "Août", "Sept", "Oct", "Nov", "Déc",
+      "Janv", "Févr", "Mars", "Avril", "Mai", "Juin",
+    ];
+    const seasonStartYear =
+      parseInt(CLUB.saison.split("-")[0], 10) || now.getFullYear();
+    const months = SEASON_LABELS.map((label, idx) => {
+      const monthIndex = (6 + idx) % 12; // 0→Juil(6) … 6→Janv(0)
+      const year = idx <= 5 ? seasonStartYear : seasonStartYear + 1;
+      return { key: `${year}-${monthIndex}`, label };
+    });
     const byMonth = months.map((m) => {
       const insc = adherents.filter((a) => {
         const d = new Date(a.created_at);
@@ -63,20 +66,25 @@ export function Dashboard() {
     const adultes = adherents.filter((a) => a.type_adherent === "adulte").length;
     const jeunes = adherents.filter((a) => a.type_adherent === "jeune").length;
 
-    const modes = ["stripe_1x", "stripe_2x", "stripe_3x", "stripe_4x", "especes"];
-    const modeLabels: Record<string, string> = {
-      stripe_1x: "Carte 1x",
-      stripe_2x: "Carte 2x",
-      stripe_3x: "Carte 3x",
-      stripe_4x: "Carte 4x",
-      especes: "Espèces",
-    };
-    const repartitionMode = modes
-      .map((m) => ({
-        name: modeLabels[m],
-        value: adherents.filter((a) => a.mode_paiement === m).length,
-      }))
-      .filter((x) => x.value > 0);
+    // Modes de paiement regroupés : en ligne (Stripe) vs espèces.
+    const enLigne = adherents.filter((a) =>
+      (a.mode_paiement ?? "").startsWith("stripe"),
+    ).length;
+    const especes = adherents.filter(
+      (a) => a.mode_paiement === "especes",
+    ).length;
+    const repartitionMode = [
+      { name: "Paiement en ligne", value: enLigne, color: ORANGE },
+      { name: "Espèces", value: especes, color: INK },
+    ].filter((x) => x.value > 0);
+
+    // Répartition des formules.
+    const boxe = adherents.filter((a) => a.package === "boxe_classique").length;
+    const savate = adherents.filter((a) => a.package === "savate_forme").length;
+    const repartitionFormule = [
+      { name: "Boxe Classique", value: boxe, color: ORANGE },
+      { name: "Savate & Forme", value: savate, color: INK },
+    ].filter((x) => x.value > 0);
 
     return {
       total: adherents.length,
@@ -90,6 +98,7 @@ export function Dashboard() {
         { name: "Jeunes", value: jeunes },
       ].filter((x) => x.value > 0),
       repartitionMode,
+      repartitionFormule,
     };
   }, [adherents]);
 
@@ -204,8 +213,29 @@ export function Dashboard() {
                   outerRadius={85}
                   label={(e) => `${e.name} (${e.value})`}
                 >
-                  {data.repartitionMode.map((_, i) => (
-                    <Cell key={i} fill={PIE[i % PIE.length]} />
+                  {data.repartitionMode.map((d, i) => (
+                    <Cell key={i} fill={d.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Répartition des formules">
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={data.repartitionFormule}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
+                  label={(e) => `${e.name} (${e.value})`}
+                >
+                  {data.repartitionFormule.map((d, i) => (
+                    <Cell key={i} fill={d.color} />
                   ))}
                 </Pie>
                 <Tooltip />
