@@ -27,8 +27,10 @@ export function DocumentsSection() {
           Téléchargez vos documents
         </h2>
         <p className="mt-3 max-w-2xl text-smoke">
-          Remplissez et signez ces trois documents avant de vous inscrire en
-          ligne. Vous les déposerez ensuite dans le formulaire ci-dessous.
+          Téléchargez, remplissez et signez ces trois documents avant de vous
+          inscrire. Vous les déposerez dans le formulaire ci-dessous une fois
+          complétés. Prévoyez également une photo d&apos;identité (JPG/PNG) à
+          uploader lors de l&apos;inscription.
         </p>
       </Reveal>
 
