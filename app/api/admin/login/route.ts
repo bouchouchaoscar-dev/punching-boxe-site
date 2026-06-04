@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { ADMIN_EMAIL, ADMIN_PASSWORD_FALLBACK } from "@/lib/admin-auth";
+import { ADMIN_USERNAME, ADMIN_PASSWORD_FALLBACK } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  let body: { email?: string; password?: string };
+  let body: { username?: string; password?: string };
   try {
     body = await request.json();
   } catch {
@@ -12,14 +12,16 @@ export async function POST(request: Request) {
   }
 
   const password = process.env.ADMIN_PASSWORD || ADMIN_PASSWORD_FALLBACK;
-  const email = (body.email || "").trim().toLowerCase();
+  // Identifiant = simple username (insensible à la casse), pas un email.
+  const username = (body.username || "").trim();
 
   const ok =
-    email === ADMIN_EMAIL.toLowerCase() && body.password === password;
+    username.toLowerCase() === ADMIN_USERNAME.toLowerCase() &&
+    body.password === password;
 
   if (!ok) {
     return NextResponse.json(
-      { error: "Email ou mot de passe incorrect." },
+      { error: "Identifiant ou mot de passe incorrect." },
       { status: 401 },
     );
   }

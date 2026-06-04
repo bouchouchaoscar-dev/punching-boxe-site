@@ -2,11 +2,12 @@
 // surchargabe par variables d'environnement. Session en localStorage.
 // (Modèle validé sur Beach Paddle : outil interne, pas de RLS.)
 
-export const ADMIN_EMAIL =
-  process.env.NEXT_PUBLIC_ADMIN_EMAIL || "pascal@punching-boxe.com";
+// Identifiant (username, PAS un email) — surchargé par env.
+export const ADMIN_USERNAME =
+  process.env.NEXT_PUBLIC_ADMIN_USERNAME || "Pascal";
 
 // Mot de passe par défaut — À CHANGER via env ADMIN_PASSWORD en prod.
-export const ADMIN_PASSWORD_FALLBACK = "punchingboxe2026";
+export const ADMIN_PASSWORD_FALLBACK = "Punchingboxe94";
 
 export const ADMIN_SESSION_KEY = "pbnp_admin_session";
 

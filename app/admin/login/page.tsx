@@ -9,7 +9,7 @@ import { setAdminSession } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,7 +22,7 @@ export default function AdminLoginPage() {
       const res = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Connexion impossible.");
@@ -51,14 +51,15 @@ export default function AdminLoginPage() {
           <form onSubmit={submit} className="mt-6 space-y-4">
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-ink">
-                Email
+                Identifiant
               </span>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 required
                 autoComplete="username"
+                placeholder="Pascal"
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 outline-none focus:border-orange"
               />
             </label>

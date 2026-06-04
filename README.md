@@ -42,7 +42,7 @@ proprement tant que les variables ne sont pas renseignées.
 | `RESEND_API_KEY` | Clé API Resend |
 | `RESEND_FROM` | Expéditeur des emails |
 | `ADMIN_NOTIFY_EMAIL` | Destinataire des notifications (Pascal) |
-| `NEXT_PUBLIC_ADMIN_EMAIL` | Identifiant de connexion admin |
+| `NEXT_PUBLIC_ADMIN_USERNAME` | Identifiant admin (username) |
 | `ADMIN_PASSWORD` | Mot de passe admin |
 
 ---
@@ -69,7 +69,7 @@ de Supabase. Cela crée les tables `adherents` et `admin_users`, le bucket
 
 ## 🔐 Admin
 
-`/admin/login` — connexion (compte unique : `NEXT_PUBLIC_ADMIN_EMAIL` +
+`/admin/login` — connexion (compte unique : `NEXT_PUBLIC_ADMIN_USERNAME` +
 `ADMIN_PASSWORD`). Session en `localStorage`. Tableau de bord (KPIs +
 graphiques), liste des adhérents (recherche / filtres / export CSV), fiche
 détaillée, confirmation des paiements espèces.
