@@ -233,7 +233,7 @@ export default function InfosPage() {
                   <iframe
                     title={`Carte ${s.nom}`}
                     src={s.maps}
-                    className="h-48 w-full border-0 grayscale"
+                    className="h-48 w-full border-0"
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                   />
