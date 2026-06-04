@@ -67,15 +67,19 @@ export type Creneau = {
 };
 
 export const HORAIRES: Creneau[] = [
-  { jour: "Lundi", heure: "19h00 – 20h30", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Mardi", heure: "18h00 – 21h00", cours: "Boxe Française", public: "Adultes & Enfants" },
+  { jour: "Lundi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
+  { jour: "Mardi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
+  { jour: "Mardi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
   { jour: "Mardi", heure: "20h00 – 21h00", cours: "Savate Fitness", public: "Tous niveaux" },
   { jour: "Mardi", heure: "20h00", cours: "Préparation Physique", public: "Option" },
-  { jour: "Mercredi", heure: "17h00 – 21h00", cours: "Boxe Française", public: "Adultes & Enfants" },
-  { jour: "Jeudi", heure: "18h00 – 21h00", cours: "Boxe Française", public: "Adultes & Enfants" },
+  { jour: "Mercredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
+  { jour: "Mercredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
+  { jour: "Jeudi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
+  { jour: "Jeudi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
   { jour: "Jeudi", heure: "20h00 – 21h00", cours: "Savate Fitness", public: "Tous niveaux" },
   { jour: "Jeudi", heure: "20h00", cours: "Préparation Physique", public: "Option" },
-  { jour: "Vendredi", heure: "19h00 – 21h00", cours: "Boxe Française", public: "Adultes & Enfants" },
+  { jour: "Vendredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
+  { jour: "Vendredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
 ];
 
 export const EQUIPEMENT = [
@@ -99,11 +103,16 @@ export const ACTIVITES = [
     resume:
       "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
     points: [
-      "Tous niveaux, adultes et enfants (dès 5 ans)",
+      "Enfants 18h00 – 19h30, Adultes 19h30 – 21h00",
+      "Tous niveaux, dès 5 ans",
       "Travail technique, déplacements et assauts",
       "Encadrement par des moniteurs fédéraux",
     ],
-    creneaux: ["Lundi 19h00", "Mardi 18h00", "Mercredi 17h00", "Jeudi 18h00", "Vendredi 19h00"],
+    creneaux: [
+      "Lun 19h30 (adultes)",
+      "Mar · Mer · Jeu · Ven 18h00 (enfants)",
+      "Mar · Mer · Jeu · Ven 19h30 (adultes)",
+    ],
   },
   {
     slug: "savate-fitness",
