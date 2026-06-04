@@ -17,8 +17,8 @@ export default function ActivitesPage() {
     <>
       <PageHero
         eyebrow="Nos activités"
-        title={<>Une adhésion,<br /> tous les cours</>}
-        intro="La Boxe Française et la Savate Fitness sont incluses dans une seule adhésion. Pas besoin de choisir : accédez à l'ensemble des créneaux de la semaine."
+        title={<>Deux formules,<br /> un même tarif</>}
+        intro="Choisissez votre pratique : la Boxe Française ou la Savate & Forme. Même tarif, deux orientations différentes."
       />
 
       <div className="container-px mx-auto max-w-7xl pb-10">

@@ -87,15 +87,15 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Nos activités"
             title={<>Trois façons de transpirer</>}
-            intro="L'adhésion donne accès à la Boxe Française ET à la Savate Fitness. La Préparation Physique est une option pour aller plus loin."
+            intro="Deux formules au même tarif. Boxe Classique ou Savate & Forme — choisissez votre voie."
           />
 
           <div className="mt-14 grid gap-6 lg:grid-cols-3">
             {ACTIVITES.map((a, i) => (
-              <Reveal key={a.slug} delay={i * 0.1}>
+              <Reveal key={a.slug} delay={i * 0.1} className="h-full">
                 <Link
                   href="/activites"
-                  className="card-lift group block h-full overflow-hidden rounded-[1.75rem] border border-line bg-white"
+                  className="card-lift group flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-line bg-white"
                 >
                   <div className="relative aspect-[4/3] overflow-hidden">
                     <Image
@@ -106,22 +106,18 @@ export default function HomePage() {
                       className="object-cover transition-transform duration-700 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-ink/50 to-transparent" />
-                    <span
-                      className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-                        a.inclus ? "bg-orange text-white" : "bg-white text-ink"
-                      }`}
-                    >
+                    <span className="absolute left-4 top-4 rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
                       {a.tag}
                     </span>
                   </div>
-                  <div className="p-6">
+                  <div className="flex flex-1 flex-col p-6">
                     <h3 className="font-display text-2xl font-extrabold uppercase text-ink">
                       {a.titre}
                     </h3>
                     <p className="mt-1 text-sm font-semibold text-orange">
                       {a.sousTitre}
                     </p>
-                    <p className="mt-3 text-sm leading-relaxed text-smoke">
+                    <p className="mt-3 flex-1 text-sm leading-relaxed text-smoke">
                       {a.resume}
                     </p>
                     <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-ink">

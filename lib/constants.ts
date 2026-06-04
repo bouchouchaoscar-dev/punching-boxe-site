@@ -136,7 +136,7 @@ export const ACTIVITES = [
     sousTitre: "Puissance, cardio & conditionnement",
     image: "/images/IMG_0548.jpg",
     inclus: false,
-    tag: "Option Boxe Classique · incluse en Savate & Forme",
+    tag: "Option · Boxe Classique",
     resume:
       "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Classique, incluse dans le package Savate & Forme.",
     points: [
