@@ -30,10 +30,10 @@ export default function InfosPage() {
       />
 
       {/* ---------- Packages ---------- */}
-      <section className="container-px mx-auto max-w-7xl pt-12 pb-16 sm:pt-16 sm:pb-24">
+      <section className="container-px mx-auto max-w-7xl pt-12 pb-16">
         <Reveal>
           <span className="eyebrow">Nos formules</span>
-          <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+          <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
             Deux formules, un même tarif
           </h2>
           <p className="mt-3 max-w-2xl text-smoke">
@@ -160,11 +160,11 @@ export default function InfosPage() {
       </section>
 
       {/* ---------- Horaires ---------- */}
-      <section className="bg-paper-2 py-16 sm:py-24">
+      <section className="bg-paper-2 py-16">
         <div className="container-px mx-auto max-w-7xl">
           <Reveal>
             <span className="eyebrow">Planning</span>
-            <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+            <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
               La semaine au club
             </h2>
             <p className="mt-3 text-smoke">
@@ -187,10 +187,10 @@ export default function InfosPage() {
       </section>
 
       {/* ---------- Équipement ---------- */}
-      <section className="container-px mx-auto max-w-7xl py-16 sm:py-24">
+      <section className="container-px mx-auto max-w-7xl pt-16 pb-8">
         <Reveal>
           <span className="eyebrow">Matériel</span>
-          <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+          <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
             Équipement nécessaire
           </h2>
           <p className="mt-3 max-w-2xl text-smoke">
@@ -217,11 +217,11 @@ export default function InfosPage() {
       </section>
 
       {/* ---------- Salles ---------- */}
-      <section className="bg-white py-16 text-ink sm:py-24">
+      <section className="bg-white pt-8 pb-16 text-ink">
         <div className="container-px mx-auto max-w-7xl">
           <Reveal>
             <span className="eyebrow text-orange">Nos salles</span>
-            <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-[#111111] sm:text-4xl">
+            <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-[#111111] sm:text-4xl">
               3 salles d&apos;entraînement
             </h2>
           </Reveal>

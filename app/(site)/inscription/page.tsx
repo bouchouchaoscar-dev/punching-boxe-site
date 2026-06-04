@@ -21,11 +21,11 @@ export default function InscriptionPage() {
 
       <DocumentsSection />
 
-      <section className="border-t border-line bg-paper-2 py-14 sm:py-20">
+      <section className="border-t border-line bg-paper-2 py-16">
         <div className="container-px mx-auto max-w-3xl">
           <Reveal>
             <span className="eyebrow">Formulaire</span>
-            <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+            <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
               Inscription en ligne
             </h2>
             <p className="mt-3 text-smoke">

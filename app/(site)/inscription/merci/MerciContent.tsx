@@ -10,7 +10,7 @@ export function MerciContent() {
   const especes = params.get("mode") === "especes";
 
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink px-6 py-32 text-center text-white">
+    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink px-6 py-16 text-center text-white">
       <div className="grain absolute inset-0" />
       <div
         className="pointer-events-none absolute left-1/2 top-1/3 h-[36rem] w-[36rem] -translate-x-1/2 opacity-30"

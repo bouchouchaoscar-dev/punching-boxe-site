@@ -9,11 +9,11 @@ export function CTABanner({
   text?: string;
 }) {
   return (
-    <section className="container-px mx-auto max-w-7xl py-16 sm:py-24">
-      <Reveal className="rounded-[2rem] border border-[#E5E5E5] bg-white px-6 py-16 shadow-[0_24px_60px_-32px_rgba(0,0,0,0.25)] sm:px-16 sm:py-24">
+    <section className="container-px mx-auto max-w-7xl py-16">
+      <Reveal className="rounded-[2rem] border border-[#E5E5E5] bg-white px-6 py-14 shadow-[0_24px_60px_-32px_rgba(0,0,0,0.25)] sm:px-16 sm:py-16">
         <div className="max-w-2xl">
           <span className="eyebrow text-orange">Séance d&apos;essai</span>
-          <h2 className="font-display mt-5 text-4xl font-extrabold uppercase text-[#111111] sm:text-6xl">
+          <h2 className="font-display mt-3 text-4xl font-extrabold uppercase text-[#111111] sm:text-6xl">
             {title}
           </h2>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-[#555555] sm:text-lg">

@@ -17,7 +17,7 @@ export default function HomePage() {
       <Marquee />
 
       {/* ---------- Chiffres clés ---------- */}
-      <section className="container-px mx-auto max-w-7xl py-20 sm:py-28">
+      <section className="container-px mx-auto max-w-7xl py-16">
         <div className="grid gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
           {STATS.map((s, i) => (
             <Reveal
@@ -37,7 +37,7 @@ export default function HomePage() {
       </section>
 
       {/* ---------- Présentation ---------- */}
-      <section className="container-px mx-auto max-w-7xl pb-20 sm:pb-28">
+      <section className="container-px mx-auto max-w-7xl pb-16">
         <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <Reveal className="relative aspect-[4/5] overflow-hidden rounded-[2rem]">
             <Image
@@ -82,7 +82,7 @@ export default function HomePage() {
       </section>
 
       {/* ---------- Aperçu activités ---------- */}
-      <section className="bg-paper-2 py-20 sm:py-28">
+      <section className="bg-paper-2 py-16">
         <div className="container-px mx-auto max-w-7xl">
           <SectionHeading
             eyebrow="Nos activités"
@@ -142,7 +142,7 @@ export default function HomePage() {
       </section>
 
       {/* ---------- Deux formules ---------- */}
-      <section className="container-px mx-auto max-w-7xl py-20 sm:py-28">
+      <section className="container-px mx-auto max-w-7xl pt-8 pb-12">
         <SectionHeading
           eyebrow="Deux formules"
           title={<>Choisissez votre voie</>}
@@ -154,7 +154,7 @@ export default function HomePage() {
       </section>
 
       {/* ---------- Vidéo de présentation ---------- */}
-      <section className="container-px mx-auto max-w-7xl pb-20 sm:pb-28">
+      <section className="container-px mx-auto max-w-7xl pb-4">
         <Reveal className="mx-auto max-w-[800px] text-center">
           <span className="eyebrow justify-center">Le club en vidéo</span>
           <p className="mt-3 text-smoke">

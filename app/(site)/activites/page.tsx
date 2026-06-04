@@ -26,7 +26,7 @@ export default function ActivitesPage() {
           <section
             key={a.slug}
             id={a.slug}
-            className="grid items-center gap-10 border-t border-line py-16 lg:grid-cols-2 lg:gap-16 lg:py-24"
+            className="grid items-center gap-10 border-t border-line py-16 lg:grid-cols-2 lg:gap-16"
           >
             <Reveal
               className={`relative aspect-[5/4] overflow-hidden rounded-[2rem] ${

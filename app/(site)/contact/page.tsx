@@ -20,7 +20,7 @@ export default function ContactPage() {
         intro="Une question, une envie d'essayer ? Écrivez-nous ou appelez directement. La première séance est gratuite, on vous prête les gants."
       />
 
-      <section className="container-px mx-auto max-w-7xl pt-12 pb-16 sm:pt-16 sm:pb-24">
+      <section className="container-px mx-auto max-w-7xl pt-12 pb-16">
         <div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
           <Reveal>
             <ContactForm />
@@ -45,7 +45,7 @@ export default function ContactPage() {
               <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
                 Gratuit
               </span>
-              <h3 className="font-display mt-4 text-2xl font-extrabold uppercase text-[#111111]">
+              <h3 className="font-display mt-3 text-2xl font-extrabold uppercase text-[#111111]">
                 Séance d&apos;essai
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-[#555555]">
