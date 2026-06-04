@@ -217,11 +217,11 @@ export default function InfosPage() {
       </section>
 
       {/* ---------- Salles ---------- */}
-      <section className="bg-ink py-16 text-white sm:py-24">
+      <section className="bg-white py-16 text-ink sm:py-24">
         <div className="container-px mx-auto max-w-7xl">
           <Reveal>
             <span className="eyebrow text-orange">Nos salles</span>
-            <h2 className="font-display mt-4 text-3xl font-extrabold uppercase sm:text-4xl">
+            <h2 className="font-display mt-4 text-3xl font-extrabold uppercase text-[#111111] sm:text-4xl">
               3 salles d&apos;entraînement
             </h2>
           </Reveal>
@@ -229,7 +229,7 @@ export default function InfosPage() {
           <div className="mt-10 grid gap-6 lg:grid-cols-3">
             {SALLES.map((s, i) => (
               <Reveal key={s.nom} delay={i * 0.08}>
-                <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-ink-soft">
+                <div className="overflow-hidden rounded-[1.5rem] border border-[#E5E5E5] bg-white shadow-[0_12px_30px_-18px_rgba(0,0,0,0.25)]">
                   <iframe
                     title={`Carte ${s.nom}`}
                     src={s.maps}
@@ -238,14 +238,14 @@ export default function InfosPage() {
                     referrerPolicy="no-referrer-when-downgrade"
                   />
                   <div className="p-5">
-                    <h3 className="font-display text-xl font-extrabold uppercase">
+                    <h3 className="font-display text-xl font-extrabold uppercase text-[#111111]">
                       {s.nom}
                     </h3>
-                    <p className="mt-1 text-sm text-white/60">
+                    <p className="mt-1 text-sm text-[#555555]">
                       {s.adresse}
                       {s.detail ? ` · ${s.detail}` : ""}
                     </p>
-                    <p className="text-sm text-white/60">{s.ville}</p>
+                    <p className="text-sm text-[#555555]">{s.ville}</p>
                   </div>
                 </div>
               </Reveal>
