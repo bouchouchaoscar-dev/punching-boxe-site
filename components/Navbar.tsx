@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { Lock } from "lucide-react";
 import { Logo } from "./ui/Logo";
 import { Button } from "./ui/Button";
 import { NAV_LINKS } from "@/lib/constants";
@@ -67,7 +68,7 @@ export function Navbar() {
               title="Espace administrateur"
               className="hidden h-10 w-10 items-center justify-center rounded-full text-ink/40 transition-colors hover:bg-paper-2 hover:text-ink sm:flex"
             >
-              <LockIcon />
+              <Lock className="h-5 w-5" strokeWidth={1.7} aria-hidden />
             </Link>
             <Button href="/inscription" size="md" className="hidden sm:inline-flex">
               S&apos;inscrire
@@ -124,15 +125,6 @@ export function Navbar() {
         )}
       </AnimatePresence>
     </header>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden>
-      <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.7" />
-      <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" strokeWidth="1.7" />
-    </svg>
   );
 }
 
