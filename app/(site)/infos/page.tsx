@@ -207,26 +207,26 @@ export default function InfosPage() {
             </h2>
           </Reveal>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {SALLES.map((s, i) => (
               <Reveal key={s.nom} delay={i * 0.08}>
-                <div className="overflow-hidden rounded-[1.5rem] border border-[#E5E5E5] bg-white shadow-[0_12px_30px_-18px_rgba(0,0,0,0.25)]">
+                <div className="overflow-hidden rounded-[1.25rem] border border-[#E5E5E5] bg-white shadow-[0_12px_30px_-18px_rgba(0,0,0,0.25)]">
                   <iframe
                     title={`Carte ${s.nom}`}
                     src={s.maps}
-                    className="h-48 w-full border-0"
+                    className="h-[150px] w-full border-0"
                     loading="lazy"
                     referrerPolicy="no-referrer-when-downgrade"
                   />
-                  <div className="p-5">
-                    <h3 className="font-display text-xl font-extrabold uppercase text-[#111111]">
+                  <div className="p-4">
+                    <h3 className="font-display text-base font-extrabold uppercase leading-tight text-[#111111]">
                       {s.nom}
                     </h3>
-                    <p className="mt-1 text-sm text-[#555555]">
+                    <p className="mt-1 text-xs text-[#555555]">
                       {s.adresse}
                       {s.detail ? ` · ${s.detail}` : ""}
                     </p>
-                    <p className="text-sm text-[#555555]">{s.ville}</p>
+                    <p className="text-xs text-[#555555]">{s.ville}</p>
                   </div>
                 </div>
               </Reveal>

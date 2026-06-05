@@ -1,7 +1,8 @@
 import { Reveal } from "@/components/ui/Reveal";
 import { HORAIRES, type Creneau } from "@/lib/constants";
 
-const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+// Lundi → Vendredi uniquement (week-end = repos, colonnes inutiles).
+const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 
 /** Style d'une card en fonction du cours et du public. */
 function cardStyle(c: Creneau): { className: string; style?: React.CSSProperties; badge: string } {
@@ -27,7 +28,7 @@ export function WeeklyPlanning() {
 
   return (
     <Reveal className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-      <div className="grid min-w-[78rem] grid-cols-7 gap-3">
+      <div className="grid min-w-[44rem] grid-cols-5 gap-3 lg:min-w-0">
         {JOURS.map((jour) => {
           const creneaux = parJour(jour);
           return (
