@@ -8,8 +8,8 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping site
+      - name: Ping /api/health (réveille Supabase)
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
-          https://punching-boxe-site.vercel.app
-          echo " - Site pinged successfully"
+          https://punching-boxe-site.vercel.app/api/health
+          echo " - Supabase pinged via /api/health"
