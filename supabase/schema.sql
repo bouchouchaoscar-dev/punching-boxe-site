@@ -21,7 +21,7 @@ create table if not exists public.adherents (
   ville                     text,
   code_postal               text,
   type_adherent             text check (type_adherent in ('adulte','jeune')),
-  package                   text check (package in ('boxe_classique','savate_forme')),
+  package                   text check (package in ('boxe_classique','savate_prepa')),
   nouveau_membre            boolean not null default false,
   option_prepa_physique     boolean not null default false,
   nb_membres_famille        integer not null default 0,
@@ -78,7 +78,7 @@ create table if not exists public.profiles (
 
 -- Migration pour une base déjà créée (ajoute la colonne package si absente) :
 alter table public.adherents
-  add column if not exists package text check (package in ('boxe_classique','savate_forme'));
+  add column if not exists package text check (package in ('boxe_classique','savate_prepa'));
 
 -- Migration : validation des documents par l'admin.
 alter table public.adherents
@@ -127,6 +127,13 @@ create table if not exists public.profiles (
   role        text default 'adherent',
   created_at  timestamptz default now()
 );
+
+-- Migration : renommage de la formule « Savate & Forme » → « Savate & Prépa ».
+update public.adherents set package = 'savate_prepa' where package = 'savate_forme';
+alter table public.adherents drop constraint if exists adherents_package_check;
+alter table public.adherents
+  add constraint adherents_package_check
+  check (package in ('boxe_classique', 'savate_prepa'));
 
 create index if not exists adherents_saison_idx       on public.adherents (saison);
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);

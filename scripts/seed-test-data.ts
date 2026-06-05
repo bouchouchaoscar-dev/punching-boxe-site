@@ -45,7 +45,7 @@ if (!URL || !KEY) {
 
 const SAISON = "2026-2027";
 
-type Pkg = "boxe_classique" | "savate_forme";
+type Pkg = "boxe_classique" | "savate_prepa";
 type TypeAdh = "adulte" | "jeune";
 type Statut = "paye" | "en_attente" | "confirme_especes";
 type Mode = "stripe_1x" | "stripe_2x" | "stripe_3x" | "stripe_4x" | "especes";
@@ -89,14 +89,14 @@ type Seed = {
 const SEEDS: Seed[] = [
   { nom: "Durand", prenom: "Marie", date_naissance: "1990-04-12", type: "adulte", package: "boxe_classique", nouveau: true, prepa: false, nbFamille: 0, statut: "en_attente", mode: "especes", created_at: "2025-09-04T10:15:00Z" },
   { nom: "Martin", prenom: "Lucas", date_naissance: "2014-06-23", type: "jeune", package: "boxe_classique", nouveau: true, prepa: true, nbFamille: 0, statut: "paye", mode: "stripe_1x", created_at: "2025-10-09T18:40:00Z" },
-  { nom: "Bernard", prenom: "Sophie", date_naissance: "1985-11-02", type: "adulte", package: "savate_forme", nouveau: false, prepa: true, nbFamille: 0, statut: "paye", mode: "stripe_3x", created_at: "2025-11-15T09:05:00Z" },
+  { nom: "Bernard", prenom: "Sophie", date_naissance: "1985-11-02", type: "adulte", package: "savate_prepa", nouveau: false, prepa: true, nbFamille: 0, statut: "paye", mode: "stripe_3x", created_at: "2025-11-15T09:05:00Z" },
   { nom: "Petit", prenom: "Hugo", date_naissance: "2015-01-30", type: "jeune", package: "boxe_classique", nouveau: false, prepa: false, nbFamille: 0, statut: "confirme_especes", mode: "especes", created_at: "2025-12-21T17:20:00Z" },
-  { nom: "Leroy", prenom: "Emma", date_naissance: "1998-08-17", type: "adulte", package: "savate_forme", nouveau: true, prepa: true, nbFamille: 0, statut: "paye", mode: "stripe_2x", created_at: "2026-01-27T11:50:00Z" },
+  { nom: "Leroy", prenom: "Emma", date_naissance: "1998-08-17", type: "adulte", package: "savate_prepa", nouveau: true, prepa: true, nbFamille: 0, statut: "paye", mode: "stripe_2x", created_at: "2026-01-27T11:50:00Z" },
   { nom: "Moreau", prenom: "Nathan", date_naissance: "1992-03-08", type: "adulte", package: "boxe_classique", nouveau: true, prepa: true, nbFamille: 0, statut: "en_attente", mode: "especes", created_at: "2026-02-03T19:10:00Z" },
   { nom: "Simon", prenom: "Chloé", date_naissance: "2013-12-05", type: "jeune", package: "boxe_classique", nouveau: false, prepa: false, nbFamille: 2, statut: "paye", mode: "stripe_1x", created_at: "2026-03-08T16:35:00Z" },
-  { nom: "Laurent", prenom: "Louis", date_naissance: "1979-07-19", type: "adulte", package: "savate_forme", nouveau: false, prepa: true, nbFamille: 0, statut: "confirme_especes", mode: "especes", created_at: "2026-04-14T20:00:00Z" },
+  { nom: "Laurent", prenom: "Louis", date_naissance: "1979-07-19", type: "adulte", package: "savate_prepa", nouveau: false, prepa: true, nbFamille: 0, statut: "confirme_especes", mode: "especes", created_at: "2026-04-14T20:00:00Z" },
   { nom: "Garcia", prenom: "Léa", date_naissance: "2001-05-28", type: "adulte", package: "boxe_classique", nouveau: true, prepa: false, nbFamille: 0, statut: "paye", mode: "stripe_4x", created_at: "2026-05-21T08:25:00Z" },
-  { nom: "Roux", prenom: "Gabriel", date_naissance: "2014-09-14", type: "jeune", package: "savate_forme", nouveau: true, prepa: true, nbFamille: 0, statut: "en_attente", mode: "especes", created_at: "2026-06-04T18:55:00Z" },
+  { nom: "Roux", prenom: "Gabriel", date_naissance: "2014-09-14", type: "jeune", package: "savate_prepa", nouveau: true, prepa: true, nbFamille: 0, statut: "en_attente", mode: "especes", created_at: "2026-06-04T18:55:00Z" },
 ];
 
 async function main() {
@@ -118,8 +118,8 @@ async function main() {
       type_adherent: s.type,
       package: s.package,
       nouveau_membre: s.nouveau,
-      // En Savate & Forme la prépa est incluse → toujours true
-      option_prepa_physique: s.package === "savate_forme" ? true : s.prepa,
+      // En Savate & Prépa la prépa est incluse → toujours true
+      option_prepa_physique: s.package === "savate_prepa" ? true : s.prepa,
       nb_membres_famille: s.nbFamille,
       montant_total: total,
       mode_paiement: s.mode,
@@ -156,7 +156,7 @@ async function main() {
     if (/package/.test(error.message)) {
       console.error(
         "💡 La colonne `package` manque. Lancez d'abord dans Supabase :\n" +
-          "   alter table public.adherents add column if not exists package text check (package in ('boxe_classique','savate_forme'));",
+          "   alter table public.adherents add column if not exists package text check (package in ('boxe_classique','savate_prepa'));",
       );
     }
     process.exit(1);

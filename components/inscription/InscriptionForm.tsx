@@ -359,7 +359,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     <span className="text-lg">✓</span>
                     <span>
                       <strong>Préparation Physique incluse</strong> dans le package
-                      Savate &amp; Forme (mardi &amp; jeudi 20h), sans supplément.
+                      Savate &amp; Prépa (mardi &amp; jeudi 20h), sans supplément.
                     </span>
                   </div>
                 )}

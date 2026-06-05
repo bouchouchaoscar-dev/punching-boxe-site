@@ -6,7 +6,7 @@
 export type TypeAdherent = "adulte" | "jeune";
 
 // Deux formules au choix.
-export type PackageType = "boxe_classique" | "savate_forme";
+export type PackageType = "boxe_classique" | "savate_prepa";
 
 export const TARIFS = {
   adhesion: 30, // 1ère année uniquement (nouveau membre)
@@ -14,13 +14,13 @@ export const TARIFS = {
   // La cotisation dépend désormais de la formule.
   cotisation: {
     boxe_classique: { adulte: 430, jeune: 410 },
-    savate_forme: { adulte: 390, jeune: 370 },
+    savate_prepa: { adulte: 390, jeune: 370 },
   } as Record<PackageType, { adulte: number; jeune: number }>,
 } as const;
 
 export const PACKAGE_LABEL: Record<PackageType, string> = {
   boxe_classique: "Package Boxe Française",
-  savate_forme: "Package Savate & Forme",
+  savate_prepa: "Package Savate & Prépa",
 };
 
 export type PricingInput = {
@@ -85,7 +85,7 @@ export function calculerTarif(input: PricingInput): PricingResult {
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
 
   // La Préparation Physique n'est facturée (+100€) que dans le package
-  // Boxe Française. Dans Savate & Forme, elle est incluse (0€).
+  // Boxe Française. Dans Savate & Prépa, elle est incluse (0€).
   const prepa =
     input.packageType === "boxe_classique" && input.optionPrepaPhysique
       ? TARIFS.prepaPhysique
@@ -111,7 +111,7 @@ export function calculerTarif(input: PricingInput): PricingResult {
   if (prepa > 0) {
     lines.push({ label: "Option Préparation Physique", amount: prepa });
   }
-  if (input.packageType === "savate_forme") {
+  if (input.packageType === "savate_prepa") {
     lines.push({
       label: "Savate Fitness + Préparation Physique inclus",
       amount: 0,

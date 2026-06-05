@@ -68,7 +68,7 @@ export function FicheInscriptionDoc() {
         <Text style={[styles.h2, f.h2]}>Formule & cotisation</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 4 }}>
           <Check label="Package Boxe Française" />
-          <Check label="Package Savate & Forme" />
+          <Check label="Package Savate & Prépa" />
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
@@ -80,10 +80,10 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Savate &amp; Forme</Text> — Cotisation / Licence (Adultes / Jeunes)
+            <Text style={styles.bold}>Savate &amp; Prépa</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
           <Text style={styles.price}>
-            {TARIFS.cotisation.savate_forme.adulte} / {TARIFS.cotisation.savate_forme.jeune} €
+            {TARIFS.cotisation.savate_prepa.adulte} / {TARIFS.cotisation.savate_prepa.jeune} €
           </Text>
         </View>
         <Text style={[styles.small, f.small, { marginBottom: 4 }]}>
@@ -97,7 +97,7 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Française · incluse en Savate & Forme)
+            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Française · incluse en Savate & Prépa)
           </Text>
           <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
         </View>

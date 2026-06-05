@@ -136,13 +136,13 @@ export const ACTIVITES = [
     sousTitre: "La boxe en musique, cardio & tonus",
     image: "/images/IMG_0544.jpg",
     inclus: true,
-    tag: "Package Savate & Forme",
+    tag: "Savate & Prépa",
     resume:
       "Un cours dynamique qui reprend les gestes de la savate sur fond musical. Cardio, renforcement et défoulement garanti, sans contact. Orienté remise en forme.",
     points: [
       "Cours collectif en musique, mixte tous niveaux",
       "Renforcement musculaire et travail cardio",
-      "Inclus dans le package Savate & Forme",
+      "Inclus dans le package Savate & Prépa",
     ],
     creneaux: ["Mercredi 18h30 – 19h30"],
   },
@@ -152,13 +152,13 @@ export const ACTIVITES = [
     sousTitre: "Puissance, cardio & conditionnement",
     image: "/images/IMG_0548.jpg",
     inclus: false,
-    tag: "Prépa Physique",
+    tag: "Savate & Prépa",
     resume:
-      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate & Forme.",
+      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate & Prépa.",
     points: [
       "2 séances par semaine (mardi & jeudi 20h)",
       "Renforcement musculaire + cardio intensif",
-      "Option +100€ avec Boxe Française · incluse en Savate & Forme",
+      "Option +100€ avec Boxe Française · incluse en Savate & Prépa",
     ],
     creneaux: ["Mardi 20h00", "Jeudi 20h00"],
   },
@@ -181,14 +181,14 @@ export const PACKAGES = [
     orientation: "Technique & compétition",
   },
   {
-    id: "savate_forme" as const,
-    nom: "Savate & Forme",
+    id: "savate_prepa" as const,
+    nom: "Savate & Prépa",
     accroche: "La remise en forme par la savate, sans esprit de compétition.",
     tarifs: { adulte: 390, jeune: 370 },
     inclus: [
       "Savate Fitness (mercredi 18h30 – 19h30)",
-      "Préparation Physique (mardi & jeudi 20h)",
-      "Cardio, renforcement et tonus",
+      "Préparation Physique (mardi & jeudi 20h – 21h)",
+      "3 cours par semaine",
       "+30 € la première année pour les nouveaux membres",
     ],
     option: null,
@@ -211,7 +211,7 @@ export const POURQUOI = [
   },
   {
     titre: "Deux formules au choix",
-    texte: "Boxe Française pour la pratique et la compétition, Savate & Forme pour la remise en forme. À chacun sa voie.",
+    texte: "Boxe Française pour la pratique et la compétition, Savate & Prépa pour la remise en forme. À chacun sa voie.",
   },
 ];
 

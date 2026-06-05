@@ -9,7 +9,7 @@ const FORMULES = [
     icon: "gloves" as const,
   },
   {
-    titre: "Formule Savate & Forme",
+    titre: "Formule Savate & Prépa",
     desc: "Savate Fitness + Préparation Physique. Idéal remise en forme, sans esprit de compétition.",
     icon: "flame" as const,
   },

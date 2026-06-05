@@ -18,7 +18,7 @@ export default function ActivitesPage() {
       <PageHero
         eyebrow="Nos activités"
         title={<>Deux formules,<br /> au choix</>}
-        intro="Choisissez votre pratique : la Boxe Française ou la Savate & Forme. Deux orientations, deux tarifs."
+        intro="Choisissez votre pratique : la Boxe Française ou la Savate & Prépa. Deux orientations, deux tarifs."
       />
 
       <div className="container-px mx-auto max-w-7xl pb-10">
@@ -105,7 +105,7 @@ export default function ActivitesPage() {
           <p className="mt-3 max-w-2xl text-smoke">
             <strong>Boxe Française</strong> donne accès à tous les cours de Boxe
             Française (enfants &amp; adultes), avec la Préparation Physique en
-            option (+100€/an). <strong>Savate &amp; Forme</strong> regroupe la
+            option (+100€/an). <strong>Savate &amp; Prépa</strong> regroupe la
             Savate Fitness (mercredi 18h30) et la Préparation Physique, orientée
             remise en forme. Cours dispensés de septembre à fin juin, soit 10 mois
             par an.

@@ -87,7 +87,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Nos activités"
             title={<>Trois façons de transpirer</>}
-            intro="Deux formules au choix : Boxe Française ou Savate & Forme — choisissez votre voie."
+            intro="Deux formules au choix : Boxe Française ou Savate & Prépa — choisissez votre voie."
           />
 
           <div className="mt-14 grid gap-6 lg:grid-cols-3">

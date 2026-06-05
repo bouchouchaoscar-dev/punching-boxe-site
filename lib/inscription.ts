@@ -29,7 +29,7 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.date_naissance) return "La date de naissance est requise.";
   if (!p.email?.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email))
     return "Un email valide est requis.";
-  const packages: PackageType[] = ["boxe_classique", "savate_forme"];
+  const packages: PackageType[] = ["boxe_classique", "savate_prepa"];
   if (!p.package || !packages.includes(p.package))
     return "Formule (package) invalide.";
   const modes: ModePaiement[] = [
@@ -72,9 +72,9 @@ export function buildAdherentInsert(
     type_adherent: tarif.typeAdherent,
     package: p.package,
     nouveau_membre: !!p.nouveau_membre,
-    // En Savate & Forme, la prépa physique est toujours incluse.
+    // En Savate & Prépa, la prépa physique est toujours incluse.
     option_prepa_physique:
-      p.package === "savate_forme" ? true : !!p.option_prepa_physique,
+      p.package === "savate_prepa" ? true : !!p.option_prepa_physique,
     nb_membres_famille: Number(p.nb_membres_famille) || 0,
     montant_total: tarif.total,
     mode_paiement: p.mode_paiement,

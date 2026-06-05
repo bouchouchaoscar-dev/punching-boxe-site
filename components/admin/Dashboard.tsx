@@ -47,7 +47,7 @@ export function Dashboard() {
       (a) => a.package === "boxe_classique" && a.option_prepa_physique,
     ).length;
     const savateForme = adherents.filter(
-      (a) => a.package === "savate_forme",
+      (a) => a.package === "savate_prepa",
     ).length;
 
     // Les 12 mois de la saison (Juil → Juin), juillet/août inclus (à 0).
@@ -93,10 +93,10 @@ export function Dashboard() {
 
     // Répartition des formules.
     const boxe = adherents.filter((a) => a.package === "boxe_classique").length;
-    const savate = adherents.filter((a) => a.package === "savate_forme").length;
+    const savate = adherents.filter((a) => a.package === "savate_prepa").length;
     const repartitionFormule = [
       { name: "Boxe Française", value: boxe, color: ORANGE },
-      { name: "Savate & Forme", value: savate, color: INK },
+      { name: "Savate & Prépa", value: savate, color: INK },
     ].filter((x) => x.value > 0);
 
     return {
@@ -152,7 +152,7 @@ export function Dashboard() {
         <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
         <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
-        <Kpi label="Savate & Forme" value={String(data.savateForme)} />
+        <Kpi label="Savate & Prépa" value={String(data.savateForme)} />
       </div>
 
       {data.total === 0 ? (
