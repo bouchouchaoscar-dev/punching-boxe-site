@@ -38,8 +38,7 @@ proprement tant que les variables ne sont pas renseignées.
 | `STRIPE_SECRET_KEY` | Clé secrète Stripe |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Clé publique Stripe |
 | `STRIPE_WEBHOOK_SECRET` | Secret du webhook Stripe |
-| `NEXT_PUBLIC_FORMSPREE_ID` | ID Formspree (formulaire contact) |
-| `RESEND_API_KEY` | Clé API Resend |
+| `RESEND_API_KEY` | Clé API Resend (emails + formulaire contact) |
 | `RESEND_FROM` | Expéditeur des emails |
 | `ADMIN_NOTIFY_EMAIL` | Destinataire des notifications (Pascal) |
 | `NEXT_PUBLIC_ADMIN_USERNAME` | Identifiant admin (username) |

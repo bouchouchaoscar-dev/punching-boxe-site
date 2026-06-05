@@ -3,70 +3,41 @@
 import { useState } from "react";
 import { ButtonAction } from "@/components/ui/Button";
 
-type Status = "idle" | "sending" | "ok" | "error";
+type Status = "idle" | "sending" | "error";
 
 export function ContactForm() {
   const [status, setStatus] = useState<Status>("idle");
-  const formspreeId = process.env.NEXT_PUBLIC_FORMSPREE_ID;
+  const [toast, setToast] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
-
-    if (!formspreeId) {
-      // Pas d'ID configuré → simulation locale pour ne pas bloquer la démo.
-      setStatus("ok");
-      form.reset();
-      return;
-    }
+    const payload = {
+      nom: String(data.get("nom") || ""),
+      email: String(data.get("email") || ""),
+      telephone: String(data.get("telephone") || ""),
+      message: String(data.get("message") || ""),
+    };
 
     setStatus("sending");
     try {
-      const res = await fetch(`https://formspree.io/f/${formspreeId}`, {
+      const res = await fetch("/api/contact", {
         method: "POST",
-        body: data,
-        headers: { Accept: "application/json" },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
-        setStatus("ok");
+        setStatus("idle");
         form.reset();
+        setToast("Message envoyé ✓ — nous vous répondrons très vite !");
+        window.setTimeout(() => setToast(null), 4000);
       } else {
         setStatus("error");
       }
     } catch {
       setStatus("error");
     }
-  }
-
-  if (status === "ok") {
-    return (
-      <div className="rounded-[1.5rem] border border-orange/30 bg-orange-50 p-10 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-orange text-white">
-          <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none">
-            <path
-              d="M5 13l4 4L19 7"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <h3 className="font-display mt-5 text-2xl font-extrabold uppercase text-ink">
-          Message envoyé !
-        </h3>
-        <p className="mt-2 text-smoke">
-          Merci, nous vous répondrons très vite. À bientôt sur les tatamis.
-        </p>
-        <button
-          onClick={() => setStatus("idle")}
-          className="mt-5 text-sm font-semibold text-orange link-underline"
-        >
-          Envoyer un autre message
-        </button>
-      </div>
-    );
   }
 
   return (
@@ -110,6 +81,12 @@ export function ContactForm() {
       >
         {status === "sending" ? "Envoi…" : "Envoyer mon message"}
       </ButtonAction>
+
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-xs rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white shadow-lg">
+          {toast}
+        </div>
+      )}
     </form>
   );
 }

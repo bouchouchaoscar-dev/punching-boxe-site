@@ -248,3 +248,59 @@ export async function sendPaiementEchec(d: {
     html,
   });
 }
+
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+/** Formulaire de contact → email à Pascal (avec reply-to vers l'expéditeur). */
+export async function sendContactMessage(d: {
+  nom: string;
+  email: string;
+  telephone?: string;
+  message: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Nouveau message de contact</h1>
+    <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
+      <p style="margin:4px 0"><strong>Nom :</strong> ${escapeHtml(d.nom)}</p>
+      <p style="margin:4px 0"><strong>Email :</strong> ${escapeHtml(d.email)}</p>
+      <p style="margin:4px 0"><strong>Téléphone :</strong> ${escapeHtml(d.telephone || "—")}</p>
+      <p style="margin:10px 0 4px"><strong>Message :</strong></p>
+      <p style="margin:4px 0;line-height:1.6;color:#444">${escapeHtml(d.message).replace(/\n/g, "<br>")}</p>
+    </div>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    replyTo: d.email,
+    subject: `Nouveau message de contact — ${d.nom}`,
+    html,
+  });
+}
+
+/** Accusé de réception au visiteur ayant rempli le formulaire de contact. */
+export async function sendContactConfirmation(d: { nom: string; email: string }) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Message bien reçu</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${escapeHtml(d.nom)},</p>
+    <p style="line-height:1.6;color:#444">Nous avons bien reçu votre message et vous répondrons dans les plus brefs délais.</p>
+    <p style="line-height:1.6;color:#666;font-size:13px;margin-top:16px">L'équipe du ${CLUB.nom}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "Nous avons bien reçu votre message",
+    html,
+  });
+}
