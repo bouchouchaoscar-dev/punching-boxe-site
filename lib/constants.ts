@@ -160,7 +160,7 @@ export const ACTIVITES = [
       "Renforcement musculaire + cardio intensif",
       "Option +100€ avec Boxe Française · incluse en Savate & Prépa",
     ],
-    creneaux: ["Mardi 20h00", "Jeudi 20h00"],
+    creneaux: ["Mardi 20h00 – 21h00", "Jeudi 20h00 – 21h00"],
   },
 ];
 

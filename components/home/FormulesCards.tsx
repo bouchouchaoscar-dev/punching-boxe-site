@@ -10,7 +10,7 @@ const FORMULES = [
   },
   {
     titre: "Formule Savate & Prépa",
-    desc: "Savate Fitness + Préparation Physique. Idéal remise en forme, sans esprit de compétition.",
+    desc: "Savate Fitness + Préparation Physique. 3 entraînements par semaine. Idéal remise en forme, sans esprit de compétition.",
     icon: "flame" as const,
   },
 ];
