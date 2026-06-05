@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
+import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
 
@@ -15,10 +16,16 @@ const MODE_LABEL: Record<string, string> = {
   especes: "Espèces",
 };
 
-const DOCS: { key: keyof Adherent; label: string }[] = [
-  { key: "fiche_inscription_url", label: "Fiche d'inscription" },
-  { key: "certificat_medical_url", label: "Certificat médical" },
-  { key: "reglement_url", label: "Règlement intérieur" },
+const DOCS: {
+  key: keyof Adherent;
+  field: FileFieldKey;
+  label: string;
+  accept: string;
+}[] = [
+  { key: "fiche_inscription_url", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf" },
+  { key: "certificat_medical_url", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
+  { key: "reglement_url", field: "reglement", label: "Règlement intérieur", accept: "application/pdf" },
+  { key: "photo_url", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
 ];
 
 export function FicheAdherent({ id }: { id: string }) {
@@ -28,6 +35,13 @@ export function FicheAdherent({ id }: { id: string }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<Adherent>>({});
+  const [toast, setToast] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<FileFieldKey | null>(null);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 3000);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,9 +76,49 @@ export function FicheAdherent({ id }: { id: string }) {
         setForm(data.adherent);
         setEditing(false);
       }
+      return res.ok;
     } finally {
       setSaving(false);
     }
+  }
+
+  async function validerDocuments() {
+    const ok = await patch({ action: "valider_documents" });
+    if (ok) showToast("Documents validés ✓");
+  }
+
+  // Remplacement (ou ajout) d'un document depuis l'admin : ouvre un sélecteur de
+  // fichier, envoie sur Supabase Storage (persist=1 → écrase + invalide la
+  // validation), puis recharge la fiche.
+  function replaceDocument(field: FileFieldKey, accept: string) {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = accept;
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setUploading(field);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("adherentId", id);
+        fd.append("field", field);
+        fd.append("persist", "1");
+        const res = await fetch("/api/upload-document", { method: "POST", body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          await load();
+          showToast("Document remplacé ✓");
+        } else {
+          showToast(data.error || "Échec de l'envoi du document.");
+        }
+      } catch {
+        showToast("Erreur réseau pendant l'envoi.");
+      } finally {
+        setUploading(null);
+      }
+    };
+    input.click();
   }
 
   if (loading)
@@ -210,36 +264,86 @@ export function FicheAdherent({ id }: { id: string }) {
 
           {/* Documents */}
           <div className="rounded-[1.5rem] border border-line bg-white p-6">
-            <h3 className="font-display text-lg font-extrabold uppercase text-ink">
-              Documents
-            </h3>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-display text-lg font-extrabold uppercase text-ink">
+                Documents
+              </h3>
+              <div className="flex items-center gap-3">
+                <DocsBadge valides={!!a.documents_valides} />
+                {!a.documents_valides && (
+                  <ButtonAction
+                    onClick={validerDocuments}
+                    disabled={saving}
+                    size="md"
+                  >
+                    {saving ? "…" : "✓ Valider les documents"}
+                  </ButtonAction>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {DOCS.map((d) => {
                 const url = a[d.key] as string | null;
+                const isUploading = uploading === d.field;
                 return (
-                  <a
+                  <div
                     key={d.key}
-                    href={url ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`rounded-xl border p-4 text-sm ${
-                      url
-                        ? "border-line hover:border-orange"
-                        : "cursor-not-allowed border-dashed border-line opacity-50"
+                    className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm ${
+                      url ? "border-line" : "border-dashed border-line"
                     }`}
                   >
-                    <p className="font-semibold text-ink">{d.label}</p>
-                    <p className="mt-1 text-xs text-orange">
-                      {url ? "Ouvrir →" : "Non fourni"}
-                    </p>
-                  </a>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{d.label}</p>
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1 inline-block text-xs font-bold text-orange hover:underline"
+                        >
+                          Ouvrir →
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-xs text-smoke">Non fourni</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => replaceDocument(d.field, d.accept)}
+                      disabled={isUploading}
+                      className="shrink-0 whitespace-nowrap rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                    >
+                      {isUploading ? "Envoi…" : url ? "Remplacer" : "Ajouter"}
+                    </button>
+                  </div>
                 );
               })}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-50 rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
+  );
+}
+
+function DocsBadge({ valides }: { valides: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
+        valides
+          ? "bg-green-100 text-green-700"
+          : "bg-orange-50 text-orange"
+      }`}
+    >
+      {valides ? "Docs ✓" : "Docs ⏳"}
+    </span>
   );
 }
 

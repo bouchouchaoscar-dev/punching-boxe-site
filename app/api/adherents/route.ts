@@ -32,11 +32,23 @@ export async function POST(request: Request) {
   const record = buildAdherentInsert(payload, "en_attente");
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("adherents")
     .insert(record)
     .select()
     .single();
+
+  // Tolérance : si la migration documents_valides n'a pas encore été appliquée,
+  // on réessaie sans ce champ (la colonne prendra son DEFAULT une fois créée).
+  if (error && /documents_valides/.test(error.message)) {
+    const rest = { ...record };
+    delete (rest as Record<string, unknown>).documents_valides;
+    ({ data, error } = await supabase
+      .from("adherents")
+      .insert(rest)
+      .select()
+      .single());
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

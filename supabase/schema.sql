@@ -36,12 +36,17 @@ create table if not exists public.adherents (
   photo_url                 text,
   fiche_inscription_url     text,
   certificat_medical_url    text,
-  reglement_url             text
+  reglement_url             text,
+  documents_valides         boolean not null default false
 );
 
 -- Migration pour une base déjà créée (ajoute la colonne package si absente) :
 alter table public.adherents
   add column if not exists package text check (package in ('boxe_classique','savate_forme'));
+
+-- Migration : validation des documents par l'admin.
+alter table public.adherents
+  add column if not exists documents_valides boolean default false;
 
 create index if not exists adherents_saison_idx       on public.adherents (saison);
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);

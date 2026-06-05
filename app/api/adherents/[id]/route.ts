@@ -49,6 +49,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     "code_postal",
     "option_prepa_physique",
     "nb_membres_famille",
+    "documents_valides",
   ];
   const update: Record<string, unknown> = {};
   for (const k of allowed) {
@@ -57,6 +58,9 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   if (body.action === "confirmer_especes") {
     update.statut_paiement = "confirme_especes";
+  }
+  if (body.action === "valider_documents") {
+    update.documents_valides = true;
   }
 
   if (Object.keys(update).length === 0) {

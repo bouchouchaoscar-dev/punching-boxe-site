@@ -192,7 +192,18 @@ function Row({
       </td>
       <td className="p-4 capitalize text-smoke">{a.type_adherent}</td>
       <td className="p-4">
-        <StatutBadge statut={a.statut_paiement} />
+        <div className="flex flex-col items-start gap-1.5">
+          <StatutBadge statut={a.statut_paiement} />
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.7rem] font-bold ${
+              a.documents_valides
+                ? "bg-green-100 text-green-700"
+                : "bg-orange-50 text-orange"
+            }`}
+          >
+            {a.documents_valides ? "Docs ✓" : "Docs ⏳"}
+          </span>
+        </div>
       </td>
       <td className="p-4 font-display font-bold text-ink">{euro(a.montant_total)}</td>
       <td className="p-4 text-xs text-smoke">

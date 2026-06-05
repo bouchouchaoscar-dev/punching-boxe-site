@@ -27,6 +27,7 @@ export interface Adherent {
   fiche_inscription_url: string | null;
   certificat_medical_url: string | null;
   reglement_url: string | null;
+  documents_valides: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

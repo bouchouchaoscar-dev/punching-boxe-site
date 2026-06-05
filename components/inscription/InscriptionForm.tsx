@@ -392,9 +392,9 @@ export function InscriptionForm() {
                   field="photo"
                   adherentId={adherentId}
                   label="Photo d'identité"
-                  hint="JPG ou PNG, max 2 Mo"
+                  hint="JPG ou PNG, max 5 Mo"
                   accept={{ "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"] }}
-                  maxSizeMb={2}
+                  maxSizeMb={5}
                   onChange={onFile}
                 />
               </div>
