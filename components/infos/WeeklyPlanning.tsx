@@ -1,3 +1,6 @@
+"use client";
+
+import { useRef, useState } from "react";
 import { Reveal } from "@/components/ui/Reveal";
 import { HORAIRES, type Creneau } from "@/lib/constants";
 
@@ -25,10 +28,19 @@ function cardStyle(c: Creneau): { className: string; style?: React.CSSProperties
 
 export function WeeklyPlanning() {
   const parJour = (jour: string) => HORAIRES.filter((h) => h.jour === jour);
+  const [showHint, setShowHint] = useState(true);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
-    <Reveal className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-      <div className="grid min-w-[44rem] grid-cols-5 gap-3 lg:min-w-0">
+    <Reveal className="relative">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          if (e.currentTarget.scrollLeft > 8) setShowHint(false);
+        }}
+        className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
+      >
+        <div className="grid min-w-[44rem] grid-cols-5 gap-3 lg:min-w-0">
         {JOURS.map((jour) => {
           const creneaux = parJour(jour);
           return (
@@ -78,7 +90,19 @@ export function WeeklyPlanning() {
             </div>
           );
         })}
+        </div>
       </div>
+
+      {/* Indicateur de scroll horizontal — mobile uniquement */}
+      {showHint && (
+        <>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-paper-2 to-transparent sm:hidden" />
+          <div className="pointer-events-none absolute bottom-3 right-2 flex animate-pulse items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-white shadow-lg sm:hidden">
+            Glissez pour voir la suite
+            <span aria-hidden className="text-sm">→</span>
+          </div>
+        </>
+      )}
     </Reveal>
   );
 }
