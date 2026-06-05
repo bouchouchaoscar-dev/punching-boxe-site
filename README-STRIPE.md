@@ -75,7 +75,27 @@ la date est atteinte, sur la carte enregistrée (off_session).
   - ≤ 2 → 1x uniquement
 - **Dates** : étalées régulièrement de l'inscription jusqu'au 30 juin.
 
-## 6. Test
+## 6. Mot de passe oublié (Supabase Auth)
+
+La page `/auth/reset-password` reçoit le lien de réinitialisation envoyé par
+Supabase. Le lien de redirection utilise l'origine réelle de la requête
+(`window.location.origin`), donc aucune variable n'est strictement nécessaire,
+mais il faut **autoriser ces URLs** côté Supabase :
+
+**Supabase → Authentication → URL Configuration → Redirect URLs** :
+```
+http://localhost:3000/auth/reset-password
+https://<votre-domaine>/auth/reset-password
+```
+
+`.env.local` :
+```
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+> Sur **Vercel**, définir `NEXT_PUBLIC_SITE_URL` avec la **vraie URL de
+> production** (ex. `https://punching-boxe.com`). Ne pas laisser `localhost`.
+
+## 7. Test
 
 - Cartes de test : https://stripe.com/docs/testing
   (ex. `4242 4242 4242 4242`, 3DS : `4000 0027 6000 3184`).

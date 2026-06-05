@@ -21,7 +21,39 @@ export function ConnexionForm() {
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Mot de passe oublié (formulaire inline).
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
+
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+
+  async function handleReset() {
+    setResetMsg("");
+    if (!isAuthConfigured()) return setResetMsg("Authentification non configurée.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(resetEmail)) {
+      return setResetMsg("Adresse email invalide.");
+    }
+    setResetBusy(true);
+    try {
+      // Origine réelle de la requête (localhost en dev, domaine en prod),
+      // avec repli sur NEXT_PUBLIC_SITE_URL.
+      const base =
+        typeof window !== "undefined"
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_SITE_URL || "";
+      await getAuthClient().auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${base}/auth/reset-password`,
+      });
+    } finally {
+      // Message identique que le compte existe ou non (anti-énumération).
+      setResetMsg(
+        "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation dans quelques minutes.",
+      );
+      setResetBusy(false);
+    }
+  }
 
   async function handleSignup() {
     setError("");
@@ -139,6 +171,63 @@ export function ConnexionForm() {
               onChange={setConfirm}
               autoComplete="new-password"
             />
+          )}
+
+          {tab === "login" && (
+            <div className="-mt-1">
+              {!resetOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetOpen(true);
+                    setResetEmail(email);
+                    setResetMsg("");
+                  }}
+                  className="text-xs font-semibold text-smoke transition-colors hover:text-orange"
+                >
+                  Mot de passe oublié ?
+                </button>
+              ) : (
+                <div className="rounded-xl border border-line bg-paper-2 p-4">
+                  <p className="text-sm font-semibold text-ink">
+                    Réinitialiser mon mot de passe
+                  </p>
+                  <p className="mt-1 text-xs text-smoke">
+                    Saisissez votre email, nous vous enverrons un lien.
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="votre@email.com"
+                      autoComplete="email"
+                      className="focus-ring flex-1 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      disabled={resetBusy}
+                      className="shrink-0 rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
+                    >
+                      {resetBusy ? "…" : "Envoyer"}
+                    </button>
+                  </div>
+                  {resetMsg && (
+                    <p className="mt-3 text-xs font-semibold text-green-700">
+                      {resetMsg}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setResetOpen(false)}
+                    className="mt-2 text-xs font-semibold text-smoke hover:text-ink"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {error && (
