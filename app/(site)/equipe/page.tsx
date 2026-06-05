@@ -8,47 +8,63 @@ import { CLUB } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Notre équipe pédagogique",
   description:
-    "Rencontrez l'équipe du Punching Boxe : Pascal Bouchoucha, Directeur Sportif (Professeur fédéral, B.E.E.S 1er degré) et ses moniteurs fédéraux.",
+    "Rencontrez l'équipe du Punching Boxe : Pascal Bouchoucha, Directeur Sportif (B.E.E.S 1er degré), et ses moniteurs fédéraux et assistants.",
 };
 
 type Coach = {
   nom: string;
-  titre: string;
+  badge: string; // titre du badge
+  role: string; // rôle (texte orange)
   phrase: string;
+  photo: string;
   lead?: boolean;
-  initiales: string;
 };
 
 const EQUIPE: Coach[] = [
   {
     nom: CLUB.directeur,
-    titre: "Directeur Sportif",
+    badge: "Directeur Sportif",
+    role: "Professeur fédéral · Directeur Sportif · B.E.E.S 1er degré",
     phrase:
       "Professeur fédéral, B.E.E.S 1er degré. Fondateur et âme du club, Pascal transmet la Boxe Française avec exigence et bienveillance depuis plus de 25 ans.",
+    photo: "/images/IMG_0574.jpg",
     lead: true,
-    initiales: "PB",
   },
   {
-    nom: "Nom à venir",
-    titre: "Moniteur fédéral",
-    phrase: "Encadrement des cours adultes et compétiteurs.",
-    initiales: "?",
+    nom: "Mustapha",
+    badge: "Moniteur fédéral",
+    role: "Moniteur fédéral",
+    phrase: "Encadrement des cours de Boxe Française adultes et enfants.",
+    photo: "/images/equipe/mustapha.jpg",
   },
   {
-    nom: "Nom à venir",
-    titre: "Monitrice fédérale",
-    phrase: "Cours enfants et Savate Fitness.",
-    initiales: "?",
+    nom: "Renaud",
+    badge: "Assistant moniteur",
+    role: "Assistant moniteur",
+    phrase:
+      "Encadrement et accompagnement des adhérents sur les cours collectifs.",
+    photo: "/images/equipe/renaud.jpg",
   },
   {
-    nom: "Nom à venir",
-    titre: "Coach préparation physique",
-    phrase: "Renforcement musculaire et conditionnement.",
-    initiales: "?",
+    nom: "Sébastien",
+    badge: "Assistant moniteur",
+    role: "Assistant moniteur",
+    phrase:
+      "Encadrement et accompagnement des adhérents sur les cours collectifs.",
+    photo: "/images/equipe/sebastien.jpg",
+  },
+  {
+    nom: "Benjamin",
+    badge: "Moniteur fédéral",
+    role: "Moniteur fédéral",
+    phrase:
+      "Spécialiste compétition. Entraînement technique et préparation aux assauts.",
+    photo: "/images/equipe/benjamin.jpg",
   },
 ];
 
 export default function EquipePage() {
+  const [pascal, ...coachs] = EQUIPE;
   return (
     <>
       <PageHero
@@ -63,8 +79,8 @@ export default function EquipePage() {
           <div className="grid lg:grid-cols-[0.9fr_1.4fr]">
             <div className="relative min-h-[18rem] overflow-hidden bg-ink">
               <Image
-                src="/images/IMG_0574.jpg"
-                alt={`${EQUIPE[0].nom}, Directeur Sportif du Punching Boxe`}
+                src={pascal.photo}
+                alt={`${pascal.nom}, Directeur Sportif du Punching Boxe`}
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"
                 className="object-cover object-[center_30%]"
@@ -72,46 +88,51 @@ export default function EquipePage() {
             </div>
             <div className="p-8 sm:p-12">
               <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                Directeur Sportif
+                {pascal.badge}
               </span>
               <h2 className="font-display mt-5 break-words text-3xl font-extrabold uppercase text-ink sm:text-5xl">
-                {EQUIPE[0].nom}
+                {pascal.nom}
               </h2>
-              <p className="mt-2 font-semibold text-orange">
-                {CLUB.directeurTitre}
-              </p>
+              <p className="mt-2 font-semibold text-orange">{pascal.role}</p>
               <p className="mt-5 max-w-xl leading-relaxed text-smoke">
-                {EQUIPE[0].phrase}
+                {pascal.phrase}
               </p>
             </div>
           </div>
         </Reveal>
 
         {/* Autres coachs */}
-        <div className="mt-6 grid gap-6 sm:grid-cols-3">
-          {EQUIPE.slice(1).map((c, i) => (
-            <Reveal key={i} delay={i * 0.08}>
-              <div className="card-lift h-full rounded-[1.75rem] border border-line bg-white p-7 text-center">
-                <div className="relative mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-paper-2">
-                  <span className="font-display text-3xl font-black text-line">
-                    {c.initiales}
-                  </span>
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {coachs.map((c, i) => (
+            <Reveal key={c.nom} delay={i * 0.08}>
+              <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
+                <div className="relative aspect-[4/5] overflow-hidden bg-ink">
+                  <Image
+                    src={c.photo}
+                    alt={`${c.nom}, ${c.role} du Punching Boxe`}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 25vw"
+                    className="object-cover object-top"
+                  />
                 </div>
-                <h3 className="font-display mt-5 text-xl font-extrabold uppercase text-ink">
-                  {c.nom}
-                </h3>
-                <p className="mt-1 text-sm font-semibold text-orange">{c.titre}</p>
-                <p className="mt-3 text-sm leading-relaxed text-smoke">
-                  {c.phrase}
-                </p>
+                <div className="p-6">
+                  <span className="rounded-full bg-orange px-3 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-white">
+                    {c.badge}
+                  </span>
+                  <h3 className="font-display mt-3 break-words text-xl font-extrabold uppercase text-ink">
+                    {c.nom}
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-orange">
+                    {c.role}
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-smoke">
+                    {c.phrase}
+                  </p>
+                </div>
               </div>
             </Reveal>
           ))}
         </div>
-
-        <p className="mt-8 text-center text-sm text-smoke">
-          Les photos et noms des moniteurs seront ajoutés prochainement.
-        </p>
       </section>
 
       <CTABanner title="Venez les rencontrer" />
