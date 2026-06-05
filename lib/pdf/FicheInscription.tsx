@@ -134,8 +134,8 @@ export function FicheInscriptionDoc() {
               Mode de règlement / Total
             </Text>
             <FieldRow items={[{ label: "Total :" }]} />
-            <FieldRow items={[{ label: "Nb chèques :", flex: 1 }, { label: "Espèces :", flex: 1 }]} />
-            <FieldRow items={[{ label: "Stripe en ligne :" }]} />
+            <FieldRow items={[{ label: "Espèces :" }]} />
+            <FieldRow items={[{ label: "Paiement en ligne / Carte bancaire :" }]} />
             <Text style={[styles.bold, { marginTop: 8, fontSize: 8.5 }]}>
               Signature obligatoire :
             </Text>

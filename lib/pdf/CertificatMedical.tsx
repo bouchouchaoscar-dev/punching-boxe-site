@@ -43,7 +43,7 @@ export function CertificatMedicalDoc() {
             dont l&apos;état de santé ne présente aucune contre-indication à la
             pratique du sport, et en particulier de la{" "}
             <Text style={styles.bold}>Savate-Boxe Française</Text> et de la{" "}
-            <Text style={styles.bold}>Savate-Forme</Text>.
+            <Text style={styles.bold}>Savate Fitness</Text>.
           </Text>
 
           <View style={{ flexDirection: "row", alignItems: "center", marginTop: 12 }}>

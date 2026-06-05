@@ -119,20 +119,25 @@ export function ReglementInterieurDoc() {
           </Text>
         </Article>
 
-        <View style={{ marginTop: 14, flexDirection: "row", justifyContent: "space-between" }}>
+        <View
+          style={{
+            marginTop: 24,
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: 16,
+          }}
+        >
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Date :</Text>
             <View style={[styles.fieldLine, { marginTop: 4 }]} />
           </View>
-          <View style={{ width: 16 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Lu et approuvé :</Text>
             <View style={[styles.fieldLine, { marginTop: 4 }]} />
           </View>
-          <View style={{ width: 16 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Signature :</Text>
-            <View style={[styles.fieldLine, { marginTop: 4, minHeight: 30 }]} />
+            <View style={[styles.fieldLine, { marginTop: 4 }]} />
           </View>
         </View>
 
