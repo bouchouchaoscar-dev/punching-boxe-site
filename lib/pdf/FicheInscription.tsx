@@ -102,14 +102,6 @@ export function FicheInscriptionDoc() {
           <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
         </View>
 
-        {/* Certificat médical */}
-        <Text style={[styles.h2, f.h2]}>Certificat médical obligatoire</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 1 }}>
-          <Check label="Boxe Française : oui / non" />
-          <Check label="Savate Forme : oui / non" />
-          <Check label="Préparation Physique : oui / non" />
-        </View>
-
         {/* Adhérent mineur */}
         <Text style={[styles.h2, f.h2]}>Adhérent mineur</Text>
         <Text style={[styles.p, f.p]}>
