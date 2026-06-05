@@ -39,12 +39,10 @@ export function ConnexionForm() {
     }
     setResetBusy(true);
     try {
-      // Origine réelle de la requête (localhost en dev, domaine en prod),
-      // avec repli sur NEXT_PUBLIC_SITE_URL.
+      // URL du site (prod) — jamais localhost dans l'email de réinitialisation.
       const base =
-        typeof window !== "undefined"
-          ? window.location.origin
-          : process.env.NEXT_PUBLIC_SITE_URL || "";
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        (typeof window !== "undefined" ? window.location.origin : "");
       await getAuthClient().auth.resetPasswordForEmail(resetEmail, {
         redirectTo: `${base}/auth/reset-password`,
       });
@@ -190,43 +188,43 @@ export function ConnexionForm() {
                   Mot de passe oublié ?
                 </button>
               ) : (
-                <div className="rounded-xl border border-line bg-paper-2 p-4">
+                <div className="rounded-xl border border-line bg-white p-4">
                   <p className="text-sm font-semibold text-ink">
                     Réinitialiser mon mot de passe
                   </p>
-                  <p className="mt-1 text-xs text-smoke">
+                  <p className="mt-1 text-sm text-smoke">
                     Saisissez votre email, nous vous enverrons un lien.
                   </p>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      type="email"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="votre@email.com"
-                      autoComplete="email"
-                      className="focus-ring flex-1 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
-                    />
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="votre@email.com"
+                    autoComplete="email"
+                    className="focus-ring mt-3 w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                  />
+                  {resetMsg && (
+                    <p className="mt-3 text-sm font-semibold text-green-700">
+                      {resetMsg}
+                    </p>
+                  )}
+                  <div className="mt-3 flex items-center gap-4">
                     <button
                       type="button"
                       onClick={handleReset}
                       disabled={resetBusy}
-                      className="shrink-0 rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
+                      className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
                     >
                       {resetBusy ? "…" : "Envoyer"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetOpen(false)}
+                      className="text-sm font-semibold text-smoke transition-colors hover:text-ink"
+                    >
+                      Annuler
+                    </button>
                   </div>
-                  {resetMsg && (
-                    <p className="mt-3 text-xs font-semibold text-green-700">
-                      {resetMsg}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setResetOpen(false)}
-                    className="mt-2 text-xs font-semibold text-smoke hover:text-ink"
-                  >
-                    Annuler
-                  </button>
                 </div>
               )}
             </div>
