@@ -152,17 +152,27 @@ export function AdherentsTable() {
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-smoke">Aucun adhérent trouvé.</div>
         ) : (
-          <table className="w-full min-w-[52rem] text-left text-sm md:min-w-0">
+          <table className="w-full min-w-[50rem] table-fixed text-left text-sm md:min-w-0">
+            <colgroup>
+              <col className="w-[170px]" />
+              <col className="w-[64px]" />
+              <col className="w-[108px]" />
+              <col className="w-[78px]" />
+              <col className="w-[78px]" />
+              <col className="w-[100px]" />
+              <col className="w-[78px]" />
+              <col className="w-[120px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
                 <th className="px-3 py-3 font-bold">Adhérent</th>
-                <th className="px-3 py-3 font-bold">Type</th>
-                <th className="px-3 py-3 font-bold">Statut</th>
-                <th className="px-3 py-3 font-bold">Montant</th>
-                <th className="px-3 py-3 font-bold">Encaissé</th>
-                <th className="px-3 py-3 font-bold">Options</th>
-                <th className="px-3 py-3 font-bold">Date</th>
-                <th className="px-3 py-3 font-bold" />
+                <th className="px-2 py-3 font-bold">Type</th>
+                <th className="px-2 py-3 font-bold">Statut</th>
+                <th className="px-2 py-3 font-bold">Montant</th>
+                <th className="px-2 py-3 font-bold">Encaissé</th>
+                <th className="px-2 py-3 font-bold">Options</th>
+                <th className="px-2 py-3 font-bold">Date</th>
+                <th className="px-2 py-3 font-bold" />
               </tr>
             </thead>
             <tbody>
@@ -209,14 +219,14 @@ function Row({
               `${a.prenom[0] ?? ""}${a.nom[0] ?? ""}`
             )}
           </span>
-          <span className="block max-w-[180px] min-w-0">
-            <span className="flex items-center gap-2 font-semibold text-ink">
+          <span className="block max-w-[160px] min-w-0">
+            <span className="flex items-center gap-1.5 font-semibold text-ink">
               <span className="truncate">
                 {a.prenom} {a.nom}
               </span>
               {isNew && (
-                <span className="shrink-0 rounded-full bg-orange px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-white">
-                  Nouveau
+                <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white">
+                  New
                 </span>
               )}
             </span>
@@ -224,12 +234,12 @@ function Row({
           </span>
         </Link>
       </td>
-      <td className="px-3 py-3 capitalize text-smoke">{a.type_adherent}</td>
-      <td className="px-3 py-3">
+      <td className="px-2 py-3 capitalize text-smoke">{a.type_adherent}</td>
+      <td className="px-2 py-3">
         <div className="flex flex-col items-start gap-1.5">
           <StatutBadge statut={a.statut_paiement} />
           <span
-            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[0.7rem] font-bold ${
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[0.65rem] font-bold ${
               a.documents_valides
                 ? "bg-green-100 text-green-700"
                 : "bg-orange-50 text-orange"
@@ -239,24 +249,24 @@ function Row({
           </span>
         </div>
       </td>
-      <td className="px-3 py-3 font-display font-bold text-ink">{euro(a.montant_total)}</td>
-      <td className="px-3 py-3 font-display font-bold text-green-600">
+      <td className="px-2 py-3 font-display font-bold text-ink">{euro(a.montant_total)}</td>
+      <td className="px-2 py-3 font-display font-bold text-green-600">
         {euro(encaisse)}
       </td>
-      <td className="max-w-[120px] truncate px-3 py-3 text-xs text-smoke">
+      <td className="truncate px-2 py-3 text-xs text-smoke">
         {a.package === "savate_forme" ? "Savate & Forme" : "Boxe Française"}
         {a.option_prepa_physique ? " · Prépa" : ""}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>
-      <td className="whitespace-nowrap px-3 py-3 text-smoke">
+      <td className="whitespace-nowrap px-2 py-3 text-xs text-smoke">
         {new Date(a.created_at).toLocaleDateString("fr-FR")}
       </td>
-      <td className="px-3 py-3 text-right">
+      <td className="px-2 py-3 text-right">
         {a.statut_paiement === "en_attente" ? (
           <button
             onClick={onConfirm}
             disabled={confirming}
-            className="whitespace-nowrap rounded-full bg-ink px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-orange disabled:opacity-50"
+            className="whitespace-nowrap rounded-full bg-ink px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-orange disabled:opacity-50"
           >
             {confirming ? "…" : "Confirmer espèces"}
           </button>

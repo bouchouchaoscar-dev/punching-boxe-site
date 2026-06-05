@@ -62,7 +62,7 @@ const EQUIPE: Coach[] = [
     phrase:
       "Encadrement et accompagnement des adhérents sur les cours collectifs.",
     photo: "/images/equipe/sebastien.jpg",
-    objectClass: "object-cover object-bottom",
+    objectClass: "object-cover object-center scale-110",
   },
 ];
 
