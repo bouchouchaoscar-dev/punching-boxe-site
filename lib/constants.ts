@@ -86,7 +86,7 @@ export const HORAIRES: Creneau[] = [
   { jour: "Mardi", heure: "20h00 – 21h00", cours: "Préparation Physique", public: "Tous niveaux", salle: "Gymnase du Port", ville: NOGENT },
   // Mercredi
   { jour: "Mercredi", heure: "17h00 – 18h00", cours: "Boxe Française", public: "Enfants", salle: "Gymnase du Centre", ville: PERREUX },
-  { jour: "Mercredi", heure: "18h30 – 19h30", cours: "Savate Fitness", public: "Tous niveaux", salle: "Salle à confirmer", ville: "" },
+  { jour: "Mercredi", heure: "18h30 – 19h30", cours: "Savate Fitness", public: "Tous niveaux", salle: "Gymnase du Centre", ville: PERREUX },
   { jour: "Mercredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes", salle: "Gymnase du Centre", ville: PERREUX },
   // Jeudi
   { jour: "Jeudi", heure: "18h00 – 19h00", cours: "Boxe Française", public: "Enfants", salle: "Dojo David Douillet", ville: NOGENT },
