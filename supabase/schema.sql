@@ -38,7 +38,15 @@ create table if not exists public.adherents (
   certificat_medical_url    text,
   reglement_url             text,
   documents_valides         boolean not null default false,
-  motif_refus_doc           text
+  motif_refus_doc           text,
+  fiche_valide              boolean default false,
+  certificat_valide         boolean default false,
+  reglement_valide          boolean default false,
+  photo_valide              boolean default false,
+  fiche_motif_refus         text,
+  certificat_motif_refus    text,
+  reglement_motif_refus     text,
+  photo_motif_refus         text
 );
 
 -- Profils liés à Supabase Auth (espace adhérent + rôle admin futur).
@@ -60,6 +68,17 @@ alter table public.adherents
 -- Migration : motif de refus d'un document (saisi par l'admin, vu par l'adhérent).
 alter table public.adherents
   add column if not exists motif_refus_doc text;
+
+-- Migration : validation / refus PAR DOCUMENT.
+alter table public.adherents
+  add column if not exists fiche_valide boolean default false,
+  add column if not exists certificat_valide boolean default false,
+  add column if not exists reglement_valide boolean default false,
+  add column if not exists photo_valide boolean default false,
+  add column if not exists fiche_motif_refus text,
+  add column if not exists certificat_motif_refus text,
+  add column if not exists reglement_motif_refus text,
+  add column if not exists photo_motif_refus text;
 
 -- Migration : profils liés à Supabase Auth.
 create table if not exists public.profiles (

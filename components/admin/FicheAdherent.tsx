@@ -4,9 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
-import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
+
+// Base de colonnes par document : <base>_valide (bool) + <base>_motif_refus (text).
+type DocBase = "fiche" | "certificat" | "reglement" | "photo";
 
 const MODE_LABEL: Record<string, string> = {
   stripe_1x: "Carte — 1 fois",
@@ -18,14 +20,14 @@ const MODE_LABEL: Record<string, string> = {
 
 const DOCS: {
   key: keyof Adherent;
-  field: FileFieldKey;
+  base: DocBase;
   label: string;
-  accept: string;
+  obligatoire: boolean;
 }[] = [
-  { key: "fiche_inscription_url", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf" },
-  { key: "certificat_medical_url", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
-  { key: "reglement_url", field: "reglement", label: "Règlement intérieur", accept: "application/pdf" },
-  { key: "photo_url", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
+  { key: "fiche_inscription_url", base: "fiche", label: "Fiche d'inscription", obligatoire: true },
+  { key: "certificat_medical_url", base: "certificat", label: "Certificat médical", obligatoire: false },
+  { key: "reglement_url", base: "reglement", label: "Règlement intérieur", obligatoire: true },
+  { key: "photo_url", base: "photo", label: "Photo d'identité", obligatoire: true },
 ];
 
 export function FicheAdherent({ id }: { id: string }) {
@@ -36,9 +38,8 @@ export function FicheAdherent({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Partial<Adherent>>({});
   const [toast, setToast] = useState<string | null>(null);
-  const [uploading, setUploading] = useState<FileFieldKey | null>(null);
-  const [motif, setMotif] = useState("");
-  const [showMotif, setShowMotif] = useState(false);
+  const [refusing, setRefusing] = useState<DocBase | null>(null);
+  const [refuseMotif, setRefuseMotif] = useState("");
 
   function showToast(msg: string) {
     setToast(msg);
@@ -84,61 +85,27 @@ export function FicheAdherent({ id }: { id: string }) {
     }
   }
 
-  async function validerDocuments() {
-    const ok = await patch({ action: "valider_documents" });
-    if (ok) showToast("Documents validés ✓");
+  // Valide / dé-valide un document. Valider efface aussi son motif de refus.
+  async function setDocValide(base: DocBase, valide: boolean) {
+    const ok = await patch({
+      [`${base}_valide`]: valide,
+      ...(valide ? { [`${base}_motif_refus`]: null } : {}),
+    });
+    if (ok) showToast(valide ? "Document validé ✓" : "Validation retirée");
   }
 
-  async function refuserDocuments() {
-    if (!motif.trim()) return;
+  // Refuse un document avec un motif (invalide + notifie l'adhérent par email).
+  async function refuserDoc(base: DocBase) {
+    if (!refuseMotif.trim()) return;
     const ok = await patch({
-      action: "refuser_documents",
-      motif_refus_doc: motif.trim(),
+      [`${base}_valide`]: false,
+      [`${base}_motif_refus`]: refuseMotif.trim(),
     });
     if (ok) {
-      setMotif("");
-      setShowMotif(false);
-      showToast("Adhérent notifié par email ✓");
+      setRefusing(null);
+      setRefuseMotif("");
+      showToast("Document refusé — adhérent notifié ✓");
     }
-  }
-
-  async function leverRefus() {
-    const ok = await patch({ motif_refus_doc: null });
-    if (ok) showToast("Refus levé ✓");
-  }
-
-  // Remplacement (ou ajout) d'un document depuis l'admin : ouvre un sélecteur de
-  // fichier, envoie sur Supabase Storage (persist=1 → écrase + invalide la
-  // validation), puis recharge la fiche.
-  function replaceDocument(field: FileFieldKey, accept: string) {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = accept;
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      setUploading(field);
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("adherentId", id);
-        fd.append("field", field);
-        fd.append("persist", "1");
-        const res = await fetch("/api/upload-document", { method: "POST", body: fd });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          await load();
-          showToast("Document remplacé ✓");
-        } else {
-          showToast(data.error || "Échec de l'envoi du document.");
-        }
-      } catch {
-        showToast("Erreur réseau pendant l'envoi.");
-      } finally {
-        setUploading(null);
-      }
-    };
-    input.click();
   }
 
   if (loading)
@@ -288,117 +255,132 @@ export function FicheAdherent({ id }: { id: string }) {
               <h3 className="font-display text-lg font-extrabold uppercase text-ink">
                 Documents
               </h3>
-              <div className="flex items-center gap-3">
-                <DocsBadge valides={!!a.documents_valides} />
-                {!a.documents_valides && (
-                  <ButtonAction
-                    onClick={validerDocuments}
-                    disabled={saving}
-                    size="md"
-                  >
-                    {saving ? "…" : "✓ Valider les documents"}
-                  </ButtonAction>
-                )}
-              </div>
+              {/* Validation globale DÉRIVÉE : auto-cochée quand fiche+règlement+photo validés. */}
+              <DocsBadge valides={!!a.documents_valides} />
             </div>
+            <p className="mt-1.5 text-xs text-smoke">
+              Le dossier est validé automatiquement quand la fiche, le règlement
+              et la photo sont validés. Le certificat médical ne bloque pas.
+            </p>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <div className="mt-5 space-y-3">
               {DOCS.map((d) => {
                 const url = a[d.key] as string | null;
-                const isUploading = uploading === d.field;
+                const valide = !!a[`${d.base}_valide` as keyof Adherent];
+                const motifRefus = a[
+                  `${d.base}_motif_refus` as keyof Adherent
+                ] as string | null;
+                const enRefus = refusing === d.base;
                 return (
                   <div
                     key={d.key}
-                    className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm ${
+                    className={`rounded-xl border p-4 ${
                       url ? "border-line" : "border-dashed border-line"
                     }`}
                   >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink">{d.label}</p>
-                      {url ? (
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-1 inline-block text-xs font-bold text-orange hover:underline"
-                        >
-                          Ouvrir →
-                        </a>
-                      ) : (
-                        <p className="mt-1 text-xs text-smoke">Non fourni</p>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-ink">
+                          {d.label}
+                          {!d.obligatoire && (
+                            <span className="ml-2 text-xs font-normal text-smoke">
+                              (facultatif)
+                            </span>
+                          )}
+                        </p>
+                        {url ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-1 inline-block text-xs font-bold text-orange hover:underline"
+                          >
+                            Ouvrir →
+                          </a>
+                        ) : (
+                          <span className="mt-1 inline-block rounded-full bg-paper-2 px-2.5 py-0.5 text-xs font-bold text-smoke">
+                            Non fourni
+                          </span>
+                        )}
+                      </div>
+
+                      {url && !enRefus && (
+                        <div className="flex shrink-0 items-center gap-3">
+                          <label className="inline-flex cursor-pointer items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={valide}
+                              disabled={saving}
+                              onChange={(e) => setDocValide(d.base, e.target.checked)}
+                              className="h-4 w-4 accent-green-600"
+                            />
+                            <span
+                              className={`text-sm font-bold ${
+                                valide ? "text-green-600" : "text-ink"
+                              }`}
+                            >
+                              ✓ Valider
+                            </span>
+                          </label>
+                          {!valide && (
+                            <button
+                              onClick={() => {
+                                setRefusing(d.base);
+                                setRefuseMotif(motifRefus ?? "");
+                              }}
+                              className="text-xs font-semibold text-smoke transition-colors hover:text-red-600"
+                            >
+                              Refuser
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => replaceDocument(d.field, d.accept)}
-                      disabled={isUploading}
-                      className="shrink-0 whitespace-nowrap rounded-full border border-line bg-white px-3 py-1.5 text-xs font-bold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
-                    >
-                      {isUploading ? "Envoi…" : url ? "Remplacer" : "Ajouter"}
-                    </button>
+
+                    {/* Motif existant (document refusé) */}
+                    {url && !enRefus && motifRefus && !valide && (
+                      <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                        ❌ Refusé : {motifRefus}
+                      </p>
+                    )}
+
+                    {/* Saisie du motif de refus */}
+                    {enRefus && (
+                      <div className="mt-3">
+                        <textarea
+                          value={refuseMotif}
+                          onChange={(e) => setRefuseMotif(e.target.value)}
+                          rows={2}
+                          placeholder="Motif du refus (ex : document non signé)…"
+                          className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                        />
+                        <div className="mt-2 flex items-center gap-3">
+                          <button
+                            onClick={() => refuserDoc(d.base)}
+                            disabled={saving || !refuseMotif.trim()}
+                            className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {saving ? "…" : "Confirmer le refus"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setRefusing(null);
+                              setRefuseMotif("");
+                            }}
+                            className="text-xs font-semibold text-smoke hover:text-ink"
+                          >
+                            Annuler
+                          </button>
+                        </div>
+                        <p className="mt-1.5 text-xs text-smoke">
+                          Un email est envoyé à l&apos;adhérent pour l&apos;inviter
+                          à déposer un nouveau document.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}
-            </div>
-
-            {/* Motif de refus / demande de correction */}
-            <div className="mt-5 border-t border-line pt-5">
-              {a.motif_refus_doc ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-red-700">
-                    Correction demandée à l&apos;adhérent
-                  </p>
-                  <p className="mt-1 text-sm text-red-700">{a.motif_refus_doc}</p>
-                  <button
-                    onClick={leverRefus}
-                    disabled={saving}
-                    className="mt-3 text-xs font-bold text-red-700 underline-offset-2 hover:underline disabled:opacity-50"
-                  >
-                    Lever la demande de correction
-                  </button>
-                </div>
-              ) : !showMotif ? (
-                <button
-                  onClick={() => setShowMotif(true)}
-                  className="text-sm font-bold text-smoke transition-colors hover:text-red-600"
-                >
-                  Demander une correction (refuser un document)
-                </button>
-              ) : (
-                <div>
-                  <label className="text-xs font-bold uppercase tracking-wide text-smoke">
-                    Motif du refus
-                  </label>
-                  <textarea
-                    value={motif}
-                    onChange={(e) => setMotif(e.target.value)}
-                    rows={3}
-                    placeholder="Ex : le certificat médical n'est pas signé par le médecin."
-                    className="focus-ring mt-1.5 w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
-                  />
-                  <div className="mt-2 flex items-center gap-3">
-                    <ButtonAction
-                      onClick={refuserDocuments}
-                      disabled={saving || !motif.trim()}
-                      size="md"
-                    >
-                      {saving ? "…" : "Notifier l'adhérent"}
-                    </ButtonAction>
-                    <button
-                      onClick={() => {
-                        setShowMotif(false);
-                        setMotif("");
-                      }}
-                      className="text-sm font-semibold text-smoke hover:text-ink"
-                    >
-                      Annuler
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs text-smoke">
-                    Un email est envoyé à l&apos;adhérent pour l&apos;inviter à se
-                    connecter à son espace.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>

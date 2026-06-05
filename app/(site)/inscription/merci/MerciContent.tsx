@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
-import { CLUB } from "@/lib/constants";
 
 export function MerciContent() {
   const params = useSearchParams();
@@ -41,16 +40,23 @@ export function MerciContent() {
           Bienvenue !
         </h1>
         <p className="mt-5 text-lg leading-relaxed text-white/70">
-          Votre inscription au {CLUB.nom} est enregistrée. Un email de
-          confirmation vous a été envoyé.
+          {especes ? (
+            <>
+              Votre inscription est enregistrée. Votre dossier est en cours de
+              validation. Pensez à régler votre cotisation en espèces auprès du
+              professeur lors de votre prochain cours.
+            </>
+          ) : (
+            <>
+              Votre inscription est enregistrée et votre paiement a bien été pris
+              en compte. Votre dossier est en cours de validation — Pascal
+              vérifiera vos documents dans les plus brefs délais.
+            </>
+          )}
         </p>
-
-        {especes && (
-          <p className="mt-4 rounded-2xl border border-orange/30 bg-white/5 p-4 text-sm text-white/80">
-            Pensez à régler en espèces auprès du professeur lors de votre
-            prochain cours. Votre place est notée comme « en attente » d&apos;ici là.
-          </p>
-        )}
+        <p className="mt-3 text-sm text-white/50">
+          Un email de confirmation vous a été envoyé.
+        </p>
 
         <p className="mt-6 font-display text-xl font-extrabold uppercase text-orange">
           À bientôt à la salle 🥊

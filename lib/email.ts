@@ -108,6 +108,32 @@ export async function sendDocumentActionRequired(d: {
   });
 }
 
+/** Email à Pascal : un adhérent a (re)déposé un document, à valider. */
+export async function sendAdminDocReplaced(d: {
+  prenom: string;
+  nom: string;
+  adherentId: string;
+  docLabel: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Document à valider 📎</h1>
+    <p style="line-height:1.6;color:#444"><strong>${d.prenom} ${d.nom}</strong> vient de déposer un document : <strong>${d.docLabel}</strong>.</p>
+    <p style="line-height:1.6;color:#444">Connectez-vous au dashboard pour le vérifier et valider le dossier.</p>
+    <a href="${lien}" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700;margin-top:6px">Voir la fiche adhérent</a>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    subject: `Document déposé : ${d.prenom} ${d.nom}`,
+    html,
+  });
+}
+
 /** Email de notification à Pascal (admin). */
 export async function sendAdminNotification(d: MailData) {
   const client = getResend();

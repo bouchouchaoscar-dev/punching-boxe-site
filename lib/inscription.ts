@@ -87,5 +87,28 @@ export function buildAdherentInsert(
     reglement_url: p.reglement_url || null,
     documents_valides: false,
     motif_refus_doc: null,
+    fiche_valide: false,
+    certificat_valide: false,
+    reglement_valide: false,
+    photo_valide: false,
+    fiche_motif_refus: null,
+    certificat_motif_refus: null,
+    reglement_motif_refus: null,
+    photo_motif_refus: null,
   };
 }
+
+// Colonnes issues de migrations (validation/refus des documents). Si la base
+// n'a pas encore reçu ces migrations, l'insert les retire pour ne pas échouer.
+export const OPTIONAL_DOC_COLUMNS = [
+  "documents_valides",
+  "motif_refus_doc",
+  "fiche_valide",
+  "certificat_valide",
+  "reglement_valide",
+  "photo_valide",
+  "fiche_motif_refus",
+  "certificat_motif_refus",
+  "reglement_motif_refus",
+  "photo_motif_refus",
+] as const;

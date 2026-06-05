@@ -17,11 +17,17 @@ const MODE_LABEL: Record<string, string> = {
   especes: "Espèces (au prochain cours)",
 };
 
-const DOCS: { key: keyof Adherent; field: FileFieldKey; label: string; accept: string }[] = [
-  { key: "fiche_inscription_url", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf" },
-  { key: "certificat_medical_url", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
-  { key: "reglement_url", field: "reglement", label: "Règlement intérieur", accept: "application/pdf" },
-  { key: "photo_url", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
+const DOCS: {
+  key: keyof Adherent;
+  base: "fiche" | "certificat" | "reglement" | "photo";
+  field: FileFieldKey;
+  label: string;
+  accept: string;
+}[] = [
+  { key: "fiche_inscription_url", base: "fiche", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf" },
+  { key: "certificat_medical_url", base: "certificat", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
+  { key: "reglement_url", base: "reglement", field: "reglement", label: "Règlement intérieur", accept: "application/pdf" },
+  { key: "photo_url", base: "photo", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
 ];
 
 const CONNEXION_REDIRECT =
@@ -128,9 +134,12 @@ export function MonEspace() {
   if (!session) return null; // redirection en cours
 
   const prenom = adherent?.prenom || session.user.email?.split("@")[0] || "";
+  const anyRefus =
+    !!adherent &&
+    DOCS.some((d) => adherent[`${d.base}_motif_refus` as keyof Adherent]);
   const status = !adherent
     ? "aucun"
-    : adherent.motif_refus_doc
+    : anyRefus
       ? "refus"
       : adherent.documents_valides
         ? "valide"
@@ -196,33 +205,47 @@ export function MonEspace() {
               {DOCS.map((d) => {
                 const url = adherent[d.key] as string | null;
                 const isUploading = uploading === d.field;
+                const motifRefus = adherent[
+                  `${d.base}_motif_refus` as keyof Adherent
+                ] as string | null;
+                const valide = !!adherent[`${d.base}_valide` as keyof Adherent];
                 const statut = !url
                   ? "manquant"
-                  : adherent.documents_valides
-                    ? "depose"
-                    : "attente";
+                  : motifRefus
+                    ? "refus"
+                    : valide
+                      ? "valide"
+                      : "attente";
                 return (
                   <div
                     key={d.key}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line p-4"
+                    className={`flex items-center justify-between gap-3 rounded-xl border p-4 ${
+                      statut === "refus" ? "border-red-200 bg-red-50/40" : "border-line"
+                    }`}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-ink">{d.label}</p>
-                      <DocStatus statut={statut} url={url} />
+                      <DocStatus statut={statut} url={url} motif={motifRefus} />
                     </div>
-                    <button
-                      onClick={() => deposer(d.field, d.accept)}
-                      disabled={isUploading}
-                      className="shrink-0 whitespace-nowrap rounded-full border border-line bg-white px-3.5 py-2 text-xs font-bold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
-                    >
-                      {isUploading
-                        ? "Envoi…"
-                        : url
-                          ? "Remplacer"
-                          : d.field === "certificat_medical"
-                            ? "Déposer mon certificat médical"
-                            : "Déposer"}
-                    </button>
+                    {(statut === "manquant" || statut === "refus") && (
+                      <button
+                        onClick={() => deposer(d.field, d.accept)}
+                        disabled={isUploading}
+                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
+                          statut === "refus"
+                            ? "bg-red-600 text-white hover:bg-red-700"
+                            : "border border-line bg-white text-ink hover:border-orange hover:text-orange"
+                        }`}
+                      >
+                        {isUploading
+                          ? "Envoi…"
+                          : statut === "refus"
+                            ? "Remplacer"
+                            : d.field === "certificat_medical"
+                              ? "Déposer mon certificat médical"
+                              : "Déposer"}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -302,10 +325,36 @@ function StatusBanner({ status }: { status: string }) {
   );
 }
 
-function DocStatus({ statut, url }: { statut: string; url: string | null }) {
+function DocStatus({
+  statut,
+  url,
+  motif,
+}: {
+  statut: string;
+  url: string | null;
+  motif: string | null;
+}) {
   if (statut === "manquant")
-    return <p className="mt-1 text-xs font-semibold text-smoke">📎 Manquant</p>;
-  if (statut === "depose")
+    return <p className="mt-1 text-xs font-semibold text-smoke">📎 Non fourni</p>;
+
+  if (statut === "refus")
+    return (
+      <div className="mt-1">
+        <p className="text-xs font-semibold text-red-600">
+          ❌ Refusé{motif ? ` : ${motif}` : ""}
+        </p>
+        <a
+          href={url ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[0.7rem] font-semibold text-red-500 hover:underline"
+        >
+          voir le document actuel
+        </a>
+      </div>
+    );
+
+  if (statut === "valide")
     return (
       <a
         href={url ?? undefined}
@@ -313,9 +362,10 @@ function DocStatus({ statut, url }: { statut: string; url: string | null }) {
         rel="noopener noreferrer"
         className="mt-1 inline-block text-xs font-semibold text-green-600 hover:underline"
       >
-        ✅ Déposé — voir
+        ✅ Validé par Pascal — voir
       </a>
     );
+
   return (
     <a
       href={url ?? undefined}

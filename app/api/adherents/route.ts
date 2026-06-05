@@ -3,6 +3,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import {
   buildAdherentInsert,
   validatePayload,
+  OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
 import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
@@ -38,12 +39,11 @@ export async function POST(request: Request) {
     .select()
     .single();
 
-  // Tolérance : si les migrations (documents_valides / motif_refus_doc) ne sont
-  // pas encore appliquées, on réessaie sans ces champs (DEFAULT pris à la création).
-  if (error && /(documents_valides|motif_refus_doc)/.test(error.message)) {
+  // Tolérance : si les migrations de validation des documents ne sont pas encore
+  // appliquées, on réessaie sans ces colonnes (DEFAULT pris à la création).
+  if (error && OPTIONAL_DOC_COLUMNS.some((c) => error!.message.includes(c))) {
     const rest = { ...record } as Record<string, unknown>;
-    delete rest.documents_valides;
-    delete rest.motif_refus_doc;
+    for (const c of OPTIONAL_DOC_COLUMNS) delete rest[c];
     ({ data, error } = await supabase
       .from("adherents")
       .insert(rest)

@@ -29,6 +29,14 @@ export interface Adherent {
   reglement_url: string | null;
   documents_valides: boolean;
   motif_refus_doc: string | null;
+  fiche_valide: boolean;
+  certificat_valide: boolean;
+  reglement_valide: boolean;
+  photo_valide: boolean;
+  fiche_motif_refus: string | null;
+  certificat_motif_refus: string | null;
+  reglement_motif_refus: string | null;
+  photo_motif_refus: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

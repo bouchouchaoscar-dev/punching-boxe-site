@@ -4,6 +4,7 @@ import {
   isSupabaseConfigured,
   STORAGE_BUCKET,
 } from "@/lib/supabase";
+import { sendAdminDocReplaced } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,20 @@ const URL_COLUMN: Record<Field, string> = {
   certificat_medical: "certificat_medical_url",
   reglement: "reglement_url",
   photo: "photo_url",
+};
+
+// Base des colonnes de validation par document.
+const DOC_BASE: Record<Field, string> = {
+  fiche_inscription: "fiche",
+  certificat_medical: "certificat",
+  reglement: "reglement",
+  photo: "photo",
+};
+const DOC_LABEL: Record<Field, string> = {
+  fiche_inscription: "Fiche d'inscription",
+  certificat_medical: "Certificat médical",
+  reglement: "Règlement intérieur",
+  photo: "Photo d'identité",
 };
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
@@ -71,7 +86,7 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const { data: adherent, error: findErr } = await supabase
     .from("adherents")
-    .select("id")
+    .select("id, prenom, nom")
     .ilike("email", email)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -124,25 +139,57 @@ export async function POST(request: Request) {
 
   const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
 
-  // On enregistre l'URL, on réinitialise la validation et on lève un éventuel
-  // refus (l'adhérent vient de redéposer → à revoir par l'admin).
+  // On enregistre l'URL et on réinitialise la validation de CE document : le
+  // doc redéposé n'est plus validé et son éventuel refus est levé (à revoir).
+  const base = DOC_BASE[field];
   const update: Record<string, unknown> = {
     [URL_COLUMN[field]]: pub.publicUrl,
-    documents_valides: false,
-    motif_refus_doc: null,
+    [`${base}_valide`]: false,
+    [`${base}_motif_refus`]: null,
   };
-  let { error: updErr } = await supabase
+  let { data: updated, error: updErr } = await supabase
     .from("adherents")
     .update(update)
-    .eq("id", adherent.id);
-  if (updErr && /(documents_valides|motif_refus_doc)/.test(updErr.message)) {
-    ({ error: updErr } = await supabase
+    .eq("id", adherent.id)
+    .select()
+    .single();
+  // Tolérance : colonnes de validation non encore migrées → au moins l'URL.
+  if (updErr && /(_valide|_motif_refus)/.test(updErr.message)) {
+    ({ data: updated, error: updErr } = await supabase
       .from("adherents")
       .update({ [URL_COLUMN[field]]: pub.publicUrl })
-      .eq("id", adherent.id));
+      .eq("id", adherent.id)
+      .select()
+      .single());
   }
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
+  }
+
+  // documents_valides DÉRIVÉ (fiche + règlement + photo).
+  if (updated) {
+    const derived =
+      !!updated.fiche_valide &&
+      !!updated.reglement_valide &&
+      !!updated.photo_valide;
+    if (updated.documents_valides !== derived) {
+      await supabase
+        .from("adherents")
+        .update({ documents_valides: derived })
+        .eq("id", adherent.id);
+    }
+  }
+
+  // Notifie Pascal qu'un document a été (re)déposé et attend validation.
+  try {
+    await sendAdminDocReplaced({
+      prenom: adherent.prenom,
+      nom: adherent.nom,
+      adherentId: adherent.id,
+      docLabel: DOC_LABEL[field],
+    });
+  } catch (e) {
+    console.error("Email admin doc déposé:", e);
   }
 
   return NextResponse.json({ url: pub.publicUrl, field });

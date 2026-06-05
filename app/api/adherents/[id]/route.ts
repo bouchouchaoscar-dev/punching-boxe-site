@@ -50,8 +50,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
     "code_postal",
     "option_prepa_physique",
     "nb_membres_famille",
-    "documents_valides",
-    "motif_refus_doc",
+    // Validation / refus PAR DOCUMENT.
+    "fiche_valide",
+    "certificat_valide",
+    "reglement_valide",
+    "photo_valide",
+    "fiche_motif_refus",
+    "certificat_motif_refus",
+    "reglement_motif_refus",
+    "photo_motif_refus",
   ];
   const update: Record<string, unknown> = {};
   for (const k of allowed) {
@@ -61,24 +68,23 @@ export async function PATCH(request: Request, { params }: Ctx) {
   if (body.action === "confirmer_especes") {
     update.statut_paiement = "confirme_especes";
   }
-  if (body.action === "valider_documents") {
-    update.documents_valides = true;
-    update.motif_refus_doc = null;
-  }
-  // Refus d'un document : on enregistre le motif, on invalide le dossier et on
-  // notifie l'adhérent par email.
-  const isRefus = body.action === "refuser_documents";
-  if (isRefus) {
-    update.motif_refus_doc = String(body.motif_refus_doc ?? "").trim() || null;
-    update.documents_valides = false;
-  }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "Aucun champ à mettre à jour." }, { status: 400 });
   }
 
+  // Un motif de refus non vide est-il posé dans cette requête ? (→ email adhérent)
+  const motifRefus = [
+    "fiche_motif_refus",
+    "certificat_motif_refus",
+    "reglement_motif_refus",
+    "photo_motif_refus",
+  ]
+    .map((k) => body[k])
+    .find((v) => typeof v === "string" && v.trim()) as string | undefined;
+
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("adherents")
     .update(update)
     .eq("id", id)
@@ -87,13 +93,29 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notification email à l'adhérent (best-effort) lors d'un refus de document.
-  if (isRefus && data?.email) {
+  // documents_valides est DÉRIVÉ : vrai quand les 3 docs OBLIGATOIRES sont
+  // validés (fiche + règlement + photo). Le certificat médical ne bloque pas.
+  if (data) {
+    const derived =
+      !!data.fiche_valide && !!data.reglement_valide && !!data.photo_valide;
+    if (data.documents_valides !== derived) {
+      const r = await supabase
+        .from("adherents")
+        .update({ documents_valides: derived })
+        .eq("id", id)
+        .select()
+        .single();
+      if (!r.error && r.data) data = r.data;
+    }
+  }
+
+  // Notification email à l'adhérent (best-effort) lorsqu'un document est refusé.
+  if (motifRefus && data?.email) {
     try {
       await sendDocumentActionRequired({
         prenom: data.prenom,
         email: data.email,
-        motif: data.motif_refus_doc,
+        motif: motifRefus,
       });
     } catch (e) {
       console.error("Email refus doc:", e);
