@@ -53,7 +53,7 @@ export function MerciContent() {
         )}
 
         <p className="mt-6 font-display text-xl font-extrabold uppercase text-orange">
-          À bientôt sur les tatamis 🥊
+          À bientôt à la salle 🥊
         </p>
 
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">

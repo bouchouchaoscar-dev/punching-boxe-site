@@ -52,8 +52,11 @@ export function Dashboard() {
       "Juil", "Août", "Sept", "Oct", "Nov", "Déc",
       "Janv", "Févr", "Mars", "Avril", "Mai", "Juin",
     ];
+    // Saison sportive EN COURS déduite de la date du jour (Juil→Juin) :
+    // avant juillet on est encore dans la saison démarrée l'année précédente.
+    // → garantit que les inscriptions du mois réel (created_at) tombent dans la fenêtre.
     const seasonStartYear =
-      parseInt(CLUB.saison.split("-")[0], 10) || now.getFullYear();
+      now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
     const months = SEASON_LABELS.map((label, idx) => {
       const monthIndex = (6 + idx) % 12; // 0→Juil(6) … 6→Janv(0)
       const year = idx <= 5 ? seasonStartYear : seasonStartYear + 1;
