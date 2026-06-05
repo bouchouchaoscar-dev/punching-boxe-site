@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { PageHero } from "@/components/sections/PageHero";
 import { DocumentsSection } from "@/components/inscription/DocumentsSection";
-import { InscriptionForm } from "@/components/inscription/InscriptionForm";
+import { InscriptionGate } from "@/components/inscription/InscriptionGate";
 import { Reveal } from "@/components/ui/Reveal";
 
 export const metadata: Metadata = {
@@ -34,7 +34,7 @@ export default function InscriptionPage() {
           </Reveal>
 
           <div className="mt-8">
-            <InscriptionForm />
+            <InscriptionGate />
           </div>
         </div>
       </section>

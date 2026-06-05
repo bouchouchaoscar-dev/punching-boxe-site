@@ -79,6 +79,35 @@ export async function sendAdherentConfirmation(d: MailData) {
   });
 }
 
+/** Email à l'adhérent : un document de son dossier nécessite son attention. */
+export async function sendDocumentActionRequired(d: {
+  prenom: string;
+  email: string;
+  motif?: string | null;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Votre dossier nécessite votre attention</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Un document de votre dossier d'inscription nécessite votre attention. Connectez-vous à votre espace personnel pour voir les détails et déposer le document corrigé.</p>
+    ${
+      d.motif
+        ? `<div style="border:1px solid #f0d4c4;background:#fff5ee;border-radius:12px;padding:14px;margin:14px 0;color:#b1480f"><strong>Motif :</strong> ${d.motif}</div>`
+        : ""
+    }
+    <a href="${SITE_URL}/mon-espace" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700;margin-top:6px">Accéder à mon espace</a>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: `Action requise sur votre dossier — ${CLUB.nomCourt}`,
+    html,
+  });
+}
+
 /** Email de notification à Pascal (admin). */
 export async function sendAdminNotification(d: MailData) {
   const client = getResend();

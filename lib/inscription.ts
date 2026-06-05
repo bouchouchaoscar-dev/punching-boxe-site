@@ -86,5 +86,6 @@ export function buildAdherentInsert(
     certificat_medical_url: p.certificat_medical_url || null,
     reglement_url: p.reglement_url || null,
     documents_valides: false,
+    motif_refus_doc: null,
   };
 }

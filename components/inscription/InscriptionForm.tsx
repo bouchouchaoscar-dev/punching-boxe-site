@@ -35,7 +35,7 @@ const PAYMENTS: { mode: ModePaiement; icon: string; label: string }[] = [
   { mode: "especes", icon: "💵", label: "Espèces au prochain cours" },
 ];
 
-export function InscriptionForm() {
+export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) {
   const router = useRouter();
   const [adherentId] = useState(() =>
     typeof crypto !== "undefined" && crypto.randomUUID
@@ -48,7 +48,7 @@ export function InscriptionForm() {
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [dateNaissance, setDateNaissance] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(lockedEmail ?? "");
   const [telephone, setTelephone] = useState("");
   const [adresse, setAdresse] = useState("");
   const [ville, setVille] = useState("");
@@ -111,9 +111,14 @@ export function InscriptionForm() {
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
   const step1Ok = nom.trim() && prenom.trim() && dateNaissance && emailOk;
-  const allFiles = (Object.keys(files) as FileFieldKey[]).every(
-    (k) => files[k].name,
-  );
+  // Documents OBLIGATOIRES (le certificat médical est facultatif : déposable
+  // plus tard depuis l'espace adhérent).
+  const REQUIRED_FILES: FileFieldKey[] = [
+    "fiche_inscription",
+    "reglement",
+    "photo",
+  ];
+  const requiredFilesOk = REQUIRED_FILES.every((k) => files[k].name);
 
   function onFile(field: FileFieldKey, v: { url: string | null; name: string }) {
     setFiles((f) => ({ ...f, [field]: v }));
@@ -236,8 +241,14 @@ export function InscriptionForm() {
                     value={email}
                     onChange={setEmail}
                     required
+                    disabled={!!lockedEmail}
                     error={email.length > 3 && !emailOk ? "Email invalide" : ""}
                   />
+                  {lockedEmail && (
+                    <p className="mt-1.5 text-xs text-smoke">
+                      Email de votre compte — votre dossier y sera rattaché.
+                    </p>
+                  )}
                 </div>
                 <div className="sm:col-span-2">
                   <Input label="Adresse" value={adresse} onChange={setAdresse} />
@@ -370,15 +381,22 @@ export function InscriptionForm() {
                   maxSizeMb={5}
                   onChange={onFile}
                 />
-                <FileDrop
-                  field="certificat_medical"
-                  adherentId={adherentId}
-                  label="Certificat médical signé"
-                  hint="PDF, max 5 Mo"
-                  accept={{ "application/pdf": [".pdf"] }}
-                  maxSizeMb={5}
-                  onChange={onFile}
-                />
+                <div>
+                  <FileDrop
+                    field="certificat_medical"
+                    adherentId={adherentId}
+                    label="Certificat médical signé (facultatif)"
+                    hint="PDF, max 5 Mo"
+                    accept={{ "application/pdf": [".pdf"] }}
+                    maxSizeMb={5}
+                    onChange={onFile}
+                  />
+                  <p className="mt-1.5 text-xs leading-relaxed text-smoke">
+                    Vous n&apos;avez pas encore votre certificat médical ? Pas de
+                    problème — vous pourrez le déposer depuis votre espace
+                    personnel dès que vous l&apos;aurez.
+                  </p>
+                </div>
                 <FileDrop
                   field="reglement"
                   adherentId={adherentId}
@@ -492,7 +510,7 @@ export function InscriptionForm() {
                 onClick={next}
                 size="lg"
                 disabled={
-                  (step === 0 && !step1Ok) || (step === 2 && !allFiles)
+                  (step === 0 && !step1Ok) || (step === 2 && !requiredFilesOk)
                 }
               >
                 Continuer
@@ -524,6 +542,7 @@ function Input({
   required,
   error,
   placeholder,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -532,6 +551,7 @@ function Input({
   required?: boolean;
   error?: string;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block">
@@ -542,10 +562,11 @@ function Input({
         type={type}
         value={value}
         required={required}
+        disabled={disabled}
         placeholder={placeholder}
         inputMode={type === "tel" ? "tel" : undefined}
         onChange={(e) => onChange(e.target.value)}
-        className={`focus-ring w-full rounded-xl border bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange ${
+        className={`focus-ring w-full rounded-xl border bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange disabled:cursor-not-allowed disabled:opacity-60 ${
           error ? "border-red-300" : "border-line"
         }`}
       />

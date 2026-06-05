@@ -28,6 +28,7 @@ export interface Adherent {
   certificat_medical_url: string | null;
   reglement_url: string | null;
   documents_valides: boolean;
+  motif_refus_doc: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

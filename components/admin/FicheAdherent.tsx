@@ -37,6 +37,8 @@ export function FicheAdherent({ id }: { id: string }) {
   const [form, setForm] = useState<Partial<Adherent>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [uploading, setUploading] = useState<FileFieldKey | null>(null);
+  const [motif, setMotif] = useState("");
+  const [showMotif, setShowMotif] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -85,6 +87,24 @@ export function FicheAdherent({ id }: { id: string }) {
   async function validerDocuments() {
     const ok = await patch({ action: "valider_documents" });
     if (ok) showToast("Documents validés ✓");
+  }
+
+  async function refuserDocuments() {
+    if (!motif.trim()) return;
+    const ok = await patch({
+      action: "refuser_documents",
+      motif_refus_doc: motif.trim(),
+    });
+    if (ok) {
+      setMotif("");
+      setShowMotif(false);
+      showToast("Adhérent notifié par email ✓");
+    }
+  }
+
+  async function leverRefus() {
+    const ok = await patch({ motif_refus_doc: null });
+    if (ok) showToast("Refus levé ✓");
   }
 
   // Remplacement (ou ajout) d'un document depuis l'admin : ouvre un sélecteur de
@@ -318,6 +338,67 @@ export function FicheAdherent({ id }: { id: string }) {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Motif de refus / demande de correction */}
+            <div className="mt-5 border-t border-line pt-5">
+              {a.motif_refus_doc ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-red-700">
+                    Correction demandée à l&apos;adhérent
+                  </p>
+                  <p className="mt-1 text-sm text-red-700">{a.motif_refus_doc}</p>
+                  <button
+                    onClick={leverRefus}
+                    disabled={saving}
+                    className="mt-3 text-xs font-bold text-red-700 underline-offset-2 hover:underline disabled:opacity-50"
+                  >
+                    Lever la demande de correction
+                  </button>
+                </div>
+              ) : !showMotif ? (
+                <button
+                  onClick={() => setShowMotif(true)}
+                  className="text-sm font-bold text-smoke transition-colors hover:text-red-600"
+                >
+                  Demander une correction (refuser un document)
+                </button>
+              ) : (
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wide text-smoke">
+                    Motif du refus
+                  </label>
+                  <textarea
+                    value={motif}
+                    onChange={(e) => setMotif(e.target.value)}
+                    rows={3}
+                    placeholder="Ex : le certificat médical n'est pas signé par le médecin."
+                    className="focus-ring mt-1.5 w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                  />
+                  <div className="mt-2 flex items-center gap-3">
+                    <ButtonAction
+                      onClick={refuserDocuments}
+                      disabled={saving || !motif.trim()}
+                      size="md"
+                    >
+                      {saving ? "…" : "Notifier l'adhérent"}
+                    </ButtonAction>
+                    <button
+                      onClick={() => {
+                        setShowMotif(false);
+                        setMotif("");
+                      }}
+                      className="text-sm font-semibold text-smoke hover:text-ink"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-smoke">
+                    Un email est envoyé à l&apos;adhérent pour l&apos;inviter à se
+                    connecter à son espace.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

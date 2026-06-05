@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { sendDocumentActionRequired } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -50,6 +51,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     "option_prepa_physique",
     "nb_membres_famille",
     "documents_valides",
+    "motif_refus_doc",
   ];
   const update: Record<string, unknown> = {};
   for (const k of allowed) {
@@ -61,6 +63,14 @@ export async function PATCH(request: Request, { params }: Ctx) {
   }
   if (body.action === "valider_documents") {
     update.documents_valides = true;
+    update.motif_refus_doc = null;
+  }
+  // Refus d'un document : on enregistre le motif, on invalide le dossier et on
+  // notifie l'adhérent par email.
+  const isRefus = body.action === "refuser_documents";
+  if (isRefus) {
+    update.motif_refus_doc = String(body.motif_refus_doc ?? "").trim() || null;
+    update.documents_valides = false;
   }
 
   if (Object.keys(update).length === 0) {
@@ -76,5 +86,19 @@ export async function PATCH(request: Request, { params }: Ctx) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notification email à l'adhérent (best-effort) lors d'un refus de document.
+  if (isRefus && data?.email) {
+    try {
+      await sendDocumentActionRequired({
+        prenom: data.prenom,
+        email: data.email,
+        motif: data.motif_refus_doc,
+      });
+    } catch (e) {
+      console.error("Email refus doc:", e);
+    }
+  }
+
   return NextResponse.json({ adherent: data });
 }

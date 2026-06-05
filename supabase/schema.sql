@@ -37,7 +37,16 @@ create table if not exists public.adherents (
   fiche_inscription_url     text,
   certificat_medical_url    text,
   reglement_url             text,
-  documents_valides         boolean not null default false
+  documents_valides         boolean not null default false,
+  motif_refus_doc           text
+);
+
+-- Profils liés à Supabase Auth (espace adhérent + rôle admin futur).
+create table if not exists public.profiles (
+  id          uuid references auth.users(id) primary key,
+  adherent_id uuid references public.adherents(id),
+  role        text default 'adherent',
+  created_at  timestamptz default now()
 );
 
 -- Migration pour une base déjà créée (ajoute la colonne package si absente) :
@@ -47,6 +56,18 @@ alter table public.adherents
 -- Migration : validation des documents par l'admin.
 alter table public.adherents
   add column if not exists documents_valides boolean default false;
+
+-- Migration : motif de refus d'un document (saisi par l'admin, vu par l'adhérent).
+alter table public.adherents
+  add column if not exists motif_refus_doc text;
+
+-- Migration : profils liés à Supabase Auth.
+create table if not exists public.profiles (
+  id          uuid references auth.users(id) primary key,
+  adherent_id uuid references public.adherents(id),
+  role        text default 'adherent',
+  created_at  timestamptz default now()
+);
 
 create index if not exists adherents_saison_idx       on public.adherents (saison);
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);

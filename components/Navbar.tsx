@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Lock } from "lucide-react";
+import { Lock, User } from "lucide-react";
 import { Logo } from "./ui/Logo";
 import { Button } from "./ui/Button";
+import { useAdherentSession } from "./auth/useSession";
 import { NAV_LINKS } from "@/lib/constants";
 
 export function Navbar() {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const { session } = useAdherentSession();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -62,6 +64,15 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
+            {session && (
+              <Link
+                href="/mon-espace"
+                className="hidden items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold text-ink/70 transition-colors hover:text-ink sm:inline-flex"
+              >
+                <User className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+                Mon espace
+              </Link>
+            )}
             <Link
               href="/admin/login"
               aria-label="Espace administrateur"
@@ -120,6 +131,11 @@ export function Navbar() {
                 <Button href="/inscription" size="lg">
                   S&apos;inscrire en ligne
                 </Button>
+                {session && (
+                  <Button href="/mon-espace" variant="outline" size="lg">
+                    Mon espace
+                  </Button>
+                )}
                 <Button href="/admin/login" variant="outline" size="lg">
                   Espace administrateur
                 </Button>
