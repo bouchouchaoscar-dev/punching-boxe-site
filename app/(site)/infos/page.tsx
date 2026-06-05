@@ -10,7 +10,7 @@ import { WeeklyPlanning } from "@/components/infos/WeeklyPlanning";
 export const metadata: Metadata = {
   title: "Infos & Tarifs — Nos deux formules, horaires et salles",
   description:
-    "Saison 2026-2027 : Boxe Classique (430€ adulte / 410€ jeune) ou Savate & Forme (390€ / 370€), +30€ adhésion 1ère année. Tarif famille dégressif, planning hebdomadaire et 4 salles.",
+    "Saison 2026-2027 : Boxe Française (430€ adulte / 410€ jeune) ou Savate & Forme (390€ / 370€), +30€ adhésion 1ère année. Tarif famille dégressif, planning hebdomadaire et 4 salles.",
 };
 
 const FAMILLE = [
@@ -37,7 +37,7 @@ export default function InfosPage() {
             Deux formules au choix
           </h2>
           <p className="mt-3 max-w-2xl text-smoke">
-            Boxe Classique à {euro(TARIFS.cotisation.boxe_classique.adulte)} /an
+            Boxe Française à {euro(TARIFS.cotisation.boxe_classique.adulte)} /an
             (adulte) ou Savate &amp; Forme à{" "}
             {euro(TARIFS.cotisation.savate_forme.adulte)} /an. Licence incluse,
             tarif jeune réduit. + {euro(TARIFS.adhesion)} d&apos;adhésion la

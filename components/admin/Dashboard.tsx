@@ -89,7 +89,7 @@ export function Dashboard() {
     const boxe = adherents.filter((a) => a.package === "boxe_classique").length;
     const savate = adherents.filter((a) => a.package === "savate_forme").length;
     const repartitionFormule = [
-      { name: "Boxe Classique", value: boxe, color: ORANGE },
+      { name: "Boxe Française", value: boxe, color: ORANGE },
       { name: "Savate & Forme", value: savate, color: INK },
     ].filter((x) => x.value > 0);
 

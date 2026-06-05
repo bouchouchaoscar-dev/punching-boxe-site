@@ -115,7 +115,7 @@ export const ACTIVITES = [
     sousTitre: "Savate · le sport de combat à la française",
     image: "/images/IMG_0558.jpg",
     inclus: true,
-    tag: "Package Boxe Classique",
+    tag: "Package Boxe Française",
     resume:
       "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
     points: [
@@ -154,11 +154,11 @@ export const ACTIVITES = [
     inclus: false,
     tag: "Prépa Physique",
     resume:
-      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Classique, incluse dans le package Savate & Forme.",
+      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate & Forme.",
     points: [
       "2 séances par semaine (mardi & jeudi 20h)",
       "Renforcement musculaire + cardio intensif",
-      "Option +100€ avec Boxe Classique · incluse en Savate & Forme",
+      "Option +100€ avec Boxe Française · incluse en Savate & Forme",
     ],
     creneaux: ["Mardi 20h00", "Jeudi 20h00"],
   },
@@ -168,7 +168,7 @@ export const ACTIVITES = [
 export const PACKAGES = [
   {
     id: "boxe_classique" as const,
-    nom: "Boxe Classique",
+    nom: "Boxe Française",
     accroche: "L'apprentissage complet de la Boxe Française, enfants et adultes.",
     tarifs: { adulte: 430, jeune: 410 },
     inclus: [
@@ -211,7 +211,7 @@ export const POURQUOI = [
   },
   {
     titre: "Deux formules au choix",
-    texte: "Boxe Classique pour la pratique et la compétition, Savate & Forme pour la remise en forme. À chacun sa voie.",
+    texte: "Boxe Française pour la pratique et la compétition, Savate & Forme pour la remise en forme. À chacun sa voie.",
   },
 ];
 

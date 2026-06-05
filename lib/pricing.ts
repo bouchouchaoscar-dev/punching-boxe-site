@@ -19,7 +19,7 @@ export const TARIFS = {
 } as const;
 
 export const PACKAGE_LABEL: Record<PackageType, string> = {
-  boxe_classique: "Package Boxe Classique",
+  boxe_classique: "Package Boxe Française",
   savate_forme: "Package Savate & Forme",
 };
 
@@ -28,7 +28,7 @@ export type PricingInput = {
   typeAdherent?: TypeAdherent; // override possible
   packageType: PackageType;
   nouveauMembre: boolean;
-  optionPrepaPhysique: boolean; // ne s'applique (et n'est facturé) que pour Boxe Classique
+  optionPrepaPhysique: boolean; // ne s'applique (et n'est facturé) que pour Boxe Française
   nbMembresFamille: number; // nombre de membres DÉJÀ inscrits dans la famille
 };
 
@@ -85,7 +85,7 @@ export function calculerTarif(input: PricingInput): PricingResult {
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
 
   // La Préparation Physique n'est facturée (+100€) que dans le package
-  // Boxe Classique. Dans Savate & Forme, elle est incluse (0€).
+  // Boxe Française. Dans Savate & Forme, elle est incluse (0€).
   const prepa =
     input.packageType === "boxe_classique" && input.optionPrepaPhysique
       ? TARIFS.prepaPhysique

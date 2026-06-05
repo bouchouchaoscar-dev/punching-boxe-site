@@ -67,12 +67,12 @@ export function FicheInscriptionDoc() {
         {/* Formule + Tarifs */}
         <Text style={[styles.h2, f.h2]}>Formule & cotisation</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 4 }}>
-          <Check label="Package Boxe Classique" />
+          <Check label="Package Boxe Française" />
           <Check label="Package Savate & Forme" />
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Boxe Classique</Text> — Cotisation / Licence (Adultes / Jeunes)
+            <Text style={styles.bold}>Boxe Française</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
           <Text style={styles.price}>
             {TARIFS.cotisation.boxe_classique.adulte} / {TARIFS.cotisation.boxe_classique.jeune} €
@@ -97,7 +97,7 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Classique · incluse en Savate & Forme)
+            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Française · incluse en Savate & Forme)
           </Text>
           <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
         </View>
