@@ -8,6 +8,9 @@ import { HORAIRES, type Creneau } from "@/lib/constants";
 // Lundi → Vendredi uniquement (week-end = repos, colonnes inutiles).
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
 
+// Ville abrégée (planning desktop uniquement) : "Nogent-sur-Marne" → "Nogent".
+const villeCourte = (v: string) => v.replace("-sur-Marne", "");
+
 /** Style d'une card en fonction du cours et du public. */
 function cardStyle(c: Creneau): { className: string; style?: React.CSSProperties; badge: string } {
   if (c.cours === "Préparation Physique")
@@ -81,7 +84,7 @@ export function WeeklyPlanning() {
                     return (
                       <div
                         key={i}
-                        className={`rounded-xl p-3 ${s.className}`}
+                        className={`rounded-xl p-3 sm:min-h-[130px] ${s.className}`}
                         style={s.style}
                       >
                         <p className="text-[0.82rem] font-bold leading-tight">
@@ -90,9 +93,17 @@ export function WeeklyPlanning() {
                         <p className="mt-1 text-[0.72rem] font-semibold opacity-95">
                           {c.heure}
                         </p>
-                        <p className="mt-1 text-[0.66rem] leading-tight opacity-80">
+                        <p className="mt-1 text-[0.66rem] leading-tight opacity-80 sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap">
                           {c.salle}
-                          {c.ville ? ` · ${c.ville}` : ""}
+                          {c.ville && (
+                            <>
+                              <span className="sm:hidden"> · {c.ville}</span>
+                              <span className="hidden sm:inline">
+                                {" "}
+                                · {villeCourte(c.ville)}
+                              </span>
+                            </>
+                          )}
                         </p>
                         <span
                           className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${s.badge}`}
