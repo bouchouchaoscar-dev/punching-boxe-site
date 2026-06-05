@@ -31,6 +31,14 @@ const EQUIPE: Coach[] = [
     lead: true,
   },
   {
+    nom: "Benjamin",
+    badge: "Moniteur fédéral",
+    role: "Moniteur fédéral",
+    phrase:
+      "Spécialiste compétition. Entraînement technique et préparation aux assauts.",
+    photo: "/images/equipe/benjamin.jpg",
+  },
+  {
     nom: "Mustapha",
     badge: "Moniteur fédéral",
     role: "Moniteur fédéral",
@@ -52,14 +60,6 @@ const EQUIPE: Coach[] = [
     phrase:
       "Encadrement et accompagnement des adhérents sur les cours collectifs.",
     photo: "/images/equipe/sebastien.jpg",
-  },
-  {
-    nom: "Benjamin",
-    badge: "Moniteur fédéral",
-    role: "Moniteur fédéral",
-    phrase:
-      "Spécialiste compétition. Entraînement technique et préparation aux assauts.",
-    photo: "/images/equipe/benjamin.jpg",
   },
 ];
 
