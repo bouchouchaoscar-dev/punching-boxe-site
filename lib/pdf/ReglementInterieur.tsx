@@ -89,6 +89,36 @@ export function ReglementInterieurDoc() {
           </Text>
         </Article>
 
+        <Article titre="Remboursement et résiliation">
+          <Text style={styles.p}>
+            L&apos;adhésion au {CLUB.nom} est ferme et définitive pour la saison
+            en cours. Aucun remboursement ni arrêt d&apos;adhésion ne peut être
+            accordé, sauf dans les deux cas suivants :
+          </Text>
+          <Text style={styles.p}>
+            1. Raison médicale : sur présentation d&apos;un certificat médical
+            attestant l&apos;impossibilité définitive de pratiquer toute activité
+            sportive. Le remboursement sera effectué au prorata des mois non
+            consommés.
+          </Text>
+          <Text style={styles.p}>
+            2. Déménagement : sur présentation d&apos;un justificatif de domicile
+            (nouveau bail signé ou acte notarié) attestant un déménagement à plus
+            de 50 km du club. Le remboursement sera effectué au prorata des mois
+            non consommés.
+          </Text>
+          <Text style={styles.p}>
+            En cas de paiement fractionné, l&apos;ensemble des échéances sera
+            prélevé conformément à l&apos;engagement signé. Seuls les deux cas
+            ci-dessus permettent l&apos;arrêt des prélèvements.
+          </Text>
+          <Text style={styles.p}>
+            Toute demande de remboursement doit être adressée par email à{" "}
+            {CLUB.email} avec les justificatifs nécessaires. Délai de traitement :
+            30 jours.
+          </Text>
+        </Article>
+
         <View style={{ marginTop: 14, flexDirection: "row", justifyContent: "space-between" }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.label}>Date :</Text>

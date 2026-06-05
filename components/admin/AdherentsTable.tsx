@@ -170,6 +170,9 @@ function Row({
   confirming: boolean;
   onConfirm: () => void;
 }) {
+  // Inscrit depuis moins de 48h → badge "Nouveau" (auto-disparition, basé sur la date).
+  const isNew =
+    Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
   return (
     <tr className="border-b border-line last:border-0 hover:bg-paper-2">
       <td className="p-4">
@@ -183,8 +186,13 @@ function Row({
             )}
           </span>
           <span>
-            <span className="block font-semibold text-ink">
+            <span className="flex items-center gap-2 font-semibold text-ink">
               {a.prenom} {a.nom}
+              {isNew && (
+                <span className="rounded-full bg-orange px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-white">
+                  Nouveau
+                </span>
+              )}
             </span>
             <span className="block text-xs text-smoke">{a.email}</span>
           </span>
