@@ -12,16 +12,8 @@ import { NAV_LINKS } from "@/lib/constants";
 
 export function Navbar() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const { session } = useAdherentSession();
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 12);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -34,13 +26,7 @@ export function Navbar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50">
-      <div
-        className={`transition-all duration-500 ${
-          scrolled
-            ? "border-b border-line bg-white/80 backdrop-blur-xl"
-            : "border-b border-transparent bg-transparent"
-        }`}
-      >
+      <div className="border-b border-line bg-white">
         <nav className="container-px mx-auto flex h-16 max-w-7xl items-center justify-between sm:h-20">
           <Logo />
 

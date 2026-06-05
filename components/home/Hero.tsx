@@ -30,7 +30,7 @@ export function Hero() {
             Savate · Boxe Française · Depuis 2000
           </motion.span>
 
-          <h1 className="font-display mt-6 max-w-2xl text-[3.25rem] font-black uppercase leading-[0.9] text-ink sm:text-7xl lg:text-[5.4rem]">
+          <h1 className="font-display mt-6 max-w-2xl break-words text-[2.75rem] font-black uppercase leading-[0.92] text-ink sm:text-7xl lg:text-[5.4rem]">
             {["La Boxe Française", "au cœur du", "Val-de-Marne"].map((line, i) => (
               <motion.span
                 key={line}

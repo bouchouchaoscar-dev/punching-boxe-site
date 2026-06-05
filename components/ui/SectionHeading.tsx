@@ -24,7 +24,7 @@ export function SectionHeading({
         </span>
       )}
       <h2
-        className={`font-display mt-3 text-4xl font-extrabold uppercase sm:text-5xl lg:text-6xl ${
+        className={`font-display mt-3 break-words text-3xl font-extrabold uppercase sm:text-5xl lg:text-6xl ${
           light ? "text-white" : "text-ink"
         }`}
       >

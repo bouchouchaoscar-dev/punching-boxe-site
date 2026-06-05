@@ -74,7 +74,7 @@ export default function EquipePage() {
               <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
                 Directeur Sportif
               </span>
-              <h2 className="font-display mt-5 text-4xl font-extrabold uppercase text-ink sm:text-5xl">
+              <h2 className="font-display mt-5 break-words text-3xl font-extrabold uppercase text-ink sm:text-5xl">
                 {EQUIPE[0].nom}
               </h2>
               <p className="mt-2 font-semibold text-orange">

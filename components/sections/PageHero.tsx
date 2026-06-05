@@ -24,7 +24,7 @@ export function PageHero({
       <div className="container-px relative mx-auto max-w-7xl pb-10 sm:pb-12">
         <Reveal>
           <span className="eyebrow">{eyebrow}</span>
-          <h1 className="font-display mt-3 max-w-4xl text-5xl font-black uppercase leading-[0.92] text-ink sm:text-7xl lg:text-[5rem]">
+          <h1 className="font-display mt-3 max-w-4xl break-words text-4xl font-black uppercase leading-[0.95] text-ink sm:text-6xl lg:text-[5rem]">
             {title}
           </h1>
           {intro && (
