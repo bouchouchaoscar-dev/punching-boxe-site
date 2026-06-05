@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { setAdminSession } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
@@ -72,14 +73,12 @@ export default function AdminLoginPage() {
               <span className="mb-1.5 block text-sm font-semibold text-ink">
                 Mot de passe
               </span>
-              <input
-                type="password"
+              <PasswordInput
                 name="pbnp-admin-pass"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 required
                 autoComplete="new-password"
-                className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 outline-none focus:border-orange"
               />
             </label>
 

@@ -133,7 +133,9 @@ export function MonEspace() {
   }
   if (!session) return null; // redirection en cours
 
-  const prenom = adherent?.prenom || session.user.email?.split("@")[0] || "";
+  // Prénom uniquement s'il existe un dossier (jamais l'email ni un nom inventé).
+  const prenom = adherent?.prenom?.trim() || "";
+  const titre = prenom ? `Bonjour ${prenom}` : "Bienvenue";
   const anyRefus =
     !!adherent &&
     DOCS.some((d) => adherent[`${d.base}_motif_refus` as keyof Adherent]);
@@ -152,7 +154,7 @@ export function MonEspace() {
         <div>
           <span className="eyebrow">Espace adhérent</span>
           <h1 className="font-display mt-2 text-4xl font-black uppercase text-ink sm:text-5xl">
-            Bonjour {prenom}
+            {titre}
           </h1>
           <div className="mt-4">
             <StatusBanner status={status} />

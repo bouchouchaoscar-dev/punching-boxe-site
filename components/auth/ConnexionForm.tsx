@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAuthClient, isAuthConfigured } from "@/lib/supabase-auth";
 import { ButtonAction } from "@/components/ui/Button";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 type Tab = "signup" | "login";
 
@@ -326,13 +327,21 @@ function Field({
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-semibold text-ink">{label}</span>
-      <input
-        type={type}
-        value={value}
-        autoComplete={autoComplete}
-        onChange={(e) => onChange(e.target.value)}
-        className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
-      />
+      {type === "password" ? (
+        <PasswordInput
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(e) => onChange(e.target.value)}
+          className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+        />
+      )}
     </label>
   );
 }
