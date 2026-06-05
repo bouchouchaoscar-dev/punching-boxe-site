@@ -62,7 +62,7 @@ export function Navbar() {
               }`}
             >
               <User className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-              {session ? "Mon espace ✓" : "Mon espace"}
+              {session ? "Espace adhérent ✓" : "Espace adhérent"}
             </Link>
             <Link
               href="/admin/login"
@@ -78,7 +78,7 @@ export function Navbar() {
             </Link>
             {session ? (
               <Button href="/mon-espace" size="md" className="hidden sm:inline-flex">
-                Mon espace
+                Espace adhérent
               </Button>
             ) : (
               <Button href="/inscription" size="md" className="hidden sm:inline-flex">
@@ -127,7 +127,7 @@ export function Navbar() {
               <div className="mt-6 flex flex-col gap-3">
                 {session ? (
                   <Button href="/mon-espace" size="lg">
-                    Mon espace
+                    Espace adhérent
                   </Button>
                 ) : (
                   <>
@@ -135,7 +135,7 @@ export function Navbar() {
                       S&apos;inscrire en ligne
                     </Button>
                     <Button href={ESPACE_LOGIN} variant="outline" size="lg">
-                      Mon espace
+                      Espace adhérent
                     </Button>
                   </>
                 )}
