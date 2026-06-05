@@ -51,16 +51,28 @@ CREATE TABLE IF NOT EXISTS public.paiements (
 > En cas d'alerte RLS sur `paiements`, choisir **« Run and enable RLS »** :
 > l'accès se fait uniquement via la clé service role côté serveur.
 
-## 4. Prélèvement automatique des échéances (Vercel Cron)
+## 4. Prélèvement automatique des échéances (GitHub Actions Cron)
 
 Le job `GET /api/cron/charge-echeances` prélève chaque jour les échéances dont
-la date est atteinte, sur la carte enregistrée (off_session).
+la date est atteinte, sur la carte enregistrée (off_session). Il est déclenché
+par un workflow GitHub Actions : `.github/workflows/charge-echeances.yml`
+(tous les jours à 06:00 UTC, + lancement manuel via `workflow_dispatch`).
 
-- Planifié dans `vercel.json` : tous les jours à 06:00 UTC.
-- Disponible sur les plans Vercel supportant les Cron Jobs.
-- Si `CRON_SECRET` est défini, le job exige l'en-tête
-  `Authorization: Bearer <CRON_SECRET>` (Vercel Cron est autorisé via
-  l'en-tête `x-vercel-cron`).
+**Après le déploiement Vercel**, ajouter ces 2 secrets dans GitHub
+(**Repo → Settings → Secrets and variables → Actions → New repository secret**) :
+
+| Secret | Valeur |
+|---|---|
+| `CRON_SECRET` | la même valeur que dans Vercel |
+| `NEXT_PUBLIC_SITE_URL` | `https://<votre-domaine-vercel>` (sans slash final) |
+
+Le job tourne automatiquement chaque matin à 6h UTC et peut être lancé
+manuellement depuis l'onglet **Actions** du repo GitHub (workflow
+« Charge échéances Stripe » → **Run workflow**).
+
+> Le endpoint exige l'en-tête `Authorization: Bearer <CRON_SECRET>`. Définir
+> `CRON_SECRET` côté Vercel **et** côté GitHub avec la même valeur.
+> Le cron Vercel a été retiré de `vercel.json` pour éviter les doublons.
 
 ## 5. Logique tarifaire (rappel)
 
