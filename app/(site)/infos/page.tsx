@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Reveal } from "@/components/ui/Reveal";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
@@ -105,6 +106,17 @@ export default function InfosPage() {
             </Reveal>
           ))}
         </div>
+
+        <p className="mt-5 text-center text-xs leading-relaxed text-smoke">
+          Adhésion ferme et définitive. Remboursement uniquement sur justificatif
+          médical ou déménagement.{" "}
+          <Link
+            href="/politique-annulation"
+            className="font-semibold text-orange hover:underline"
+          >
+            Voir notre politique d&apos;annulation →
+          </Link>
+        </p>
 
         {/* Tarif famille */}
         <Reveal className="mt-12">

@@ -6,7 +6,7 @@ export function Footer() {
   return (
     <footer className="relative border-t border-[#E5E5E5] bg-white text-[#333333]">
       <div className="container-px relative mx-auto max-w-7xl py-16 sm:py-20">
-        <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1.2fr]">
+        <div className="grid gap-12 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1.2fr]">
           <div>
             <Logo variant="dark" gapClassName="gap-5" />
             <p className="mt-5 max-w-xs text-sm leading-relaxed text-[#555555]">
@@ -50,6 +50,28 @@ export function Footer() {
                     {s.nom}
                   </span>
                   <span className="text-[#777777]">{s.ville}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[#111111]">
+              Légal
+            </h3>
+            <ul className="mt-5 space-y-3 text-sm">
+              {[
+                ["Mentions légales", "/mentions-legales"],
+                ["Politique de confidentialité", "/politique-de-confidentialite"],
+                ["Politique d'annulation", "/politique-annulation"],
+              ].map(([label, href]) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    className="text-[#333333] transition-colors hover:text-orange"
+                  >
+                    {label}
+                  </Link>
                 </li>
               ))}
             </ul>

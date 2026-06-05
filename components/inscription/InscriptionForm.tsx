@@ -67,6 +67,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   });
 
   const [mode, setMode] = useState<ModePaiement | null>(null);
+  const [accepteConditions, setAccepteConditions] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -135,6 +136,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   }
 
   async function submitEspeces() {
+    if (!accepteConditions) return;
     setBusy(true);
     setError("");
     try {
@@ -153,7 +155,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   }
 
   async function startStripe() {
-    if (!mode) return;
+    if (!mode || !accepteConditions) return;
     setBusy(true);
     setError("");
     try {
@@ -471,6 +473,30 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </div>
                 )}
 
+                {!clientSecret && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
+                    <input
+                      type="checkbox"
+                      checked={accepteConditions}
+                      onChange={(e) => setAccepteConditions(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                    />
+                    <span className="text-sm leading-relaxed text-ink">
+                      J&apos;ai lu et j&apos;accepte les conditions d&apos;adhésion
+                      et la{" "}
+                      <a
+                        href="/politique-annulation"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-orange hover:underline"
+                      >
+                        politique de non-remboursement
+                      </a>
+                      . <span className="text-orange">*</span>
+                    </span>
+                  </label>
+                )}
+
                 {clientSecret && mode && (
                   <StripePayment
                     clientSecret={clientSecret}
@@ -518,12 +544,20 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
             )}
 
             {step === 3 && mode === "especes" && (
-              <ButtonAction onClick={submitEspeces} size="lg" disabled={busy}>
+              <ButtonAction
+                onClick={submitEspeces}
+                size="lg"
+                disabled={busy || !accepteConditions}
+              >
                 {busy ? "Validation…" : "Valider mon inscription"}
               </ButtonAction>
             )}
             {step === 3 && mode && mode !== "especes" && (
-              <ButtonAction onClick={startStripe} size="lg" disabled={busy}>
+              <ButtonAction
+                onClick={startStripe}
+                size="lg"
+                disabled={busy || !accepteConditions}
+              >
                 {busy ? "Préparation…" : "Procéder au paiement"}
               </ButtonAction>
             )}
