@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
-import { markAdherentPaid } from "@/lib/payments";
+import {
+  marquerEcheancePayee,
+  marquerEcheanceEchec,
+  markAdherentPaid,
+} from "@/lib/payments";
 
 export const runtime = "nodejs";
 
@@ -26,12 +30,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  if (event.type === "payment_intent.succeeded") {
-    const intent = event.data.object as Stripe.PaymentIntent;
-    const adherentId = intent.metadata?.adherentId;
-    if (adherentId) {
-      await markAdherentPaid(adherentId, intent.id);
+  switch (event.type) {
+    case "payment_intent.succeeded": {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const found = await marquerEcheancePayee(intent.id);
+      // Filet : ancien flux sans table paiements.
+      if (!found && intent.metadata?.adherentId) {
+        await markAdherentPaid(intent.metadata.adherentId, intent.id);
+      }
+      break;
     }
+    case "payment_intent.payment_failed": {
+      const intent = event.data.object as Stripe.PaymentIntent;
+      const message =
+        intent.last_payment_error?.message || "Le paiement a échoué.";
+      await marquerEcheanceEchec(intent.id, message);
+      break;
+    }
+    case "setup_intent.succeeded": {
+      // Carte enregistrée : rien à faire ici, la confirmation déclenche
+      // les prélèvements (cf. /api/confirm-payment).
+      break;
+    }
+    default:
+      break;
   }
 
   return NextResponse.json({ received: true });

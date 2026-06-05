@@ -95,11 +95,18 @@ export function buildAdherentInsert(
     certificat_motif_refus: null,
     reglement_motif_refus: null,
     photo_motif_refus: null,
+    stripe_customer_id: null,
+    stripe_setup_intent_id: null,
+    nb_echeances: 1,
+    echeances_payees: 0,
+    prochaine_echeance: null,
+    derniere_erreur_stripe: null,
   };
 }
 
-// Colonnes issues de migrations (validation/refus des documents). Si la base
-// n'a pas encore reçu ces migrations, l'insert les retire pour ne pas échouer.
+// Colonnes issues de migrations (validation des documents + Stripe/échéances).
+// Si la base n'a pas encore reçu ces migrations, l'insert les retire pour
+// ne pas échouer (les DEFAULT seront pris une fois les colonnes créées).
 export const OPTIONAL_DOC_COLUMNS = [
   "documents_valides",
   "motif_refus_doc",
@@ -111,4 +118,10 @@ export const OPTIONAL_DOC_COLUMNS = [
   "certificat_motif_refus",
   "reglement_motif_refus",
   "photo_motif_refus",
+  "stripe_customer_id",
+  "stripe_setup_intent_id",
+  "nb_echeances",
+  "echeances_payees",
+  "prochaine_echeance",
+  "derniere_erreur_stripe",
 ] as const;

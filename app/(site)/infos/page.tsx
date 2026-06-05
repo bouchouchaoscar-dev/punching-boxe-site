@@ -118,6 +118,12 @@ export default function InfosPage() {
           </Link>
         </p>
 
+        <p className="mt-3 text-center text-xs leading-relaxed text-smoke">
+          Inscription en cours d&apos;année : à partir de janvier, le tarif est
+          calculé au prorata des mois restants. Le montant exact est calculé
+          automatiquement lors de votre inscription.
+        </p>
+
         {/* Tarif famille */}
         <Reveal className="mt-12">
           <h3 className="font-display text-2xl font-extrabold uppercase text-ink sm:text-3xl">

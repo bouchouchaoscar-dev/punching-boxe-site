@@ -46,7 +46,26 @@ create table if not exists public.adherents (
   fiche_motif_refus         text,
   certificat_motif_refus    text,
   reglement_motif_refus     text,
-  photo_motif_refus         text
+  photo_motif_refus         text,
+  stripe_customer_id        text,
+  stripe_setup_intent_id    text,
+  nb_echeances              integer default 1,
+  echeances_payees          integer default 0,
+  prochaine_echeance        date,
+  derniere_erreur_stripe    text
+);
+
+-- Échéances de paiement (paiement fractionné Stripe).
+create table if not exists public.paiements (
+  id                        uuid primary key default gen_random_uuid(),
+  adherent_id               uuid references public.adherents(id),
+  stripe_payment_intent_id  text,
+  montant                   numeric,
+  statut                    text default 'en_attente',
+  numero_echeance           integer,
+  date_prevue               date,
+  date_paiement             timestamptz,
+  created_at                timestamptz default now()
 );
 
 -- Profils liés à Supabase Auth (espace adhérent + rôle admin futur).
@@ -79,6 +98,27 @@ alter table public.adherents
   add column if not exists certificat_motif_refus text,
   add column if not exists reglement_motif_refus text,
   add column if not exists photo_motif_refus text;
+
+-- Migration : Stripe + paiement fractionné.
+alter table public.adherents
+  add column if not exists stripe_customer_id text,
+  add column if not exists stripe_setup_intent_id text,
+  add column if not exists nb_echeances integer default 1,
+  add column if not exists echeances_payees integer default 0,
+  add column if not exists prochaine_echeance date,
+  add column if not exists derniere_erreur_stripe text;
+
+create table if not exists public.paiements (
+  id                        uuid primary key default gen_random_uuid(),
+  adherent_id               uuid references public.adherents(id),
+  stripe_payment_intent_id  text,
+  montant                   numeric,
+  statut                    text default 'en_attente',
+  numero_echeance           integer,
+  date_prevue               date,
+  date_paiement             timestamptz,
+  created_at                timestamptz default now()
+);
 
 -- Migration : profils liés à Supabase Auth.
 create table if not exists public.profiles (

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
-import type { Adherent } from "@/lib/types";
+import { formatDateFr } from "@/lib/tarifs";
+import type { Adherent, Paiement } from "@/lib/types";
 
 // Base de colonnes par document : <base>_valide (bool) + <base>_motif_refus (text).
 type DocBase = "fiche" | "certificat" | "reglement" | "photo";
@@ -40,6 +41,8 @@ export function FicheAdherent({ id }: { id: string }) {
   const [toast, setToast] = useState<string | null>(null);
   const [refusing, setRefusing] = useState<DocBase | null>(null);
   const [refuseMotif, setRefuseMotif] = useState("");
+  const [paiements, setPaiements] = useState<Paiement[]>([]);
+  const [relancing, setRelancing] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -49,17 +52,40 @@ export function FicheAdherent({ id }: { id: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/adherents/${id}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Introuvable.");
+      const [resA, resP] = await Promise.all([
+        fetch(`/api/adherents/${id}`, { cache: "no-store" }),
+        fetch(`/api/adherents/${id}/paiements`, { cache: "no-store" }),
+      ]);
+      const data = await resA.json();
+      if (!resA.ok) throw new Error(data.error || "Introuvable.");
       setA(data.adherent);
       setForm(data.adherent);
+      if (resP.ok) {
+        const dp = await resP.json();
+        setPaiements(dp.paiements ?? []);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
     } finally {
       setLoading(false);
     }
   }, [id]);
+
+  async function relancerPaiement() {
+    setRelancing(true);
+    try {
+      const res = await fetch(`/api/adherents/${id}/paiements`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      await load();
+      showToast(
+        res.ok && data.ok
+          ? "Prélèvement relancé ✓"
+          : data.error || "Échec de la relance.",
+      );
+    } finally {
+      setRelancing(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -383,6 +409,14 @@ export function FicheAdherent({ id }: { id: string }) {
               })}
             </div>
           </div>
+
+          {/* Paiements */}
+          <PaiementsCard
+            adherent={a}
+            paiements={paiements}
+            relancing={relancing}
+            onRelance={relancerPaiement}
+          />
         </div>
       </div>
 
@@ -393,6 +427,154 @@ export function FicheAdherent({ id }: { id: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function PaiementsCard({
+  adherent,
+  paiements,
+  relancing,
+  onRelance,
+}: {
+  adherent: Adherent;
+  paiements: Paiement[];
+  relancing: boolean;
+  onRelance: () => void;
+}) {
+  const encaisse = paiements
+    .filter((p) => p.statut === "paye")
+    .reduce((s, p) => s + Number(p.montant || 0), 0);
+  const total = Number(adherent.montant_total || 0);
+  const reste = Math.max(0, Math.round((total - encaisse) * 100) / 100);
+  const echec = adherent.statut_paiement === "echec_paiement";
+  const echeances = paiements.filter((p) => p.numero_echeance != null);
+  const supplements = paiements.filter((p) => p.numero_echeance == null);
+
+  return (
+    <div className="rounded-[1.5rem] border border-line bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display text-lg font-extrabold uppercase text-ink">
+          Paiements
+        </h3>
+        <span className="text-sm font-semibold text-smoke">
+          {MODE_LABEL[adherent.mode_paiement] ?? adherent.mode_paiement}
+          {adherent.nb_echeances > 1 ? ` · ${adherent.nb_echeances} échéances` : ""}
+        </span>
+      </div>
+
+      {echec && (
+        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-bold text-red-700">
+            ⚠️ Échec de paiement
+          </p>
+          {adherent.derniere_erreur_stripe && (
+            <p className="mt-1 text-xs text-red-700">
+              {adherent.derniere_erreur_stripe}
+            </p>
+          )}
+          <button
+            onClick={onRelance}
+            disabled={relancing}
+            className="mt-3 rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+          >
+            {relancing ? "Relance…" : "Relancer le paiement"}
+          </button>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+        <Stat label="Total" value={euro(total)} />
+        <Stat label="Encaissé" value={euro(encaisse)} accent />
+        <Stat label="Reste" value={euro(reste)} />
+      </div>
+
+      {echeances.length > 0 ? (
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
+                <th className="py-2 pr-3 font-bold">N°</th>
+                <th className="py-2 pr-3 font-bold">Date prévue</th>
+                <th className="py-2 pr-3 font-bold">Montant</th>
+                <th className="py-2 font-bold">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {echeances.map((p) => (
+                <tr key={p.id} className="border-b border-line last:border-0">
+                  <td className="py-2 pr-3 font-semibold text-ink">
+                    {p.numero_echeance}
+                  </td>
+                  <td className="py-2 pr-3 text-smoke">
+                    {p.date_prevue ? formatDateFr(p.date_prevue) : "—"}
+                  </td>
+                  <td className="py-2 pr-3 font-semibold text-ink">
+                    {euro(Number(p.montant || 0))}
+                  </td>
+                  <td className="py-2">
+                    <EcheanceStatut p={p} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {supplements.length > 0 && (
+            <p className="mt-2 text-xs text-smoke">
+              + Suppléments (adhésion / prépa) :{" "}
+              {euro(
+                supplements.reduce((s, p) => s + Number(p.montant || 0), 0),
+              )}{" "}
+              prélevés à l&apos;inscription.
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-5 text-sm text-smoke">
+          Aucune échéance enregistrée (paiement en espèces ou non démarré).
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-line bg-paper-2 p-3">
+      <p className="text-[0.65rem] font-bold uppercase tracking-wide text-smoke">
+        {label}
+      </p>
+      <p
+        className={`font-display mt-1 text-lg font-black ${
+          accent ? "text-orange" : "text-ink"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function EcheanceStatut({ p }: { p: Paiement }) {
+  if (p.statut === "paye")
+    return (
+      <span className="font-semibold text-green-600">
+        ✅ Payé{p.date_paiement ? ` le ${formatDateFr(p.date_paiement.slice(0, 10))}` : ""}
+      </span>
+    );
+  if (p.statut === "echec")
+    return <span className="font-semibold text-red-600">❌ Échec</span>;
+  return (
+    <span className="font-semibold text-orange">
+      ⏳ Prévu{p.date_prevue ? ` le ${formatDateFr(p.date_prevue)}` : ""}
+    </span>
   );
 }
 

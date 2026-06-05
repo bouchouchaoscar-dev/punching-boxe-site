@@ -7,6 +7,7 @@ const MAP: Record<StatutPaiement, { label: string; cls: string }> = {
     cls: "bg-green-50 text-green-700",
   },
   en_attente: { label: "⏳ En attente", cls: "bg-orange-50 text-orange-600" },
+  echec_paiement: { label: "❌ Échec paiement", cls: "bg-red-50 text-red-700" },
 };
 
 export function StatutBadge({ statut }: { statut: StatutPaiement }) {

@@ -8,17 +8,21 @@ import { NumberStepper } from "@/components/ui/NumberStepper";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ButtonAction } from "@/components/ui/Button";
 import { FileDrop, type FileFieldKey } from "./FileDrop";
-import { StripePayment } from "./StripePayment";
+import { StripePayment, type StripePlan } from "./StripePayment";
 import { PostalCityFields } from "./PostalCityFields";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
   euro,
-  montantParEcheance,
   nbEcheances,
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
+import {
+  devisPourAdherent,
+  planEcheances,
+  formatDateFr,
+} from "@/lib/tarifs";
 import { PACKAGES } from "@/lib/constants";
 import type { InscriptionPayload } from "@/lib/inscription";
 
@@ -72,11 +76,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [busy, setBusy] = useState(false);
 
   // Stripe
-  const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [echeanceInfo, setEcheanceInfo] = useState<{ n: number; montant: number }>({
-    n: 1,
-    montant: 0,
-  });
+  const [plan, setPlan] = useState<StripePlan | null>(null);
 
   const tarif = useMemo(
     () =>
@@ -87,6 +87,22 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
         optionPrepaPhysique: prepa,
         nbMembresFamille: nbFamille,
       }),
+    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille],
+  );
+
+  // Devis proratisé (selon la date du jour) + échéances autorisées.
+  const devis = useMemo(
+    () =>
+      devisPourAdherent(
+        {
+          date_naissance: dateNaissance || "2000-01-01",
+          package: packageType,
+          nouveau_membre: nouveauMembre,
+          option_prepa_physique: prepa,
+          nb_membres_famille: nbFamille,
+        },
+        new Date(),
+      ),
     [dateNaissance, packageType, nouveauMembre, prepa, nbFamille],
   );
 
@@ -131,7 +147,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   }
   function prev() {
     setError("");
-    setClientSecret(null);
+    setPlan(null);
     setStep((s) => Math.max(0, s - 1));
   }
 
@@ -166,8 +182,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Paiement indisponible.");
-      setClientSecret(data.clientSecret);
-      setEcheanceInfo({ n: data.nbEcheances, montant: data.montantEcheance });
+      setPlan(data as StripePlan);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur Stripe.");
     } finally {
@@ -422,25 +437,56 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
             {step === 3 && (
               <div className="space-y-6">
-                <LivePrice tarif={tarif} big />
+                {/* Récapitulatif du montant (proratisé selon la date) */}
+                <div className="rounded-2xl border border-line bg-paper-2 p-5">
+                  <div className="flex items-end justify-between gap-3">
+                    <span className="font-display text-lg font-extrabold uppercase text-ink">
+                      Total à régler
+                    </span>
+                    <span className="font-display text-3xl font-black text-orange">
+                      {euro(devis.total)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-smoke">
+                    Cotisation {euro(devis.cotisation)}
+                    {devis.supplements > 0
+                      ? ` + suppléments ${euro(devis.supplements)} (adhésion / prépa)`
+                      : ""}
+                    .
+                  </p>
+                  {devis.proratise && (
+                    <p className="mt-2 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange">
+                      Tarif calculé au prorata des mois restants de la saison.
+                    </p>
+                  )}
+                </div>
 
-                {!clientSecret && (
+                {!plan && (
                   <div>
                     <p className="mb-3 font-display text-lg font-extrabold uppercase text-ink">
                       Mode de règlement
                     </p>
                     <div className="grid gap-2.5 sm:grid-cols-2">
-                      {PAYMENTS.map((p) => {
+                      {PAYMENTS.filter(
+                        (p) =>
+                          p.mode === "especes" ||
+                          devis.echeancesAutorisees.includes(nbEcheances(p.mode)),
+                      ).map((p) => {
                         const active = mode === p.mode;
                         const n = nbEcheances(p.mode);
-                        const perEch = montantParEcheance(tarif.total, n);
+                        const pl = planEcheances(
+                          devis.cotisation,
+                          devis.supplements,
+                          new Date(),
+                          n,
+                        );
                         return (
                           <button
                             key={p.mode}
                             type="button"
                             onClick={() => {
                               setMode(p.mode);
-                              setClientSecret(null);
+                              setPlan(null);
                             }}
                             className={`flex items-center justify-between rounded-xl border-2 p-4 text-left transition-colors ${
                               active
@@ -456,7 +502,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                                 </span>
                                 {p.mode !== "especes" && (
                                   <span className="text-xs text-smoke">
-                                    {n > 1 ? `${euro(perEch)} × ${n}` : euro(tarif.total)}
+                                    {n > 1
+                                      ? `${euro(pl.premierPrelevement)} aujourd'hui, puis ${n - 1} prélèvement${n - 1 > 1 ? "s" : ""}`
+                                      : `${euro(devis.total)} en 1 fois`}
                                   </span>
                                 )}
                               </span>
@@ -470,10 +518,51 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                         );
                       })}
                     </div>
+
+                    {/* Calendrier des prélèvements du mode sélectionné */}
+                    {mode &&
+                      mode !== "especes" &&
+                      nbEcheances(mode) > 1 &&
+                      (() => {
+                        const pl = planEcheances(
+                          devis.cotisation,
+                          devis.supplements,
+                          new Date(),
+                          nbEcheances(mode),
+                        );
+                        return (
+                          <div className="mt-4 rounded-xl border border-line bg-white p-4 text-sm">
+                            <p className="font-bold text-ink">
+                              Calendrier des prélèvements
+                            </p>
+                            <ul className="mt-2 space-y-1 text-smoke">
+                              {pl.dates.map((d, i) => (
+                                <li key={d} className="flex justify-between gap-3">
+                                  <span>
+                                    {i === 0
+                                      ? "1er prélèvement : aujourd'hui"
+                                      : `${i + 1}ᵉ prélèvement : ${formatDateFr(d)}`}
+                                  </span>
+                                  <span className="font-semibold text-ink">
+                                    {euro(i === 0 ? pl.premierPrelevement : pl.montants[i])}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                            {devis.supplements > 0 && (
+                              <p className="mt-2 border-t border-line pt-2 text-xs">
+                                Les suppléments ({euro(devis.supplements)} : +30€
+                                adhésion et/ou +100€ prépa) sont prélevés
+                                aujourd&apos;hui.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                   </div>
                 )}
 
-                {!clientSecret && (
+                {!plan && (
                   <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
                     <input
                       type="checkbox"
@@ -497,12 +586,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </label>
                 )}
 
-                {clientSecret && mode && (
+                {plan && (
                   <StripePayment
-                    clientSecret={clientSecret}
-                    adherentId={adherentId}
-                    montantEcheance={echeanceInfo.montant}
-                    nbEcheances={echeanceInfo.n}
+                    plan={plan}
                     onSuccess={() => router.push("/inscription/merci")}
                   />
                 )}
@@ -518,7 +604,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
         )}
 
         {/* Navigation */}
-        {!clientSecret && (
+        {!plan && (
           <div className="mt-8 flex items-center justify-between gap-3">
             {step > 0 ? (
               <button

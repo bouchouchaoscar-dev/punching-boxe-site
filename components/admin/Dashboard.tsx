@@ -37,6 +37,9 @@ export function Dashboard() {
     const attenteEspeces = adherents.filter(
       (a) => a.statut_paiement === "en_attente",
     ).length;
+    const echecs = adherents.filter(
+      (a) => a.statut_paiement === "echec_paiement",
+    ).length;
     const formuleBoxe = adherents.filter(
       (a) => a.package === "boxe_classique" && !a.option_prepa_physique,
     ).length;
@@ -101,6 +104,7 @@ export function Dashboard() {
       encaisse,
       nouveauxMois,
       attenteEspeces,
+      echecs,
       formuleBoxe,
       boxePrepa,
       savateForme,
@@ -145,6 +149,7 @@ export function Dashboard() {
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
         <Kpi label="Nouveaux ce mois" value={String(data.nouveauxMois)} />
         <Kpi label="En attente espèces" value={String(data.attenteEspeces)} warn />
+        <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
         <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
         <Kpi label="Savate & Forme" value={String(data.savateForme)} />
@@ -290,18 +295,22 @@ function Kpi({
   value,
   accent,
   warn,
+  danger,
 }: {
   label: string;
   value: string;
   accent?: boolean;
   warn?: boolean;
+  danger?: boolean;
 }) {
   return (
     <div
       className={`rounded-2xl border p-5 ${
         accent
           ? "border-transparent bg-ink text-white"
-          : "border-line bg-white"
+          : danger && value !== "0"
+            ? "border-red-200 bg-red-50"
+            : "border-line bg-white"
       }`}
     >
       <p
@@ -313,7 +322,15 @@ function Kpi({
       </p>
       <p
         className={`font-display mt-2 text-3xl font-black ${
-          warn ? "text-orange" : accent ? "text-white" : "text-ink"
+          danger
+            ? value === "0"
+              ? "text-ink"
+              : "text-red-600"
+            : warn
+              ? "text-orange"
+              : accent
+                ? "text-white"
+                : "text-ink"
         }`}
       >
         {value}

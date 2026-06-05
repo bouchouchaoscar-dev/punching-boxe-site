@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAdherents } from "./useAdherents";
 import { StatutBadge } from "./StatutBadge";
@@ -14,6 +14,26 @@ export function AdherentsTable() {
   const [statut, setStatut] = useState("all");
   const [prepa, setPrepa] = useState("all");
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [encaisseMap, setEncaisseMap] = useState<Record<string, number>>({});
+
+  // Somme encaissée (paiements payés) par adhérent.
+  useEffect(() => {
+    fetch("/api/paiements", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, number> = {};
+        for (const p of (d.paiements ?? []) as {
+          adherent_id: string;
+          montant: number;
+          statut: string;
+        }[]) {
+          if (p.statut === "paye")
+            map[p.adherent_id] = (map[p.adherent_id] ?? 0) + Number(p.montant || 0);
+        }
+        setEncaisseMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     return adherents.filter((a) => {
@@ -139,6 +159,7 @@ export function AdherentsTable() {
                 <th className="p-4 font-bold">Type</th>
                 <th className="p-4 font-bold">Statut</th>
                 <th className="p-4 font-bold">Montant</th>
+                <th className="p-4 font-bold">Encaissé</th>
                 <th className="p-4 font-bold">Options</th>
                 <th className="p-4 font-bold">Date</th>
                 <th className="p-4 font-bold" />
@@ -149,6 +170,7 @@ export function AdherentsTable() {
                 <Row
                   key={a.id}
                   a={a}
+                  encaisse={encaisseMap[a.id] ?? 0}
                   confirming={confirming === a.id}
                   onConfirm={() => confirmCash(a.id)}
                 />
@@ -163,10 +185,12 @@ export function AdherentsTable() {
 
 function Row({
   a,
+  encaisse,
   confirming,
   onConfirm,
 }: {
   a: Adherent;
+  encaisse: number;
   confirming: boolean;
   onConfirm: () => void;
 }) {
@@ -214,6 +238,9 @@ function Row({
         </div>
       </td>
       <td className="p-4 font-display font-bold text-ink">{euro(a.montant_total)}</td>
+      <td className="p-4 font-display font-bold text-green-600">
+        {euro(encaisse)}
+      </td>
       <td className="p-4 text-xs text-smoke">
         {a.package === "savate_forme" ? "Savate & Forme" : "Boxe Française"}
         {a.option_prepa_physique ? " · Prépa" : ""}

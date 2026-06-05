@@ -1,6 +1,10 @@
 import type { ModePaiement, PackageType, TypeAdherent } from "./pricing";
 
-export type StatutPaiement = "en_attente" | "paye" | "confirme_especes";
+export type StatutPaiement =
+  | "en_attente"
+  | "paye"
+  | "confirme_especes"
+  | "echec_paiement";
 
 export interface Adherent {
   id: string;
@@ -37,6 +41,27 @@ export interface Adherent {
   certificat_motif_refus: string | null;
   reglement_motif_refus: string | null;
   photo_motif_refus: string | null;
+  // Stripe / échéances
+  stripe_customer_id: string | null;
+  stripe_setup_intent_id: string | null;
+  nb_echeances: number;
+  echeances_payees: number;
+  prochaine_echeance: string | null;
+  derniere_erreur_stripe: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
+
+export type StatutPaiementEcheance = "en_attente" | "paye" | "echec";
+
+export interface Paiement {
+  id: string;
+  adherent_id: string;
+  stripe_payment_intent_id: string | null;
+  montant: number;
+  statut: StatutPaiementEcheance;
+  numero_echeance: number | null;
+  date_prevue: string | null;
+  date_paiement: string | null;
+  created_at: string;
+}

@@ -4,9 +4,11 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import {
   buildAdherentInsert,
   validatePayload,
+  OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
-import { nbEcheances, montantParEcheance } from "@/lib/pricing";
+import { nbEcheances } from "@/lib/pricing";
+import { devisPourAdherent, planEcheances } from "@/lib/tarifs";
 
 export const runtime = "nodejs";
 
@@ -31,20 +33,48 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mode de paiement non Stripe." }, { status: 400 });
   }
 
-  const record = buildAdherentInsert(payload, "en_attente");
+  const now = new Date();
+  const devis = devisPourAdherent(payload, now);
   const n = nbEcheances(payload.mode_paiement);
-  const premiereEcheance = montantParEcheance(record.montant_total, n);
-  const amountCents = Math.round(premiereEcheance * 100);
+
+  // Sécurité : l'échéancier demandé doit être autorisé pour cette date.
+  if (!devis.echeancesAutorisees.includes(n)) {
+    return NextResponse.json(
+      { error: "Échéancier non disponible à cette période de la saison." },
+      { status: 400 },
+    );
+  }
+
+  const plan = planEcheances(devis.cotisation, devis.supplements, now, n);
+
+  // Adhérent (montant proratisé recalculé côté serveur).
+  const record = {
+    ...buildAdherentInsert(payload, "en_attente"),
+    montant_total: devis.total,
+    nb_echeances: n,
+    prochaine_echeance: n > 1 ? plan.dates[1] : null,
+  };
 
   const supabase = getSupabaseAdmin();
-  const { data: adherent, error: insErr } = await supabase
+  let { data: adherent, error: insErr } = await supabase
     .from("adherents")
     .insert(record)
     .select()
     .single();
-
-  if (insErr) {
-    return NextResponse.json({ error: insErr.message }, { status: 500 });
+  if (insErr && OPTIONAL_DOC_COLUMNS.some((c) => insErr!.message.includes(c))) {
+    const rest = { ...record } as Record<string, unknown>;
+    for (const c of OPTIONAL_DOC_COLUMNS) delete rest[c];
+    ({ data: adherent, error: insErr } = await supabase
+      .from("adherents")
+      .insert(rest)
+      .select()
+      .single());
+  }
+  if (insErr || !adherent) {
+    return NextResponse.json(
+      { error: insErr?.message || "Insertion impossible." },
+      { status: 500 },
+    );
   }
 
   const stripe = getStripe();
@@ -55,34 +85,76 @@ export async function POST(request: Request) {
       metadata: { adherentId: adherent.id, saison: record.saison },
     });
 
-    const intent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: "eur",
-      customer: customer.id,
-      // Pour 2x/3x/4x : on enregistre la carte afin de prélever les
-      // échéances suivantes (planification documentée côté admin).
-      setup_future_usage: n > 1 ? "off_session" : undefined,
-      automatic_payment_methods: { enabled: true },
-      description: `Inscription ${record.saison} — ${record.prenom} ${record.nom}`,
-      metadata: {
+    // -------- Paiement comptant (1x) --------
+    if (n === 1) {
+      const intent = await stripe.paymentIntents.create({
+        amount: Math.round(devis.total * 100),
+        currency: "eur",
+        customer: customer.id,
+        automatic_payment_methods: { enabled: true },
+        description: `Inscription ${record.saison} — ${record.prenom} ${record.nom}`,
+        metadata: { adherentId: adherent.id, numero: "1", type: "comptant" },
+      });
+
+      await supabase
+        .from("adherents")
+        .update({
+          stripe_customer_id: customer.id,
+          stripe_payment_intent_id: intent.id,
+        })
+        .eq("id", adherent.id);
+
+      // Échéance unique en attente (sera marquée payée au succès).
+      await supabase.from("paiements").insert({
+        adherent_id: adherent.id,
+        stripe_payment_intent_id: intent.id,
+        montant: devis.total,
+        statut: "en_attente",
+        numero_echeance: 1,
+        date_prevue: plan.dates[0],
+      });
+
+      return NextResponse.json({
+        intentType: "payment",
+        clientSecret: intent.client_secret,
         adherentId: adherent.id,
-        plan: payload.mode_paiement,
-        echeances: String(n),
-        total: String(record.montant_total),
-      },
+        nbEcheances: 1,
+        total: devis.total,
+        supplements: devis.supplements,
+        proratise: devis.proratise,
+        premierPrelevement: devis.total,
+        dates: plan.dates,
+        montants: plan.montants,
+      });
+    }
+
+    // -------- Paiement fractionné (2x/3x/4x) : enregistrement de la carte --------
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      usage: "off_session",
+      automatic_payment_methods: { enabled: true },
+      metadata: { adherentId: adherent.id, echeances: String(n) },
     });
 
     await supabase
       .from("adherents")
-      .update({ stripe_payment_intent_id: intent.id })
+      .update({
+        stripe_customer_id: customer.id,
+        stripe_setup_intent_id: setupIntent.id,
+      })
       .eq("id", adherent.id);
 
     return NextResponse.json({
-      clientSecret: intent.client_secret,
+      intentType: "setup",
+      clientSecret: setupIntent.client_secret,
       adherentId: adherent.id,
       nbEcheances: n,
-      montantEcheance: premiereEcheance,
-      total: record.montant_total,
+      total: devis.total,
+      supplements: devis.supplements,
+      proratise: devis.proratise,
+      premierPrelevement: plan.premierPrelevement,
+      dates: plan.dates,
+      montants: plan.montants,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Erreur Stripe.";
