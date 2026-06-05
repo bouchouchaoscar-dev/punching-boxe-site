@@ -27,16 +27,16 @@ export function Logo({
           priority
         />
       </span>
-      <span className="leading-tight">
+      <span className="text-left leading-tight">
         <span
-          className={`font-display block text-sm font-extrabold uppercase tracking-tight sm:text-[1.15rem] ${
+          className={`font-display block text-left text-sm font-extrabold uppercase tracking-tight sm:text-[1.15rem] ${
             variant === "light" ? "text-white" : "text-ink"
           }`}
         >
           Punching Boxe
         </span>
         <span
-          className={`block text-[0.68rem] font-semibold uppercase tracking-[0.15em] sm:text-[0.72rem] sm:tracking-[0.22em] ${
+          className={`block text-left text-[0.6rem] font-semibold uppercase tracking-[0.06em] sm:text-[0.72rem] sm:tracking-[0.22em] ${
             variant === "light" ? "text-white/60" : "text-smoke"
           }`}
         >
