@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { Reveal } from "@/components/ui/Reveal";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
@@ -60,18 +61,14 @@ export default function EquipePage() {
         {/* Coach principal */}
         <Reveal className="card-lift overflow-hidden rounded-[2rem] border border-line bg-white">
           <div className="grid lg:grid-cols-[0.9fr_1.4fr]">
-            <div className="relative flex min-h-[18rem] items-center justify-center overflow-hidden bg-ink">
-              <div className="grain absolute inset-0" />
-              <div
-                className="absolute inset-0 opacity-40"
-                style={{
-                  background:
-                    "radial-gradient(circle at 50% 40%, var(--color-orange), transparent 60%)",
-                }}
+            <div className="relative min-h-[18rem] overflow-hidden bg-ink">
+              <Image
+                src="/images/IMG_0574.jpg"
+                alt={`${EQUIPE[0].nom}, Directeur Sportif du Punching Boxe`}
+                fill
+                sizes="(max-width: 1024px) 100vw, 40vw"
+                className="object-cover object-[center_30%]"
               />
-              <span className="font-display relative text-8xl font-black text-white">
-                {EQUIPE[0].initiales}
-              </span>
             </div>
             <div className="p-8 sm:p-12">
               <span className="rounded-full bg-orange px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
