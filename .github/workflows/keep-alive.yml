@@ -1,0 +1,15 @@
+name: Keep Alive
+on:
+  schedule:
+    - cron: '0 8 */3 * *'  # Toutes les 72h à 8h UTC
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping site
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+          https://punching-boxe-site.vercel.app
+          echo " - Site pinged successfully"
