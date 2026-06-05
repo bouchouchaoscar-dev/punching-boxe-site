@@ -1,17 +1,22 @@
 import { Resend } from "resend";
-import { CLUB, SITE_URL } from "./constants";
+import { CLUB, SITE_URL, HORAIRES, SALLES } from "./constants";
 import { euro, PACKAGE_LABEL, type ModePaiement, type PackageType } from "./pricing";
+import { formatDateFr } from "./tarifs";
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    console.warn("Email non envoyé : RESEND_API_KEY manquant.");
+    return null;
+  }
   if (!resend) resend = new Resend(key);
   return resend;
 }
 
-const FROM =
-  process.env.RESEND_FROM || `${CLUB.nom} <contact@punching-boxe.com>`;
+// Expéditeur : domaine à vérifier dans Resend (cf. README). En test local sans
+// domaine vérifié, définir RESEND_FROM="Punching Boxe <onboarding@resend.dev>".
+const FROM = process.env.RESEND_FROM || "Punching Boxe <noreply@punching-boxe.com>";
 const ADMIN_TO = process.env.ADMIN_NOTIFY_EMAIL || CLUB.email;
 
 const MODE_LABEL: Record<ModePaiement, string> = {
@@ -22,6 +27,8 @@ const MODE_LABEL: Record<ModePaiement, string> = {
   especes: "Espèces (au prochain cours)",
 };
 
+export type Echeance = { numero: number; date: string; montant: number };
+
 type MailData = {
   prenom: string;
   nom: string;
@@ -31,10 +38,10 @@ type MailData = {
   montant_total: number;
   mode_paiement: ModePaiement;
   adherentId?: string;
+  echeances?: Echeance[];
 };
 
-const packageLabel = (p?: PackageType | null) =>
-  p ? PACKAGE_LABEL[p] : "—";
+const packageLabel = (p?: PackageType | null) => (p ? PACKAGE_LABEL[p] : "—");
 
 function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
@@ -43,98 +50,92 @@ function wrap(inner: string) {
     </div>
     <div style="padding:28px 24px">${inner}</div>
     <div style="background:#fafafa;padding:18px 24px;font-size:12px;color:#666;text-align:center">
-      ${CLUB.nom}<br/>${CLUB.telephone} · ${CLUB.email}
+      ${CLUB.nom}<br/>${CLUB.telephone} · ${CLUB.email}<br/>${CLUB.adresse}
     </div>
   </div>`;
 }
 
-/** Email de confirmation à l'adhérent. */
+function button(href: string, label: string) {
+  return `<a href="${href}" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700;margin-top:6px">${label}</a>`;
+}
+
+function tableEcheances(echeances: Echeance[]) {
+  const lignes = echeances
+    .map(
+      (e) =>
+        `<tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee">Échéance ${e.numero}${e.numero === 1 ? " (aujourd'hui)" : ""}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee">${formatDateFr(e.date)}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;font-weight:700">${euro(e.montant)}</td>
+        </tr>`,
+    )
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin:8px 0">
+    <thead><tr style="color:#888;text-transform:uppercase;font-size:11px">
+      <th style="text-align:left;padding:4px 8px">Échéance</th>
+      <th style="text-align:left;padding:4px 8px">Date</th>
+      <th style="text-align:right;padding:4px 8px">Montant</th>
+    </tr></thead>
+    <tbody>${lignes}</tbody>
+  </table>`;
+}
+
+function blocHoraires() {
+  const lignes = HORAIRES.map(
+    (h) =>
+      `<li style="margin:2px 0"><strong>${h.jour}</strong> ${h.heure} — ${h.cours} (${h.public})</li>`,
+  ).join("");
+  return `<p style="margin:18px 0 6px;font-weight:700">Les horaires des cours</p>
+    <ul style="margin:0;padding-left:18px;color:#444;font-size:13px;line-height:1.5">${lignes}</ul>`;
+}
+
+function blocSalles() {
+  const lignes = SALLES.map(
+    (s) =>
+      `<li style="margin:2px 0"><strong>${s.nom}</strong> — ${s.adresse}, ${s.ville}</li>`,
+  ).join("");
+  return `<p style="margin:18px 0 6px;font-weight:700">Nos salles</p>
+    <ul style="margin:0;padding-left:18px;color:#444;font-size:13px;line-height:1.5">${lignes}</ul>`;
+}
+
+/** 1 — Email de confirmation à l'adhérent (espèces ou carte). */
 export async function sendAdherentConfirmation(d: MailData) {
   const client = getResend();
   if (!client) return { skipped: true };
 
+  const especes = d.mode_paiement === "especes";
+  const fractionne = (d.echeances?.length ?? 0) > 1;
+
   const html = wrap(`
-    <h1 style="font-size:22px;margin:0 0 8px">Bienvenue ${d.prenom} !</h1>
-    <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> pour la saison ${CLUB.saison} a bien été enregistrée.</p>
+    <h1 style="font-size:22px;margin:0 0 8px">Bonjour ${d.prenom},</h1>
+    <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> est confirmée.</p>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:18px 0">
       <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
-      <p style="margin:4px 0"><strong>Type :</strong> ${d.type_adherent}</p>
       <p style="margin:4px 0"><strong>Montant :</strong> ${euro(d.montant_total)}</p>
-      <p style="margin:4px 0"><strong>Règlement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
+      <p style="margin:4px 0"><strong>Mode de paiement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
     </div>
+    ${fractionne ? `<p style="line-height:1.6;color:#444"><strong>Vos échéances :</strong></p>${tableEcheances(d.echeances!)}` : ""}
     ${
-      d.mode_paiement === "especes"
-        ? `<p style="line-height:1.6;color:#444">Pensez à régler en espèces auprès du professeur lors de votre prochain cours.</p>`
-        : `<p style="line-height:1.6;color:#444">Votre paiement par carte a bien été pris en compte.</p>`
-    }
-    <p style="line-height:1.6;color:#444"><strong>Infos pratiques</strong><br/>Adresse principale : ${CLUB.adresse}<br/>Pensez à apporter une tenue de sport. Les gants peuvent être prêtés.</p>
-    <p style="margin-top:18px;font-weight:700;color:#FF6B00">À bientôt sur les tatamis ! 🥊</p>
-  `);
-
-  return client.emails.send({
-    from: FROM,
-    to: d.email,
-    subject: `Confirmation d'inscription — ${CLUB.nomCourt}`,
-    html,
-  });
-}
-
-/** Email à l'adhérent : un document de son dossier nécessite son attention. */
-export async function sendDocumentActionRequired(d: {
-  prenom: string;
-  email: string;
-  motif?: string | null;
-}) {
-  const client = getResend();
-  if (!client) return { skipped: true };
-
-  const html = wrap(`
-    <h1 style="font-size:20px;margin:0 0 8px">Votre dossier nécessite votre attention</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
-    <p style="line-height:1.6;color:#444">Un document de votre dossier d'inscription nécessite votre attention. Connectez-vous à votre espace personnel pour voir les détails et déposer le document corrigé.</p>
-    ${
-      d.motif
-        ? `<div style="border:1px solid #f0d4c4;background:#fff5ee;border-radius:12px;padding:14px;margin:14px 0;color:#b1480f"><strong>Motif :</strong> ${d.motif}</div>`
+      especes
+        ? `<p style="line-height:1.6;color:#444">Pensez à régler auprès du professeur lors de votre prochain cours.</p>`
         : ""
     }
-    <a href="${SITE_URL}/mon-espace" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700;margin-top:6px">Accéder à mon espace</a>
+    <p style="line-height:1.6;color:#444">Votre dossier est en cours de validation. Connectez-vous à votre espace personnel pour suivre son avancement.</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/mon-espace`, "Accéder à mon espace")}</p>
+    ${blocHoraires()}
+    ${blocSalles()}
+    <p style="margin-top:18px;font-weight:700;color:#FF6B00">À bientôt à la salle ! 🥊</p>
   `);
 
   return client.emails.send({
     from: FROM,
     to: d.email,
-    subject: `Action requise sur votre dossier — ${CLUB.nomCourt}`,
+    subject: "Bienvenue au Punching Boxe 🥊",
     html,
   });
 }
 
-/** Email à Pascal : un adhérent a (re)déposé un document, à valider. */
-export async function sendAdminDocReplaced(d: {
-  prenom: string;
-  nom: string;
-  adherentId: string;
-  docLabel: string;
-}) {
-  const client = getResend();
-  if (!client) return { skipped: true };
-
-  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
-  const html = wrap(`
-    <h1 style="font-size:20px;margin:0 0 8px">Document à valider 📎</h1>
-    <p style="line-height:1.6;color:#444"><strong>${d.prenom} ${d.nom}</strong> vient de déposer un document : <strong>${d.docLabel}</strong>.</p>
-    <p style="line-height:1.6;color:#444">Connectez-vous au dashboard pour le vérifier et valider le dossier.</p>
-    <a href="${lien}" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700;margin-top:6px">Voir la fiche adhérent</a>
-  `);
-
-  return client.emails.send({
-    from: FROM,
-    to: ADMIN_TO,
-    subject: `Document déposé : ${d.prenom} ${d.nom}`,
-    html,
-  });
-}
-
-/** Email de notification à Pascal (admin). */
+/** 2 — Email de notification à Pascal (nouvelle inscription). */
 export async function sendAdminNotification(d: MailData) {
   const client = getResend();
   if (!client) return { skipped: true };
@@ -149,17 +150,101 @@ export async function sendAdminNotification(d: MailData) {
       <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
       <p style="margin:4px 0">${d.email}</p>
       <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
-      <p style="margin:4px 0"><strong>Type :</strong> ${d.type_adherent}</p>
-      <p style="margin:4px 0"><strong>Montant :</strong> ${euro(d.montant_total)}</p>
-      <p style="margin:4px 0"><strong>Règlement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
+      <p style="margin:4px 0"><strong>Montant total :</strong> ${euro(d.montant_total)}</p>
+      <p style="margin:4px 0"><strong>Mode de paiement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
     </div>
-    <a href="${lien}" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:700">Voir la fiche adhérent</a>
+    ${button(lien, "Voir la fiche adhérent")}
   `);
 
   return client.emails.send({
     from: FROM,
     to: ADMIN_TO,
-    subject: `Nouvelle inscription : ${d.prenom} ${d.nom}`,
+    subject: `Nouvelle inscription — ${d.prenom} ${d.nom}`,
+    html,
+  });
+}
+
+/** 3 — Email à l'adhérent : un document a été refusé. */
+export async function sendDocumentActionRequired(d: {
+  prenom: string;
+  email: string;
+  docLabel?: string;
+  motif?: string | null;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Un document nécessite votre attention</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Un document de votre dossier d'inscription a été refusé.</p>
+    <div style="border:1px solid #f0d4c4;background:#fff5ee;border-radius:12px;padding:14px;margin:14px 0;color:#b1480f">
+      ${d.docLabel ? `<p style="margin:2px 0"><strong>Document :</strong> ${d.docLabel}</p>` : ""}
+      ${d.motif ? `<p style="margin:2px 0"><strong>Motif :</strong> ${d.motif}</p>` : ""}
+    </div>
+    <p style="line-height:1.6;color:#444">Connectez-vous à votre espace personnel pour le remplacer.</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Accéder à mon espace")}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "Action requise — Un document nécessite votre attention",
+    html,
+  });
+}
+
+/** 4 — Email à Pascal : un adhérent a (re)déposé un document. */
+export async function sendAdminDocReplaced(d: {
+  prenom: string;
+  nom: string;
+  adherentId: string;
+  docLabel: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Document mis à jour 📎</h1>
+    <p style="line-height:1.6;color:#444"><strong>${d.prenom} ${d.nom}</strong> vient de déposer un document : <strong>${d.docLabel}</strong>.</p>
+    <p style="line-height:1.6;color:#444">Connectez-vous au dashboard pour le vérifier et valider le dossier.</p>
+    ${button(lien, "Voir la fiche adhérent")}
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    subject: `Document mis à jour — ${d.prenom} ${d.nom}`,
+    html,
+  });
+}
+
+/** 5 — Email à l'adhérent : un prélèvement a échoué. */
+export async function sendPaiementEchec(d: {
+  prenom: string;
+  email: string;
+  montant: number;
+  date?: string | null;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Problème avec votre paiement</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Un prélèvement de <strong>${euro(d.montant)}</strong>${
+      d.date ? ` prévu le <strong>${formatDateFr(d.date)}</strong>` : ""
+    } n'a pas pu aboutir.</p>
+    <p style="line-height:1.6;color:#444">Connectez-vous à votre espace pour régulariser votre situation.</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Régulariser mon paiement")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "⚠️ Problème avec votre paiement",
     html,
   });
 }

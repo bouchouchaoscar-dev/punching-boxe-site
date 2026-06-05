@@ -107,7 +107,30 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 > Sur **Vercel**, définir `NEXT_PUBLIC_SITE_URL` avec la **vraie URL de
 > production** (ex. `https://punching-boxe.com`). Ne pas laisser `localhost`.
 
-## 7. Test
+## 7. Emails transactionnels (Resend)
+
+5 emails automatiques (`lib/email.ts`) :
+1. **Confirmation adhérent** (inscription espèces/carte) — récap, échéancier si
+   fractionné, horaires, salles, lien vers `/mon-espace`.
+2. **Notification Pascal** (nouvelle inscription) — vers `ADMIN_NOTIFY_EMAIL`.
+3. **Document refusé** (adhérent) — doc concerné + motif + lien espace.
+4. **Document mis à jour** (Pascal) — vers `ADMIN_NOTIFY_EMAIL`.
+5. **Échec de paiement** (adhérent) — montant, date, lien régularisation.
+
+Variables d'environnement :
+
+| Variable | Description |
+|---|---|
+| `RESEND_API_KEY` | clé API Resend. **Si absente, aucun email n'est envoyé** (log « Email non envoyé : RESEND_API_KEY manquant »), l'app continue de fonctionner. |
+| `RESEND_FROM` | expéditeur (def. `Punching Boxe <noreply@punching-boxe.com>`) |
+| `ADMIN_NOTIFY_EMAIL` | destinataire des notifications admin (def. `contact@punching-boxe.com`) |
+
+> **Vérification du domaine** : pour envoyer depuis `@punching-boxe.com`, vérifier
+> le domaine dans **Resend → Domains** (ajouter les enregistrements DNS fournis).
+> En attendant, pour des **tests locaux**, définir
+> `RESEND_FROM="Punching Boxe <onboarding@resend.dev>"` (domaine de test Resend).
+
+## 8. Test
 
 - Cartes de test : https://stripe.com/docs/testing
   (ex. `4242 4242 4242 4242`, 3DS : `4000 0027 6000 3184`).

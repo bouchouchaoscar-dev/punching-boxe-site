@@ -74,14 +74,17 @@ export async function PATCH(request: Request, { params }: Ctx) {
   }
 
   // Un motif de refus non vide est-il posé dans cette requête ? (→ email adhérent)
-  const motifRefus = [
-    "fiche_motif_refus",
-    "certificat_motif_refus",
-    "reglement_motif_refus",
-    "photo_motif_refus",
-  ]
-    .map((k) => body[k])
-    .find((v) => typeof v === "string" && v.trim()) as string | undefined;
+  const DOC_LABELS: Record<string, string> = {
+    fiche_motif_refus: "Fiche d'inscription",
+    certificat_motif_refus: "Certificat médical",
+    reglement_motif_refus: "Règlement intérieur",
+    photo_motif_refus: "Photo d'identité",
+  };
+  const champRefus = Object.keys(DOC_LABELS).find(
+    (k) => typeof body[k] === "string" && (body[k] as string).trim(),
+  );
+  const motifRefus = champRefus ? (body[champRefus] as string).trim() : undefined;
+  const docLabelRefus = champRefus ? DOC_LABELS[champRefus] : undefined;
 
   const supabase = getSupabaseAdmin();
   let { data, error } = await supabase
@@ -115,6 +118,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
       await sendDocumentActionRequired({
         prenom: data.prenom,
         email: data.email,
+        docLabel: docLabelRefus,
         motif: motifRefus,
       });
     } catch (e) {

@@ -1,7 +1,11 @@
 import type Stripe from "stripe";
 import { getSupabaseAdmin } from "./supabase";
 import { getStripe } from "./stripe";
-import { sendAdherentConfirmation, sendAdminNotification } from "./email";
+import {
+  sendAdherentConfirmation,
+  sendAdminNotification,
+  sendPaiementEchec,
+} from "./email";
 import type { Adherent, Paiement } from "./types";
 
 /**
@@ -90,6 +94,8 @@ export async function recalculerEtatPaiement(adherentId: string) {
       .sort()[0] ?? null;
 
   const complet = echeancesPayees >= (adherent.nb_echeances || 1);
+  // Inscription confirmée dès la 1ère échéance réglée (welcome email).
+  const premierPaiement = (adherent.echeances_payees || 0) < 1 && echeancesPayees >= 1;
 
   await supabase
     .from("adherents")
@@ -102,14 +108,22 @@ export async function recalculerEtatPaiement(adherentId: string) {
     })
     .eq("id", adherentId);
 
-  if (complet && adherent.statut_paiement !== "paye") {
+  if (premierPaiement) {
+    const echeances = rows
+      .filter((r) => r.numero_echeance != null && r.date_prevue)
+      .sort((a, b) => (a.numero_echeance ?? 0) - (b.numero_echeance ?? 0))
+      .map((r) => ({
+        numero: r.numero_echeance as number,
+        date: r.date_prevue as string,
+        montant: Number(r.montant || 0),
+      }));
     try {
       await Promise.all([
-        sendAdherentConfirmation({ ...adherent, adherentId }),
+        sendAdherentConfirmation({ ...adherent, adherentId, echeances }),
         sendAdminNotification({ ...adherent, adherentId }),
       ]);
     } catch (e) {
-      console.error("Email error (finaliserSiComplet):", e);
+      console.error("Email error (recalculerEtatPaiement):", e);
     }
   }
 }
@@ -144,7 +158,7 @@ export async function marquerEcheanceEchec(
   const supabase = getSupabaseAdmin();
   const { data: paiement } = await supabase
     .from("paiements")
-    .select("id, adherent_id")
+    .select("id, adherent_id, montant, date_prevue")
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
   if (!paiement) return;
@@ -156,6 +170,25 @@ export async function marquerEcheanceEchec(
       statut_paiement: "echec_paiement",
     })
     .eq("id", paiement.adherent_id);
+
+  // Email à l'adhérent.
+  const { data: adh } = await supabase
+    .from("adherents")
+    .select("prenom, email")
+    .eq("id", paiement.adherent_id)
+    .single();
+  if (adh?.email) {
+    try {
+      await sendPaiementEchec({
+        prenom: adh.prenom,
+        email: adh.email,
+        montant: Number(paiement.montant || 0),
+        date: paiement.date_prevue,
+      });
+    } catch (e) {
+      console.error("Email échec paiement:", e);
+    }
+  }
 }
 
 /**
@@ -175,7 +208,7 @@ export async function chargerEcheance(
 
   const { data: a } = await supabase
     .from("adherents")
-    .select("id, stripe_customer_id")
+    .select("id, stripe_customer_id, prenom, email")
     .eq("id", p.adherent_id)
     .single();
   if (!a?.stripe_customer_id) {
@@ -240,6 +273,18 @@ export async function chargerEcheance(
         statut_paiement: "echec_paiement",
       })
       .eq("id", a.id);
+    if (a.email) {
+      try {
+        await sendPaiementEchec({
+          prenom: a.prenom,
+          email: a.email,
+          montant: Number(p.montant || 0),
+          date: p.date_prevue,
+        });
+      } catch (mailErr) {
+        console.error("Email échec paiement:", mailErr);
+      }
+    }
     return { ok: false, error: message };
   }
 }
