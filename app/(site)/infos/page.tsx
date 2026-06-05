@@ -44,6 +44,15 @@ export default function InfosPage() {
             tarif jeune réduit. + {euro(TARIFS.adhesion)} d&apos;adhésion la
             première année seulement.
           </p>
+
+          <div className="mt-5 max-w-2xl rounded-xl border border-orange/25 bg-orange-50 px-4 py-3 text-sm leading-relaxed text-ink">
+            <strong className="font-bold text-orange">
+              Vous souhaitez rejoindre le club en cours d&apos;année ?
+            </strong>{" "}
+            À partir de janvier, le tarif est calculé au prorata des mois restants
+            de la saison. Le montant exact vous sera indiqué automatiquement lors
+            de votre inscription en ligne.
+          </div>
         </Reveal>
 
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
