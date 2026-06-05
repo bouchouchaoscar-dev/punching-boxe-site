@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Reveal } from "@/components/ui/Reveal";
 import { HORAIRES, type Creneau } from "@/lib/constants";
 
@@ -28,16 +29,32 @@ function cardStyle(c: Creneau): { className: string; style?: React.CSSProperties
 
 export function WeeklyPlanning() {
   const parJour = (jour: string) => HORAIRES.filter((h) => h.jour === jour);
-  const [showHint, setShowHint] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const updateArrows = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 5);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 5);
+  }, []);
+
+  useEffect(() => {
+    updateArrows();
+    window.addEventListener("resize", updateArrows);
+    return () => window.removeEventListener("resize", updateArrows);
+  }, [updateArrows]);
+
+  const scrollByDir = (dir: 1 | -1) => {
+    scrollRef.current?.scrollBy({ left: dir * 200, behavior: "smooth" });
+  };
 
   return (
     <Reveal className="relative">
       <div
         ref={scrollRef}
-        onScroll={(e) => {
-          if (e.currentTarget.scrollLeft > 8) setShowHint(false);
-        }}
+        onScroll={updateArrows}
         className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
       >
         <div className="grid min-w-[44rem] grid-cols-5 gap-3 lg:min-w-0">
@@ -93,15 +110,26 @@ export function WeeklyPlanning() {
         </div>
       </div>
 
-      {/* Indicateur de scroll horizontal — mobile uniquement */}
-      {showHint && (
-        <>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-paper-2 to-transparent sm:hidden" />
-          <div className="pointer-events-none absolute bottom-3 right-2 flex animate-pulse items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide text-white shadow-lg sm:hidden">
-            Glissez pour voir la suite
-            <span aria-hidden className="text-sm">→</span>
-          </div>
-        </>
+      {/* Flèches de navigation — mobile uniquement */}
+      {canLeft && (
+        <button
+          type="button"
+          aria-label="Défiler vers la gauche"
+          onClick={() => scrollByDir(-1)}
+          className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-white/80 text-orange shadow-md backdrop-blur-sm transition-colors hover:bg-white md:hidden"
+        >
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.4} />
+        </button>
+      )}
+      {canRight && (
+        <button
+          type="button"
+          aria-label="Défiler vers la droite"
+          onClick={() => scrollByDir(1)}
+          className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-white/80 text-orange shadow-md backdrop-blur-sm transition-colors hover:bg-white md:hidden"
+        >
+          <ChevronRight className="h-5 w-5" strokeWidth={2.4} />
+        </button>
       )}
     </Reveal>
   );
