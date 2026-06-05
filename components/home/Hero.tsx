@@ -50,7 +50,7 @@ export function Hero() {
             transition={{ duration: 0.7, delay: 0.55, ease }}
             className="mt-7 max-w-xl text-base leading-relaxed text-smoke sm:text-lg"
           >
-            Un club historique, 300+ adhérents, des cours pour tous les âges dès
+            Un club historique, 200+ adhérents, des cours pour tous les âges dès
             5 ans. Boxe Française et Savate Fitness inclus dans une seule
             adhésion.
           </motion.p>
@@ -101,7 +101,7 @@ export function Hero() {
 
           {/* Badge flottant */}
           <div className="absolute bottom-4 left-4 rounded-2xl bg-white/95 px-5 py-3 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.35)] backdrop-blur lg:bottom-10 lg:left-10">
-            <p className="font-display text-3xl font-black text-ink">300+</p>
+            <p className="font-display text-3xl font-black text-ink">200+</p>
             <p className="text-xs font-semibold uppercase tracking-wide text-smoke">
               Adhérents / saison
             </p>

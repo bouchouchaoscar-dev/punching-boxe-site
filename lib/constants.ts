@@ -23,7 +23,7 @@ export const CLUB = {
 } as const;
 
 export const STATS = [
-  { value: 300, suffix: "+", label: "Adhérents par saison" },
+  { value: 200, suffix: "+", label: "Adhérents par saison" },
   { value: 4, suffix: "", label: "Salles d'entraînement" },
   { value: 25, suffix: "+", label: "Ans d'existence" },
   { value: 5, suffix: "", label: "Cours par semaine" },
@@ -199,7 +199,7 @@ export const PACKAGES = [
 export const POURQUOI = [
   {
     titre: "Un club historique",
-    texte: "Plus de 25 ans au cœur du Val-de-Marne, avec une communauté fidèle de 300+ adhérents chaque saison.",
+    texte: "Plus de 25 ans au cœur du Val-de-Marne, avec une communauté fidèle de 200+ adhérents chaque saison.",
   },
   {
     titre: "Tous niveaux, tous âges",
