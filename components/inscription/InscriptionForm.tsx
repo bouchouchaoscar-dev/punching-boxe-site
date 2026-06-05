@@ -281,8 +281,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     Catégorie détectée :{" "}
                     <span className="font-bold text-orange">
                       {tarif.typeAdherent === "jeune" ? "Jeune" : "Adulte"}
-                    </span>{" "}
-                    ({euro(tarif.cotisationBase)} de cotisation de base)
+                    </span>
                   </p>
                 )}
               </div>

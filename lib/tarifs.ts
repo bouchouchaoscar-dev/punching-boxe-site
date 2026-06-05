@@ -8,39 +8,44 @@ import { calculerTarif, type PackageType } from "./pricing";
 export const MOIS_SAISON_TOTAL = 10;
 
 /**
- * Mois calendaire (0 = janvier) → mois de saison (1 = sept … 10 = juin).
- * Juillet/août = hors saison (0) → traités comme une saison entière devant soi.
+ * Date de fin de saison (30 juin) pour la saison concernée par `date`.
+ * Juin → décembre : inscription pour la SAISON À VENIR (se termine le 30 juin
+ * de l'année suivante). Janvier → mai : saison en cours (30 juin même année).
  */
-export function moisSaison(date: Date): number {
-  const m = date.getMonth(); // 0..11
-  if (m >= 8) return m - 7; // sept(8)→1 … déc(11)→4
-  if (m <= 5) return m + 5; // janv(0)→5 … juin(5)→10
-  return 0; // juillet, août
+export function finSaison(date: Date): Date {
+  const y = date.getFullYear();
+  const endYear = date.getMonth() >= 5 ? y + 1 : y; // juin(5)→déc → année suivante
+  return new Date(endYear, 5, 30);
 }
 
-/** Mois réellement restants dans la saison (sert au choix des échéances). */
+/** Mois réellement restants jusqu'à la fin de saison (sert au choix des échéances). */
 export function moisRestantsReels(date: Date): number {
-  const ms = moisSaison(date);
-  if (ms === 0) return MOIS_SAISON_TOTAL; // pré-saison : saison entière devant
-  return MOIS_SAISON_TOTAL - ms;
+  const fin = finSaison(date);
+  return (
+    (fin.getFullYear() - date.getFullYear()) * 12 +
+    (fin.getMonth() - date.getMonth())
+  );
 }
 
-/** Inscription proratisée ? (de janvier à juin). */
+/**
+ * Inscription proratisée ? UNIQUEMENT de janvier à mai.
+ * Juin → décembre = tarif PLEIN (saison à venir). Juin n'est jamais proratisé.
+ */
 export function estProratise(date: Date): boolean {
-  return moisSaison(date) >= 5;
+  const m = date.getMonth();
+  return m >= 0 && m <= 4; // janvier(0) … mai(4)
 }
 
-// Mois "bonus" facturés en cas de proratisation, par mois calendaire (janv→juin).
+// Mois "bonus" facturés en cas de proratisation, par mois calendaire (janv→mai).
 const BONUS_PAR_MOIS_CAL: Record<number, number> = {
   0: 7, // janvier
   1: 6, // février
   2: 5, // mars
   3: 4, // avril
   4: 3, // mai
-  5: 1, // juin
 };
 
-/** Cotisation due selon la date : pleine de sept à déc, proratisée de janv à juin. */
+/** Cotisation due : pleine (juin→déc) ou proratisée (janv→mai). */
 export function cotisationProratisee(
   cotisationAnnuelle: number,
   date: Date,
@@ -59,12 +64,12 @@ export function echeancesAutorisees(date: Date): number[] {
   return [1];
 }
 
-/** Date de fin de saison (30 juin) pour la saison contenant `date`. */
-export function finSaison(date: Date): Date {
-  const y = date.getFullYear();
-  // De juillet à décembre → la saison se termine le 30 juin de l'année suivante.
-  const endYear = date.getMonth() >= 6 ? y + 1 : y;
-  return new Date(endYear, 5, 30);
+/** Indicateur informatif du mois de saison (1 = sept … 10 = juin ; 0 hors saison). */
+export function moisSaison(date: Date): number {
+  const m = date.getMonth();
+  if (m >= 8) return m - 7; // sept(8)→1 … déc(11)→4
+  if (m <= 5) return m + 5; // janv(0)→5 … juin(5)→10
+  return 0; // juillet, août
 }
 
 function toISO(d: Date): string {
