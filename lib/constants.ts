@@ -115,7 +115,7 @@ export const ACTIVITES = [
     sousTitre: "Savate · le sport de combat à la française",
     image: "/images/IMG_0558.jpg",
     inclus: true,
-    tag: "Package Boxe Française",
+    tag: "Formule Boxe Française",
     resume:
       "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
     points: [
@@ -136,7 +136,7 @@ export const ACTIVITES = [
     sousTitre: "La boxe en musique, cardio & tonus",
     image: "/images/IMG_0544.jpg",
     inclus: true,
-    tag: "Savate & Prépa",
+    tag: "Formule Savate & Prépa",
     resume:
       "Un cours dynamique qui reprend les gestes de la savate sur fond musical. Cardio, renforcement et défoulement garanti, sans contact. Orienté remise en forme.",
     points: [
@@ -152,7 +152,7 @@ export const ACTIVITES = [
     sousTitre: "Puissance, cardio & conditionnement",
     image: "/images/IMG_0548.jpg",
     inclus: false,
-    tag: "Savate & Prépa",
+    tag: "Formule Savate & Prépa",
     resume:
       "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate & Prépa.",
     points: [
