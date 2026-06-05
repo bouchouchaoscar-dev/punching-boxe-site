@@ -13,7 +13,9 @@ export function ConnexionForm() {
   const message = params.get("message");
   const next = params.get("next");
 
-  const [tab, setTab] = useState<Tab>("signup");
+  const [tab, setTab] = useState<Tab>(
+    params.get("tab") === "login" ? "login" : "signup",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

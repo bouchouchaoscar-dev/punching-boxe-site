@@ -17,6 +17,7 @@ type Coach = {
   role: string; // rôle (texte orange)
   phrase: string;
   photo: string;
+  objectClass?: string; // override du cadrage (object-position)
   lead?: boolean;
 };
 
@@ -37,6 +38,7 @@ const EQUIPE: Coach[] = [
     phrase:
       "Spécialiste compétition. Entraînement technique et préparation aux assauts.",
     photo: "/images/equipe/benjamin.jpg",
+    objectClass: "object-cover object-bottom",
   },
   {
     nom: "Mustapha",
@@ -60,6 +62,7 @@ const EQUIPE: Coach[] = [
     phrase:
       "Encadrement et accompagnement des adhérents sur les cours collectifs.",
     photo: "/images/equipe/sebastien.jpg",
+    objectClass: "object-cover object-bottom",
   },
 ];
 
@@ -112,7 +115,7 @@ export default function EquipePage() {
                     alt={`${c.nom}, ${c.role} du Punching Boxe`}
                     fill
                     sizes="(max-width: 640px) 100vw, 25vw"
-                    className="object-cover object-top"
+                    className={c.objectClass ?? "object-cover object-top"}
                   />
                 </div>
                 <div className="p-6">

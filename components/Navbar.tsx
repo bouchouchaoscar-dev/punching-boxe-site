@@ -10,6 +10,9 @@ import { Button } from "./ui/Button";
 import { useAdherentSession } from "./auth/useSession";
 import { NAV_LINKS } from "@/lib/constants";
 
+// Connexion avec l'onglet « J'ai déjà un compte » présélectionné.
+const ESPACE_LOGIN = "/inscription/connexion?tab=login&next=/mon-espace";
+
 export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -50,15 +53,17 @@ export function Navbar() {
           </div>
 
           <div className="flex items-center gap-2">
-            {session && (
-              <Link
-                href="/mon-espace"
-                className="hidden items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold text-ink/70 transition-colors hover:text-ink sm:inline-flex"
-              >
-                <User className="h-4 w-4" strokeWidth={1.8} aria-hidden />
-                Mon espace
-              </Link>
-            )}
+            <Link
+              href={session ? "/mon-espace" : ESPACE_LOGIN}
+              className={`hidden items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-semibold transition-colors sm:inline-flex ${
+                session
+                  ? "text-orange hover:text-orange/80"
+                  : "text-ink/70 hover:text-ink"
+              }`}
+            >
+              <User className="h-4 w-4" strokeWidth={1.8} aria-hidden />
+              {session ? "Mon espace ✓" : "Mon espace"}
+            </Link>
             <Link
               href="/admin/login"
               aria-label="Espace administrateur"
@@ -71,9 +76,15 @@ export function Navbar() {
                 aria-hidden
               />
             </Link>
-            <Button href="/inscription" size="md" className="hidden sm:inline-flex">
-              S&apos;inscrire
-            </Button>
+            {session ? (
+              <Button href="/mon-espace" size="md" className="hidden sm:inline-flex">
+                Mon espace
+              </Button>
+            ) : (
+              <Button href="/inscription" size="md" className="hidden sm:inline-flex">
+                S&apos;inscrire
+              </Button>
+            )}
 
             <button
               onClick={() => setOpen((v) => !v)}
@@ -114,13 +125,19 @@ export function Navbar() {
                 </motion.div>
               ))}
               <div className="mt-6 flex flex-col gap-3">
-                <Button href="/inscription" size="lg">
-                  S&apos;inscrire en ligne
-                </Button>
-                {session && (
-                  <Button href="/mon-espace" variant="outline" size="lg">
+                {session ? (
+                  <Button href="/mon-espace" size="lg">
                     Mon espace
                   </Button>
+                ) : (
+                  <>
+                    <Button href="/inscription" size="lg">
+                      S&apos;inscrire en ligne
+                    </Button>
+                    <Button href={ESPACE_LOGIN} variant="outline" size="lg">
+                      Mon espace
+                    </Button>
+                  </>
                 )}
                 <Button href="/admin/login" variant="outline" size="lg">
                   Espace administrateur
