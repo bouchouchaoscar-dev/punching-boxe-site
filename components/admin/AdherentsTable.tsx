@@ -144,7 +144,7 @@ export function AdherentsTable() {
       )}
 
       {/* Table */}
-      <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-line bg-white">
+      <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-line bg-white md:overflow-x-visible">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
@@ -152,17 +152,17 @@ export function AdherentsTable() {
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-smoke">Aucun adhérent trouvé.</div>
         ) : (
-          <table className="w-full min-w-[52rem] text-left text-sm">
+          <table className="w-full min-w-[52rem] text-left text-sm md:min-w-0">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
-                <th className="p-4 font-bold">Adhérent</th>
-                <th className="p-4 font-bold">Type</th>
-                <th className="p-4 font-bold">Statut</th>
-                <th className="p-4 font-bold">Montant</th>
-                <th className="p-4 font-bold">Encaissé</th>
-                <th className="p-4 font-bold">Options</th>
-                <th className="p-4 font-bold">Date</th>
-                <th className="p-4 font-bold" />
+                <th className="px-3 py-3 font-bold">Adhérent</th>
+                <th className="px-3 py-3 font-bold">Type</th>
+                <th className="px-3 py-3 font-bold">Statut</th>
+                <th className="px-3 py-3 font-bold">Montant</th>
+                <th className="px-3 py-3 font-bold">Encaissé</th>
+                <th className="px-3 py-3 font-bold">Options</th>
+                <th className="px-3 py-3 font-bold">Date</th>
+                <th className="px-3 py-3 font-bold" />
               </tr>
             </thead>
             <tbody>
@@ -199,9 +199,9 @@ function Row({
     Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
   return (
     <tr className="border-b border-line last:border-0 hover:bg-paper-2">
-      <td className="p-4">
-        <Link href={`/admin/adherents/${a.id}`} className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-paper-2 text-xs font-bold text-smoke">
+      <td className="px-3 py-3">
+        <Link href={`/admin/adherents/${a.id}`} className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-paper-2 text-xs font-bold text-smoke">
             {a.photo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={a.photo_url} alt="" className="h-full w-full object-cover" />
@@ -209,21 +209,23 @@ function Row({
               `${a.prenom[0] ?? ""}${a.nom[0] ?? ""}`
             )}
           </span>
-          <span>
+          <span className="block max-w-[180px] min-w-0">
             <span className="flex items-center gap-2 font-semibold text-ink">
-              {a.prenom} {a.nom}
+              <span className="truncate">
+                {a.prenom} {a.nom}
+              </span>
               {isNew && (
-                <span className="rounded-full bg-orange px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-white">
+                <span className="shrink-0 rounded-full bg-orange px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide text-white">
                   Nouveau
                 </span>
               )}
             </span>
-            <span className="block text-xs text-smoke">{a.email}</span>
+            <span className="block truncate text-xs text-smoke">{a.email}</span>
           </span>
         </Link>
       </td>
-      <td className="p-4 capitalize text-smoke">{a.type_adherent}</td>
-      <td className="p-4">
+      <td className="px-3 py-3 capitalize text-smoke">{a.type_adherent}</td>
+      <td className="px-3 py-3">
         <div className="flex flex-col items-start gap-1.5">
           <StatutBadge statut={a.statut_paiement} />
           <span
@@ -237,19 +239,19 @@ function Row({
           </span>
         </div>
       </td>
-      <td className="p-4 font-display font-bold text-ink">{euro(a.montant_total)}</td>
-      <td className="p-4 font-display font-bold text-green-600">
+      <td className="px-3 py-3 font-display font-bold text-ink">{euro(a.montant_total)}</td>
+      <td className="px-3 py-3 font-display font-bold text-green-600">
         {euro(encaisse)}
       </td>
-      <td className="p-4 text-xs text-smoke">
+      <td className="max-w-[120px] truncate px-3 py-3 text-xs text-smoke">
         {a.package === "savate_forme" ? "Savate & Forme" : "Boxe Française"}
         {a.option_prepa_physique ? " · Prépa" : ""}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>
-      <td className="p-4 text-smoke">
+      <td className="whitespace-nowrap px-3 py-3 text-smoke">
         {new Date(a.created_at).toLocaleDateString("fr-FR")}
       </td>
-      <td className="p-4 text-right">
+      <td className="px-3 py-3 text-right">
         {a.statut_paiement === "en_attente" ? (
           <button
             onClick={onConfirm}
