@@ -3,17 +3,20 @@
 // Source : BRIEF.md
 // ============================================================
 
-export const TARIFS = {
-  adhesion: 30, // 1ère année uniquement (nouveau membre)
-  cotisationAdulte: 430,
-  cotisationJeune: 410,
-  prepaPhysique: 100,
-} as const;
-
 export type TypeAdherent = "adulte" | "jeune";
 
 // Deux formules au choix.
 export type PackageType = "boxe_classique" | "savate_forme";
+
+export const TARIFS = {
+  adhesion: 30, // 1ère année uniquement (nouveau membre)
+  prepaPhysique: 100,
+  // La cotisation dépend désormais de la formule.
+  cotisation: {
+    boxe_classique: { adulte: 430, jeune: 410 },
+    savate_forme: { adulte: 390, jeune: 370 },
+  } as Record<PackageType, { adulte: number; jeune: number }>,
+} as const;
 
 export const PACKAGE_LABEL: Record<PackageType, string> = {
   boxe_classique: "Package Boxe Classique",
@@ -73,10 +76,7 @@ export function calculerTarif(input: PricingInput): PricingResult {
   const typeAdherent: TypeAdherent =
     input.typeAdherent ?? deduireType(input.dateNaissance);
 
-  const cotisationBase =
-    typeAdherent === "jeune"
-      ? TARIFS.cotisationJeune
-      : TARIFS.cotisationAdulte;
+  const cotisationBase = TARIFS.cotisation[input.packageType][typeAdherent];
 
   const remisePct = remiseFamillePct(input.nbMembresFamille || 0);
   const remiseMontant = Math.round((cotisationBase * remisePct) / 100);

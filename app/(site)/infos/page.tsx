@@ -10,7 +10,7 @@ import { WeeklyPlanning } from "@/components/infos/WeeklyPlanning";
 export const metadata: Metadata = {
   title: "Infos & Tarifs — Nos deux formules, horaires et salles",
   description:
-    "Saison 2026-2027 : deux formules à 430€ adulte / 410€ jeune (+30€ adhésion 1ère année). Boxe Classique (option prépa +100€) ou Savate & Forme. Tarif famille dégressif, horaires et 3 salles.",
+    "Saison 2026-2027 : Boxe Classique (430€ adulte / 410€ jeune) ou Savate & Forme (390€ / 370€), +30€ adhésion 1ère année. Tarif famille dégressif, planning hebdomadaire et 4 salles.",
 };
 
 const FAMILLE = [
@@ -34,13 +34,14 @@ export default function InfosPage() {
         <Reveal>
           <span className="eyebrow">Nos formules</span>
           <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-            Deux formules, un même tarif
+            Deux formules au choix
           </h2>
           <p className="mt-3 max-w-2xl text-smoke">
-            {euro(TARIFS.cotisationAdulte)} / an pour les adultes,{" "}
-            {euro(TARIFS.cotisationJeune)} / an pour les jeunes (né·e·s après le
-            01/01/2013), licence incluse. + {euro(TARIFS.adhesion)} d&apos;adhésion
-            la première année seulement.
+            Boxe Classique à {euro(TARIFS.cotisation.boxe_classique.adulte)} /an
+            (adulte) ou Savate &amp; Forme à{" "}
+            {euro(TARIFS.cotisation.savate_forme.adulte)} /an. Licence incluse,
+            tarif jeune réduit. + {euro(TARIFS.adhesion)} d&apos;adhésion la
+            première année seulement.
           </p>
         </Reveal>
 
@@ -202,7 +203,7 @@ export default function InfosPage() {
           <Reveal>
             <span className="eyebrow text-orange">Nos salles</span>
             <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-[#111111] sm:text-4xl">
-              3 salles d&apos;entraînement
+              4 salles d&apos;entraînement
             </h2>
           </Reveal>
 

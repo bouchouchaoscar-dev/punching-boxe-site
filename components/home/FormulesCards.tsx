@@ -5,7 +5,7 @@ import { ArrowIcon } from "@/components/ui/Button";
 const FORMULES = [
   {
     titre: "Formule Boxe",
-    desc: "5 cours par semaine sur 2 salles. Enfants et adultes. Option Préparation Physique +100€/an.",
+    desc: "Boxe Française enfants & adultes, sur 4 salles. Adultes 5 cours/sem, enfants 4 cours/sem. Option Prépa Physique +100€/an.",
     icon: "gloves" as const,
   },
   {

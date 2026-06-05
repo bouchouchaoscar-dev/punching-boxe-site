@@ -268,7 +268,7 @@ export function InscriptionForm() {
                     Votre formule
                   </p>
                   <p className="mb-3 text-xs text-smoke">
-                    Même tarif, deux orientations. Choisissez la vôtre.
+                    Deux orientations, deux tarifs. Choisissez la vôtre.
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {PACKAGES.map((p) => {

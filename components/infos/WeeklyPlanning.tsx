@@ -27,7 +27,7 @@ export function WeeklyPlanning() {
 
   return (
     <Reveal className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-      <div className="grid min-w-[60rem] grid-cols-7 gap-3">
+      <div className="grid min-w-[78rem] grid-cols-7 gap-3">
         {JOURS.map((jour) => {
           const creneaux = parJour(jour);
           return (
@@ -51,13 +51,21 @@ export function WeeklyPlanning() {
                     return (
                       <div
                         key={i}
-                        className={`rounded-xl p-2.5 ${s.className}`}
+                        className={`rounded-xl p-3 ${s.className}`}
                         style={s.style}
                       >
-                        <p className="text-[0.78rem] font-bold leading-tight">{c.cours}</p>
-                        <p className="mt-0.5 text-[0.7rem] opacity-90">{c.heure}</p>
+                        <p className="text-[0.82rem] font-bold leading-tight">
+                          {c.cours}
+                        </p>
+                        <p className="mt-1 text-[0.72rem] font-semibold opacity-95">
+                          {c.heure}
+                        </p>
+                        <p className="mt-1 text-[0.66rem] leading-tight opacity-80">
+                          {c.salle}
+                          {c.ville ? ` · ${c.ville}` : ""}
+                        </p>
                         <span
-                          className={`mt-1.5 inline-block rounded-full px-1.5 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${s.badge}`}
+                          className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wide ${s.badge}`}
                         >
                           {c.public}
                         </span>

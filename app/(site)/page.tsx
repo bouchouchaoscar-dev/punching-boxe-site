@@ -59,7 +59,7 @@ export default function HomePage() {
             <SectionHeading
               eyebrow="Le club"
               title={<>Un esprit d&apos;équipe, une frappe nette</>}
-              intro="Né en 2000 de la fusion de deux clubs locaux, le Punching Boxe de Nogent-Le Perreux fait vivre la Savate sur 3 salles d'entraînement. Femmes, hommes, enfants : plus de 300 adhérents partagent chaque saison la même passion."
+              intro="Né en 2000 de la fusion de deux clubs locaux, le Punching Boxe de Nogent-Le Perreux fait vivre la Savate sur 4 salles d'entraînement. Femmes, hommes, enfants : plus de 300 adhérents partagent chaque saison la même passion."
             />
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {POURQUOI.map((p, i) => (
@@ -87,7 +87,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Nos activités"
             title={<>Trois façons de transpirer</>}
-            intro="Deux formules au même tarif. Boxe Classique ou Savate & Forme — choisissez votre voie."
+            intro="Deux formules au choix : Boxe Classique ou Savate & Forme — choisissez votre voie."
           />
 
           <div className="mt-14 grid gap-6 lg:grid-cols-3">
@@ -142,7 +142,7 @@ export default function HomePage() {
         <SectionHeading
           eyebrow="Deux formules"
           title={<>Choisissez votre voie</>}
-          intro="Même tarif, deux orientations. La pratique de la boxe, ou la remise en forme par la savate."
+          intro="Deux orientations : la pratique de la boxe, ou la remise en forme par la savate. À chacun sa formule."
         />
         <div className="mt-12">
           <FormulesCards />

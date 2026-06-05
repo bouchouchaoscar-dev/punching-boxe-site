@@ -17,8 +17,8 @@ export default function ActivitesPage() {
     <>
       <PageHero
         eyebrow="Nos activités"
-        title={<>Deux formules,<br /> un même tarif</>}
-        intro="Choisissez votre pratique : la Boxe Française ou la Savate & Forme. Même tarif, deux orientations différentes."
+        title={<>Deux formules,<br /> au choix</>}
+        intro="Choisissez votre pratique : la Boxe Française (Boxe Classique) ou la Savate & Forme. Deux orientations, deux tarifs."
       />
 
       <div className="container-px mx-auto max-w-7xl pb-10">

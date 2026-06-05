@@ -72,16 +72,23 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Cotisation / Licence — Adultes</Text>
+            <Text style={styles.bold}>Boxe Classique</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <Text style={styles.price}>{TARIFS.cotisationAdulte} €</Text>
+          <Text style={styles.price}>
+            {TARIFS.cotisation.boxe_classique.adulte} / {TARIFS.cotisation.boxe_classique.jeune} €
+          </Text>
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Cotisation / Licence — Jeunes</Text> (né·e après le 01/01/2013)
+            <Text style={styles.bold}>Savate &amp; Forme</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <Text style={styles.price}>{TARIFS.cotisationJeune} €</Text>
+          <Text style={styles.price}>
+            {TARIFS.cotisation.savate_forme.adulte} / {TARIFS.cotisation.savate_forme.jeune} €
+          </Text>
         </View>
+        <Text style={[styles.small, f.small, { marginBottom: 4 }]}>
+          Jeunes : né·e après le 01/01/2013.
+        </Text>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
             <Text style={styles.bold}>Adhésion-club</Text> (1ère année)

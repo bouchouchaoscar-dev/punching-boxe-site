@@ -24,7 +24,7 @@ export const CLUB = {
 
 export const STATS = [
   { value: 300, suffix: "+", label: "Adhérents par saison" },
-  { value: 3, suffix: "", label: "Salles d'entraînement" },
+  { value: 4, suffix: "", label: "Salles d'entraînement" },
   { value: 25, suffix: "+", label: "Ans d'existence" },
   { value: 5, suffix: "", label: "Cours par semaine" },
 ] as const;
@@ -52,10 +52,16 @@ export const SALLES: Salle[] = [
     maps: "https://www.google.com/maps?q=Allée+des+Ormes+94170+Le+Perreux-sur-Marne&output=embed",
   },
   {
-    nom: "Gymnase du Marché",
+    nom: "Gymnase du Centre",
     adresse: "62 av. Georges Clémenceau",
     ville: "94170 Le Perreux-sur-Marne",
     maps: "https://www.google.com/maps?q=62+avenue+Georges+Clemenceau+94170+Le+Perreux-sur-Marne&output=embed",
+  },
+  {
+    nom: "Dojo David Douillet",
+    adresse: "19 bis rue Paul Bert",
+    ville: "94130 Nogent-sur-Marne",
+    maps: "https://www.google.com/maps?q=19+bis+rue+Paul+Bert+94130+Nogent-sur-Marne&output=embed",
   },
 ];
 
@@ -64,22 +70,31 @@ export type Creneau = {
   heure: string;
   cours: string;
   public: string;
+  salle: string;
+  ville: string;
 };
 
+const NOGENT = "Nogent-sur-Marne";
+const PERREUX = "Le Perreux-sur-Marne";
+
 export const HORAIRES: Creneau[] = [
-  { jour: "Lundi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
-  { jour: "Lundi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Mardi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
-  { jour: "Mardi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Mardi", heure: "20h00", cours: "Préparation Physique", public: "Tous niveaux" },
-  { jour: "Mercredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
-  { jour: "Mercredi", heure: "18h30 – 19h30", cours: "Savate Fitness", public: "Tous niveaux" },
-  { jour: "Mercredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Jeudi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
-  { jour: "Jeudi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
-  { jour: "Jeudi", heure: "20h00", cours: "Préparation Physique", public: "Tous niveaux" },
-  { jour: "Vendredi", heure: "18h00 – 19h30", cours: "Boxe Française", public: "Enfants" },
-  { jour: "Vendredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes" },
+  // Lundi
+  { jour: "Lundi", heure: "19h00 – 20h30", cours: "Boxe Française", public: "Adultes", salle: "Dojo David Douillet", ville: NOGENT },
+  // Mardi
+  { jour: "Mardi", heure: "18h00 – 19h00", cours: "Boxe Française", public: "Enfants", salle: "Dojo David Douillet", ville: NOGENT },
+  { jour: "Mardi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes", salle: "Dojo David Douillet", ville: NOGENT },
+  { jour: "Mardi", heure: "20h00 – 21h00", cours: "Préparation Physique", public: "Tous niveaux", salle: "Gymnase du Port", ville: NOGENT },
+  // Mercredi
+  { jour: "Mercredi", heure: "17h00 – 18h00", cours: "Boxe Française", public: "Enfants", salle: "Gymnase du Centre", ville: PERREUX },
+  { jour: "Mercredi", heure: "18h30 – 19h30", cours: "Savate Fitness", public: "Tous niveaux", salle: "Salle à confirmer", ville: "" },
+  { jour: "Mercredi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes", salle: "Gymnase du Centre", ville: PERREUX },
+  // Jeudi
+  { jour: "Jeudi", heure: "18h00 – 19h00", cours: "Boxe Française", public: "Enfants", salle: "Dojo David Douillet", ville: NOGENT },
+  { jour: "Jeudi", heure: "19h30 – 21h00", cours: "Boxe Française", public: "Adultes", salle: "Dojo David Douillet", ville: NOGENT },
+  { jour: "Jeudi", heure: "20h00 – 21h00", cours: "Préparation Physique", public: "Tous niveaux", salle: "Gymnase du Port", ville: NOGENT },
+  // Vendredi
+  { jour: "Vendredi", heure: "17h30 – 18h30", cours: "Boxe Française", public: "Enfants", salle: "Gymnase du Centre", ville: PERREUX },
+  { jour: "Vendredi", heure: "19h00 – 20h30", cours: "Boxe Française", public: "Adultes", salle: "Gymnase du Centre", ville: PERREUX },
 ];
 
 export const EQUIPEMENT = [
@@ -104,14 +119,15 @@ export const ACTIVITES = [
     resume:
       "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
     points: [
-      "Enfants : 18h00 – 19h30 · Adultes : 19h30 – 21h00",
-      "5 cours par semaine, sur 2 salles",
-      "Tous niveaux, dès 5 ans",
+      "Cours Enfants (1h) et Adultes (1h30)",
+      "Adultes : 5 cours/semaine · Enfants : 4 cours/semaine",
+      "Sur 4 salles, dès 5 ans",
       "Encadrement par des moniteurs fédéraux",
     ],
     creneaux: [
-      "Lun → Ven 18h00 (enfants)",
-      "Lun → Ven 19h30 (adultes)",
+      "Enfants : Mar · Mer · Jeu · Ven",
+      "Adultes : Lun → Ven",
+      "4 salles d'entraînement",
     ],
   },
   {
@@ -156,9 +172,9 @@ export const PACKAGES = [
     accroche: "L'apprentissage complet de la Boxe Française, enfants et adultes.",
     tarifs: { adulte: 430, jeune: 410 },
     inclus: [
-      "Tous les cours de Boxe Française (enfants ET adultes)",
-      "5 cours par semaine, sur 2 salles",
-      "Enfants 18h00 – 19h30 · Adultes 19h30 – 21h00",
+      "Tous les cours de Boxe Française (enfants & adultes)",
+      "Adultes : 5 cours/sem · Enfants : 4 cours/sem",
+      "Sur 4 salles d'entraînement",
       "Licence fédérale incluse",
     ],
     option: "+100€/an : ajouter la Préparation Physique (mardi & jeudi 20h)",
@@ -168,7 +184,7 @@ export const PACKAGES = [
     id: "savate_forme" as const,
     nom: "Savate & Forme",
     accroche: "La remise en forme par la savate, sans esprit de compétition.",
-    tarifs: { adulte: 430, jeune: 410 },
+    tarifs: { adulte: 390, jeune: 370 },
     inclus: [
       "Savate Fitness (mercredi 18h30 – 19h30)",
       "Préparation Physique (mardi & jeudi 20h)",
