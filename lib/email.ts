@@ -14,9 +14,11 @@ function getResend(): Resend | null {
   return resend;
 }
 
-// Expéditeur : domaine à vérifier dans Resend (cf. README). En test local sans
-// domaine vérifié, définir RESEND_FROM="Punching Boxe <onboarding@resend.dev>".
-const FROM = process.env.RESEND_FROM || "Punching Boxe <noreply@punching-boxe.com>";
+// Expéditeur. Par défaut le domaine de TEST Resend (fonctionne avec n'importe
+// quelle clé API, sans vérification de domaine). En production avec un domaine
+// vérifié, définir RESEND_FROM="Punching Boxe <contact@punching-boxe.com>".
+const FROM =
+  process.env.RESEND_FROM || "Punching Boxe <onboarding@resend.dev>";
 const ADMIN_TO = process.env.ADMIN_NOTIFY_EMAIL || CLUB.email;
 
 const MODE_LABEL: Record<ModePaiement, string> = {
@@ -96,6 +98,28 @@ function blocSalles() {
   ).join("");
   return `<p style="margin:18px 0 6px;font-weight:700">Nos salles</p>
     <ul style="margin:0;padding-left:18px;color:#444;font-size:13px;line-height:1.5">${lignes}</ul>`;
+}
+
+/** 0 — Email de bienvenue à la création du compte (espace adhérent). */
+export async function sendAccountWelcome(d: { email: string }) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Bienvenue sur votre espace adhérent 🥊</h1>
+    <p style="line-height:1.6;color:#444">Bonjour,</p>
+    <p style="line-height:1.6;color:#444">Votre espace adhérent <strong>${CLUB.nom}</strong> a bien été créé.</p>
+    <p style="line-height:1.6;color:#444">Vous pouvez maintenant compléter votre inscription en ligne :</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/inscription`, "Compléter mon inscription")}</p>
+    <p style="line-height:1.6;color:#444">À bientôt à la salle !<br/>Pascal et l'équipe du Punching Boxe<br/>${CLUB.telephone} · ${CLUB.email}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "Bienvenue sur votre espace adhérent 🥊",
+    html,
+  });
 }
 
 /** 1 — Email de confirmation à l'adhérent (espèces ou carte). */

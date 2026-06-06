@@ -78,6 +78,12 @@ export function ConnexionForm() {
         );
         return;
       }
+      // Email de bienvenue (best-effort, n'interrompt pas l'inscription).
+      fetch("/api/account-welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      }).catch(() => {});
       if (data.session) {
         router.push(next || "/inscription");
       } else {
