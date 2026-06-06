@@ -27,6 +27,9 @@ export function CTABanner({
               Réserver ma séance d&apos;essai
             </Button>
           </div>
+          <p className="mt-3 text-sm text-smoke">
+            Créez votre espace adhérent en quelques secondes.
+          </p>
         </div>
       </Reveal>
     </section>

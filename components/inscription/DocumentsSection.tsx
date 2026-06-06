@@ -28,9 +28,9 @@ export function DocumentsSection() {
         </h2>
         <p className="mt-3 max-w-2xl text-smoke">
           Téléchargez, remplissez et signez ces trois documents avant de vous
-          inscrire. Vous les déposerez dans le formulaire ci-dessous une fois
-          complétés. Prévoyez également une photo d&apos;identité (JPG/PNG) à
-          uploader lors de l&apos;inscription.
+          inscrire. Créez votre espace adhérent en quelques secondes, puis
+          déposez vos pièces et réglez en ligne ou en espèces. Prévoyez également
+          une photo d&apos;identité (JPG/PNG).
         </p>
       </Reveal>
 
