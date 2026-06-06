@@ -91,6 +91,16 @@ export function FicheAdherent({ id }: { id: string }) {
     load();
   }, [load]);
 
+  // Dès que l'admin ouvre la fiche : marquer comme vue → fait disparaître
+  // définitivement le badge "Nouveau" dans la liste (best-effort).
+  useEffect(() => {
+    fetch(`/api/adherents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vu_par_admin: true }),
+    }).catch(() => {});
+  }, [id]);
+
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
     try {

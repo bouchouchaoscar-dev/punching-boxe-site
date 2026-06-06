@@ -50,6 +50,8 @@ export async function PATCH(request: Request, { params }: Ctx) {
     "code_postal",
     "option_prepa_physique",
     "nb_membres_famille",
+    // Badge "Nouveau" : marqué vu quand l'admin ouvre la fiche.
+    "vu_par_admin",
     // Validation / refus PAR DOCUMENT.
     "fiche_valide",
     "certificat_valide",

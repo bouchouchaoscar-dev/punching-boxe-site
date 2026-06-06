@@ -204,8 +204,10 @@ function Row({
   confirming: boolean;
   onConfirm: () => void;
 }) {
-  // Inscrit depuis moins de 48h → badge "Nouveau" (auto-disparition, basé sur la date).
+  // Badge "Nouveau" : inscrit depuis moins de 48h ET jamais consulté par l'admin.
+  // Dès que la fiche est ouverte (vu_par_admin = true), le badge disparaît définitivement.
   const isNew =
+    !a.vu_par_admin &&
     Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
   return (
     <tr className="border-b border-line last:border-0 hover:bg-paper-2">

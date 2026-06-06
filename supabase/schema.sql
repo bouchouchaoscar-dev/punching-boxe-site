@@ -52,7 +52,8 @@ create table if not exists public.adherents (
   nb_echeances              integer default 1,
   echeances_payees          integer default 0,
   prochaine_echeance        date,
-  derniere_erreur_stripe    text
+  derniere_erreur_stripe    text,
+  vu_par_admin              boolean not null default false
 );
 
 -- Échéances de paiement (paiement fractionné Stripe).
@@ -107,6 +108,10 @@ alter table public.adherents
   add column if not exists echeances_payees integer default 0,
   add column if not exists prochaine_echeance date,
   add column if not exists derniere_erreur_stripe text;
+
+-- Migration : badge "Nouveau" (l'admin a-t-il déjà consulté la fiche ?).
+alter table public.adherents
+  add column if not exists vu_par_admin boolean not null default false;
 
 create table if not exists public.paiements (
   id                        uuid primary key default gen_random_uuid(),

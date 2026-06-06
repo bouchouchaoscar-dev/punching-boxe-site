@@ -48,6 +48,8 @@ export interface Adherent {
   echeances_payees: number;
   prochaine_echeance: string | null;
   derniere_erreur_stripe: string | null;
+  // Badge "Nouveau" : passe à true dès que l'admin ouvre la fiche.
+  vu_par_admin: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
