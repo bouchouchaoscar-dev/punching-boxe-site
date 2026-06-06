@@ -349,7 +349,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 {packageType === "boxe_classique" ? (
                   <Toggle
                     label="Option Préparation Physique"
-                    hint="2 séances/semaine (mardi & jeudi 20h) — +100€/an."
+                    hint="2 séances/semaine (mardi et jeudi 20h) — +100€/an."
                     value={prepa}
                     onChange={setPrepa}
                   />

@@ -84,7 +84,7 @@ export function AdherentsTable() {
       a.email,
       a.telephone ?? "",
       a.type_adherent,
-      a.package === "savate_prepa" ? "Savate & Prépa" : "Boxe Française",
+      a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française",
       a.statut_paiement,
       a.mode_paiement,
       String(a.montant_total),
@@ -254,7 +254,7 @@ function Row({
         {euro(encaisse)}
       </td>
       <td className="truncate px-2 py-3 text-xs text-smoke">
-        {a.package === "savate_prepa" ? "Savate & Prépa" : "Boxe Française"}
+        {a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française"}
         {a.option_prepa_physique ? " · Prépa" : ""}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>

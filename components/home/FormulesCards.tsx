@@ -5,11 +5,11 @@ import { ArrowIcon } from "@/components/ui/Button";
 const FORMULES = [
   {
     titre: "Formule Boxe",
-    desc: "Boxe Française enfants & adultes, sur 4 salles. Adultes 5 cours/sem, enfants 4 cours/sem. Option Prépa Physique +100€/an.",
+    desc: "Boxe Française enfants et adultes, sur 4 salles. Adultes 5 cours/sem, enfants 4 cours/sem. Option Prépa Physique +100€/an.",
     icon: "gloves" as const,
   },
   {
-    titre: "Formule Savate & Prépa",
+    titre: "Formule Savate et Prépa",
     desc: "Savate Fitness + Préparation Physique. 3 entraînements par semaine. Idéal remise en forme, sans esprit de compétition.",
     icon: "flame" as const,
   },

@@ -10,7 +10,7 @@ export function Footer() {
           <div>
             <Logo variant="dark" gapClassName="gap-5" />
             <p className="mt-5 max-w-xs text-sm leading-relaxed text-[#555555]">
-              Club de Boxe Française & Savate au cœur du Val-de-Marne depuis{" "}
+              Club de Boxe Française et Savate au cœur du Val-de-Marne depuis{" "}
               {CLUB.creeEn}. Tous niveaux, dès 5 ans.
             </p>
             <Link

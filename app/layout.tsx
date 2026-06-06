@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default:
-      "Punching Boxe Nogent-Le Perreux | Club de Boxe Française & Savate depuis 2000",
+      "Punching Boxe Nogent-Le Perreux | Club de Boxe Française et Savate depuis 2000",
     template: "%s · Punching Boxe Nogent-Le Perreux",
   },
   description:
@@ -44,15 +44,15 @@ export const metadata: Metadata = {
     url: SITE_URL,
     siteName: CLUB.nom,
     title:
-      "Punching Boxe Nogent-Le Perreux | Club de Boxe Française & Savate depuis 2000",
+      "Punching Boxe Nogent-Le Perreux | Club de Boxe Française et Savate depuis 2000",
     description:
       "Club de Boxe Française et Savate à Nogent-sur-Marne et Le Perreux. Cours enfants et adultes, Savate Fitness, Préparation Physique. Inscription en ligne.",
     images: [{ url: "/images/IMG_0558.jpg", width: 1200, height: 630, alt: CLUB.nom }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Punching Boxe Nogent-Le Perreux — Boxe Française & Savate",
-    description: "Club de Boxe Française & Savate Fitness dans le Val-de-Marne.",
+    title: "Punching Boxe Nogent-Le Perreux — Boxe Française et Savate",
+    description: "Club de Boxe Française et Savate Fitness dans le Val-de-Marne.",
     images: ["/images/IMG_0558.jpg"],
   },
 };

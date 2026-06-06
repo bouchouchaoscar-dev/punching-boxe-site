@@ -117,7 +117,7 @@ export default function AProposPage() {
           <Reveal>
             <span className="eyebrow justify-center">Zone couverte</span>
             <h2 className="font-display mt-3 break-words text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-              Nogent, Le Perreux & le Val-de-Marne
+              Nogent, Le Perreux et le Val-de-Marne
             </h2>
             <p className="mx-auto mt-5 max-w-2xl leading-relaxed text-smoke">
               Le club rayonne sur <strong>Nogent-sur-Marne (94130)</strong> et{" "}

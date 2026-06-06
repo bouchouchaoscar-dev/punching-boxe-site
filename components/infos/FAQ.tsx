@@ -3,7 +3,7 @@ import { Reveal } from "@/components/ui/Reveal";
 const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "Combien coûte une adhésion ?",
-    a: "La cotisation annuelle est de 430 € pour la Formule Boxe Française (410 € pour les jeunes) et de 390 € pour la Formule Savate & Prépa (370 € jeunes), licence fédérale incluse. Ajoutez 30 € d'adhésion la première année. À partir de janvier, le tarif est calculé au prorata des mois restants de la saison.",
+    a: "La cotisation annuelle est de 430 € pour la Formule Boxe Française (410 € pour les jeunes) et de 390 € pour la Formule Savate et Prépa (370 € jeunes), licence fédérale incluse. Ajoutez 30 € d'adhésion la première année. À partir de janvier, le tarif est calculé au prorata des mois restants de la saison.",
   },
   {
     q: "Y a-t-il des cours pour les enfants ?",

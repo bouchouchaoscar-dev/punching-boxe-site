@@ -52,7 +52,7 @@ export type SmartListKey =
 export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
   { key: "tous", label: "Tous les adhérents" },
   { key: "boxe", label: "Formule Boxe Française" },
-  { key: "savate", label: "Formule Savate & Prépa" },
+  { key: "savate", label: "Formule Savate et Prépa" },
   { key: "adultes", label: "Adultes uniquement" },
   { key: "jeunes", label: "Jeunes uniquement" },
   { key: "avec_prepa", label: "Avec option Prépa Physique" },
@@ -126,7 +126,7 @@ export function remplacerVariables(texte: string, v: DestinataireVars): string {
 }
 
 export function formuleLabel(pkg?: string | null): string {
-  return pkg === "savate_prepa" ? "Savate & Prépa" : "Boxe Française";
+  return pkg === "savate_prepa" ? "Savate et Prépa" : "Boxe Française";
 }
 
 // ---- Templates par défaut (auto-insérés en base s'ils sont absents) ----

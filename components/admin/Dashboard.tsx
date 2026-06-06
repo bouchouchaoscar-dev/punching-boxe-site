@@ -96,7 +96,7 @@ export function Dashboard() {
     const savate = adherents.filter((a) => a.package === "savate_prepa").length;
     const repartitionFormule = [
       { name: "Boxe Française", value: boxe, color: ORANGE },
-      { name: "Savate & Prépa", value: savate, color: INK },
+      { name: "Savate et Prépa", value: savate, color: INK },
     ].filter((x) => x.value > 0);
 
     return {
@@ -152,7 +152,7 @@ export function Dashboard() {
         <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
         <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
-        <Kpi label="Savate & Prépa" value={String(data.savateForme)} />
+        <Kpi label="Savate et Prépa" value={String(data.savateForme)} />
       </div>
 
       {data.total === 0 ? (

@@ -20,7 +20,7 @@ export const TARIFS = {
 
 export const PACKAGE_LABEL: Record<PackageType, string> = {
   boxe_classique: "Package Boxe Française",
-  savate_prepa: "Package Savate & Prépa",
+  savate_prepa: "Package Savate et Prépa",
 };
 
 export type PricingInput = {

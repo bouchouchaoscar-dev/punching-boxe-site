@@ -8,7 +8,7 @@ import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
   title:
-    "Activités | Boxe Française, Savate Fitness & Prépa Physique - Punching Boxe Nogent",
+    "Activités | Boxe Française, Savate Fitness et Prépa Physique - Punching Boxe Nogent",
   description:
     "Découvrez nos activités : Boxe Française pour tous niveaux, Savate Fitness cardio, Préparation Physique. Cours enfants dès 5 ans et adultes.",
   path: "/activites",
@@ -21,7 +21,7 @@ export default function ActivitesPage() {
       <PageHero
         eyebrow="Nos activités"
         title={<>Deux formules,<br /> au choix</>}
-        intro="Choisissez votre pratique : la Boxe Française ou la Savate & Prépa. Deux orientations, deux tarifs."
+        intro="Choisissez votre pratique : la Boxe Française ou la Savate et Prépa. Deux orientations, deux tarifs."
       />
 
       <div className="container-px mx-auto max-w-7xl pb-10">

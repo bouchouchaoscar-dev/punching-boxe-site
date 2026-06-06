@@ -65,10 +65,10 @@ export function FicheInscriptionDoc() {
         <FieldRow items={[{ label: "Code postal :", flex: 0.8 }, { label: "Ville :", flex: 1.4 }]} />
 
         {/* Formule + Tarifs */}
-        <Text style={[styles.h2, f.h2]}>Formule & cotisation</Text>
+        <Text style={[styles.h2, f.h2]}>Formule et cotisation</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 4 }}>
           <Check label="Package Boxe Française" />
-          <Check label="Package Savate & Prépa" />
+          <Check label="Package Savate et Prépa" />
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
@@ -97,7 +97,7 @@ export function FicheInscriptionDoc() {
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
-            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Française · incluse en Savate & Prépa)
+            <Text style={styles.bold}>Préparation Physique</Text> (option Boxe Française · incluse en Savate et Prépa)
           </Text>
           <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
         </View>

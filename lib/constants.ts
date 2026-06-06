@@ -133,32 +133,32 @@ export const ACTIVITES = [
   {
     slug: "savate-fitness",
     titre: "Savate Fitness",
-    sousTitre: "La boxe en musique, cardio & tonus",
+    sousTitre: "La boxe en musique, cardio et tonus",
     image: "/images/IMG_0544.jpg",
     inclus: true,
-    tag: "Formule Savate & Prépa",
+    tag: "Formule Savate et Prépa",
     resume:
       "Un cours dynamique qui reprend les gestes de la savate sur fond musical. Cardio, renforcement et défoulement garanti, sans contact. Orienté remise en forme.",
     points: [
       "Cours collectif en musique, mixte tous niveaux",
       "Renforcement musculaire et travail cardio",
-      "Inclus dans le package Savate & Prépa",
+      "Inclus dans le package Savate et Prépa",
     ],
     creneaux: ["Mercredi 18h30 – 19h30"],
   },
   {
     slug: "preparation-physique",
     titre: "Préparation Physique",
-    sousTitre: "Puissance, cardio & conditionnement",
+    sousTitre: "Puissance, cardio et conditionnement",
     image: "/images/IMG_0548.jpg",
     inclus: false,
-    tag: "Formule Savate & Prépa",
+    tag: "Formule Savate et Prépa",
     resume:
-      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate & Prépa.",
+      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate et Prépa.",
     points: [
-      "2 séances par semaine (mardi & jeudi 20h)",
+      "2 séances par semaine (mardi et jeudi 20h)",
       "Renforcement musculaire + cardio intensif",
-      "Option +100€ avec Boxe Française · incluse en Savate & Prépa",
+      "Option +100€ avec Boxe Française · incluse en Savate et Prépa",
     ],
     creneaux: ["Mardi 20h00 – 21h00", "Jeudi 20h00 – 21h00"],
   },
@@ -172,27 +172,27 @@ export const PACKAGES = [
     accroche: "L'apprentissage complet de la Boxe Française, enfants et adultes.",
     tarifs: { adulte: 430, jeune: 410 },
     inclus: [
-      "Tous les cours de Boxe Française (enfants & adultes)",
+      "Tous les cours de Boxe Française (enfants et adultes)",
       "Adultes : 5 cours/sem · Enfants : 4 cours/sem",
       "Sur 4 salles d'entraînement",
       "+30 € la première année pour les nouveaux membres",
     ],
-    option: "+100€/an : ajouter la Préparation Physique (mardi & jeudi 20h)",
-    orientation: "Technique & compétition",
+    option: "+100€/an : ajouter la Préparation Physique (mardi et jeudi 20h)",
+    orientation: "Technique et compétition",
   },
   {
     id: "savate_prepa" as const,
-    nom: "Savate & Prépa",
+    nom: "Savate et Prépa",
     accroche: "La remise en forme par la savate, sans esprit de compétition.",
     tarifs: { adulte: 390, jeune: 370 },
     inclus: [
       "Savate Fitness (mercredi 18h30 – 19h30)",
-      "Préparation Physique (mardi & jeudi 20h – 21h)",
+      "Préparation Physique (mardi et jeudi 20h – 21h)",
       "3 cours par semaine",
       "+30 € la première année pour les nouveaux membres",
     ],
     option: null,
-    orientation: "Fitness & remise en forme",
+    orientation: "Fitness et remise en forme",
   },
 ];
 
@@ -211,7 +211,7 @@ export const POURQUOI = [
   },
   {
     titre: "Deux formules au choix",
-    texte: "Boxe Française pour la pratique et la compétition, Savate & Prépa pour la remise en forme. À chacun sa voie.",
+    texte: "Boxe Française pour la pratique et la compétition, Savate et Prépa pour la remise en forme. À chacun sa voie.",
   },
 ];
 
@@ -219,6 +219,6 @@ export const NAV_LINKS = [
   { href: "/", label: "Accueil" },
   { href: "/activites", label: "Activités" },
   { href: "/equipe", label: "Équipe" },
-  { href: "/infos", label: "Infos & Tarifs" },
+  { href: "/infos", label: "Infos et Tarifs" },
   { href: "/contact", label: "Contact" },
 ];
