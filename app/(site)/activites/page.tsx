@@ -1,16 +1,19 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import { Reveal } from "@/components/ui/Reveal";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { Button } from "@/components/ui/Button";
 import { ACTIVITES } from "@/lib/constants";
 import { PageHero } from "@/components/sections/PageHero";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Activités — Boxe Française, Savate Fitness & Prépa Physique",
+export const metadata = pageMeta({
+  title:
+    "Activités | Boxe Française, Savate Fitness & Prépa Physique - Punching Boxe Nogent",
   description:
-    "Découvrez nos cours : Boxe Française (Savate) et Savate Fitness inclus dans l'adhésion, plus l'option Préparation Physique. Tous niveaux, adultes et enfants.",
-};
+    "Découvrez nos activités : Boxe Française pour tous niveaux, Savate Fitness cardio, Préparation Physique. Cours enfants dès 5 ans et adultes.",
+  path: "/activites",
+  image: "/images/IMG_0558.jpg",
+});
 
 export default function ActivitesPage() {
   return (

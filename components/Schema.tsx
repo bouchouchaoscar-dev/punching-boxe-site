@@ -9,7 +9,6 @@ export function OrganizationSchema() {
     alternateName: CLUB.sigle,
     description:
       "Club de Boxe Française (Savate) et Savate Fitness à Nogent-sur-Marne et Le Perreux-sur-Marne.",
-    sport: ["Savate", "Boxe Française", "Fitness"],
     url: SITE_URL,
     logo: `${SITE_URL}/logo/logo.png`,
     image: `${SITE_URL}/images/IMG_0558.jpg`,
@@ -23,18 +22,26 @@ export function OrganizationSchema() {
       postalCode: "94130",
       addressCountry: "FR",
     },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: 48.8354,
+      longitude: 2.4833,
+    },
     areaServed: ["Nogent-sur-Marne", "Le Perreux-sur-Marne", "Val-de-Marne"],
     location: SALLES.map((s) => ({
       "@type": "Place",
       name: s.nom,
       address: `${s.adresse}, ${s.ville}`,
     })),
+    sport: ["Boxe Française", "Savate", "Préparation Physique"],
+    priceRange: "390€-530€/an",
+    numberOfEmployees: 5,
     openingHours: [
-      "Mo 19:00-20:30",
+      "Mo 19:00-21:00",
       "Tu 18:00-21:00",
       "We 17:00-21:00",
       "Th 18:00-21:00",
-      "Fr 19:00-21:00",
+      "Fr 17:30-20:30",
     ],
   };
 

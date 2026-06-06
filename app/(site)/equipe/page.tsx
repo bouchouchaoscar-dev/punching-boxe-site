@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import { Reveal } from "@/components/ui/Reveal";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { CLUB } from "@/lib/constants";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Notre équipe pédagogique",
+export const metadata = pageMeta({
+  title:
+    "Notre Équipe | Professeurs et Moniteurs Fédéraux - Punching Boxe Nogent",
   description:
-    "Rencontrez l'équipe du Punching Boxe : Pascal Bouchoucha, Directeur Sportif (B.E.E.S 1er degré), et ses moniteurs fédéraux et assistants.",
-};
+    "Pascal Bouchoucha, Directeur Sportif et Professeur Fédéral, et son équipe de moniteurs fédéraux encadrent vos cours de Boxe Française et Savate.",
+  path: "/equipe",
+  image: "/images/IMG_0574.jpg",
+});
 
 type Coach = {
   nom: string;

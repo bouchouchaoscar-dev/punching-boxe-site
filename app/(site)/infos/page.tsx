@@ -1,18 +1,21 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { Reveal } from "@/components/ui/Reveal";
+import { pageMeta } from "@/lib/seo";
 import { PageHero } from "@/components/sections/PageHero";
 import { CTABanner } from "@/components/sections/CTABanner";
 import { Button } from "@/components/ui/Button";
 import { EQUIPEMENT, PACKAGES, SALLES } from "@/lib/constants";
 import { TARIFS, euro } from "@/lib/pricing";
 import { WeeklyPlanning } from "@/components/infos/WeeklyPlanning";
+import { FAQ } from "@/components/infos/FAQ";
 
-export const metadata: Metadata = {
-  title: "Infos & Tarifs — Nos deux formules, horaires et salles",
+export const metadata = pageMeta({
+  title: "Tarifs & Horaires | Punching Boxe Nogent-Le Perreux 2026-2027",
   description:
-    "Saison 2026-2027 : Boxe Française (430€ adulte / 410€ jeune) ou Savate & Prépa (390€ / 370€), +30€ adhésion 1ère année. Tarif famille dégressif, planning hebdomadaire et 4 salles.",
-};
+    "Tarifs saison 2026-2027 : Formule Boxe 430€/an, Savate & Prépa 390€/an. Horaires des cours sur 4 salles à Nogent et Le Perreux.",
+  path: "/infos",
+  image: "/images/IMG_0544.jpg",
+});
 
 const FAMILLE = [
   { rang: "1er & 2ème membre", remise: "Tarif normal" },
@@ -261,6 +264,8 @@ export default function InfosPage() {
           </div>
         </div>
       </section>
+
+      <FAQ />
 
       <CTABanner />
     </>

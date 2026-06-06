@@ -219,6 +219,7 @@ export const NAV_LINKS = [
   { href: "/", label: "Accueil" },
   { href: "/activites", label: "Activités" },
   { href: "/equipe", label: "Équipe" },
+  { href: "/a-propos", label: "À propos" },
   { href: "/infos", label: "Infos & Tarifs" },
   { href: "/contact", label: "Contact" },
 ];

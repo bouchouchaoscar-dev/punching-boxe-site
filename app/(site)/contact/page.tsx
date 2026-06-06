@@ -1,15 +1,17 @@
-import type { Metadata } from "next";
 import { PageHero } from "@/components/sections/PageHero";
 import { Reveal } from "@/components/ui/Reveal";
 import { ContactForm } from "@/components/contact/ContactForm";
 import { Button } from "@/components/ui/Button";
 import { CLUB, SALLES } from "@/lib/constants";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Contact — Réservez votre séance d'essai gratuite",
+export const metadata = pageMeta({
+  title: "Contact | Punching Boxe Nogent-Le Perreux - Séance d'essai gratuite",
   description:
-    "Contactez le Punching Boxe de Nogent-Le Perreux. Téléphone 06 10 81 49 98, email contact@punching-boxe.com. Séance d'essai gratuite, gants prêtés sur place.",
-};
+    "Contactez le Punching Boxe de Nogent-Le Perreux. Séance d'essai gratuite. 06 10 81 49 98. 19 bis rue Paul Bert, 94130 Nogent-sur-Marne.",
+  path: "/contact",
+  image: "/images/IMG_0558.jpg",
+});
 
 export default function ContactPage() {
   return (

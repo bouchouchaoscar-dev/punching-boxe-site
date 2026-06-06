@@ -1,14 +1,17 @@
-import type { Metadata } from "next";
 import { PageHero } from "@/components/sections/PageHero";
 import { DocumentsSection } from "@/components/inscription/DocumentsSection";
 import { InscriptionGate } from "@/components/inscription/InscriptionGate";
 import { Reveal } from "@/components/ui/Reveal";
+import { pageMeta } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Inscription en ligne — Saison 2026-2027",
+export const metadata = pageMeta({
+  title:
+    "Inscription en ligne | Punching Boxe Nogent-Le Perreux - Saison 2026-2027",
   description:
-    "Inscrivez-vous en ligne au Punching Boxe de Nogent-Le Perreux : calcul automatique du tarif, dépôt des documents et paiement sécurisé (carte 1x à 4x ou espèces).",
-};
+    "Inscrivez-vous en ligne au Punching Boxe de Nogent-Le Perreux. Paiement sécurisé en 1 à 4 fois. Espace adhérent personnel.",
+  path: "/inscription",
+  image: "/images/IMG_0521.jpg",
+});
 
 export default function InscriptionPage() {
   return (
