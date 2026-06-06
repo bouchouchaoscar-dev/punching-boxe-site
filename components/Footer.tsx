@@ -14,7 +14,7 @@ export function Footer() {
               {CLUB.creeEn}. Tous niveaux, dès 5 ans.
             </p>
             <Link
-              href="/inscription"
+              href="/contact"
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-orange px-5 py-2.5 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
             >
               Séance d&apos;essai gratuite →
