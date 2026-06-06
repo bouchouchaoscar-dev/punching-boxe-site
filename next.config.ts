@@ -25,9 +25,10 @@ const nextConfig: NextConfig = {
       { source: "/categories-de-poids-en-savate-boxe-francaise", destination: "/activites", statusCode: 301 },
       { source: "/passage-de-grades-dans-la-boxe-francaise", destination: "/activites", statusCode: 301 },
       { source: "/les-professeurs-de-boxe-du-club-sur-nogent-et-le-perreux", destination: "/equipe", statusCode: 301 },
-      { source: "/historique-savate-boxe-francaise", destination: "/a-propos", statusCode: 301 },
+      { source: "/historique-savate-boxe-francaise", destination: "/", statusCode: 301 },
       { source: "/contact-club-boxe-nogent-le-perreux", destination: "/contact", statusCode: 301 },
       { source: "/portfolio_page", destination: "/", statusCode: 301 },
+      { source: "/a-propos", destination: "/", statusCode: 301 },
     ];
   },
 };

@@ -119,7 +119,7 @@ export function ConnexionForm() {
   }
 
   return (
-    <section className="container-px mx-auto flex min-h-[80vh] max-w-md flex-col justify-center pt-28 pb-16">
+    <section className="container-px mx-auto flex min-h-[80vh] max-w-lg flex-col justify-center pt-28 pb-16">
       <div className="text-center">
         <span className="eyebrow justify-center">Espace adhérent</span>
         <h1 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
