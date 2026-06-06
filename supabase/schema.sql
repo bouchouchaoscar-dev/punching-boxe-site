@@ -139,6 +139,41 @@ create index if not exists adherents_saison_idx       on public.adherents (saiso
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);
 create index if not exists adherents_created_at_idx   on public.adherents (created_at desc);
 
+-- ---------- Module Campagnes mailing ----------
+create table if not exists public.campagnes (
+  id                uuid primary key default gen_random_uuid(),
+  titre             text not null,
+  objet             text not null,
+  contenu           text not null,
+  liste_type        text not null,
+  liste_filtre      jsonb,
+  nb_destinataires  integer,
+  statut            text default 'brouillon',
+  envoye_at         timestamptz,
+  created_at        timestamptz default now()
+);
+
+create table if not exists public.templates_mail (
+  id          uuid primary key default gen_random_uuid(),
+  nom         text not null,
+  objet       text not null,
+  contenu     text not null,
+  est_defaut  boolean default false,
+  created_at  timestamptz default now()
+);
+
+create table if not exists public.contacts_mailing (
+  id          uuid primary key default gen_random_uuid(),
+  nom         text,
+  prenom      text,
+  email       text not null unique,
+  telephone   text,
+  source      text default 'import',
+  created_at  timestamptz default now()
+);
+-- Les 5 templates par défaut sont auto-insérés par l'application au premier
+-- chargement de /admin/campagnes/templates (insertion par `nom` si absent).
+
 -- ---------- Table admin_users (optionnelle — auth gérée en dur côté app) ----------
 create table if not exists public.admin_users (
   id            uuid primary key default gen_random_uuid(),

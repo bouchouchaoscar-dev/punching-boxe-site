@@ -8,6 +8,7 @@ import { setAdminSession } from "@/lib/admin-auth";
 
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
+  { href: "/admin/campagnes", label: "Campagnes", icon: "mail" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
 ];
 
@@ -111,6 +112,13 @@ function Icon({ name }: { name: string }) {
     return (
       <svg {...common}>
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (name === "mail")
+    return (
+      <svg {...common}>
+        <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="m22 6-10 7L2 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   return (

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { setAdminSession } from "@/lib/admin-auth";
+import { setAdminSession, setAdminToken } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -28,6 +28,7 @@ export default function AdminLoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Connexion impossible.");
       setAdminSession(true);
+      setAdminToken(password);
       router.replace("/admin");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue.");

@@ -255,6 +255,18 @@ const escapeHtml = (s: string) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+// ---- Helpers exposés pour le module Campagnes ----
+export const MAIL_FROM = FROM;
+export function getResendClient(): Resend | null {
+  return getResend();
+}
+/** Rend le contenu texte d'une campagne dans le gabarit HTML du club. */
+export function renderCampagne(contenu: string): string {
+  return wrap(
+    `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${escapeHtml(contenu)}</div>`,
+  );
+}
+
 /** Formulaire de contact → email à Pascal (avec reply-to vers l'expéditeur). */
 export async function sendContactMessage(d: {
   nom: string;
