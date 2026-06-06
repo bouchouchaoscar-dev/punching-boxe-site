@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import type { Campagne } from "@/lib/campagnes";
 
@@ -12,8 +13,17 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
 };
 
 export default function CampagnesPage() {
+  const router = useRouter();
   const [campagnes, setCampagnes] = useState<Campagne[]>([]);
   const [loading, setLoading] = useState(true);
+
+  function dupliquer(c: Campagne) {
+    sessionStorage.setItem(
+      "pbnp_duplicate_campagne",
+      JSON.stringify({ objet: c.objet, contenu: c.contenu }),
+    );
+    router.push("/admin/campagnes/nouvelle");
+  }
 
   useEffect(() => {
     fetch("/api/admin/campagnes", { headers: adminAuthHeaders(), cache: "no-store" })
@@ -67,13 +77,18 @@ export default function CampagnesPage() {
                 <th className="p-4 font-bold">Objet</th>
                 <th className="p-4 font-bold">Destinataires</th>
                 <th className="p-4 font-bold">Statut</th>
+                <th className="p-4 text-right font-bold">Actions</th>
               </tr>
             </thead>
             <tbody>
               {campagnes.map((c) => {
                 const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
                 return (
-                  <tr key={c.id} className="border-b border-line last:border-0">
+                  <tr
+                    key={c.id}
+                    onClick={() => router.push(`/admin/campagnes/${c.id}`)}
+                    className="cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-paper-2"
+                  >
                     <td className="whitespace-nowrap p-4 text-smoke">
                       {new Date(c.envoye_at ?? c.created_at).toLocaleDateString(
                         "fr-FR",
@@ -87,6 +102,30 @@ export default function CampagnesPage() {
                       >
                         {b.label}
                       </span>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dupliquer(c);
+                        }}
+                        title="Dupliquer cette campagne"
+                        aria-label="Dupliquer cette campagne"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink transition-colors hover:border-orange hover:text-orange"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 );

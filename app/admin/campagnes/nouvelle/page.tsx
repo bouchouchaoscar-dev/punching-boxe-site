@@ -80,6 +80,38 @@ export default function NouvelleCampagnePage() {
     return { count: total, doublons: brut.length - adh };
   }, [adherents, smartLists, manualSelected, includeContacts, contactsCount]);
 
+  // Destinataires adhérents réels (smart ∪ sélection manuelle), dédupliqués.
+  const recipientsAdh = useMemo(() => {
+    const byEmail = new Map(
+      adherents.map((a) => [a.email.toLowerCase(), a] as const),
+    );
+    const map = new Map<string, Adherent>();
+    for (const a of filtrerAdherents(adherents, smartLists))
+      map.set(a.email.toLowerCase(), a);
+    for (const e of manualSelected) {
+      const a = byEmail.get(e.toLowerCase());
+      if (a) map.set(a.email.toLowerCase(), a);
+    }
+    return [...map.values()];
+  }, [adherents, smartLists, manualSelected]);
+
+  // Préremplissage si on arrive depuis "Dupliquer".
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("pbnp_duplicate_campagne");
+      if (raw) {
+        const d = JSON.parse(raw) as { objet?: string; contenu?: string };
+        if (d.objet) setObjet(d.objet);
+        if (d.contenu) setContenu(d.contenu);
+        sessionStorage.removeItem("pbnp_duplicate_campagne");
+        setToast("Campagne dupliquée — objet et message pré-remplis");
+        window.setTimeout(() => setToast(null), 3500);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   function toggleSmart(k: SmartListKey) {
     setSmartLists((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
   }
@@ -483,16 +515,34 @@ export default function NouvelleCampagnePage() {
                 Aperçu des destinataires
               </p>
               <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-line bg-paper-2 p-3 text-xs text-smoke">
-                {filtrerAdherents(adherents, smartLists)
-                  .slice(0, 5)
-                  .map((a) => (
-                    <div key={a.id}>{a.email}</div>
-                  ))}
-                {includeContacts && contactsCount > 0 && (
-                  <div>+ {contactsCount} contacts importés…</div>
+                {recipientsAdh.length === 0 && !includeContacts ? (
+                  <div>Aucun destinataire sélectionné.</div>
+                ) : recipientsAdh.length <= 3 ? (
+                  recipientsAdh.map((a) => (
+                    <div key={a.id}>
+                      <span className="font-semibold text-ink">
+                        {a.prenom} {a.nom}
+                      </span>{" "}
+                      ({a.email})
+                    </div>
+                  ))
+                ) : (
+                  <div>
+                    <span className="font-semibold text-ink">
+                      {recipientsAdh
+                        .slice(0, 3)
+                        .map((a) => `${a.prenom} ${a.nom}`.trim())
+                        .join(", ")}
+                    </span>{" "}
+                    +{recipientsAdh.length - 3} autre
+                    {recipientsAdh.length - 3 > 1 ? "s" : ""}…
+                  </div>
                 )}
-                {manualSelected.size > 0 && (
-                  <div>+ {manualSelected.size} sélection manuelle…</div>
+                {includeContacts && contactsCount > 0 && (
+                  <div className="mt-1">
+                    + {contactsCount} contact{contactsCount > 1 ? "s" : ""} importé
+                    {contactsCount > 1 ? "s" : ""}
+                  </div>
                 )}
               </div>
             </div>

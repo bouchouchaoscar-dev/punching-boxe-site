@@ -3,6 +3,12 @@ import { CLUB } from "./constants";
 
 export type StatutCampagne = "brouillon" | "envoye" | "erreur";
 
+export interface DestinataireCampagne {
+  nom?: string | null;
+  prenom?: string | null;
+  email: string;
+}
+
 export interface Campagne {
   id: string;
   titre: string;
@@ -13,6 +19,7 @@ export interface Campagne {
   nb_destinataires: number | null;
   statut: StatutCampagne;
   envoye_at: string | null;
+  destinataires_liste: DestinataireCampagne[] | null;
   created_at: string;
 }
 

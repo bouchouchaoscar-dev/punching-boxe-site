@@ -136,7 +136,13 @@ export async function POST(request: Request) {
 
   // Sauvegarde de la campagne.
   const doublons = totalAvant - recipients.length;
-  await supabase.from("campagnes").insert({
+  // Liste réelle des destinataires (pour la page détail / réutilisation).
+  const destinatairesListe = recipients.map((r) => ({
+    nom: r.nom ?? null,
+    prenom: r.prenom ?? null,
+    email: r.email,
+  }));
+  const insertPayload = {
     titre: (body.titre || objet).slice(0, 200),
     objet,
     contenu,
@@ -149,7 +155,17 @@ export async function POST(request: Request) {
     nb_destinataires: recipients.length,
     statut: sent > 0 ? "envoye" : "erreur",
     envoye_at: new Date().toISOString(),
-  });
+    destinataires_liste: destinatairesListe,
+  };
+  // Tolérance : si la colonne destinataires_liste n'existe pas encore (migration
+  // non appliquée), on réinsère sans elle pour ne pas bloquer l'envoi.
+  let { error: insErr } = await supabase.from("campagnes").insert(insertPayload);
+  if (insErr && /destinataires_liste/.test(insErr.message)) {
+    const { destinataires_liste: _omit, ...sansListe } = insertPayload;
+    void _omit;
+    ({ error: insErr } = await supabase.from("campagnes").insert(sansListe));
+  }
+  if (insErr) console.error("Insert campagne:", insErr);
 
   return NextResponse.json({ success: sent > 0, sent, doublons });
 }

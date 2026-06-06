@@ -155,8 +155,13 @@ create table if not exists public.campagnes (
   nb_destinataires  integer,
   statut            text default 'brouillon',
   envoye_at         timestamptz,
+  destinataires_liste jsonb,
   created_at        timestamptz default now()
 );
+
+-- Migration : liste réelle des destinataires d'une campagne ([{nom,prenom,email}]).
+alter table public.campagnes
+  add column if not exists destinataires_liste jsonb;
 
 create table if not exists public.templates_mail (
   id          uuid primary key default gen_random_uuid(),
