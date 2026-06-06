@@ -31,7 +31,7 @@ export function PdfFooter() {
   return (
     <View style={styles.footer} fixed>
       <Text>Punching Boxe de Nogent-Le Perreux · Association loi 1901</Text>
-      <Text>06 10 81 49 98 · contact@punching-boxe.com</Text>
+      <Text>07 60 83 98 30 · contact@punching-boxe.com</Text>
     </View>
   );
 }

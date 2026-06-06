@@ -8,7 +8,7 @@ import { pageMeta } from "@/lib/seo";
 export const metadata = pageMeta({
   title: "Contact | Punching Boxe Nogent-Le Perreux - Séance d'essai gratuite",
   description:
-    "Contactez le Punching Boxe de Nogent-Le Perreux. Séance d'essai gratuite. 06 10 81 49 98. 19 bis rue Paul Bert, 94130 Nogent-sur-Marne.",
+    "Contactez le Punching Boxe de Nogent-Le Perreux. Séance d'essai gratuite. 07 60 83 98 30. 19 bis rue Paul Bert, 94130 Nogent-sur-Marne.",
   path: "/contact",
   image: "/images/IMG_0558.jpg",
 });

@@ -249,7 +249,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   type="tel"
                   value={formatPhone(telephone)}
                   onChange={(v) => setTelephone(normalizePhone(v))}
-                  placeholder="06 10 81 49 98"
+                  placeholder="07 60 83 98 30"
                 />
                 <div className="sm:col-span-2">
                   <Input

@@ -5,7 +5,7 @@
 /**
  * Normalise un numéro de téléphone français vers 10 chiffres SANS espaces.
  * Gère +33 / 0033 / 33 en préfixe (→ 0). Conserve uniquement les chiffres.
- * Ex : "+33 6 10 81 49 98" → "0610814998"
+ * Ex : "+33 7 60 83 98 30" → "0760839830"
  */
 export function normalizePhone(input: string): string {
   let s = input.replace(/[^\d+]/g, ""); // chiffres et +
@@ -18,7 +18,7 @@ export function normalizePhone(input: string): string {
 
 /**
  * Formate des chiffres en "XX XX XX XX XX" (espace tous les 2 chiffres).
- * Ex : "0610814998" → "06 10 81 49 98"
+ * Ex : "0760839830" → "07 60 83 98 30"
  */
 export function formatPhone(digits: string): string {
   return digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
