@@ -5,6 +5,7 @@ import {
   STORAGE_BUCKET,
 } from "@/lib/supabase";
 import { sendAdminDocReplaced } from "@/lib/email";
+import { evaluerDossier } from "@/lib/dossier";
 
 export const runtime = "nodejs";
 
@@ -166,12 +167,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
 
-  // documents_valides DÉRIVÉ (fiche + règlement + photo).
+  // documents_valides DÉRIVÉ : vrai uniquement si les 4 documents sont validés
+  // (fiche + règlement + photo + certificat médical).
   if (updated) {
-    const derived =
-      !!updated.fiche_valide &&
-      !!updated.reglement_valide &&
-      !!updated.photo_valide;
+    const derived = evaluerDossier(updated).documentsValides;
     if (updated.documents_valides !== derived) {
       await supabase
         .from("adherents")

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { sendDocumentActionRequired } from "@/lib/email";
+import { evaluerDossier } from "@/lib/dossier";
 
 export const runtime = "nodejs";
 
@@ -98,11 +99,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // documents_valides est DÉRIVÉ : vrai quand les 3 docs OBLIGATOIRES sont
-  // validés (fiche + règlement + photo). Le certificat médical ne bloque pas.
+  // documents_valides est DÉRIVÉ : vrai UNIQUEMENT quand les 4 documents sont
+  // validés (fiche + règlement + photo + certificat médical).
   if (data) {
-    const derived =
-      !!data.fiche_valide && !!data.reglement_valide && !!data.photo_valide;
+    const derived = evaluerDossier(data).documentsValides;
     if (data.documents_valides !== derived) {
       const r = await supabase
         .from("adherents")

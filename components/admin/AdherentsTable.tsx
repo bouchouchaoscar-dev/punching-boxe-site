@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAdherents } from "./useAdherents";
 import { StatutBadge } from "./StatutBadge";
 import { euro } from "@/lib/pricing";
+import { evaluerDossier } from "@/lib/dossier";
 import type { Adherent } from "@/lib/types";
 
 export function AdherentsTable() {
@@ -240,15 +241,7 @@ function Row({
       <td className="px-2 py-3">
         <div className="flex flex-col items-start gap-1.5">
           <StatutBadge statut={a.statut_paiement} />
-          <span
-            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[0.65rem] font-bold ${
-              a.documents_valides
-                ? "bg-green-100 text-green-700"
-                : "bg-orange-50 text-orange"
-            }`}
-          >
-            {a.documents_valides ? "Docs ✓" : "Docs ⏳"}
-          </span>
+          <DocsBadge statut={evaluerDossier(a).statut} />
         </div>
       </td>
       <td className="px-2 py-3 font-display font-bold text-ink">{euro(a.montant_total)}</td>
@@ -282,6 +275,22 @@ function Row({
         )}
       </td>
     </tr>
+  );
+}
+
+// Badge documents à 3 états (aligné sur evaluerDossier).
+function DocsBadge({ statut }: { statut: "valide" | "presque" | "incomplet" }) {
+  const map = {
+    valide: { cls: "bg-green-100 text-green-700", label: "Docs ✓" },
+    presque: { cls: "bg-orange-50 text-orange", label: "Docs ⚠️" },
+    incomplet: { cls: "bg-red-100 text-red-700", label: "Docs ⏳" },
+  }[statut];
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[0.65rem] font-bold ${map.cls}`}
+    >
+      {map.label}
+    </span>
   );
 }
 

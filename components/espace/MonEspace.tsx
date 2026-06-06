@@ -7,6 +7,7 @@ import { getAuthClient } from "@/lib/supabase-auth";
 import { StatutBadge } from "@/components/admin/StatutBadge";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
+import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import type { Adherent } from "@/lib/types";
 
 const MODE_LABEL: Record<string, string> = {
@@ -136,16 +137,10 @@ export function MonEspace() {
   // Prénom uniquement s'il existe un dossier (jamais l'email ni un nom inventé).
   const prenom = adherent?.prenom?.trim() || "";
   const titre = prenom ? `Bonjour ${prenom}` : "Bienvenue";
-  const anyRefus =
-    !!adherent &&
-    DOCS.some((d) => adherent[`${d.base}_motif_refus` as keyof Adherent]);
-  const status = !adherent
-    ? "aucun"
-    : anyRefus
-      ? "refus"
-      : adherent.documents_valides
-        ? "valide"
-        : "attente";
+  // Statut global du dossier (source de vérité partagée : evaluerDossier).
+  const status: DossierStatut | "aucun" = adherent
+    ? evaluerDossier(adherent).statut
+    : "aucun";
 
   return (
     <section className="container-px mx-auto max-w-4xl pt-28 pb-20">
@@ -157,7 +152,13 @@ export function MonEspace() {
             {titre}
           </h1>
           <div className="mt-4">
-            <StatusBanner status={status} />
+            <StatusBanner
+              status={status}
+              onDeposerCertificat={() =>
+                deposer("certificat_medical", "application/pdf")
+              }
+              uploadingCertificat={uploading === "certificat_medical"}
+            />
           </div>
         </div>
       </div>
@@ -293,22 +294,33 @@ export function MonEspace() {
   );
 }
 
-function StatusBanner({ status }: { status: string }) {
-  const map: Record<string, { emoji: string; text: string; cls: string }> = {
+function StatusBanner({
+  status,
+  onDeposerCertificat,
+  uploadingCertificat,
+}: {
+  status: DossierStatut | "aucun";
+  onDeposerCertificat: () => void;
+  uploadingCertificat: boolean;
+}) {
+  const map: Record<
+    DossierStatut | "aucun",
+    { emoji: string; text: string; cls: string }
+  > = {
     valide: {
       emoji: "🟢",
       text: "Dossier validé — Bienvenue au club !",
       cls: "border-green-200 bg-green-50 text-green-700",
     },
-    refus: {
-      emoji: "🔴",
-      text: "Action requise — Voir ci-dessous",
-      cls: "border-red-200 bg-red-50 text-red-700",
-    },
-    attente: {
+    presque: {
       emoji: "🟠",
-      text: "Dossier en cours de validation",
+      text: "Il manque votre certificat médical pour finaliser votre dossier.",
       cls: "border-orange/30 bg-orange-50 text-orange",
+    },
+    incomplet: {
+      emoji: "🔴",
+      text: "Dossier incomplet — Des documents sont manquants ou refusés.",
+      cls: "border-red-200 bg-red-50 text-red-700",
     },
     aucun: {
       emoji: "⚪️",
@@ -316,14 +328,25 @@ function StatusBanner({ status }: { status: string }) {
       cls: "border-line bg-paper-2 text-smoke",
     },
   };
-  const s = map[status] ?? map.attente;
+  const s = map[status] ?? map.incomplet;
   return (
-    <span
-      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold ${s.cls}`}
-    >
-      <span>{s.emoji}</span>
-      {s.text}
-    </span>
+    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+      <span
+        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold ${s.cls}`}
+      >
+        <span>{s.emoji}</span>
+        {s.text}
+      </span>
+      {status === "presque" && (
+        <button
+          onClick={onDeposerCertificat}
+          disabled={uploadingCertificat}
+          className="shrink-0 rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
+        >
+          {uploadingCertificat ? "Envoi…" : "Déposer mon certificat médical"}
+        </button>
+      )}
+    </div>
   );
 }
 

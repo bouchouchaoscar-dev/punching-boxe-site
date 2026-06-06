@@ -6,6 +6,7 @@ import { StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
+import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import type { Adherent, Paiement } from "@/lib/types";
 
 // Base de colonnes par document : <base>_valide (bool) + <base>_motif_refus (text).
@@ -163,6 +164,8 @@ export function FicheAdherent({ id }: { id: string }) {
       </div>
     );
 
+  const dossier = evaluerDossier(a);
+
   return (
     <div>
       <Link
@@ -291,12 +294,18 @@ export function FicheAdherent({ id }: { id: string }) {
               <h3 className="font-display text-lg font-extrabold uppercase text-ink">
                 Documents
               </h3>
-              {/* Validation globale DÉRIVÉE : auto-cochée quand fiche+règlement+photo validés. */}
-              <DocsBadge valides={!!a.documents_valides} />
+              {/* Statut global DÉRIVÉ des 4 documents (certificat médical inclus). */}
+              <DocsBadge statut={dossier.statut} />
             </div>
             <p className="mt-1.5 text-xs text-smoke">
-              Le dossier est validé automatiquement quand la fiche, le règlement
-              et la photo sont validés. Le certificat médical ne bloque pas.
+              {dossier.valides}/{dossier.total} documents validés
+              {dossier.statut === "valide"
+                ? " — dossier complet ✅"
+                : dossier.statut === "presque"
+                  ? " — Certificat médical manquant"
+                  : " — documents obligatoires manquants ou refusés"}
+              . Le dossier est validé automatiquement une fois les 4 documents
+              validés.
             </p>
 
             <div className="mt-5 space-y-3">
@@ -588,16 +597,17 @@ function EcheanceStatut({ p }: { p: Paiement }) {
   );
 }
 
-function DocsBadge({ valides }: { valides: boolean }) {
+function DocsBadge({ statut }: { statut: DossierStatut }) {
+  const map = {
+    valide: { cls: "bg-green-100 text-green-700", label: "Dossier validé ✓" },
+    presque: { cls: "bg-orange-50 text-orange", label: "Presque complet ⚠️" },
+    incomplet: { cls: "bg-red-100 text-red-700", label: "Incomplet ⏳" },
+  }[statut];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${
-        valides
-          ? "bg-green-100 text-green-700"
-          : "bg-orange-50 text-orange"
-      }`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${map.cls}`}
     >
-      {valides ? "Docs ✓" : "Docs ⏳"}
+      {map.label}
     </span>
   );
 }
