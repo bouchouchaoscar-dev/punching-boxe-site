@@ -8,8 +8,8 @@ import { setAdminSession } from "@/lib/admin-auth";
 
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
-  { href: "/admin/campagnes", label: "Campagnes", icon: "mail" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
+  { href: "/admin/campagnes", label: "Campagnes", icon: "mail" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
