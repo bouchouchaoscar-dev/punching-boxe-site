@@ -30,7 +30,7 @@ create table if not exists public.adherents (
                               ('stripe_1x','stripe_2x','stripe_3x','stripe_4x','especes')),
   statut_paiement           text not null default 'en_attente'
                               check (statut_paiement in
-                              ('en_attente','paye','confirme_especes')),
+                              ('en_attente','paye','confirme_especes','echec_paiement')),
   stripe_payment_intent_id  text,
   saison                    text,
   photo_url                 text,
@@ -140,6 +140,26 @@ do $$ begin
       check (lien_parente in ('moi','enfant','conjoint','autre'));
   end if;
 end $$;
+
+-- Migration : élargir le CHECK de statut_paiement pour inclure 'echec_paiement'
+-- (écrit par lib/payments.ts lors d'un échec de prélèvement). Drop robuste de
+-- l'ancien CHECK (nom auto-généré) puis recréation nommée.
+do $$
+declare c text;
+begin
+  for c in
+    select conname from pg_constraint
+    where conrelid = 'public.adherents'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%statut_paiement%'
+  loop
+    execute format('alter table public.adherents drop constraint %I', c);
+  end loop;
+end $$;
+
+alter table public.adherents
+  add constraint adherents_statut_paiement_check
+  check (statut_paiement in ('en_attente','paye','confirme_especes','echec_paiement'));
 
 create table if not exists public.paiements (
   id                        uuid primary key default gen_random_uuid(),
