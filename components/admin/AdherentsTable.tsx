@@ -257,7 +257,7 @@ function Row({
         {new Date(a.created_at).toLocaleDateString("fr-FR")}
       </td>
       <td className="px-2 py-3 text-right">
-        {a.statut_paiement === "en_attente" ? (
+        {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" ? (
           <button
             onClick={onConfirm}
             disabled={confirming}

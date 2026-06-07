@@ -214,7 +214,7 @@ export function FicheAdherent({ id }: { id: string }) {
             <p className="mt-1 text-sm text-smoke">
               {MODE_LABEL[a.mode_paiement] ?? a.mode_paiement}
             </p>
-            {a.statut_paiement === "en_attente" && (
+            {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" && (
               <ButtonAction
                 onClick={() => patch({ action: "confirmer_especes" })}
                 disabled={saving}
