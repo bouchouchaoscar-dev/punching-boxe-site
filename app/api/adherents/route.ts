@@ -7,6 +7,7 @@ import {
   type InscriptionPayload,
 } from "@/lib/inscription";
 import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
+import { getAuthUser } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,16 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Supabase non configuré sur le serveur." },
       { status: 503 },
+    );
+  }
+
+  // Le dossier est rattaché au compte connecté (titulaire). Pas de session
+  // valide → pas de dossier orphelin.
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Connexion requise pour vous inscrire." },
+      { status: 401 },
     );
   }
 
@@ -30,7 +41,8 @@ export async function POST(request: Request) {
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
   // Espèces → en_attente ; paiement carte traité via create-payment-intent.
-  const record = buildAdherentInsert(payload, "en_attente");
+  // titulaire_id = user.id (jamais une valeur fournie par le client).
+  const record = buildAdherentInsert(payload, "en_attente", user.id);
 
   const supabase = getSupabaseAdmin();
   let { data, error } = await supabase

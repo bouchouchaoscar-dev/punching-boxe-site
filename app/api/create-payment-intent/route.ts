@@ -9,6 +9,7 @@ import {
 } from "@/lib/inscription";
 import { nbEcheances } from "@/lib/pricing";
 import { devisPourAdherent, planEcheances } from "@/lib/tarifs";
+import { getAuthUser } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,15 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Paiement en ligne non configuré (Stripe / Supabase)." },
       { status: 503 },
+    );
+  }
+
+  // Rattachement au compte titulaire connecté (sécurité : id résolu serveur).
+  const user = await getAuthUser(request);
+  if (!user) {
+    return NextResponse.json(
+      { error: "Connexion requise pour vous inscrire." },
+      { status: 401 },
     );
   }
 
@@ -49,7 +59,7 @@ export async function POST(request: Request) {
 
   // Adhérent (montant proratisé recalculé côté serveur).
   const record = {
-    ...buildAdherentInsert(payload, "en_attente"),
+    ...buildAdherentInsert(payload, "en_attente", user.id),
     montant_total: devis.total,
     nb_echeances: n,
     prochaine_echeance: n > 1 ? plan.dates[1] : null,

@@ -1,4 +1,5 @@
 import type { ModePaiement, PackageType, TypeAdherent } from "./pricing";
+import type { LienParente } from "./inscription";
 
 export type StatutPaiement =
   | "en_attente"
@@ -50,6 +51,11 @@ export interface Adherent {
   derniere_erreur_stripe: string | null;
   // Badge "Nouveau" : passe à true dès que l'admin ouvre la fiche.
   vu_par_admin: boolean;
+  // Refonte "1 compte = N adhérents" : compte titulaire + lien de parenté.
+  titulaire_id: string | null;
+  lien_parente: LienParente | null;
+  // Moment d'engagement (1er paiement passé) : posé une seule fois, sinon null.
+  engage_at: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

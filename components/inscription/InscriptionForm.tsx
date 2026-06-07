@@ -24,9 +24,22 @@ import {
   formatDateFr,
 } from "@/lib/tarifs";
 import { PACKAGES } from "@/lib/constants";
-import type { InscriptionPayload } from "@/lib/inscription";
+import {
+  LIENS_PARENTE,
+  type InscriptionPayload,
+  type LienParente,
+} from "@/lib/inscription";
+import { useAdherentSession } from "@/components/auth/useSession";
 
 const STEPS = ["Informations", "Options", "Documents", "Paiement"];
+
+// Libellés du choix "Ce dossier concerne".
+const LIEN_LABEL: Record<LienParente, string> = {
+  moi: "Moi-même",
+  enfant: "Mon enfant",
+  conjoint: "Mon conjoint·e",
+  autre: "Autre",
+};
 
 type FileState = Record<FileFieldKey, { url: string | null; name: string }>;
 const EMPTY_FILE = { url: null, name: "" };
@@ -41,6 +54,8 @@ const PAYMENTS: { mode: ModePaiement; icon: string; label: string }[] = [
 
 export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) {
   const router = useRouter();
+  const { session } = useAdherentSession();
+  const token = session?.access_token;
   const [adherentId] = useState(() =>
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -58,6 +73,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [ville, setVille] = useState("");
   const [codePostal, setCodePostal] = useState("");
 
+  const [lienParente, setLienParente] = useState<LienParente | "">("");
   const [packageType, setPackageType] = useState<PackageType>("boxe_classique");
   const [nouveauMembre, setNouveauMembre] = useState(true);
   const [prepa, setPrepa] = useState(false);
@@ -120,6 +136,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     option_prepa_physique: prepa,
     nb_membres_famille: nbFamille,
     mode_paiement: mode ?? "especes",
+    // Choix explicite garanti par le gating step1Ok (jamais de défaut silencieux).
+    lien_parente: lienParente as LienParente,
     photo_url: files.photo.url,
     fiche_inscription_url: files.fiche_inscription.url,
     certificat_medical_url: files.certificat_medical.url,
@@ -127,7 +145,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   });
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  const step1Ok = nom.trim() && prenom.trim() && dateNaissance && emailOk;
+  const step1Ok =
+    !!lienParente && nom.trim() && prenom.trim() && dateNaissance && emailOk;
   // Documents OBLIGATOIRES (le certificat médical est facultatif : déposable
   // plus tard depuis l'espace adhérent).
   const REQUIRED_FILES: FileFieldKey[] = [
@@ -158,7 +177,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     try {
       const res = await fetch("/api/adherents", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ ...payload(), mode_paiement: "especes" }),
       });
       const data = await res.json();
@@ -177,7 +199,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     try {
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload()),
       });
       const data = await res.json();
@@ -236,6 +261,35 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           >
             {step === 0 && (
               <div className="grid gap-5 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-semibold text-ink">
+                      Ce dossier d&apos;inscription concerne{" "}
+                      <span className="text-orange">*</span>
+                    </span>
+                    <select
+                      value={lienParente}
+                      onChange={(e) =>
+                        setLienParente(e.target.value as LienParente | "")
+                      }
+                      className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                    >
+                      <option value="" disabled>
+                        — Choisissez —
+                      </option>
+                      {LIENS_PARENTE.map((l) => (
+                        <option key={l} value={l}>
+                          {LIEN_LABEL[l]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="mt-1.5 text-xs text-smoke">
+                    Saisissez ci-dessous les informations de la personne
+                    concernée par ce dossier. L&apos;email reste celui de votre
+                    compte.
+                  </p>
+                </div>
                 <Input label="Nom" value={nom} onChange={setNom} required />
                 <Input label="Prénom" value={prenom} onChange={setPrenom} required />
                 <DatePicker

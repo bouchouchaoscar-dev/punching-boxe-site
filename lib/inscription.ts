@@ -2,6 +2,10 @@ import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { CLUB } from "./constants";
 import type { NewAdherent } from "./types";
 
+/** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
+export type LienParente = "moi" | "enfant" | "conjoint" | "autre";
+export const LIENS_PARENTE: LienParente[] = ["moi", "enfant", "conjoint", "autre"];
+
 /** Données envoyées par le formulaire d'inscription. */
 export interface InscriptionPayload {
   nom: string;
@@ -17,6 +21,7 @@ export interface InscriptionPayload {
   option_prepa_physique: boolean;
   nb_membres_famille: number;
   mode_paiement: ModePaiement;
+  lien_parente: LienParente;
   photo_url?: string | null;
   fiche_inscription_url?: string | null;
   certificat_medical_url?: string | null;
@@ -41,6 +46,8 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   ];
   if (!p.mode_paiement || !modes.includes(p.mode_paiement))
     return "Mode de paiement invalide.";
+  if (!p.lien_parente || !LIENS_PARENTE.includes(p.lien_parente))
+    return "Précisez qui concerne ce dossier (vous, enfant, conjoint·e, autre).";
   return null;
 }
 
@@ -51,6 +58,8 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
 export function buildAdherentInsert(
   p: InscriptionPayload,
   statut: NewAdherent["statut_paiement"] = "en_attente",
+  // UUID du compte titulaire (auth.users.id), résolu CÔTÉ SERVEUR uniquement.
+  titulaireId: string | null = null,
 ): NewAdherent {
   const tarif = calculerTarif({
     dateNaissance: p.date_naissance,
@@ -79,6 +88,9 @@ export function buildAdherentInsert(
     montant_total: tarif.total,
     mode_paiement: p.mode_paiement,
     statut_paiement: statut,
+    titulaire_id: titulaireId,
+    lien_parente: p.lien_parente,
+    engage_at: null,
     stripe_payment_intent_id: null,
     saison: CLUB.saison,
     photo_url: p.photo_url || null,
@@ -126,4 +138,5 @@ export const OPTIONAL_DOC_COLUMNS = [
   "prochaine_echeance",
   "derniere_erreur_stripe",
   "vu_par_admin",
+  "engage_at",
 ] as const;
