@@ -56,7 +56,9 @@ create table if not exists public.adherents (
   vu_par_admin              boolean not null default false,
   -- Refonte "1 compte = N adhérents" : rattachement à un compte titulaire.
   titulaire_id              uuid references auth.users(id) on delete set null,
-  lien_parente              text check (lien_parente in ('moi','enfant','conjoint','autre'))
+  lien_parente              text check (lien_parente in ('moi','enfant','conjoint','autre')),
+  -- Moment d'engagement (1er paiement passé) : posé une seule fois, ne change plus.
+  engage_at                 timestamptz
 );
 
 -- Échéances de paiement (paiement fractionné Stripe).
@@ -160,6 +162,10 @@ end $$;
 alter table public.adherents
   add constraint adherents_statut_paiement_check
   check (statut_paiement in ('en_attente','paye','confirme_especes','echec_paiement'));
+
+-- Migration : moment d'engagement du dossier (1er paiement passé).
+alter table public.adherents
+  add column if not exists engage_at timestamptz;
 
 create table if not exists public.paiements (
   id                        uuid primary key default gen_random_uuid(),
