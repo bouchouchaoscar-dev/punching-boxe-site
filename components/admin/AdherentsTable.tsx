@@ -156,7 +156,7 @@ export function AdherentsTable() {
       )}
 
       {/* Table */}
-      <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-line bg-white md:overflow-x-visible">
+      <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-line bg-white">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
@@ -164,27 +164,27 @@ export function AdherentsTable() {
         ) : filtered.length === 0 ? (
           <div className="p-12 text-center text-smoke">Aucun adhérent trouvé.</div>
         ) : (
-          <table className="w-full min-w-[50rem] table-fixed text-left text-sm md:min-w-0">
+          <table className="w-full min-w-[60rem] table-fixed text-left text-sm">
             <colgroup>
-              <col className="w-[170px]" />
-              <col className="w-[64px]" />
-              <col className="w-[108px]" />
-              <col className="w-[78px]" />
-              <col className="w-[78px]" />
-              <col className="w-[100px]" />
-              <col className="w-[78px]" />
+              <col className="w-[200px]" />
+              <col className="w-[72px]" />
+              <col className="w-[160px]" />
+              <col className="w-[92px]" />
+              <col className="w-[92px]" />
               <col className="w-[120px]" />
+              <col className="w-[92px]" />
+              <col className="w-[110px]" />
             </colgroup>
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
                 <th className="px-3 py-3 font-bold">Adhérent</th>
                 <th className="px-2 py-3 font-bold">Type</th>
                 <th className="px-2 py-3 font-bold">Statut</th>
-                <th className="px-2 py-3 font-bold">Montant</th>
-                <th className="px-2 py-3 font-bold">Encaissé</th>
+                <th className="px-2 py-3 text-right font-bold">Montant</th>
+                <th className="px-2 py-3 text-right font-bold">Encaissé</th>
                 <th className="px-2 py-3 font-bold">Options</th>
                 <th className="px-2 py-3 font-bold">Date</th>
-                <th className="px-2 py-3 font-bold" />
+                <th className="px-2 py-3 text-right font-bold">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -225,7 +225,7 @@ function Row({
     !a.vu_par_admin &&
     Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
   return (
-    <tr className="border-b border-line last:border-0 hover:bg-paper-2">
+    <tr className="border-b border-line align-middle last:border-0 hover:bg-paper-2">
       <td className="px-3 py-3">
         <Link href={`/admin/adherents/${a.id}`} className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-paper-2 text-xs font-bold text-smoke">
@@ -236,7 +236,7 @@ function Row({
               `${a.prenom[0] ?? ""}${a.nom[0] ?? ""}`
             )}
           </span>
-          <span className="block max-w-[160px] min-w-0">
+          <span className="block min-w-0 flex-1">
             <span className="flex items-center gap-1.5 font-semibold text-ink">
               <span className="truncate">
                 {a.prenom} {a.nom}
@@ -258,8 +258,10 @@ function Row({
           <DocsBadge statut={evaluerDossier(a).statut} />
         </div>
       </td>
-      <td className="px-2 py-3 font-display font-bold text-ink">{euro(a.montant_total)}</td>
-      <td className="px-2 py-3 font-display font-bold text-green-600">
+      <td className="px-2 py-3 text-right font-display font-bold tabular-nums text-ink">
+        {euro(a.montant_total)}
+      </td>
+      <td className="px-2 py-3 text-right font-display font-bold tabular-nums text-green-600">
         {euro(encaisse)}
       </td>
       <td className="truncate px-2 py-3 text-xs text-smoke">
