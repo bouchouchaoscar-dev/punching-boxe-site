@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAdherentSession } from "@/components/auth/useSession";
 import { getAuthClient } from "@/lib/supabase-auth";
-import { StatutBadge } from "@/components/admin/StatutBadge";
+import { PaiementStatut } from "@/components/admin/StatutBadge";
+import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
-import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import type { Adherent } from "@/lib/types";
+import type { LienParente } from "@/lib/inscription";
 
 const MODE_LABEL: Record<string, string> = {
   stripe_1x: "Carte — 1 fois",
@@ -16,6 +18,13 @@ const MODE_LABEL: Record<string, string> = {
   stripe_3x: "Carte — 3 fois",
   stripe_4x: "Carte — 4 fois",
   especes: "Espèces (au prochain cours)",
+};
+
+const LIEN_LABEL: Record<LienParente, string> = {
+  moi: "Moi",
+  enfant: "Mon enfant",
+  conjoint: "Mon conjoint·e",
+  autre: "Autre",
 };
 
 const DOCS: {
@@ -39,18 +48,20 @@ const CONNEXION_REDIRECT =
 export function MonEspace() {
   const router = useRouter();
   const { session, loading } = useAdherentSession();
-  const [adherent, setAdherent] = useState<Adherent | null>(null);
+  const [adherents, setAdherents] = useState<Adherent[]>([]);
+  const [paidMap, setPaidMap] = useState<Record<string, number>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
-  const [uploading, setUploading] = useState<FileFieldKey | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null); // `${id}:${field}`
   const [toast, setToast] = useState<string | null>(null);
+
+  const token = session?.access_token;
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   }
-
-  const token = session?.access_token;
 
   const loadDossier = useCallback(async () => {
     if (!token) return;
@@ -62,7 +73,11 @@ export function MonEspace() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur.");
-      setAdherent(data.adherent);
+      const list: Adherent[] = data.adherents ?? [];
+      setAdherents(list);
+      setPaidMap(data.paidEcheances ?? {});
+      // Ouvre le premier dossier par défaut (accordéon).
+      setOpenId((cur) => cur ?? list[0]?.id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
     } finally {
@@ -70,7 +85,6 @@ export function MonEspace() {
     }
   }, [token]);
 
-  // Redirection si non connecté.
   useEffect(() => {
     if (!loading && !session) router.replace(CONNEXION_REDIRECT);
   }, [loading, session, router]);
@@ -79,7 +93,7 @@ export function MonEspace() {
     if (token) loadDossier();
   }, [token, loadDossier]);
 
-  function deposer(field: FileFieldKey, accept: string) {
+  function deposer(field: FileFieldKey, accept: string, adherentId: string) {
     if (!token) return;
     const input = document.createElement("input");
     input.type = "file";
@@ -87,11 +101,12 @@ export function MonEspace() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      setUploading(field);
+      setUploading(`${adherentId}:${field}`);
       try {
         const fd = new FormData();
         fd.append("file", file);
         fd.append("field", field);
+        fd.append("adherentId", adherentId);
         const res = await fetch("/api/mon-espace", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -102,7 +117,7 @@ export function MonEspace() {
           await loadDossier();
           showToast(
             field === "certificat_medical"
-              ? "Certificat déposé, Pascal va valider votre dossier !"
+              ? "Certificat déposé, Pascal va valider le dossier !"
               : "Document déposé ✓",
           );
         } else {
@@ -134,33 +149,27 @@ export function MonEspace() {
   }
   if (!session) return null; // redirection en cours
 
-  // Prénom uniquement s'il existe un dossier (jamais l'email ni un nom inventé).
-  const prenom = adherent?.prenom?.trim() || "";
-  const titre = prenom ? `Bonjour ${prenom}` : "Bienvenue";
-  // Statut global du dossier (source de vérité partagée : evaluerDossier).
-  const status: DossierStatut | "aucun" = adherent
-    ? evaluerDossier(adherent).statut
-    : "aucun";
-
   return (
     <section className="container-px mx-auto max-w-4xl pt-28 pb-20">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <span className="eyebrow">Espace adhérent</span>
           <h1 className="font-display mt-2 text-4xl font-black uppercase text-ink sm:text-5xl">
-            {titre}
+            Votre espace adhérent
           </h1>
-          <div className="mt-4">
-            <StatusBanner
-              status={status}
-              onDeposerCertificat={() =>
-                deposer("certificat_medical", "application/pdf")
-              }
-              uploadingCertificat={uploading === "certificat_medical"}
-            />
-          </div>
+          <p className="mt-3 text-sm text-smoke">
+            {adherents.length > 0
+              ? `${adherents.length} dossier${adherents.length > 1 ? "s" : ""} rattaché${adherents.length > 1 ? "s" : ""} à votre compte.`
+              : "Gérez ici les inscriptions de votre foyer."}
+          </p>
         </div>
+        <Link
+          href="/inscription"
+          className="inline-flex items-center justify-center rounded-full bg-orange px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+        >
+          + Ouvrir un nouveau dossier
+        </Link>
       </div>
 
       {error && (
@@ -169,109 +178,160 @@ export function MonEspace() {
         </div>
       )}
 
-      {!adherent ? (
+      {/* État vide */}
+      {adherents.length === 0 ? (
         <div className="mt-10 rounded-[1.5rem] border border-dashed border-line bg-white p-10 text-center">
           <p className="font-display text-xl font-extrabold uppercase text-ink">
-            Aucun dossier rattaché
+            Vous n&apos;avez pas encore de dossier
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-smoke">
-            Nous n&apos;avons pas encore trouvé d&apos;inscription liée à votre
-            email. Finalisez votre inscription en ligne pour voir votre dossier
-            ici.
+            Ouvrez un dossier d&apos;inscription pour vous-même, votre enfant ou
+            votre conjoint·e. Vous pourrez en ajouter d&apos;autres à tout moment.
           </p>
-          <a
+          <Link
             href="/inscription"
             className="mt-5 inline-flex items-center justify-center rounded-full bg-orange px-6 py-3 text-sm font-bold text-white hover:bg-orange/90"
           >
-            Aller au formulaire d&apos;inscription
-          </a>
+            + Ouvrir un nouveau dossier d&apos;inscription
+          </Link>
         </div>
       ) : (
-        <div className="mt-10 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          {/* Mon dossier */}
-          <div className="rounded-[1.5rem] border border-line bg-white p-6 sm:p-7">
-            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-              Mon dossier
-            </h2>
-
-            {adherent.motif_refus_doc && (
-              <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                <p className="font-bold">Action requise</p>
-                <p className="mt-1">{adherent.motif_refus_doc}</p>
-                <p className="mt-1 text-xs">
-                  Déposez à nouveau le document concerné ci-dessous.
-                </p>
-              </div>
-            )}
-
-            <div className="mt-4 space-y-3">
-              {DOCS.map((d) => {
-                const url = adherent[d.key] as string | null;
-                const isUploading = uploading === d.field;
-                const motifRefus = adherent[
-                  `${d.base}_motif_refus` as keyof Adherent
-                ] as string | null;
-                const valide = !!adherent[`${d.base}_valide` as keyof Adherent];
-                const statut = !url
-                  ? "manquant"
-                  : motifRefus
-                    ? "refus"
-                    : valide
-                      ? "valide"
-                      : "attente";
-                return (
-                  <div
-                    key={d.key}
-                    className={`flex items-center justify-between gap-3 rounded-xl border p-4 ${
-                      statut === "refus" ? "border-red-200 bg-red-50/40" : "border-line"
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{d.label}</p>
-                      <DocStatus statut={statut} url={url} motif={motifRefus} />
-                    </div>
-                    {(statut === "manquant" || statut === "refus") && (
-                      <button
-                        onClick={() => deposer(d.field, d.accept)}
-                        disabled={isUploading}
-                        className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
-                          statut === "refus"
-                            ? "bg-red-600 text-white hover:bg-red-700"
-                            : "border border-line bg-white text-ink hover:border-orange hover:text-orange"
-                        }`}
-                      >
-                        {isUploading
-                          ? "Envoi…"
-                          : statut === "refus"
-                            ? "Remplacer"
-                            : d.field === "certificat_medical"
-                              ? "Déposer mon certificat médical"
-                              : "Déposer"}
-                      </button>
+        <div className="mt-10 space-y-4">
+          {adherents.map((a) => {
+            const dossier = evaluerDossier(a);
+            const open = openId === a.id;
+            return (
+              <div
+                key={a.id}
+                className="overflow-hidden rounded-[1.5rem] border border-line bg-white"
+              >
+                {/* En-tête de carte (cliquable) */}
+                <button
+                  onClick={() => setOpenId(open ? null : a.id)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-3 p-5 text-left transition-colors hover:bg-paper-2 sm:gap-4"
+                >
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-paper-2 text-sm font-bold text-smoke">
+                    {a.photo_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={a.photo_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      `${a.prenom[0] ?? ""}${a.nom[0] ?? ""}`
                     )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-display text-base font-extrabold uppercase text-ink">
+                        {a.prenom} {a.nom}
+                      </span>
+                      <LienBadge lien={a.lien_parente} />
+                    </span>
+                    <span className="mt-2 flex flex-wrap items-center gap-2">
+                      <DossierBadge statut={dossier.statut} />
+                      <PaiementStatut adherent={a} paidEcheances={paidMap[a.id] ?? 0} />
+                      <span className="text-xs text-smoke">
+                        {a.package ? PACKAGE_LABEL[a.package] : "—"}
+                      </span>
+                    </span>
+                  </span>
+                  <svg
+                    className={`h-5 w-5 shrink-0 text-smoke transition-transform ${open ? "rotate-180" : ""}`}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
 
-          {/* Mon inscription */}
-          <div className="h-fit rounded-[1.5rem] border border-line bg-white p-6 sm:p-7">
-            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-              Mon inscription
-            </h2>
-            <dl className="mt-4 space-y-3 text-sm">
-              <Line label="Formule" value={adherent.package ? PACKAGE_LABEL[adherent.package] : "—"} />
-              <Line label="Montant total" value={euro(adherent.montant_total)} />
-              <Line label="Mode de paiement" value={MODE_LABEL[adherent.mode_paiement] ?? adherent.mode_paiement} />
-              <div className="flex items-center justify-between gap-3">
-                <dt className="text-smoke">Statut paiement</dt>
-                <dd>
-                  <StatutBadge statut={adherent.statut_paiement} />
-                </dd>
+                {/* Corps déplié */}
+                {open && (
+                  <div className="grid gap-6 border-t border-line p-5 sm:p-6 lg:grid-cols-[1.3fr_1fr]">
+                    {/* Documents */}
+                    <div>
+                      <h3 className="font-display text-sm font-extrabold uppercase text-ink">
+                        Documents
+                      </h3>
+                      <div className="mt-3 space-y-3">
+                        {DOCS.map((d) => {
+                          const url = a[d.key] as string | null;
+                          const motifRefus = a[
+                            `${d.base}_motif_refus` as keyof Adherent
+                          ] as string | null;
+                          const valide = !!a[`${d.base}_valide` as keyof Adherent];
+                          const statut = !url
+                            ? "manquant"
+                            : motifRefus
+                              ? "refus"
+                              : valide
+                                ? "valide"
+                                : "attente";
+                          const isUp = uploading === `${a.id}:${d.field}`;
+                          return (
+                            <div
+                              key={d.key}
+                              className={`flex items-center justify-between gap-3 rounded-xl border p-4 ${
+                                statut === "refus" ? "border-red-200 bg-red-50/40" : "border-line"
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-ink">{d.label}</p>
+                                <DocStatus statut={statut} url={url} motif={motifRefus} />
+                              </div>
+                              {(statut === "manquant" || statut === "refus") && (
+                                <button
+                                  onClick={() => deposer(d.field, d.accept, a.id)}
+                                  disabled={isUp}
+                                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
+                                    statut === "refus"
+                                      ? "bg-red-600 text-white hover:bg-red-700"
+                                      : "border border-line bg-white text-ink hover:border-orange hover:text-orange"
+                                  }`}
+                                >
+                                  {isUp
+                                    ? "Envoi…"
+                                    : statut === "refus"
+                                      ? "Remplacer"
+                                      : d.field === "certificat_medical"
+                                        ? "Déposer le certificat médical"
+                                        : "Déposer"}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Inscription */}
+                    <div className="h-fit rounded-[1.25rem] border border-line bg-paper-2 p-5">
+                      <h3 className="font-display text-sm font-extrabold uppercase text-ink">
+                        Inscription
+                      </h3>
+                      <dl className="mt-3 space-y-2.5 text-sm">
+                        <Line label="Formule" value={a.package ? PACKAGE_LABEL[a.package] : "—"} />
+                        <Line
+                          label="Catégorie"
+                          value={a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
+                        />
+                        <Line label="Montant total" value={euro(a.montant_total)} />
+                        <Line label="Mode de paiement" value={MODE_LABEL[a.mode_paiement] ?? a.mode_paiement} />
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-smoke">Paiement</dt>
+                          <dd>
+                            <PaiementStatut adherent={a} paidEcheances={paidMap[a.id] ?? 0} />
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                  </div>
+                )}
               </div>
-            </dl>
-          </div>
+            );
+          })}
         </div>
       )}
 
@@ -294,59 +354,25 @@ export function MonEspace() {
   );
 }
 
-function StatusBanner({
-  status,
-  onDeposerCertificat,
-  uploadingCertificat,
-}: {
-  status: DossierStatut | "aucun";
-  onDeposerCertificat: () => void;
-  uploadingCertificat: boolean;
-}) {
-  const map: Record<
-    DossierStatut | "aucun",
-    { emoji: string; text: string; cls: string }
-  > = {
-    valide: {
-      emoji: "🟢",
-      text: "Dossier validé — Bienvenue au club !",
-      cls: "border-green-200 bg-green-50 text-green-700",
-    },
-    presque: {
-      emoji: "🟠",
-      text: "Il manque votre certificat médical pour finaliser votre dossier.",
-      cls: "border-orange/30 bg-orange-50 text-orange",
-    },
-    incomplet: {
-      emoji: "🔴",
-      text: "Dossier incomplet — Des documents sont manquants ou refusés.",
-      cls: "border-red-200 bg-red-50 text-red-700",
-    },
-    aucun: {
-      emoji: "⚪️",
-      text: "Aucun dossier rattaché à votre compte",
-      cls: "border-line bg-paper-2 text-smoke",
-    },
-  };
-  const s = map[status] ?? map.incomplet;
+function LienBadge({ lien }: { lien: LienParente | null }) {
+  const label = lien ? LIEN_LABEL[lien] : "Dossier";
   return (
-    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-      <span
-        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold ${s.cls}`}
-      >
-        <span>{s.emoji}</span>
-        {s.text}
-      </span>
-      {status === "presque" && (
-        <button
-          onClick={onDeposerCertificat}
-          disabled={uploadingCertificat}
-          className="shrink-0 rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
-        >
-          {uploadingCertificat ? "Envoi…" : "Déposer mon certificat médical"}
-        </button>
-      )}
-    </div>
+    <span className="inline-flex items-center rounded-full bg-orange-50 px-2.5 py-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-orange">
+      {label}
+    </span>
+  );
+}
+
+function DossierBadge({ statut }: { statut: DossierStatut }) {
+  const map = {
+    valide: { cls: "bg-green-50 text-green-700", label: "🟢 Dossier validé" },
+    presque: { cls: "bg-orange-50 text-orange-600", label: "🟠 Certificat manquant" },
+    incomplet: { cls: "bg-red-50 text-red-700", label: "🔴 Dossier incomplet" },
+  }[statut];
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${map.cls}`}>
+      {map.label}
+    </span>
   );
 }
 

@@ -6,6 +6,7 @@ import {
 } from "@/lib/supabase";
 import { sendAdminDocReplaced } from "@/lib/email";
 import { evaluerDossier } from "@/lib/dossier";
+import { getAuthUser } from "@/lib/auth-server";
 
 export const runtime = "nodejs";
 
@@ -40,24 +41,13 @@ const DOC_LABEL: Record<Field, string> = {
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
 
-/** Vérifie le JWT Supabase Auth et renvoie l'email de l'utilisateur connecté. */
-async function getUserEmail(request: Request): Promise<string | null> {
-  const auth = request.headers.get("authorization") || "";
-  const token = auth.replace(/^Bearer\s+/i, "").trim();
-  if (!token) return null;
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user?.email) return null;
-  return data.user.email;
-}
-
-// GET — dossier de l'adhérent connecté (rattaché par email).
+// GET — TOUS les dossiers du compte titulaire connecté (rattachés par titulaire_id).
 export async function GET(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
   }
-  const email = await getUserEmail(request);
-  if (!email) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   }
 
@@ -65,13 +55,28 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("adherents")
     .select("*")
-    .ilike("email", email)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("titulaire_id", user.id)
+    .order("created_at", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ adherent: data });
+
+  const adherents = data ?? [];
+
+  // Compteur d'échéances NUMÉROTÉES payées, par dossier (pour le statut "X/N payé").
+  const paidEcheances: Record<string, number> = {};
+  const ids = adherents.map((a) => a.id);
+  if (ids.length) {
+    const { data: paies } = await supabase
+      .from("paiements")
+      .select("adherent_id, statut, numero_echeance")
+      .in("adherent_id", ids);
+    for (const p of paies ?? []) {
+      if (p.statut === "paye" && p.numero_echeance != null)
+        paidEcheances[p.adherent_id] = (paidEcheances[p.adherent_id] ?? 0) + 1;
+    }
+  }
+
+  return NextResponse.json({ adherents, paidEcheances });
 }
 
 // POST — dépôt / remplacement d'un document par l'adhérent connecté.
@@ -79,29 +84,37 @@ export async function POST(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
   }
-  const email = await getUserEmail(request);
-  if (!email) {
+  const user = await getAuthUser(request);
+  if (!user) {
     return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  }
-
-  const supabase = getSupabaseAdmin();
-  const { data: adherent, error: findErr } = await supabase
-    .from("adherents")
-    .select("id, prenom, nom")
-    .ilike("email", email)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (findErr || !adherent) {
-    return NextResponse.json(
-      { error: "Aucun dossier d'inscription rattaché à votre compte." },
-      { status: 404 },
-    );
   }
 
   const form = await request.formData();
   const file = form.get("file");
   const field = String(form.get("field") || "") as Field;
+  const adherentId = String(form.get("adherentId") || "").trim();
+
+  if (!adherentId) {
+    return NextResponse.json({ error: "Dossier non précisé." }, { status: 400 });
+  }
+
+  const supabase = getSupabaseAdmin();
+  // On cible LE dossier demandé et on vérifie qu'il appartient bien au compte
+  // connecté (sécurité : pas de dépôt sur le dossier d'un autre titulaire).
+  const { data: adherent, error: findErr } = await supabase
+    .from("adherents")
+    .select("id, prenom, nom, titulaire_id")
+    .eq("id", adherentId)
+    .maybeSingle();
+  if (findErr || !adherent) {
+    return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
+  }
+  if (adherent.titulaire_id !== user.id) {
+    return NextResponse.json(
+      { error: "Ce dossier n'appartient pas à votre compte." },
+      { status: 403 },
+    );
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Fichier manquant." }, { status: 400 });
