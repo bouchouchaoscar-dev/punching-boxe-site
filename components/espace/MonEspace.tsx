@@ -7,6 +7,7 @@ import { useAdherentSession } from "@/components/auth/useSession";
 import { getAuthClient } from "@/lib/supabase-auth";
 import { PaiementStatut } from "@/components/admin/StatutBadge";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
+import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
@@ -249,7 +250,11 @@ export function MonEspace() {
 
                 {/* Corps déplié */}
                 {open && (
-                  <div className="grid gap-6 border-t border-line p-5 sm:p-6 lg:grid-cols-[1.3fr_1fr]">
+                  <div className="border-t border-line p-5 sm:p-6">
+                    {/* Synthèse dynamique : où en est le dossier + prochaine action */}
+                    <SyntheseEncart {...syntheseDossier(a, paidMap[a.id] ?? 0)} />
+
+                    <div className="mt-5 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
                     {/* Documents */}
                     <div>
                       <h3 className="font-display text-sm font-extrabold uppercase text-ink">
@@ -327,6 +332,7 @@ export function MonEspace() {
                         </div>
                       </dl>
                     </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -351,6 +357,22 @@ export function MonEspace() {
         </div>
       )}
     </section>
+  );
+}
+
+function SyntheseEncart({ text, tone }: { text: string; tone: SyntheseTone }) {
+  const map: Record<SyntheseTone, { cls: string; icon: string }> = {
+    success: { cls: "border-green-200 bg-green-50", icon: "🎉" },
+    info: { cls: "border-line bg-paper-2", icon: "📩" },
+    action: { cls: "border-orange/30 bg-orange-50", icon: "👉" },
+    danger: { cls: "border-red-200 bg-red-50", icon: "⚠️" },
+  };
+  const m = map[tone];
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl border p-4 ${m.cls}`}>
+      <span className="text-xl leading-none">{m.icon}</span>
+      <p className="text-sm font-semibold leading-relaxed text-ink">{text}</p>
+    </div>
   );
 }
 
