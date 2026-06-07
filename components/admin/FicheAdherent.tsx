@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { StatutBadge } from "./StatutBadge";
+import { PaiementStatut } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
@@ -165,6 +165,10 @@ export function FicheAdherent({ id }: { id: string }) {
     );
 
   const dossier = evaluerDossier(a);
+  // X = échéances numérotées déjà payées (s'actualise au fil des prélèvements cron).
+  const paidEcheances = paiements.filter(
+    (p) => p.statut === "paye" && p.numero_echeance != null,
+  ).length;
 
   return (
     <div>
@@ -198,7 +202,7 @@ export function FicheAdherent({ id }: { id: string }) {
                 {a.type_adherent} · Saison {a.saison}
               </p>
               <div className="mt-3">
-                <StatutBadge statut={a.statut_paiement} />
+                <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
               </div>
             </div>
           </div>
@@ -468,6 +472,12 @@ function PaiementsCard({
   const echec = adherent.statut_paiement === "echec_paiement";
   const echeances = paiements.filter((p) => p.numero_echeance != null);
   const supplements = paiements.filter((p) => p.numero_echeance == null);
+  // Adhésion (et éventuels suppléments) prélevée à l'inscription, hors échéancier :
+  // affichée AGRÉGÉE sur la 1ère échéance (n°1) — affichage seul, montants en base inchangés.
+  const supplementImmediat = supplements.reduce(
+    (s, p) => s + Number(p.montant || 0),
+    0,
+  );
 
   return (
     <div className="rounded-[1.5rem] border border-line bg-white p-6">
@@ -528,7 +538,10 @@ function PaiementsCard({
                     {p.date_prevue ? formatDateFr(p.date_prevue) : "—"}
                   </td>
                   <td className="py-2 pr-3 font-semibold text-ink">
-                    {euro(Number(p.montant || 0))}
+                    {euro(
+                      Number(p.montant || 0) +
+                        (p.numero_echeance === 1 ? supplementImmediat : 0),
+                    )}
                   </td>
                   <td className="py-2">
                     <EcheanceStatut p={p} />
@@ -537,13 +550,10 @@ function PaiementsCard({
               ))}
             </tbody>
           </table>
-          {supplements.length > 0 && (
+          {supplementImmediat > 0 && (
             <p className="mt-2 text-xs text-smoke">
-              + Suppléments (adhésion / prépa) :{" "}
-              {euro(
-                supplements.reduce((s, p) => s + Number(p.montant || 0), 0),
-              )}{" "}
-              prélevés à l&apos;inscription.
+              + Adhésion {euro(supplementImmediat)} incluse dans la 1ère échéance
+              (prélevée à l&apos;inscription, non fractionnée).
             </p>
           )}
         </div>

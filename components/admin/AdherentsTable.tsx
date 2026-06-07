@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAdherents } from "./useAdherents";
-import { StatutBadge } from "./StatutBadge";
+import { PaiementStatut } from "./StatutBadge";
 import { euro } from "@/lib/pricing";
 import { evaluerDossier } from "@/lib/dossier";
 import type { Adherent } from "@/lib/types";
@@ -16,22 +16,33 @@ export function AdherentsTable() {
   const [prepa, setPrepa] = useState("all");
   const [confirming, setConfirming] = useState<string | null>(null);
   const [encaisseMap, setEncaisseMap] = useState<Record<string, number>>({});
+  const [paidEcheancesMap, setPaidEcheancesMap] = useState<
+    Record<string, number>
+  >({});
 
-  // Somme encaissée (paiements payés) par adhérent.
+  // Somme encaissée + nombre d'échéances payées (par adhérent).
   useEffect(() => {
     fetch("/api/paiements", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
-        const map: Record<string, number> = {};
+        const enc: Record<string, number> = {};
+        const paid: Record<string, number> = {};
         for (const p of (d.paiements ?? []) as {
           adherent_id: string;
           montant: number;
           statut: string;
+          numero_echeance: number | null;
         }[]) {
-          if (p.statut === "paye")
-            map[p.adherent_id] = (map[p.adherent_id] ?? 0) + Number(p.montant || 0);
+          if (p.statut === "paye") {
+            enc[p.adherent_id] =
+              (enc[p.adherent_id] ?? 0) + Number(p.montant || 0);
+            // X = échéances NUMÉROTÉES payées (exclut la ligne adhésion numero=null).
+            if (p.numero_echeance != null)
+              paid[p.adherent_id] = (paid[p.adherent_id] ?? 0) + 1;
+          }
         }
-        setEncaisseMap(map);
+        setEncaisseMap(enc);
+        setPaidEcheancesMap(paid);
       })
       .catch(() => {});
   }, []);
@@ -182,6 +193,7 @@ export function AdherentsTable() {
                   key={a.id}
                   a={a}
                   encaisse={encaisseMap[a.id] ?? 0}
+                  paidEcheances={paidEcheancesMap[a.id] ?? 0}
                   confirming={confirming === a.id}
                   onConfirm={() => confirmCash(a.id)}
                 />
@@ -197,11 +209,13 @@ export function AdherentsTable() {
 function Row({
   a,
   encaisse,
+  paidEcheances,
   confirming,
   onConfirm,
 }: {
   a: Adherent;
   encaisse: number;
+  paidEcheances: number;
   confirming: boolean;
   onConfirm: () => void;
 }) {
@@ -240,7 +254,7 @@ function Row({
       <td className="px-2 py-3 capitalize text-smoke">{a.type_adherent}</td>
       <td className="px-2 py-3">
         <div className="flex flex-col items-start gap-1.5">
-          <StatutBadge statut={a.statut_paiement} />
+          <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
           <DocsBadge statut={evaluerDossier(a).statut} />
         </div>
       </td>
