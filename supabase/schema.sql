@@ -53,7 +53,10 @@ create table if not exists public.adherents (
   echeances_payees          integer default 0,
   prochaine_echeance        date,
   derniere_erreur_stripe    text,
-  vu_par_admin              boolean not null default false
+  vu_par_admin              boolean not null default false,
+  -- Refonte "1 compte = N adhérents" : rattachement à un compte titulaire.
+  titulaire_id              uuid references auth.users(id) on delete set null,
+  lien_parente              text check (lien_parente in ('moi','enfant','conjoint','autre'))
 );
 
 -- Échéances de paiement (paiement fractionné Stripe).
@@ -113,6 +116,31 @@ alter table public.adherents
 alter table public.adherents
   add column if not exists vu_par_admin boolean not null default false;
 
+-- Migration : refonte "1 compte = N adhérents".
+-- Rattachement d'un dossier adhérent à un compte titulaire (auth.users) + lien de parenté.
+alter table public.adherents
+  add column if not exists titulaire_id uuid,
+  add column if not exists lien_parente text;
+
+-- FK vers auth.users — ON DELETE SET NULL (préserve l'historique des dossiers
+-- si le compte titulaire est supprimé ; le dossier devient simplement non rattaché).
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'adherents_titulaire_id_fkey') then
+    alter table public.adherents
+      add constraint adherents_titulaire_id_fkey
+      foreign key (titulaire_id) references auth.users(id) on delete set null;
+  end if;
+end $$;
+
+-- CHECK : valeurs autorisées pour le lien de parenté (NULL autorisé).
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'adherents_lien_parente_check') then
+    alter table public.adherents
+      add constraint adherents_lien_parente_check
+      check (lien_parente in ('moi','enfant','conjoint','autre'));
+  end if;
+end $$;
+
 create table if not exists public.paiements (
   id                        uuid primary key default gen_random_uuid(),
   adherent_id               uuid references public.adherents(id),
@@ -143,6 +171,7 @@ alter table public.adherents
 create index if not exists adherents_saison_idx       on public.adherents (saison);
 create index if not exists adherents_statut_idx       on public.adherents (statut_paiement);
 create index if not exists adherents_created_at_idx   on public.adherents (created_at desc);
+create index if not exists adherents_titulaire_idx    on public.adherents (titulaire_id);
 
 -- ---------- Module Campagnes mailing ----------
 create table if not exists public.campagnes (
