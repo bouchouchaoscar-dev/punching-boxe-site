@@ -26,7 +26,7 @@ export type StripePlan = {
   adherentId: string;
   nbEcheances: number;
   total: number;
-  supplements: number;
+  adhesion: number;
   premierPrelevement: number;
   dates: string[];
   montants: number[];
@@ -130,14 +130,17 @@ function PaymentInner({
                     ? "1er prélèvement : aujourd'hui"
                     : `${i + 1}ᵉ prélèvement : ${formatDateFr(d)}`}
                 </span>
-                <span className="font-semibold">{euro(plan.montants[i])}</span>
+                <span className="font-semibold">
+                  {euro(i === 0 ? plan.premierPrelevement : plan.montants[i])}
+                </span>
               </li>
             ))}
           </ul>
-          {plan.supplements > 0 && (
+          {plan.adhesion > 0 && (
             <p className="mt-2 border-t border-orange/20 pt-2 text-xs text-smoke">
-              Les suppléments ({euro(plan.supplements)} : adhésion et/ou prépa)
-              sont prélevés aujourd&apos;hui.
+              L&apos;adhésion ({euro(plan.adhesion)}) est prélevée aujourd&apos;hui
+              (non fractionnée). La prépa physique éventuelle est répartie sur
+              toutes les échéances.
             </p>
           )}
           <p className="mt-2 text-xs text-smoke">

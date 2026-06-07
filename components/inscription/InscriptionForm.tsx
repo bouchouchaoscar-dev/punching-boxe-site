@@ -474,8 +474,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                         const active = mode === p.mode;
                         const n = nbEcheances(p.mode);
                         const pl = planEcheances(
-                          devis.cotisation,
-                          devis.supplements,
+                          devis.fractionnable,
+                          devis.adhesion,
                           new Date(),
                           n,
                         );
@@ -524,8 +524,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                       nbEcheances(mode) > 1 &&
                       (() => {
                         const pl = planEcheances(
-                          devis.cotisation,
-                          devis.supplements,
+                          devis.fractionnable,
+                          devis.adhesion,
                           new Date(),
                           nbEcheances(mode),
                         );
@@ -548,11 +548,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                                 </li>
                               ))}
                             </ul>
-                            {devis.supplements > 0 && (
+                            {devis.adhesion > 0 && (
                               <p className="mt-2 border-t border-line pt-2 text-xs">
-                                Les suppléments ({euro(devis.supplements)} : +30€
-                                adhésion et/ou +100€ prépa) sont prélevés
-                                aujourd&apos;hui.
+                                L&apos;adhésion ({euro(devis.adhesion)}) est
+                                prélevée aujourd&apos;hui (non fractionnée). La
+                                prépa physique éventuelle est répartie sur toutes
+                                les échéances.
                               </p>
                             )}
                           </div>

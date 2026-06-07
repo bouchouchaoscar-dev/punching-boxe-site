@@ -94,12 +94,16 @@ export function datesEcheances(date: Date, n: number): string[] {
   return out;
 }
 
-/** Répartit la cotisation en n échéances (la 1ère absorbe le reste d'arrondi). */
-export function repartirCotisation(cotisation: number, n: number): number[] {
-  if (n <= 1) return [round2(cotisation)];
-  const base = Math.floor((cotisation / n) * 100) / 100;
+/**
+ * Répartit un montant en n parts égales au centime près.
+ * La 1ère part absorbe le reste d'arrondi → la somme est STRICTEMENT égale
+ * au montant fourni.
+ */
+export function repartirCotisation(montant: number, n: number): number[] {
+  if (n <= 1) return [round2(montant)];
+  const base = Math.floor((montant / n) * 100) / 100;
   const arr = Array.from({ length: n }, () => base);
-  const reste = round2(cotisation - base * n);
+  const reste = round2(montant - base * n);
   arr[0] = round2(arr[0] + reste);
   return arr;
 }
@@ -107,32 +111,39 @@ export function repartirCotisation(cotisation: number, n: number): number[] {
 export type PlanEcheances = {
   n: number;
   dates: string[]; // ISO yyyy-mm-dd, une par échéance
-  montants: number[]; // cotisation répartie (€)
-  supplements: number; // adhésion + prépa, prélevés en 1x immédiat
-  premierPrelevement: number; // montants[0] + supplements
+  montants: number[]; // (cotisation proratisée + prépa) répartie en n parts
+  adhesion: number; // adhésion, payée EN ENTIER sur le 1er prélèvement (non fractionnée)
+  premierPrelevement: number; // montants[0] + adhesion
 };
 
-/** Plan complet d'échéances pour une cotisation + suppléments donnés. */
+/**
+ * Plan complet d'échéances.
+ * On fractionne TOUT sauf l'adhésion : `fractionnable` = cotisation proratisée
+ * + prépa physique. L'adhésion (30€) est ajoutée en entier au 1er prélèvement.
+ */
 export function planEcheances(
-  cotisation: number,
-  supplements: number,
+  fractionnable: number,
+  adhesion: number,
   date: Date,
   n: number,
 ): PlanEcheances {
   const dates = datesEcheances(date, n);
-  const montants = repartirCotisation(cotisation, n);
+  const montants = repartirCotisation(fractionnable, n);
   return {
     n,
     dates,
     montants,
-    supplements,
-    premierPrelevement: round2(montants[0] + supplements),
+    adhesion,
+    premierPrelevement: round2(montants[0] + adhesion),
   };
 }
 
 export type DevisInscription = {
   cotisation: number; // cotisation proratisée nette (après remise famille)
-  supplements: number; // adhésion + prépa
+  adhesion: number; // adhésion (30€ 1ère année, sinon 0) — NON fractionnée
+  prepa: number; // option prépa physique (100€ ou 0) — fractionnée
+  supplements: number; // adhésion + prépa (récap prix)
+  fractionnable: number; // cotisation + prépa = montant réparti sur les échéances
   total: number;
   proratise: boolean;
   moisSaison: number;
@@ -159,10 +170,17 @@ export function devisPourAdherent(a: DevisInput, dateInscription: Date): DevisIn
   });
   const cotisationNette = t.cotisationBase - t.remiseMontant;
   const cotisation = cotisationProratisee(cotisationNette, dateInscription);
-  const supplements = t.adhesion + t.prepa;
+  const adhesion = t.adhesion;
+  const prepa = t.prepa;
+  const supplements = adhesion + prepa;
+  // Tout est fractionné SAUF l'adhésion : cotisation proratisée + prépa physique.
+  const fractionnable = cotisation + prepa;
   return {
     cotisation,
+    adhesion,
+    prepa,
     supplements,
+    fractionnable,
     total: cotisation + supplements,
     proratise: estProratise(dateInscription),
     moisSaison: moisSaison(dateInscription),

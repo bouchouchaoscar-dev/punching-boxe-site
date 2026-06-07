@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const plan = planEcheances(devis.cotisation, devis.supplements, now, n);
+  const plan = planEcheances(devis.fractionnable, devis.adhesion, now, n);
 
   // Adhérent (montant proratisé recalculé côté serveur).
   const record = {
@@ -120,7 +120,7 @@ export async function POST(request: Request) {
         adherentId: adherent.id,
         nbEcheances: 1,
         total: devis.total,
-        supplements: devis.supplements,
+        adhesion: devis.adhesion,
         proratise: devis.proratise,
         premierPrelevement: devis.total,
         dates: plan.dates,
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
       adherentId: adherent.id,
       nbEcheances: n,
       total: devis.total,
-      supplements: devis.supplements,
+      adhesion: devis.adhesion,
       proratise: devis.proratise,
       premierPrelevement: plan.premierPrelevement,
       dates: plan.dates,

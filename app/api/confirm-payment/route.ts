@@ -89,7 +89,7 @@ export async function POST(request: Request) {
   const date = new Date(adherent.created_at);
   const n = adherent.nb_echeances;
   const devis = devisPourAdherent(adherent, date);
-  const plan = planEcheances(devis.cotisation, devis.supplements, date, n);
+  const plan = planEcheances(devis.fractionnable, devis.adhesion, date, n);
   const today = plan.dates[0];
 
   const chargerImmediat = async (
@@ -140,12 +140,12 @@ export async function POST(request: Request) {
     }
   };
 
-  // 1) Suppléments (+30€ adhésion et/ou +100€ prépa) — immédiat, 1x séparé.
-  if (devis.supplements > 0) {
-    await chargerImmediat(devis.supplements, { type: "supplement" }, null);
+  // 1) Adhésion (30€) — immédiat, 1x séparé, NON fractionnée.
+  if (devis.adhesion > 0) {
+    await chargerImmediat(devis.adhesion, { type: "adhesion" }, null);
   }
 
-  // 2) 1ère échéance de cotisation — immédiat.
+  // 2) 1ère échéance (cotisation proratisée + prépa, répartie) — immédiat.
   await chargerImmediat(plan.montants[0], { numero: "1" }, 1);
 
   // 3) Échéances suivantes — planifiées (prélevées par le cron à échéance).
