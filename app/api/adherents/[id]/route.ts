@@ -90,6 +90,21 @@ export async function PATCH(request: Request, { params }: Ctx) {
   const docLabelRefus = champRefus ? DOC_LABELS[champRefus] : undefined;
 
   const supabase = getSupabaseAdmin();
+
+  // Engagement : si cette MAJ passe le dossier à payé/espèces confirmées, on fige
+  // engage_at une seule fois (s'il est encore null en base).
+  if (
+    update.statut_paiement === "paye" ||
+    update.statut_paiement === "confirme_especes"
+  ) {
+    const { data: cur } = await supabase
+      .from("adherents")
+      .select("engage_at")
+      .eq("id", id)
+      .maybeSingle();
+    if (cur && !cur.engage_at) update.engage_at = new Date().toISOString();
+  }
+
   let { data, error } = await supabase
     .from("adherents")
     .update(update)

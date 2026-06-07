@@ -28,16 +28,21 @@ type PaiementInfo = Pick<
   "mode_paiement" | "statut_paiement" | "nb_echeances"
 >;
 
+// Échelle : gris (en attente, NON engagé) → orange (engagé X/N) → vert (payé)
+// → rouge (échec). « Engagé » = 1er paiement passé.
 const GREEN = "bg-green-50 text-green-700";
 const ORANGE = "bg-orange-50 text-orange-600";
 const RED = "bg-red-50 text-red-700";
+const GRAY = "bg-paper-2 text-smoke";
 
 /**
- * Libellé de statut de paiement adapté au mode :
- * - espèces  : « Espèces confirmé » / « Espèces en attente »
- * - carte 1x : « Payé en ligne » / « En attente »
- * - carte fractionnée : avancement « X/N payé » (X = échéances payées),
- *   « Payé en ligne » quand soldé (X = N).
+ * Libellé de statut de paiement adapté au mode + à l'engagement :
+ * - échec                       → « Échec paiement » (rouge)
+ * - espèces                     → « Espèces confirmé » (vert) / « Espèces en attente » (gris)
+ * - carte 1x                    → « Payé en ligne » (vert) / « En attente » (gris)
+ * - carte fractionnée soldée    → « Payé en ligne » (vert)
+ * - carte fractionnée engagée   → « Engagé · X/N payé » (orange)  [1 ≤ X < N]
+ * - carte fractionnée non payée → « En attente » (gris)           [X = 0]
  * `paidEcheances` = nombre d'échéances NUMÉROTÉES déjà payées.
  */
 export function paiementStatut(
@@ -50,22 +55,23 @@ export function paiementStatut(
   if (a.mode_paiement === "especes")
     return a.statut_paiement === "confirme_especes"
       ? { label: "✅ Espèces confirmé", cls: GREEN }
-      : { label: "⏳ Espèces en attente", cls: ORANGE };
+      : { label: "⏳ Espèces en attente", cls: GRAY };
 
-  // Carte fractionnée (stripe_2x/3x/4x) → avancement X/N.
+  // Carte fractionnée (stripe_2x/3x/4x) → engagement + avancement X/N.
   if (a.mode_paiement !== "stripe_1x") {
     const n = a.nb_echeances || nbEcheances(a.mode_paiement);
     if (n > 1) {
-      return paidEcheances >= n
-        ? { label: "✅ Payé en ligne", cls: GREEN }
-        : { label: `${paidEcheances}/${n} payé`, cls: ORANGE };
+      if (paidEcheances >= n) return { label: "✅ Payé en ligne", cls: GREEN };
+      if (paidEcheances >= 1)
+        return { label: `🟠 Engagé · ${paidEcheances}/${n} payé`, cls: ORANGE };
+      return { label: "⏳ En attente", cls: GRAY };
     }
   }
 
   // Carte 1x.
   return a.statut_paiement === "paye"
     ? { label: "✅ Payé en ligne", cls: GREEN }
-    : { label: "⏳ En attente", cls: ORANGE };
+    : { label: "⏳ En attente", cls: GRAY };
 }
 
 export function PaiementStatut({

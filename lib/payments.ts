@@ -37,6 +37,8 @@ export async function markAdherentPaid(
     .update({
       statut_paiement: "paye",
       ...(paymentIntentId ? { stripe_payment_intent_id: paymentIntentId } : {}),
+      // Engagement figé une seule fois (filet du flux comptant 1x).
+      ...(adherent.engage_at ? {} : { engage_at: new Date().toISOString() }),
     })
     .eq("id", adherentId)
     .select()
@@ -96,12 +98,15 @@ export async function recalculerEtatPaiement(adherentId: string) {
   const complet = echeancesPayees >= (adherent.nb_echeances || 1);
   // Inscription confirmée dès la 1ère échéance réglée (welcome email).
   const premierPaiement = (adherent.echeances_payees || 0) < 1 && echeancesPayees >= 1;
+  // Dossier "engagé" dès la 1re échéance payée → on fige engage_at une seule fois.
+  const devientEngage = echeancesPayees >= 1 && !adherent.engage_at;
 
   await supabase
     .from("adherents")
     .update({
       echeances_payees: echeancesPayees,
       prochaine_echeance: prochaine,
+      ...(devientEngage ? { engage_at: new Date().toISOString() } : {}),
       ...(complet
         ? { statut_paiement: "paye", derniere_erreur_stripe: null }
         : {}),
