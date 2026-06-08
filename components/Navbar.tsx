@@ -77,8 +77,10 @@ export function Navbar() {
               />
             </Link>
             {session ? (
-              <Button href="/mon-espace" size="md" className="hidden sm:inline-flex">
-                Espace adhérent
+              // Connecté : le lien "Espace adhérent ✓" est déjà à gauche, on évite
+              // le doublon → ce bouton devient un raccourci "Nouvelle inscription".
+              <Button href="/inscription" size="md" className="hidden sm:inline-flex">
+                Nouvelle inscription
               </Button>
             ) : (
               <Button href="/inscription" size="md" className="hidden sm:inline-flex">

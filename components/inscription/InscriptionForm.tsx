@@ -256,13 +256,13 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   return (
     <div className="overflow-hidden rounded-[2rem] border border-line bg-white">
       {/* Stepper */}
-      <div className="border-b border-line bg-paper-2 px-6 py-5 sm:px-8">
-        <div className="mb-3">
+      <div className="border-b border-line bg-paper-2 px-6 pt-7 pb-6 sm:px-8 sm:pt-8">
+        <div className="mb-6">
           <p className="font-display text-xl font-extrabold uppercase tracking-tight text-orange sm:text-2xl">
             Saison {saisonAffichee}
           </p>
           {estJuin(now) && (
-            <p className="mt-0.5 text-xs text-smoke">
+            <p className="mt-2 text-xs text-smoke">
               {saisonEnCoursChoisie ? (
                 <>
                   Inscription pour la saison en cours.{" "}
