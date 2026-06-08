@@ -2,12 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { PaiementStatut } from "./StatutBadge";
+import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
-import type { Adherent, Paiement } from "@/lib/types";
+import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
+import type { LienParente } from "@/lib/inscription";
+
+// Membre du foyer (autre dossier rattaché au même titulaire_id).
+type MembreFoyer = {
+  id: string;
+  nom: string;
+  prenom: string;
+  lien_parente: LienParente | null;
+  type_adherent: "adulte" | "jeune" | null;
+  statut_paiement: StatutPaiement;
+};
+
+const LIEN_LABEL_COURT: Record<LienParente, string> = {
+  moi: "Titulaire",
+  enfant: "Enfant",
+  conjoint: "Conjoint·e",
+  autre: "Autre",
+};
 
 // Base de colonnes par document : <base>_valide (bool) + <base>_motif_refus (text).
 type DocBase = "fiche" | "certificat" | "reglement" | "photo";
@@ -43,6 +61,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [refusing, setRefusing] = useState<DocBase | null>(null);
   const [refuseMotif, setRefuseMotif] = useState("");
   const [paiements, setPaiements] = useState<Paiement[]>([]);
+  const [famille, setFamille] = useState<MembreFoyer[]>([]);
   const [relancing, setRelancing] = useState(false);
 
   function showToast(msg: string) {
@@ -53,9 +72,10 @@ export function FicheAdherent({ id }: { id: string }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [resA, resP] = await Promise.all([
+      const [resA, resP, resF] = await Promise.all([
         fetch(`/api/adherents/${id}`, { cache: "no-store" }),
         fetch(`/api/adherents/${id}/paiements`, { cache: "no-store" }),
+        fetch(`/api/adherents/${id}/famille`, { cache: "no-store" }),
       ]);
       const data = await resA.json();
       if (!resA.ok) throw new Error(data.error || "Introuvable.");
@@ -64,6 +84,10 @@ export function FicheAdherent({ id }: { id: string }) {
       if (resP.ok) {
         const dp = await resP.json();
         setPaiements(dp.paiements ?? []);
+      }
+      if (resF.ok) {
+        const df = await resF.json();
+        setFamille(df.membres ?? []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
@@ -291,6 +315,9 @@ export function FicheAdherent({ id }: { id: string }) {
               <Info label="Membres famille déjà inscrits" value={String(a.nb_membres_famille)} />
             </dl>
           </div>
+
+          {/* Foyer (autres dossiers du même titulaire) */}
+          <FamilleCard membres={famille} currentId={a.id} />
 
           {/* Documents */}
           <div className="rounded-[1.5rem] border border-line bg-white p-6">
@@ -604,6 +631,82 @@ function EcheanceStatut({ p }: { p: Paiement }) {
     <span className="font-semibold text-orange">
       ⏳ Prévu{p.date_prevue ? ` le ${formatDateFr(p.date_prevue)}` : ""}
     </span>
+  );
+}
+
+function FamilleCard({
+  membres,
+  currentId,
+}: {
+  membres: MembreFoyer[];
+  currentId: string;
+}) {
+  // Pas de titulaire / pas de foyer → endpoint renvoie [] → on n'affiche rien.
+  if (membres.length === 0) return null;
+  const autres = membres.filter((m) => m.id !== currentId);
+
+  return (
+    <div className="rounded-[1.5rem] border border-line bg-white p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-display text-lg font-extrabold uppercase text-ink">
+          Foyer
+        </h3>
+        <span className="text-sm font-semibold text-smoke">
+          {membres.length} dossier{membres.length > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {autres.length === 0 ? (
+        <p className="mt-3 text-sm text-smoke">
+          Aucun autre membre dans ce foyer.
+        </p>
+      ) : (
+        <ul className="mt-4 space-y-2">
+          {membres.map((m) => {
+            const current = m.id === currentId;
+            const lien = m.lien_parente ? LIEN_LABEL_COURT[m.lien_parente] : "—";
+            const cat = m.type_adherent === "jeune" ? "Jeune" : "Adulte";
+            const inner = (
+              <div
+                className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 transition-colors ${
+                  current
+                    ? "border-orange/40 bg-orange-50"
+                    : "border-line hover:border-orange/40"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <span className="truncate">
+                      {m.prenom} {m.nom}
+                    </span>
+                    {current && (
+                      <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white">
+                        Dossier courant
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-smoke">
+                    {lien} · {cat}
+                  </p>
+                </div>
+                <StatutBadge statut={m.statut_paiement} />
+              </div>
+            );
+            return (
+              <li key={m.id}>
+                {current ? (
+                  inner
+                ) : (
+                  <Link href={`/admin/adherents/${m.id}`} className="block">
+                    {inner}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
