@@ -442,8 +442,22 @@ function DossierActions({
   a: Adherent;
   onDelete: () => void;
 }) {
-  // Dossier engagé (1er paiement validé) → verrouillé, aucune action.
-  if (estEngage(a)) return null;
+  // Dossier engagé : verrouillé, SAUF s'il a une échéance en échec → régularisation.
+  if (estEngage(a)) {
+    if (a.statut_paiement === "echec_paiement") {
+      return (
+        <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+          <Link
+            href={`/inscription/regulariser/${a.id}`}
+            className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700"
+          >
+            Régulariser le paiement
+          </Link>
+        </div>
+      );
+    }
+    return null;
+  }
   const especesAttente =
     a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
   return (

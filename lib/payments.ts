@@ -155,6 +155,66 @@ export async function marquerEcheancePayee(
   return true;
 }
 
+/**
+ * Si le dossier est en 'echec_paiement' mais qu'il ne reste plus AUCUNE échéance
+ * en échec, on repasse en 'en_attente' (badge "Engagé X/N" normal) — sauf s'il
+ * est déjà soldé ('paye', posé par recalculerEtatPaiement).
+ */
+export async function nettoyerStatutEchec(adherentId: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { data: a } = await supabase
+    .from("adherents")
+    .select("statut_paiement")
+    .eq("id", adherentId)
+    .single();
+  if (a?.statut_paiement !== "echec_paiement") return;
+  const { count } = await supabase
+    .from("paiements")
+    .select("id", { count: "exact", head: true })
+    .eq("adherent_id", adherentId)
+    .eq("statut", "echec");
+  if ((count ?? 0) === 0) {
+    await supabase
+      .from("adherents")
+      .update({ statut_paiement: "en_attente", derniere_erreur_stripe: null })
+      .eq("id", adherentId);
+  }
+}
+
+/**
+ * Post-succès d'une RÉGULARISATION self-service :
+ * 1) remplace la carte par défaut du client (échéances futures sur la nouvelle carte),
+ * 2) marque l'échéance liée payée (+ recalcul),
+ * 3) sort le dossier de 'echec_paiement' s'il ne reste plus d'échec.
+ * Idempotent (appelé par /confirm ET par le webhook).
+ */
+export async function appliquerRegularisation(
+  pi: Stripe.PaymentIntent,
+): Promise<void> {
+  const adherentId = pi.metadata?.adherentId;
+  if (!adherentId) return;
+  const supabase = getSupabaseAdmin();
+
+  const pm = typeof pi.payment_method === "string" ? pi.payment_method : null;
+  const customer = typeof pi.customer === "string" ? pi.customer : null;
+  if (customer && pm) {
+    try {
+      await getStripe().customers.update(customer, {
+        invoice_settings: { default_payment_method: pm },
+      });
+      await supabase
+        .from("adherents")
+        .update({ stripe_customer_id: customer })
+        .eq("id", adherentId);
+    } catch (e) {
+      console.error("Régul: maj carte par défaut:", e);
+    }
+  }
+
+  await marquerEcheancePayee(pi.id);
+  await nettoyerStatutEchec(adherentId);
+}
+
 /** Marque l'échéance liée à un PaymentIntent en échec + statut adhérent. */
 export async function marquerEcheanceEchec(
   paymentIntentId: string,

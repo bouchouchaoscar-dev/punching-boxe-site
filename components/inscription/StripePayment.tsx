@@ -24,6 +24,7 @@ export type StripePlan = {
   intentType: "payment" | "setup";
   clientSecret: string;
   adherentId: string;
+  paiementId?: string;
   nbEcheances: number;
   total: number;
   adhesion: number;
@@ -35,9 +36,11 @@ export type StripePlan = {
 export function StripePayment({
   plan,
   onSuccess,
+  confirmPath = "/api/confirm-payment",
 }: {
   plan: StripePlan;
   onSuccess: () => void;
+  confirmPath?: string;
 }) {
   const promise = getStripePromise();
   if (!promise) {
@@ -65,7 +68,7 @@ export function StripePayment({
         },
       }}
     >
-      <PaymentInner plan={plan} onSuccess={onSuccess} />
+      <PaymentInner plan={plan} onSuccess={onSuccess} confirmPath={confirmPath} />
     </Elements>
   );
 }
@@ -73,9 +76,11 @@ export function StripePayment({
 function PaymentInner({
   plan,
   onSuccess,
+  confirmPath,
 }: {
   plan: StripePlan;
   onSuccess: () => void;
+  confirmPath: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -104,10 +109,13 @@ function PaymentInner({
     // Côté serveur : prélève la 1ère échéance + suppléments et planifie le reste
     // (ou marque payé pour le comptant). Le webhook fait foi au final.
     try {
-      await fetch("/api/confirm-payment", {
+      await fetch(confirmPath, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adherentId: plan.adherentId }),
+        body: JSON.stringify({
+          adherentId: plan.adherentId,
+          paiementId: plan.paiementId,
+        }),
       });
     } catch {
       /* le webhook prendra le relais */

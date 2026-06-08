@@ -5,6 +5,7 @@ import {
   marquerEcheancePayee,
   marquerEcheanceEchec,
   markAdherentPaid,
+  appliquerRegularisation,
 } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
   switch (event.type) {
     case "payment_intent.succeeded": {
       const intent = event.data.object as Stripe.PaymentIntent;
+      // Régularisation self-service : remplace la carte + marque payé + nettoie.
+      if (intent.metadata?.type === "regularisation") {
+        await appliquerRegularisation(intent);
+        break;
+      }
       const found = await marquerEcheancePayee(intent.id);
       // Filet : ancien flux sans table paiements.
       if (!found && intent.metadata?.adherentId) {
