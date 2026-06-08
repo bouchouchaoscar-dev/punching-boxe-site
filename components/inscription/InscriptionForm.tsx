@@ -29,6 +29,7 @@ import {
   type LienParente,
 } from "@/lib/inscription";
 import { useAdherentSession } from "@/components/auth/useSession";
+import { saisonCourante, estJuin, saisonQuiSeTermine } from "@/lib/saison";
 
 const STEPS = ["Informations", "Options", "Documents", "Paiement"];
 
@@ -74,6 +75,20 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [codePostal, setCodePostal] = useState("");
 
   const [lienParente, setLienParente] = useState<LienParente | "">("");
+  const [saisonEnCoursChoisie, setSaisonEnCoursChoisie] = useState(false);
+  // Date de référence (simulable en test via ?today=YYYY-MM-DD).
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("today");
+    if (t) {
+      const d = new Date(t);
+      if (!Number.isNaN(d.getTime())) setNow(d);
+    }
+  }, []);
+  const saisonAffichee =
+    saisonEnCoursChoisie && estJuin(now)
+      ? saisonQuiSeTermine(now)
+      : saisonCourante(now);
   const [packageType, setPackageType] = useState<PackageType>("boxe_classique");
   const [nouveauMembre, setNouveauMembre] = useState(true);
   const [prepa, setPrepa] = useState(false);
@@ -155,6 +170,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     mode_paiement: mode ?? "especes",
     // Choix explicite garanti par le gating step1Ok (jamais de défaut silencieux).
     lien_parente: lienParente as LienParente,
+    saison_en_cours: saisonEnCoursChoisie,
     photo_url: files.photo.url,
     fiche_inscription_url: files.fiche_inscription.url,
     certificat_medical_url: files.certificat_medical.url,
@@ -236,6 +252,39 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     <div className="overflow-hidden rounded-[2rem] border border-line bg-white">
       {/* Stepper */}
       <div className="border-b border-line bg-paper-2 px-6 py-5 sm:px-8">
+        <div className="mb-3">
+          <p className="text-sm font-bold uppercase tracking-wide text-orange">
+            Saison {saisonAffichee}
+          </p>
+          {estJuin(now) && (
+            <p className="mt-0.5 text-xs text-smoke">
+              {saisonEnCoursChoisie ? (
+                <>
+                  Inscription pour la saison en cours.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setSaisonEnCoursChoisie(false)}
+                    className="font-semibold text-orange hover:underline"
+                  >
+                    Revenir à la saison {saisonCourante(now)}
+                  </button>
+                </>
+              ) : (
+                <>
+                  Vous souhaitez vous inscrire pour les mois restants de la
+                  saison en cours ?{" "}
+                  <button
+                    type="button"
+                    onClick={() => setSaisonEnCoursChoisie(true)}
+                    className="font-semibold text-orange hover:underline"
+                  >
+                    Basculer sur {saisonQuiSeTermine(now)}
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+        </div>
         <div className="flex items-center justify-between">
           {STEPS.map((s, i) => (
             <div key={s} className="flex flex-1 items-center last:flex-none">

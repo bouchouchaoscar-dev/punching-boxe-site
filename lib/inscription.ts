@@ -1,5 +1,5 @@
 import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
-import { CLUB } from "./constants";
+import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
 import type { NewAdherent } from "./types";
 
 /** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
@@ -28,6 +28,9 @@ export interface InscriptionPayload {
   nb_membres_famille: number;
   mode_paiement: ModePaiement;
   lien_parente: LienParente;
+  // Intention (juin) de s'inscrire pour la saison qui se termine plutôt que la
+  // suivante. La VALEUR de saison est calculée serveur, jamais reçue du client.
+  saison_en_cours?: boolean;
   photo_url?: string | null;
   fiche_inscription_url?: string | null;
   certificat_medical_url?: string | null;
@@ -75,6 +78,14 @@ export function buildAdherentInsert(
     nbMembresFamille: p.nb_membres_famille,
   });
 
+  // Saison attribuée, calculée SERVEUR. L'option "saison qui se termine" n'est
+  // honorée qu'en juin (sinon on garde la saison courante par défaut).
+  const now = new Date();
+  const saison =
+    p.saison_en_cours && estJuin(now)
+      ? saisonQuiSeTermine(now)
+      : saisonCourante(now);
+
   return {
     nom: p.nom.trim(),
     prenom: p.prenom.trim(),
@@ -98,7 +109,7 @@ export function buildAdherentInsert(
     lien_parente: p.lien_parente,
     engage_at: null,
     stripe_payment_intent_id: null,
-    saison: CLUB.saison,
+    saison,
     photo_url: p.photo_url || null,
     fiche_inscription_url: p.fiche_inscription_url || null,
     certificat_medical_url: p.certificat_medical_url || null,

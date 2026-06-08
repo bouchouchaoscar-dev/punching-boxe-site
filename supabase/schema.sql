@@ -198,6 +198,12 @@ create table if not exists public.profiles (
   created_at  timestamptz default now()
 );
 
+-- Migration : saison (la colonne existe déjà ; filet idempotent + valeur par
+-- défaut pour les dossiers sans saison).
+alter table public.adherents add column if not exists saison text;
+update public.adherents set saison = '2026-2027'
+  where saison is null or saison = '';
+
 -- Migration : renommage de la formule « Savate & Forme » → « Savate & Prépa ».
 update public.adherents set package = 'savate_prepa' where package = 'savate_forme';
 alter table public.adherents drop constraint if exists adherents_package_check;
