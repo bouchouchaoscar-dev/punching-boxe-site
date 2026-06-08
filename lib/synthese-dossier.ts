@@ -109,11 +109,16 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
     };
 
   // Préfixe quand le paiement est déjà acquis mais les docs incomplets.
+  // Pour le fractionné, reflète le nombre RÉEL d'échéances réglées (X/N).
+  const fracPrefixe =
+    paidEcheances <= 1
+      ? "Votre 1ère échéance est bien passée. "
+      : `${paidEcheances}/${a.nb_echeances ?? paidEcheances} échéances sont réglées. `;
   const prefixePaye =
     solde || especesOk
       ? "Votre paiement est bien passé. "
       : fracEnCours
-        ? "Votre 1ère échéance est bien passée. "
+        ? fracPrefixe
         : "";
   // Complément espèces ajouté à la phrase (cas orange/action).
   const compEspeces = especesDues ? ` ${RAPPEL_ESPECES_COMP}` : "";
