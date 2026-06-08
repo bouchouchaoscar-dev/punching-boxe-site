@@ -6,31 +6,39 @@
 import { calculerTarif, type PackageType } from "./pricing";
 
 /**
- * Date de fin de saison (30 juin) pour la saison concernée par `date`.
- * Juin → décembre : inscription pour la SAISON À VENIR (se termine le 30 juin
- * de l'année suivante). Janvier → mai : saison en cours (30 juin même année).
+ * Date de fin (30 juin) de la SAISON VISÉE par `date`.
+ * - janv → mai : saison en cours (30 juin même année)
+ * - juin → déc : saison à venir (30 juin année suivante)
+ * - juin + bascule "saison en cours" : la saison qui se termine ce 30 juin.
  */
-export function finSaison(date: Date): Date {
+export function finSaison(date: Date, saisonEnCours = false): Date {
   const y = date.getFullYear();
-  const endYear = date.getMonth() >= 5 ? y + 1 : y; // juin(5)→déc → année suivante
+  const m = date.getMonth();
+  let endYear: number;
+  if (saisonEnCours && m === 5)
+    endYear = y; // juin + bascule : saison qui se termine ce 30 juin
+  else endYear = m >= 5 ? y + 1 : y; // juin→déc → année suivante
   return new Date(endYear, 5, 30);
 }
 
-/** Mois réellement restants jusqu'à la fin de saison (sert au choix des échéances). */
-export function moisRestantsReels(date: Date): number {
-  const fin = finSaison(date);
+/** Mois restants jusqu'au 30 juin de la saison visée (sert au choix des échéances). */
+export function moisRestantsReels(date: Date, saisonEnCours = false): number {
+  const fin = finSaison(date, saisonEnCours);
   return (
     (fin.getFullYear() - date.getFullYear()) * 12 +
     (fin.getMonth() - date.getMonth())
   );
 }
 
-/** Nombre d'échéances autorisées selon les mois restants. */
-export function echeancesAutorisees(date: Date): number[] {
-  const reels = moisRestantsReels(date);
-  if (reels >= 4) return [1, 2, 3, 4];
-  if (reels === 3) return [1, 2, 3];
-  return [1];
+/**
+ * Nombre d'échéances autorisées selon les mois restants jusqu'à la fin de la
+ * saison visée. Comptant (1) toujours disponible.
+ */
+export function echeancesAutorisees(date: Date, saisonEnCours = false): number[] {
+  const reels = moisRestantsReels(date, saisonEnCours);
+  if (reels >= 5) return [1, 2, 3, 4];
+  if (reels >= 3) return [1, 2]; // 4 ou 3 mois → comptant + 2x
+  return [1]; // 2 mois ou moins → comptant
 }
 
 /** Indicateur informatif du mois de saison (1 = sept … 10 = juin ; 0 hors saison). */
@@ -48,16 +56,23 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-/** Dates des échéances, étalées de la date d'inscription jusqu'à fin juin. */
+/**
+ * Dates des échéances sur MOIS CONSÉCUTIFS depuis l'inscription :
+ * mois 0 (immédiat) + mois+1 + … + mois+(n-1). Le jour est clampé au dernier
+ * jour du mois cible (31 janv +1 → 28 févr). Filet : aucune échéance après le
+ * 30 juin de la saison visée.
+ */
 export function datesEcheances(date: Date, n: number): string[] {
   if (n <= 1) return [toISO(date)];
   const fin = finSaison(date);
-  const jours = Math.max(1, Math.round((fin.getTime() - date.getTime()) / 86400000));
-  const interval = Math.floor(jours / n);
+  const day = date.getDate();
   const out: string[] = [];
   for (let i = 0; i < n; i++) {
-    const d = new Date(date.getTime());
-    d.setDate(d.getDate() + interval * i);
+    const y = date.getFullYear();
+    const m = date.getMonth() + i;
+    const dernierJour = new Date(y, m + 1, 0).getDate(); // dernier jour du mois cible
+    let d = new Date(y, m, Math.min(day, dernierJour));
+    if (d.getTime() > fin.getTime()) d = fin; // filet : jamais après le 30 juin
     out.push(toISO(d));
   }
   return out;
@@ -162,7 +177,7 @@ export function devisPourAdherent(
     total: t.total,
     proratise: t.moisFactures < 10,
     moisSaison: moisSaison(dateInscription),
-    echeancesAutorisees: echeancesAutorisees(dateInscription),
+    echeancesAutorisees: echeancesAutorisees(dateInscription, saisonEnCours),
   };
 }
 
