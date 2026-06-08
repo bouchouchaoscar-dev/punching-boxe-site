@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { marquerEcheancePayee, recalculerEtatPaiement } from "@/lib/payments";
-import { devisPourAdherent, planEcheances } from "@/lib/tarifs";
+import { planEcheances } from "@/lib/tarifs";
+import { TARIFS } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -86,10 +87,15 @@ export async function POST(request: Request) {
     invoice_settings: { default_payment_method: pm },
   });
 
-  const date = new Date(adherent.created_at);
   const n = adherent.nb_echeances;
-  const devis = devisPourAdherent(adherent, date);
-  const plan = planEcheances(devis.fractionnable, devis.adhesion, date, n);
+  // Échéancier calculé à partir d'AUJOURD'HUI (le paiement se fait maintenant).
+  // Montants FIGÉS depuis le total déjà stocké (adhésion non fractionnée) :
+  // identique au flux d'inscription (created_at ≈ now) et correct pour la
+  // finalisation d'un dossier ancien.
+  const adhesion = adherent.nouveau_membre ? TARIFS.adhesion : 0;
+  const fractionnable =
+    Math.round((Number(adherent.montant_total) - adhesion) * 100) / 100;
+  const plan = planEcheances(fractionnable, adhesion, new Date(), n);
   const today = plan.dates[0];
 
   const chargerImmediat = async (
@@ -141,8 +147,8 @@ export async function POST(request: Request) {
   };
 
   // 1) Adhésion (30€) — immédiat, 1x séparé, NON fractionnée.
-  if (devis.adhesion > 0) {
-    await chargerImmediat(devis.adhesion, { type: "adhesion" }, null);
+  if (adhesion > 0) {
+    await chargerImmediat(adhesion, { type: "adhesion" }, null);
   }
 
   // 2) 1ère échéance (cotisation proratisée + prépa, répartie) — immédiat.

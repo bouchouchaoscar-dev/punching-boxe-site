@@ -1,5 +1,6 @@
 import type { Adherent } from "./types";
 import { evaluerDossier } from "./dossier";
+import { estEngage } from "./engagement";
 
 // Phrase de synthèse dynamique affichée à l'adhérent (espace client) : croise
 // l'état des DOCUMENTS et du PAIEMENT pour dire où en est le dossier et la
@@ -52,6 +53,7 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
   const docsTousValides = d.statut === "valide"; // 4/4
 
   // ---- État paiement ----
+  const engage = estEngage(a);
   const echec = a.statut_paiement === "echec_paiement";
   const solde = a.statut_paiement === "paye";
   const especesOk = a.statut_paiement === "confirme_especes";
@@ -65,7 +67,8 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
     a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
 
   // ---- Priorité 1 : urgences ----
-  if (echec)
+  // Échec sur un dossier DÉJÀ engagé = une échéance ultérieure a échoué.
+  if (echec && engage)
     return {
       tone: "danger",
       text: "Votre dernier prélèvement a échoué. Merci de régulariser votre paiement pour finaliser votre inscription.",
@@ -76,6 +79,14 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
       text: `Une pièce a été refusée (${refusee.label}). Merci de la redéposer ci-dessous.`,
       // Sur encart rouge, le rappel espèces reste en note douce (non anxiogène).
       rappel: especesDues ? RAPPEL_ESPECES_COMP : undefined,
+    };
+
+  // Paiement non finalisé : carte/fractionné, rien encaissé (abandon ou échec
+  // du 1er paiement). Prioritaire sur la validation des documents.
+  if (!engage && a.mode_paiement.startsWith("stripe"))
+    return {
+      tone: "action",
+      text: "Votre paiement n'a pas été finalisé. Cliquez sur « Finaliser le paiement » ci-dessous pour le régler et valider votre inscription.",
     };
 
   // Préfixe quand le paiement est déjà acquis mais les docs incomplets.

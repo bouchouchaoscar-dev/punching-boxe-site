@@ -7,9 +7,10 @@ import { useAdherentSession } from "@/components/auth/useSession";
 import { getAuthClient } from "@/lib/supabase-auth";
 import { PaiementStatut } from "@/components/admin/StatutBadge";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
+import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
-import { euro, PACKAGE_LABEL } from "@/lib/pricing";
+import { euro, PACKAGE_LABEL, remiseFamillePct } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
@@ -57,6 +58,8 @@ export function MonEspace() {
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState<string | null>(null); // `${id}:${field}`
   const [toast, setToast] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // adherentId
+  const [deleting, setDeleting] = useState(false);
 
   const token = session?.access_token;
 
@@ -134,6 +137,29 @@ export function MonEspace() {
     input.click();
   }
 
+  async function supprimer(adherentId: string) {
+    if (!token) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/mon-espace/${adherentId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setConfirmDelete(null);
+        await loadDossier();
+        showToast("Dossier supprimé.");
+      } else {
+        showToast(data.error || "Suppression impossible.");
+      }
+    } catch {
+      showToast("Erreur réseau pendant la suppression.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function deconnexion() {
     try {
       await getAuthClient().auth.signOut();
@@ -178,6 +204,14 @@ export function MonEspace() {
         <div className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
           {error}
         </div>
+      )}
+
+      {adherents.length > 0 && (
+        <p className="mt-4 border-l-2 border-line pl-3 text-xs leading-relaxed text-smoke">
+          Tant que votre paiement n&apos;a pas été validé (ou vos espèces remises
+          à Pascal), vous pouvez supprimer un dossier pour le recréer, par
+          exemple si vous vous êtes trompé de formule.
+        </p>
       )}
 
       {/* État vide */}
@@ -323,6 +357,12 @@ export function MonEspace() {
                           label="Catégorie"
                           value={a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
                         />
+                        {remiseFamillePct(a.nb_membres_famille) > 0 && (
+                          <Line
+                            label="Réduction famille"
+                            value={`-${remiseFamillePct(a.nb_membres_famille)}%`}
+                          />
+                        )}
                         <Line label="Montant total" value={euro(a.montant_total)} />
                         <Line label="Mode de paiement" value={MODE_LABEL[a.mode_paiement] ?? a.mode_paiement} />
                         <div className="flex items-center justify-between gap-3">
@@ -334,11 +374,45 @@ export function MonEspace() {
                       </dl>
                     </div>
                     </div>
+                    <DossierActions
+                      a={a}
+                      onDelete={() => setConfirmDelete(a.id)}
+                    />
                   </div>
                 )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de confirmation de suppression */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-xl font-extrabold uppercase text-ink">
+              Supprimer ce dossier ?
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              Êtes-vous sûr ? Cette action est définitive.
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                disabled={deleting}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => supprimer(confirmDelete)}
+                disabled={deleting}
+                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Suppression…" : "Confirmer la suppression"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -358,6 +432,38 @@ export function MonEspace() {
         </div>
       )}
     </section>
+  );
+}
+
+function DossierActions({
+  a,
+  onDelete,
+}: {
+  a: Adherent;
+  onDelete: () => void;
+}) {
+  // Dossier engagé (1er paiement validé) → verrouillé, aucune action.
+  if (estEngage(a)) return null;
+  const especesAttente =
+    a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
+  return (
+    <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+      {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}
+      {!especesAttente && (
+        <Link
+          href={`/inscription/finaliser/${a.id}`}
+          className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+        >
+          Finaliser le paiement
+        </Link>
+      )}
+      <button
+        onClick={onDelete}
+        className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+      >
+        Supprimer ce dossier
+      </button>
+    </div>
   );
 }
 
