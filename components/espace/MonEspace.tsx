@@ -360,7 +360,15 @@ export function MonEspace() {
   );
 }
 
-function SyntheseEncart({ text, tone }: { text: string; tone: SyntheseTone }) {
+function SyntheseEncart({
+  text,
+  tone,
+  rappel,
+}: {
+  text: string;
+  tone: SyntheseTone;
+  rappel?: string;
+}) {
   const map: Record<SyntheseTone, { cls: string; icon: string }> = {
     success: { cls: "border-green-200 bg-green-50", icon: "🎉" },
     info: { cls: "border-line bg-paper-2", icon: "📩" },
@@ -371,7 +379,15 @@ function SyntheseEncart({ text, tone }: { text: string; tone: SyntheseTone }) {
   return (
     <div className={`flex items-start gap-3 rounded-2xl border p-4 ${m.cls}`}>
       <span className="text-xl leading-none">{m.icon}</span>
-      <p className="text-sm font-semibold leading-relaxed text-ink">{text}</p>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold leading-relaxed text-ink">{text}</p>
+        {rappel && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-smoke">
+            <span aria-hidden>💶</span>
+            {rappel}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

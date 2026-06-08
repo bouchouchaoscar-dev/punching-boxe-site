@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/Toggle";
-import { NumberStepper } from "@/components/ui/NumberStepper";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { ButtonAction } from "@/components/ui/Button";
 import { FileDrop, type FileFieldKey } from "./FileDrop";
@@ -93,6 +92,23 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
   // Stripe
   const [plan, setPlan] = useState<StripePlan | null>(null);
+
+  // Remise famille AUTO : on récupère le nombre de dossiers déjà rattachés au
+  // compte → aperçu de prix juste (le serveur recompte et fait foi à la création).
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/mon-espace/count", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.count === "number") setNbFamille(d.count);
+      })
+      .catch(() => {
+        /* fallback : nbFamille reste 0 (aucune remise affichée) */
+      });
+  }, [token]);
 
   const tarif = useMemo(
     () =>
@@ -417,21 +433,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </div>
                 )}
 
-                <div className="rounded-xl border border-line bg-white p-4">
-                  <p className="font-semibold text-ink">
-                    Membres de votre famille déjà inscrits
+                {tarif.remisePct > 0 && (
+                  <p className="text-sm font-semibold text-orange">
+                    Ce dossier est le {nbFamille + 1}e membre de votre foyer :
+                    −{tarif.remisePct}% appliqués automatiquement sur la cotisation.
                   </p>
-                  <p className="mt-0.5 mb-3 text-xs text-smoke">
-                    La réduction s&apos;applique à partir du 3ème membre, sur la
-                    cotisation uniquement.
-                  </p>
-                  <NumberStepper value={nbFamille} onChange={setNbFamille} min={0} max={4} />
-                  {tarif.remisePct > 0 && (
-                    <p className="mt-3 text-sm font-semibold text-orange">
-                      Vous bénéficiez de −{tarif.remisePct}% sur la cotisation.
-                    </p>
-                  )}
-                </div>
+                )}
                 <LivePrice tarif={tarif} />
               </div>
             )}

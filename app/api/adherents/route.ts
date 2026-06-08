@@ -40,11 +40,24 @@ export async function POST(request: Request) {
   const err = validatePayload(payload);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
+  const supabase = getSupabaseAdmin();
+
+  // Remise famille AUTOMATIQUE : le rang = nombre de dossiers déjà rattachés
+  // au titulaire (tous statuts, tous liens) + lui-même. On ignore toute valeur
+  // nb_membres_famille envoyée par le client. Comptage en échec → 0 (sûr).
+  const { count: nbFoyer, error: cntErr } = await supabase
+    .from("adherents")
+    .select("id", { count: "exact", head: true })
+    .eq("titulaire_id", user.id);
+  const payloadAuto = {
+    ...payload,
+    nb_membres_famille: cntErr ? 0 : nbFoyer ?? 0,
+  };
+
   // Espèces → en_attente ; paiement carte traité via create-payment-intent.
   // titulaire_id = user.id (jamais une valeur fournie par le client).
-  const record = buildAdherentInsert(payload, "en_attente", user.id);
+  const record = buildAdherentInsert(payloadAuto, "en_attente", user.id);
 
-  const supabase = getSupabaseAdmin();
   let { data, error } = await supabase
     .from("adherents")
     .insert(record)

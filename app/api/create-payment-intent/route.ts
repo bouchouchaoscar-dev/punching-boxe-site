@@ -43,8 +43,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Mode de paiement non Stripe." }, { status: 400 });
   }
 
+  const supabase = getSupabaseAdmin();
+
+  // Remise famille AUTOMATIQUE : rang = nombre de dossiers déjà rattachés au
+  // titulaire (tous statuts, tous liens) + lui-même. Valeur client ignorée ;
+  // comptage en échec → 0 (dégradation sûre).
+  const { count: nbFoyer, error: cntErr } = await supabase
+    .from("adherents")
+    .select("id", { count: "exact", head: true })
+    .eq("titulaire_id", user.id);
+  const payloadAuto = {
+    ...payload,
+    nb_membres_famille: cntErr ? 0 : nbFoyer ?? 0,
+  };
+
   const now = new Date();
-  const devis = devisPourAdherent(payload, now);
+  const devis = devisPourAdherent(payloadAuto, now);
   const n = nbEcheances(payload.mode_paiement);
 
   // Sécurité : l'échéancier demandé doit être autorisé pour cette date.
@@ -59,13 +73,11 @@ export async function POST(request: Request) {
 
   // Adhérent (montant proratisé recalculé côté serveur).
   const record = {
-    ...buildAdherentInsert(payload, "en_attente", user.id),
+    ...buildAdherentInsert(payloadAuto, "en_attente", user.id),
     montant_total: devis.total,
     nb_echeances: n,
     prochaine_echeance: n > 1 ? plan.dates[1] : null,
   };
-
-  const supabase = getSupabaseAdmin();
   let { data: adherent, error: insErr } = await supabase
     .from("adherents")
     .insert(record)

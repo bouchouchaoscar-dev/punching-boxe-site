@@ -34,6 +34,13 @@ export default function InscriptionPage() {
             <p className="mt-3 text-smoke">
               Le tarif se calcule automatiquement selon votre profil.
             </p>
+            <div className="mt-5 rounded-xl border border-orange/30 bg-orange-50 p-4 text-sm leading-relaxed text-ink">
+              <span className="font-semibold">👪 Plusieurs membres de votre famille ?</span>{" "}
+              Créez un seul compte, puis ajoutez chaque dossier depuis votre
+              espace adhérent, la réduction famille est appliquée automatiquement
+              (−10 % dès le 3e membre, −15 % au 4e, −20 % au 5e, sur la
+              cotisation).
+            </div>
           </Reveal>
 
           <div className="mt-8">
