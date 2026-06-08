@@ -258,7 +258,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       {/* Stepper */}
       <div className="border-b border-line bg-paper-2 px-6 py-5 sm:px-8">
         <div className="mb-3">
-          <p className="text-sm font-bold uppercase tracking-wide text-orange">
+          <p className="font-display text-xl font-extrabold uppercase tracking-tight text-orange sm:text-2xl">
             Saison {saisonAffichee}
           </p>
           {estJuin(now) && (
