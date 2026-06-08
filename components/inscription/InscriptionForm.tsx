@@ -289,7 +289,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                       onChange={(e) =>
                         setLienParente(e.target.value as LienParente | "")
                       }
-                      className="w-full rounded-xl border border-line bg-paper-2 px-4 py-4 text-ink outline-none transition-colors focus:border-ink/40"
+                      className="w-full appearance-none rounded-xl border border-line bg-paper-2 px-4 py-3 pr-10 text-ink outline-none transition-colors focus:border-ink/40"
+                      style={{
+                        backgroundImage:
+                          "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2399a0aa' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+                        backgroundRepeat: "no-repeat",
+                        backgroundPosition: "right 0.85rem center",
+                        backgroundSize: "1.1rem",
+                      }}
                     >
                       <option value="" disabled>
                         Choisissez…
