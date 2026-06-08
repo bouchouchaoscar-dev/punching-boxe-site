@@ -289,7 +289,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                       onChange={(e) =>
                         setLienParente(e.target.value as LienParente | "")
                       }
-                      className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3.5 text-ink outline-none transition-colors focus:border-orange"
+                      className="w-full rounded-xl border border-line bg-paper-2 px-4 py-4 text-ink outline-none transition-colors focus:border-ink/40"
                     >
                       <option value="" disabled>
                         Choisissez…
