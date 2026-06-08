@@ -271,8 +271,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 </>
               ) : (
                 <>
-                  Vous souhaitez vous inscrire pour les mois restants de la
-                  saison en cours ?{" "}
+                  Vous souhaitez vous inscrire pour le mois de juin restant de
+                  la saison en cours ?{" "}
                   <button
                     type="button"
                     onClick={() => setSaisonEnCoursChoisie(true)}
