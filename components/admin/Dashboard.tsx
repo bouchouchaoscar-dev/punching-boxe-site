@@ -14,15 +14,14 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useAdherents } from "./useAdherents";
+import { useSaisonAdmin, ALL_SAISONS } from "./SaisonContext";
 import { euro } from "@/lib/pricing";
-import { CLUB } from "@/lib/constants";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
 
 export function Dashboard() {
-  const { adherents, loading, error } = useAdherents();
+  const { adherents, loading, error, selectedSaison } = useSaisonAdmin();
 
   const data = useMemo(() => {
     const paid = adherents.filter(
@@ -55,11 +54,15 @@ export function Dashboard() {
       "Juil", "Août", "Sept", "Oct", "Nov", "Déc",
       "Janv", "Févr", "Mars", "Avril", "Mai", "Juin",
     ];
-    // Saison sportive EN COURS déduite de la date du jour (Juil→Juin) :
-    // avant juillet on est encore dans la saison démarrée l'année précédente.
-    // → garantit que les inscriptions du mois réel (created_at) tombent dans la fenêtre.
+    // Année de départ de la saison AFFICHÉE (suit le sélecteur). Pour une saison
+    // "AAAA-BBBB", l'année de départ est AAAA. En mode "toutes saisons", on se
+    // cale sur la saison en cours (graphe = fenêtre courante par défaut).
     const seasonStartYear =
-      now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+      selectedSaison !== ALL_SAISONS && /^\d{4}-\d{4}$/.test(selectedSaison)
+        ? parseInt(selectedSaison.slice(0, 4), 10)
+        : now.getMonth() >= 6
+          ? now.getFullYear()
+          : now.getFullYear() - 1;
     const months = SEASON_LABELS.map((label, idx) => {
       const monthIndex = (6 + idx) % 12; // 0→Juil(6) … 6→Janv(0)
       const year = idx <= 5 ? seasonStartYear : seasonStartYear + 1;
@@ -116,7 +119,7 @@ export function Dashboard() {
       repartitionMode,
       repartitionFormule,
     };
-  }, [adherents]);
+  }, [adherents, selectedSaison]);
 
   if (loading) {
     return (
@@ -133,7 +136,11 @@ export function Dashboard() {
           <h1 className="font-display text-4xl font-black uppercase text-ink">
             Tableau de bord
           </h1>
-          <p className="mt-1 text-smoke">Saison {CLUB.saison}</p>
+          <p className="mt-1 text-smoke">
+            {selectedSaison === ALL_SAISONS
+              ? "Toutes les saisons"
+              : `Saison ${selectedSaison}`}
+          </p>
         </div>
       </div>
 

@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAdherents } from "./useAdherents";
+import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
 import { euro } from "@/lib/pricing";
 import { evaluerDossier } from "@/lib/dossier";
 import type { Adherent } from "@/lib/types";
 
 export function AdherentsTable() {
-  const { adherents, loading, error, refresh } = useAdherents();
+  const { adherents, loading, error, refresh } = useSaisonAdmin();
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
   const [statut, setStatut] = useState("all");

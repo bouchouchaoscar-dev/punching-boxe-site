@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { setAdminSession } from "@/lib/admin-auth";
+import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
@@ -23,6 +24,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <SaisonProvider>
     <div className="min-h-screen bg-paper-2 lg:flex">
       {/* Sidebar */}
       <aside
@@ -32,6 +34,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       >
         <div className="flex items-center overflow-hidden border-b border-line px-5 pb-5 pt-6">
           <Logo size="sm" gapClassName="gap-2" />
+        </div>
+        {/* Sélecteur de saison (desktop + tiroir mobile) */}
+        <div className="border-b border-line px-4 py-4">
+          <SaisonSelect className="w-full" />
         </div>
         <nav className="space-y-1 p-4">
           {NAV.map((n) => {
@@ -82,21 +88,25 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-line bg-white/80 px-5 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-line bg-white/80 px-4 backdrop-blur lg:hidden">
           <Logo />
-          <button
-            onClick={() => setOpen(true)}
-            aria-label="Menu"
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-line"
-          >
-            <Icon name="grid" />
-          </button>
+          <div className="flex items-center gap-2">
+            <SaisonSelect />
+            <button
+              onClick={() => setOpen(true)}
+              aria-label="Menu"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-line"
+            >
+              <Icon name="grid" />
+            </button>
+          </div>
         </header>
         <main className="container-px mx-auto max-w-6xl py-8 sm:py-10">
           {children}
         </main>
       </div>
     </div>
+    </SaisonProvider>
   );
 }
 

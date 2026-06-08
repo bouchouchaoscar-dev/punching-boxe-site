@@ -11,6 +11,7 @@ import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { euro, PACKAGE_LABEL, remiseFamillePct } from "@/lib/pricing";
+import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
@@ -54,6 +55,7 @@ export function MonEspace() {
   const [adherents, setAdherents] = useState<Adherent[]>([]);
   const [paidMap, setPaidMap] = useState<Record<string, number>>({});
   const [openId, setOpenId] = useState<string | null>(null);
+  const [saisonTab, setSaisonTab] = useState<string | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState<string | null>(null); // `${id}:${field}`
@@ -81,8 +83,17 @@ export function MonEspace() {
       const list: Adherent[] = data.adherents ?? [];
       setAdherents(list);
       setPaidMap(data.paidEcheances ?? {});
-      // Ouvre le premier dossier par défaut (accordéon).
-      setOpenId((cur) => cur ?? list[0]?.id ?? null);
+      // Cartes FERMÉES par défaut (pas d'ouverture automatique).
+      // Onglet saison par défaut = saison courante si présente, sinon la plus récente.
+      setSaisonTab((cur) => {
+        if (cur) return cur;
+        const dispo = [...new Set(list.map((a) => a.saison).filter(Boolean))]
+          .sort()
+          .reverse() as string[];
+        if (dispo.length === 0) return null;
+        const courante = saisonCourante(new Date());
+        return dispo.includes(courante) ? courante : dispo[0];
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
     } finally {
@@ -177,6 +188,18 @@ export function MonEspace() {
   }
   if (!session) return null; // redirection en cours
 
+  // Saisons présentes dans le foyer (triées, plus récente en 1er).
+  const saisonsDispo = [...new Set(adherents.map((a) => a.saison).filter(Boolean))]
+    .sort()
+    .reverse() as string[];
+  // Onglets seulement si le foyer a des dossiers sur PLUSIEURS saisons.
+  const afficherOnglets = saisonsDispo.length > 1;
+  // Dossiers affichés = ceux de la saison active (ou tous s'il n'y a qu'une saison).
+  const dossiersVisibles =
+    afficherOnglets && saisonTab
+      ? adherents.filter((a) => a.saison === saisonTab)
+      : adherents;
+
   return (
     <section className="container-px mx-auto max-w-4xl pt-28 pb-20">
       {/* Header */}
@@ -214,6 +237,37 @@ export function MonEspace() {
         </p>
       )}
 
+      {/* Onglets de saison (seulement si plusieurs saisons dans le foyer) */}
+      {afficherOnglets && (
+        <div
+          className="mt-8 -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
+          role="tablist"
+          aria-label="Saisons"
+        >
+          {saisonsDispo.map((s) => {
+            const actif = s === saisonTab;
+            return (
+              <button
+                key={s}
+                role="tab"
+                aria-selected={actif}
+                onClick={() => {
+                  setSaisonTab(s);
+                  setOpenId(null);
+                }}
+                className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+                  actif
+                    ? "bg-ink text-white"
+                    : "border border-line bg-white text-ink/70 hover:text-ink"
+                }`}
+              >
+                Saison {s}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* État vide */}
       {adherents.length === 0 ? (
         <div className="mt-10 rounded-[1.5rem] border border-dashed border-line bg-white p-10 text-center">
@@ -233,7 +287,7 @@ export function MonEspace() {
         </div>
       ) : (
         <div className="mt-10 space-y-4">
-          {adherents.map((a) => {
+          {dossiersVisibles.map((a) => {
             const dossier = evaluerDossier(a);
             const open = openId === a.id;
             return (

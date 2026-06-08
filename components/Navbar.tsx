@@ -126,7 +126,7 @@ export function Navbar() {
               ))}
               <div className="mt-6 flex flex-col gap-3">
                 {session ? (
-                  <Button href="/mon-espace" size="lg">
+                  <Button href="/mon-espace" size="md">
                     Espace adhérent
                   </Button>
                 ) : (
@@ -134,7 +134,7 @@ export function Navbar() {
                     <Button href="/inscription" size="lg">
                       S&apos;inscrire en ligne
                     </Button>
-                    <Button href={ESPACE_LOGIN} variant="outline" size="lg">
+                    <Button href={ESPACE_LOGIN} variant="outline" size="md">
                       Espace adhérent
                     </Button>
                   </>
