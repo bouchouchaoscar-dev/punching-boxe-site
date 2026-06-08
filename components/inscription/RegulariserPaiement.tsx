@@ -19,6 +19,14 @@ export function RegulariserPaiement({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<StripePlan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  // Après paiement réussi : message clair puis retour automatique à l'espace.
+  useEffect(() => {
+    if (!done) return;
+    const t = window.setTimeout(() => router.push("/mon-espace"), 2800);
+    return () => window.clearTimeout(t);
+  }, [done, router]);
 
   const CONNEXION_REDIRECT =
     "/inscription/connexion?message=" +
@@ -106,6 +114,29 @@ export function RegulariserPaiement({ id }: { id: string }) {
   }
   if (!session) return null;
 
+  if (done) {
+    return (
+      <div className="rounded-[1.5rem] border border-green-200 bg-green-50 p-8 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+          ✅
+        </div>
+        <h1 className="font-display mt-4 text-2xl font-extrabold uppercase text-ink">
+          Paiement réussi
+        </h1>
+        <p className="mx-auto mt-2 max-w-md text-sm text-smoke">
+          Votre échéance a bien été réglée et votre carte est enregistrée pour
+          les prochains prélèvements. Redirection vers votre espace…
+        </p>
+        <Link
+          href="/mon-espace"
+          className="mt-5 inline-block rounded-full bg-orange px-6 py-3 text-sm font-bold text-white hover:bg-orange/90"
+        >
+          Retour à mon espace
+        </Link>
+      </div>
+    );
+  }
+
   if (error && !plan) {
     return (
       <div className="rounded-[1.5rem] border border-line bg-white p-8 text-center">
@@ -151,7 +182,7 @@ export function RegulariserPaiement({ id }: { id: string }) {
             <StripePayment
               plan={plan}
               confirmPath="/api/mon-espace/regulariser/confirm"
-              onSuccess={() => router.push("/mon-espace")}
+              onSuccess={() => setDone(true)}
             />
           </>
         ) : (

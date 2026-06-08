@@ -131,11 +131,17 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
       tone: "success",
       text: "Votre dossier est complet et validé. Pièces validées, paiement réglé : tout est bon pour votre inscription ! 🥊",
     };
-  if (docsTousValides && fracEnCours)
+  if (docsTousValides && fracEnCours) {
+    const n = a.nb_echeances ?? paidEcheances;
+    const part =
+      paidEcheances <= 1
+        ? "votre 1ère échéance est bien passée"
+        : `${paidEcheances}/${n} échéances sont réglées`;
     return {
       tone: "success",
-      text: "Votre dossier est validé ! Votre 1ère échéance est bien passée, les prochaines seront prélevées automatiquement aux dates prévues.",
+      text: `Votre dossier est validé ! ${part[0].toUpperCase()}${part.slice(1)}, les prochaines seront prélevées automatiquement aux dates prévues.`,
     };
+  }
   if (docsTousValides && especesDues)
     return {
       tone: "action",
