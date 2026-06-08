@@ -36,6 +36,7 @@ const STEPS = ["Informations", "Options", "Documents", "Paiement"];
 const LIEN_LABEL: Record<LienParente, string> = {
   moi: "Moi-même",
   enfant: "Mon enfant",
+  frere_soeur: "Frère / sœur",
   conjoint: "Mon conjoint·e",
   autre: "Autre",
 };
@@ -288,10 +289,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                       onChange={(e) =>
                         setLienParente(e.target.value as LienParente | "")
                       }
-                      className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                      className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3.5 text-ink outline-none transition-colors focus:border-orange"
                     >
                       <option value="" disabled>
-                        — Choisissez —
+                        Choisissez…
                       </option>
                       {LIENS_PARENTE.map((l) => (
                         <option key={l} value={l}>

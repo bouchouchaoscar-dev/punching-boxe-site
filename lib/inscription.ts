@@ -3,8 +3,14 @@ import { CLUB } from "./constants";
 import type { NewAdherent } from "./types";
 
 /** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
-export type LienParente = "moi" | "enfant" | "conjoint" | "autre";
-export const LIENS_PARENTE: LienParente[] = ["moi", "enfant", "conjoint", "autre"];
+export type LienParente = "moi" | "enfant" | "frere_soeur" | "conjoint" | "autre";
+export const LIENS_PARENTE: LienParente[] = [
+  "moi",
+  "enfant",
+  "frere_soeur",
+  "conjoint",
+  "autre",
+];
 
 /** Données envoyées par le formulaire d'inscription. */
 export interface InscriptionPayload {
@@ -47,7 +53,7 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.mode_paiement || !modes.includes(p.mode_paiement))
     return "Mode de paiement invalide.";
   if (!p.lien_parente || !LIENS_PARENTE.includes(p.lien_parente))
-    return "Précisez qui concerne ce dossier (vous, enfant, conjoint·e, autre).";
+    return "Précisez qui concerne ce dossier (vous, enfant, frère/sœur, conjoint·e, autre).";
   return null;
 }
 

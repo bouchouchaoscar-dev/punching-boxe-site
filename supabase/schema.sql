@@ -56,7 +56,7 @@ create table if not exists public.adherents (
   vu_par_admin              boolean not null default false,
   -- Refonte "1 compte = N adhérents" : rattachement à un compte titulaire.
   titulaire_id              uuid references auth.users(id) on delete set null,
-  lien_parente              text check (lien_parente in ('moi','enfant','conjoint','autre')),
+  lien_parente              text check (lien_parente in ('moi','enfant','frere_soeur','conjoint','autre')),
   -- Moment d'engagement (1er paiement passé) : posé une seule fois, ne change plus.
   engage_at                 timestamptz
 );
@@ -135,13 +135,24 @@ do $$ begin
 end $$;
 
 -- CHECK : valeurs autorisées pour le lien de parenté (NULL autorisé).
-do $$ begin
-  if not exists (select 1 from pg_constraint where conname = 'adherents_lien_parente_check') then
-    alter table public.adherents
-      add constraint adherents_lien_parente_check
-      check (lien_parente in ('moi','enfant','conjoint','autre'));
-  end if;
+-- Drop robuste de l'ancien CHECK (nom auto-généré quel qu'il soit) puis
+-- recréation à 5 valeurs (ajout de 'frere_soeur').
+do $$
+declare c text;
+begin
+  for c in
+    select conname from pg_constraint
+    where conrelid = 'public.adherents'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike '%lien_parente%'
+  loop
+    execute format('alter table public.adherents drop constraint %I', c);
+  end loop;
 end $$;
+
+alter table public.adherents
+  add constraint adherents_lien_parente_check
+  check (lien_parente in ('moi','enfant','frere_soeur','conjoint','autre'));
 
 -- Migration : élargir le CHECK de statut_paiement pour inclure 'echec_paiement'
 -- (écrit par lib/payments.ts lors d'un échec de prélèvement). Drop robuste de

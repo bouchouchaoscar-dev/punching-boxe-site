@@ -24,6 +24,7 @@ const MODE_LABEL: Record<string, string> = {
 const LIEN_LABEL: Record<LienParente, string> = {
   moi: "Moi",
   enfant: "Mon enfant",
+  frere_soeur: "Frère / sœur",
   conjoint: "Mon conjoint·e",
   autre: "Autre",
 };

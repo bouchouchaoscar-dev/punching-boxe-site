@@ -23,6 +23,7 @@ type MembreFoyer = {
 const LIEN_LABEL_COURT: Record<LienParente, string> = {
   moi: "Titulaire",
   enfant: "Enfant",
+  frere_soeur: "Frère / sœur",
   conjoint: "Conjoint·e",
   autre: "Autre",
 };
@@ -312,7 +313,6 @@ export function FicheAdherent({ id }: { id: string }) {
               <EditableInfo label="Ville" editing={editing} value={form.ville ?? ""} onChange={(v) => setForm({ ...form, ville: v })} display={a.ville ?? "—"} />
               <Info label="Nouveau membre" value={a.nouveau_membre ? "Oui" : "Non"} />
               <Info label="Préparation physique" value={a.option_prepa_physique ? "Oui" : "Non"} />
-              <Info label="Membres famille déjà inscrits" value={String(a.nb_membres_famille)} />
             </dl>
           </div>
 
