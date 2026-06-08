@@ -37,14 +37,42 @@ export type PricingLine = { label: string; amount: number; muted?: boolean };
 export type PricingResult = {
   typeAdherent: TypeAdherent;
   packageType: PackageType;
-  cotisationBase: number;
+  cotisationBase: number; // cotisation annuelle de base (avant prorata/remise)
+  moisFactures: number; // nb de mois facturés (sur 10)
+  cotisationProratisee: number; // base proratisée (avant remise)
   remisePct: number;
   remiseMontant: number;
+  cotisationNette: number; // proratisée − remise famille
   adhesion: number;
   prepa: number;
   total: number;
   lines: PricingLine[];
 };
+
+/**
+ * Nombre de mois facturés (sur une base 10 mois) selon le mois d'inscription.
+ * - sept→déc : 10 (plein) · janv 8 · févr 6,5 · mars 5 · avr 4 · mai 3
+ * - juin : 2 si "saison en cours" (bascule), sinon 10 (saison à venir)
+ * - juil/août : 10 (saison à venir, plein)
+ */
+export function moisFactures(date: Date, saisonEnCours = false): number {
+  const m = date.getMonth();
+  if (m === 5) return saisonEnCours ? 2 : 10; // juin
+  switch (m) {
+    case 0:
+      return 8; // janvier
+    case 1:
+      return 6.5; // février
+    case 2:
+      return 5; // mars
+    case 3:
+      return 4; // avril
+    case 4:
+      return 3; // mai
+    default:
+      return 10; // sept–déc, juil, août : plein
+  }
+}
 
 /**
  * Un « jeune » est né après le 01/01/2013 (moins de 13 ans à la création
@@ -72,20 +100,29 @@ export function remiseFamillePct(nbMembresFamille: number): number {
   return 0;
 }
 
-export function calculerTarif(input: PricingInput): PricingResult {
+export function calculerTarif(
+  input: PricingInput,
+  date: Date,
+  saisonEnCours = false,
+): PricingResult {
   const typeAdherent: TypeAdherent =
     input.typeAdherent ?? deduireType(input.dateNaissance);
 
   const cotisationBase = TARIFS.cotisation[input.packageType][typeAdherent];
 
+  // 1) Prorata sur la cotisation (mois facturés / 10), arrondi à l'euro.
+  const mf = moisFactures(date, saisonEnCours);
+  const cotisationProratisee = Math.round((cotisationBase / 10) * mf);
+
+  // 2) Remise famille APRÈS le prorata, sur la cotisation proratisée.
   const remisePct = remiseFamillePct(input.nbMembresFamille || 0);
-  const remiseMontant = Math.round((cotisationBase * remisePct) / 100);
-  const cotisationNette = cotisationBase - remiseMontant;
+  const remiseMontant = Math.round((cotisationProratisee * remisePct) / 100);
+  const cotisationNette = cotisationProratisee - remiseMontant;
 
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
 
-  // La Préparation Physique n'est facturée (+100€) que dans le package
-  // Boxe Française. Dans Savate & Prépa, elle est incluse (0€).
+  // La Préparation Physique n'est facturée (+100€, JAMAIS proratisée) que dans
+  // le package Boxe Française. Dans Savate & Prépa, elle est incluse (0€).
   const prepa =
     input.packageType === "boxe_classique" && input.optionPrepaPhysique
       ? TARIFS.prepaPhysique
@@ -93,10 +130,13 @@ export function calculerTarif(input: PricingInput): PricingResult {
 
   const total = cotisationNette + adhesion + prepa;
 
+  const moisLabel = String(mf).replace(".", ",");
   const lines: PricingLine[] = [
     {
-      label: `${PACKAGE_LABEL[input.packageType]} (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})`,
-      amount: cotisationBase,
+      label: `${PACKAGE_LABEL[input.packageType]} (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})${
+        mf < 10 ? ` — prorata ${moisLabel}/10 mois` : ""
+      }`,
+      amount: cotisationProratisee,
     },
   ];
   if (remiseMontant > 0) {
@@ -123,8 +163,11 @@ export function calculerTarif(input: PricingInput): PricingResult {
     typeAdherent,
     packageType: input.packageType,
     cotisationBase,
+    moisFactures: mf,
+    cotisationProratisee,
     remisePct,
     remiseMontant,
+    cotisationNette,
     adhesion,
     prepa,
     total,

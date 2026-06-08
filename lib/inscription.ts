@@ -70,21 +70,23 @@ export function buildAdherentInsert(
   // UUID du compte titulaire (auth.users.id), résolu CÔTÉ SERVEUR uniquement.
   titulaireId: string | null = null,
 ): NewAdherent {
-  const tarif = calculerTarif({
-    dateNaissance: p.date_naissance,
-    packageType: p.package,
-    nouveauMembre: p.nouveau_membre,
-    optionPrepaPhysique: p.option_prepa_physique,
-    nbMembresFamille: p.nb_membres_famille,
-  });
-
-  // Saison attribuée, calculée SERVEUR. L'option "saison qui se termine" n'est
-  // honorée qu'en juin (sinon on garde la saison courante par défaut).
+  // Saison + bascule "saison en cours" (juin uniquement), calculées SERVEUR.
+  // Le même drapeau pilote l'attribution de saison ET le prorata (juin = 2 mois).
   const now = new Date();
-  const saison =
-    p.saison_en_cours && estJuin(now)
-      ? saisonQuiSeTermine(now)
-      : saisonCourante(now);
+  const saisonEnCours = !!p.saison_en_cours && estJuin(now);
+  const saison = saisonEnCours ? saisonQuiSeTermine(now) : saisonCourante(now);
+
+  const tarif = calculerTarif(
+    {
+      dateNaissance: p.date_naissance,
+      packageType: p.package,
+      nouveauMembre: p.nouveau_membre,
+      optionPrepaPhysique: p.option_prepa_physique,
+      nbMembresFamille: p.nb_membres_famille,
+    },
+    now,
+    saisonEnCours,
+  );
 
   return {
     nom: p.nom.trim(),

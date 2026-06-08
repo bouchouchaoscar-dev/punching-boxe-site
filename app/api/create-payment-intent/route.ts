@@ -58,7 +58,8 @@ export async function POST(request: Request) {
   };
 
   const now = new Date();
-  const devis = devisPourAdherent(payloadAuto, now);
+  // moisFactures gère lui-même la bascule "juin = 2 mois" ; on transmet le drapeau.
+  const devis = devisPourAdherent(payloadAuto, now, !!payloadAuto.saison_en_cours);
   const n = nbEcheances(payload.mode_paiement);
 
   // Sécurité : l'échéancier demandé doit être autorisé pour cette date.

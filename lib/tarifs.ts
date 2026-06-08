@@ -5,8 +5,6 @@
 
 import { calculerTarif, type PackageType } from "./pricing";
 
-export const MOIS_SAISON_TOTAL = 10;
-
 /**
  * Date de fin de saison (30 juin) pour la saison concernée par `date`.
  * Juin → décembre : inscription pour la SAISON À VENIR (se termine le 30 juin
@@ -25,35 +23,6 @@ export function moisRestantsReels(date: Date): number {
     (fin.getFullYear() - date.getFullYear()) * 12 +
     (fin.getMonth() - date.getMonth())
   );
-}
-
-/**
- * Inscription proratisée ? UNIQUEMENT de janvier à mai.
- * Juin → décembre = tarif PLEIN (saison à venir). Juin n'est jamais proratisé.
- */
-export function estProratise(date: Date): boolean {
-  const m = date.getMonth();
-  return m >= 0 && m <= 4; // janvier(0) … mai(4)
-}
-
-// Mois "bonus" facturés en cas de proratisation, par mois calendaire (janv→mai).
-const BONUS_PAR_MOIS_CAL: Record<number, number> = {
-  0: 7, // janvier
-  1: 6, // février
-  2: 5, // mars
-  3: 4, // avril
-  4: 3, // mai
-};
-
-/** Cotisation due : pleine (juin→déc) ou proratisée (janv→mai). */
-export function cotisationProratisee(
-  cotisationAnnuelle: number,
-  date: Date,
-): number {
-  if (!estProratise(date)) return cotisationAnnuelle;
-  const bonus = BONUS_PAR_MOIS_CAL[date.getMonth()] ?? MOIS_SAISON_TOTAL;
-  const mensuel = cotisationAnnuelle / MOIS_SAISON_TOTAL;
-  return Math.round(bonus * mensuel);
 }
 
 /** Nombre d'échéances autorisées selon les mois restants. */
@@ -159,30 +128,39 @@ export type DevisInput = {
   nb_membres_famille: number;
 };
 
-/** Devis (montant + options) pour un adhérent, à une date d'inscription donnée. */
-export function devisPourAdherent(a: DevisInput, dateInscription: Date): DevisInscription {
-  const t = calculerTarif({
-    dateNaissance: a.date_naissance,
-    packageType: a.package,
-    nouveauMembre: a.nouveau_membre,
-    optionPrepaPhysique: a.option_prepa_physique,
-    nbMembresFamille: a.nb_membres_famille,
-  });
-  const cotisationNette = t.cotisationBase - t.remiseMontant;
-  const cotisation = cotisationProratisee(cotisationNette, dateInscription);
+/**
+ * Devis (montant + options) pour un adhérent, à une date d'inscription donnée.
+ * Source de vérité unique : calculerTarif (prorata → remise famille).
+ */
+export function devisPourAdherent(
+  a: DevisInput,
+  dateInscription: Date,
+  saisonEnCours = false,
+): DevisInscription {
+  const t = calculerTarif(
+    {
+      dateNaissance: a.date_naissance,
+      packageType: a.package,
+      nouveauMembre: a.nouveau_membre,
+      optionPrepaPhysique: a.option_prepa_physique,
+      nbMembresFamille: a.nb_membres_famille,
+    },
+    dateInscription,
+    saisonEnCours,
+  );
   const adhesion = t.adhesion;
   const prepa = t.prepa;
   const supplements = adhesion + prepa;
-  // Tout est fractionné SAUF l'adhésion : cotisation proratisée + prépa physique.
-  const fractionnable = cotisation + prepa;
+  // Tout est fractionné SAUF l'adhésion : cotisation (proratisée + remise) + prépa.
+  const fractionnable = t.cotisationNette + prepa;
   return {
-    cotisation,
+    cotisation: t.cotisationNette,
     adhesion,
     prepa,
     supplements,
     fractionnable,
-    total: cotisation + supplements,
-    proratise: estProratise(dateInscription),
+    total: t.total,
+    proratise: t.moisFactures < 10,
     moisSaison: moisSaison(dateInscription),
     echeancesAutorisees: echeancesAutorisees(dateInscription),
   };

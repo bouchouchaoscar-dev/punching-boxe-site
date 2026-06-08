@@ -128,17 +128,21 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
   const tarif = useMemo(
     () =>
-      calculerTarif({
-        dateNaissance,
-        packageType,
-        nouveauMembre,
-        optionPrepaPhysique: prepa,
-        nbMembresFamille: nbFamille,
-      }),
-    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille],
+      calculerTarif(
+        {
+          dateNaissance,
+          packageType,
+          nouveauMembre,
+          optionPrepaPhysique: prepa,
+          nbMembresFamille: nbFamille,
+        },
+        now,
+        saisonEnCoursChoisie,
+      ),
+    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille, now, saisonEnCoursChoisie],
   );
 
-  // Devis proratisé (selon la date du jour) + échéances autorisées.
+  // Devis proratisé (selon la date de référence) + échéances autorisées.
   const devis = useMemo(
     () =>
       devisPourAdherent(
@@ -149,9 +153,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           option_prepa_physique: prepa,
           nb_membres_famille: nbFamille,
         },
-        new Date(),
+        now,
+        saisonEnCoursChoisie,
       ),
-    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille],
+    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille, now, saisonEnCoursChoisie],
   );
 
   const payload = (): InscriptionPayload => ({
