@@ -108,7 +108,11 @@ export async function recalculerEtatPaiement(adherentId: string) {
       prochaine_echeance: prochaine,
       ...(devientEngage ? { engage_at: new Date().toISOString() } : {}),
       ...(complet
-        ? { statut_paiement: "paye", derniere_erreur_stripe: null }
+        ? {
+            statut_paiement: "paye",
+            derniere_erreur_stripe: null,
+            derniere_erreur_code: null,
+          }
         : {}),
     })
     .eq("id", adherentId);
@@ -176,7 +180,11 @@ export async function nettoyerStatutEchec(adherentId: string): Promise<void> {
   if ((count ?? 0) === 0) {
     await supabase
       .from("adherents")
-      .update({ statut_paiement: "en_attente", derniere_erreur_stripe: null })
+      .update({
+        statut_paiement: "en_attente",
+        derniere_erreur_stripe: null,
+        derniere_erreur_code: null,
+      })
       .eq("id", adherentId);
   }
 }
@@ -219,11 +227,12 @@ export async function appliquerRegularisation(
 export async function marquerEcheanceEchec(
   paymentIntentId: string,
   message: string,
+  code?: string | null,
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
   const { data: paiement } = await supabase
     .from("paiements")
-    .select("id, adherent_id, montant, date_prevue")
+    .select("id, adherent_id, montant, date_prevue, numero_echeance")
     .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
   if (!paiement) return;
@@ -232,11 +241,12 @@ export async function marquerEcheanceEchec(
     .from("adherents")
     .update({
       derniere_erreur_stripe: message,
+      derniere_erreur_code: code ?? null,
       statut_paiement: "echec_paiement",
     })
     .eq("id", paiement.adherent_id);
 
-  // Email à l'adhérent.
+  // Email à l'adhérent, adapté à la famille de l'échec.
   const { data: adh } = await supabase
     .from("adherents")
     .select("prenom, email")
@@ -249,6 +259,8 @@ export async function marquerEcheanceEchec(
         email: adh.email,
         montant: Number(paiement.montant || 0),
         date: paiement.date_prevue,
+        numero: paiement.numero_echeance,
+        code: code ?? null,
       });
     } catch (e) {
       console.error("Email échec paiement:", e);
@@ -323,9 +335,17 @@ export async function chargerEcheance(
   } catch (e) {
     const err = e as {
       message?: string;
-      raw?: { payment_intent?: { id?: string } };
+      code?: string;
+      decline_code?: string;
+      raw?: { payment_intent?: { id?: string }; code?: string; decline_code?: string };
     };
     const message = err?.message || "Échec du prélèvement.";
+    const code =
+      err?.decline_code ||
+      err?.raw?.decline_code ||
+      err?.code ||
+      err?.raw?.code ||
+      null;
     const piId = err?.raw?.payment_intent?.id;
     await supabase
       .from("paiements")
@@ -335,6 +355,7 @@ export async function chargerEcheance(
       .from("adherents")
       .update({
         derniere_erreur_stripe: message,
+        derniere_erreur_code: code,
         statut_paiement: "echec_paiement",
       })
       .eq("id", a.id);
@@ -345,6 +366,8 @@ export async function chargerEcheance(
           email: a.email,
           montant: Number(p.montant || 0),
           date: p.date_prevue,
+          numero: p.numero_echeance,
+          code,
         });
       } catch (mailErr) {
         console.error("Email échec paiement:", mailErr);

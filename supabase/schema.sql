@@ -53,6 +53,7 @@ create table if not exists public.adherents (
   echeances_payees          integer default 0,
   prochaine_echeance        date,
   derniere_erreur_stripe    text,
+  derniere_erreur_code      text,
   vu_par_admin              boolean not null default false,
   -- Refonte "1 compte = N adhérents" : rattachement à un compte titulaire.
   titulaire_id              uuid references auth.users(id) on delete set null,
@@ -112,7 +113,8 @@ alter table public.adherents
   add column if not exists nb_echeances integer default 1,
   add column if not exists echeances_payees integer default 0,
   add column if not exists prochaine_echeance date,
-  add column if not exists derniere_erreur_stripe text;
+  add column if not exists derniere_erreur_stripe text,
+  add column if not exists derniere_erreur_code text;
 
 -- Migration : badge "Nouveau" (l'admin a-t-il déjà consulté la fiche ?).
 alter table public.adherents

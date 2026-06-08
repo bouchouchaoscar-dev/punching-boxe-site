@@ -132,6 +132,7 @@ export function buildAdherentInsert(
     echeances_payees: 0,
     prochaine_echeance: null,
     derniere_erreur_stripe: null,
+    derniere_erreur_code: null,
     vu_par_admin: false,
   };
 }
@@ -156,6 +157,7 @@ export const OPTIONAL_DOC_COLUMNS = [
   "echeances_payees",
   "prochaine_echeance",
   "derniere_erreur_stripe",
+  "derniere_erreur_code",
   "vu_par_admin",
   "engage_at",
 ] as const;

@@ -50,7 +50,11 @@ export async function POST(request: Request) {
       const intent = event.data.object as Stripe.PaymentIntent;
       const message =
         intent.last_payment_error?.message || "Le paiement a échoué.";
-      await marquerEcheanceEchec(intent.id, message);
+      const code =
+        intent.last_payment_error?.decline_code ||
+        intent.last_payment_error?.code ||
+        null;
+      await marquerEcheanceEchec(intent.id, message, code);
       break;
     }
     case "setup_intent.succeeded": {

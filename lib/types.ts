@@ -49,6 +49,9 @@ export interface Adherent {
   echeances_payees: number;
   prochaine_echeance: string | null;
   derniere_erreur_stripe: string | null;
+  // Code Stripe brut du dernier échec (decline_code, à défaut code) pour brancher
+  // le parcours différencié (provision / carte morte / autre).
+  derniere_erreur_code: string | null;
   // Badge "Nouveau" : passe à true dès que l'admin ouvre la fiche.
   vu_par_admin: boolean;
   // Refonte "1 compte = N adhérents" : compte titulaire + lien de parenté.

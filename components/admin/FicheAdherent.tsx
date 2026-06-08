@@ -7,6 +7,7 @@ import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
+import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
@@ -521,20 +522,27 @@ function PaiementsCard({
       {echec && (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="text-sm font-bold text-red-700">
-            ⚠️ Échec de paiement
+            ⚠️ Échec, {libelleEchecAdmin(adherent.derniere_erreur_code)}
           </p>
           {adherent.derniere_erreur_stripe && (
             <p className="mt-1 text-xs text-red-700">
               {adherent.derniere_erreur_stripe}
             </p>
           )}
-          <button
-            onClick={onRelance}
-            disabled={relancing}
-            className="mt-3 rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-          >
-            {relancing ? "Relance…" : "Relancer le paiement"}
-          </button>
+          {familleEchec(adherent.derniere_erreur_code) === "carte_morte" ? (
+            <p className="mt-3 text-xs font-semibold text-red-700">
+              Carte invalide : retenter sur la même carte échouera. L&apos;adhérent
+              doit régulariser lui-même avec une nouvelle carte depuis son espace.
+            </p>
+          ) : (
+            <button
+              onClick={onRelance}
+              disabled={relancing}
+              className="mt-3 rounded-full bg-red-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+            >
+              {relancing ? "Prélèvement…" : "Retenter le prélèvement"}
+            </button>
+          )}
         </div>
       )}
 

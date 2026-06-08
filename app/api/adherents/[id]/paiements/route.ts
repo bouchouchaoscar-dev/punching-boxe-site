@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
+import { familleEchec } from "@/lib/stripe-erreurs";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,8 @@ export async function GET(_req: Request, { params }: Ctx) {
   return NextResponse.json({ paiements: data ?? [] });
 }
 
-// POST — relance le prochain prélèvement en attente / en échec.
+// POST — retente le prélèvement d'une échéance en ÉCHEC ou DUE (date prévue
+// atteinte). Ne prélève JAMAIS une échéance future en avance.
 export async function POST(_req: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isStripeConfigured() || !isSupabaseConfigured()) {
@@ -33,18 +35,44 @@ export async function POST(_req: Request, { params }: Ctx) {
   }
   const supabase = getSupabaseAdmin();
 
-  // Prochaine échéance non réglée (échec d'abord, puis en attente).
+  // Carte invalide (carte morte) : retenter la même carte échouera, c'est à
+  // l'adhérent de régulariser avec une nouvelle carte.
+  const { data: adh } = await supabase
+    .from("adherents")
+    .select("derniere_erreur_code")
+    .eq("id", id)
+    .single();
+  if (familleEchec(adh?.derniere_erreur_code) === "carte_morte") {
+    return NextResponse.json(
+      {
+        error:
+          "Carte invalide : l'adhérent doit régulariser lui-même avec une nouvelle carte.",
+      },
+      { status: 409 },
+    );
+  }
+
+  // Échéances non réglées, échec d'abord puis par numéro.
+  const today = new Date().toISOString().slice(0, 10);
   const { data: rows } = await supabase
     .from("paiements")
-    .select("id, statut, numero_echeance")
+    .select("id, statut, numero_echeance, date_prevue")
     .eq("adherent_id", id)
     .neq("statut", "paye")
     .not("numero_echeance", "is", null)
     .order("numero_echeance", { ascending: true });
 
-  const cible = (rows ?? [])[0];
+  // Cible = en échec, OU en attente dont la date prévue est atteinte. Jamais future.
+  const cible = (rows ?? []).find(
+    (r) =>
+      r.statut === "echec" ||
+      (r.statut === "en_attente" && (r.date_prevue ?? "") <= today),
+  );
   if (!cible) {
-    return NextResponse.json({ error: "Aucune échéance à relancer." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Aucune échéance due à retenter." },
+      { status: 404 },
+    );
   }
 
   // On réinitialise pour forcer un nouveau PaymentIntent.

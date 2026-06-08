@@ -86,6 +86,7 @@ export async function POST(request: Request) {
         stripe_payment_intent_id: null,
         stripe_setup_intent_id: null,
         derniere_erreur_stripe: null,
+        derniere_erreur_code: null,
       })
       .eq("id", adherentId);
     return NextResponse.json({ intentType: "especes", adherentId });
@@ -143,6 +144,7 @@ export async function POST(request: Request) {
           stripe_payment_intent_id: intent.id,
           stripe_setup_intent_id: null,
           derniere_erreur_stripe: null,
+          derniere_erreur_code: null,
         })
         .eq("id", adherentId);
       await supabase.from("paiements").insert({
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
         stripe_setup_intent_id: setupIntent.id,
         stripe_payment_intent_id: null,
         derniere_erreur_stripe: null,
+        derniere_erreur_code: null,
       })
       .eq("id", adherentId);
     return NextResponse.json({

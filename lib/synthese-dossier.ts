@@ -1,6 +1,7 @@
 import type { Adherent } from "./types";
 import { evaluerDossier } from "./dossier";
 import { estEngage } from "./engagement";
+import { familleEchec } from "./stripe-erreurs";
 
 // Phrase de synthèse dynamique affichée à l'adhérent (espace client) : croise
 // l'état des DOCUMENTS et du PAIEMENT pour dire où en est le dossier et la
@@ -68,11 +69,26 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
 
   // ---- Priorité 1 : urgences ----
   // Échec sur un dossier DÉJÀ engagé = une échéance ultérieure a échoué.
-  if (echec && engage)
+  // Message adapté à la cause Stripe (provision / carte morte / autre).
+  if (echec && engage) {
+    // Les échéances se règlent dans l'ordre : la 1re non payée est celle en échec.
+    const n = paidEcheances + 1;
+    const famille = familleEchec(a.derniere_erreur_code);
+    if (famille === "provision")
+      return {
+        tone: "danger",
+        text: `Votre prélèvement (échéance ${n}) n'a pas abouti par manque de provision. Réalimentez votre compte, le prélèvement sera représenté.`,
+      };
+    if (famille === "carte_morte")
+      return {
+        tone: "danger",
+        text: "Votre carte n'est plus valide. Régularisez avec une nouvelle carte pour reprendre votre échéancier.",
+      };
     return {
       tone: "danger",
-      text: "Votre dernier prélèvement a échoué. Merci de régulariser votre paiement pour finaliser votre inscription.",
+      text: `Votre dernier prélèvement (échéance ${n}) n'a pas abouti. Merci de régulariser votre paiement.`,
     };
+  }
   if (refusee)
     return {
       tone: "danger",

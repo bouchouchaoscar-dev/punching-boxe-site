@@ -126,7 +126,18 @@ export async function POST(request: Request) {
       if (pi.status === "succeeded") await marquerEcheancePayee(pi.id);
       return pi.status === "succeeded";
     } catch (e) {
-      const err = e as { message?: string; raw?: { payment_intent?: { id?: string } } };
+      const err = e as {
+        message?: string;
+        code?: string;
+        decline_code?: string;
+        raw?: { payment_intent?: { id?: string }; code?: string; decline_code?: string };
+      };
+      const code =
+        err?.decline_code ||
+        err?.raw?.decline_code ||
+        err?.code ||
+        err?.raw?.code ||
+        null;
       await supabase.from("paiements").insert({
         adherent_id: adherent.id,
         stripe_payment_intent_id: err?.raw?.payment_intent?.id ?? null,
@@ -139,6 +150,7 @@ export async function POST(request: Request) {
         .from("adherents")
         .update({
           derniere_erreur_stripe: err?.message ?? "Échec du prélèvement.",
+          derniere_erreur_code: code,
           statut_paiement: "echec_paiement",
         })
         .eq("id", adherent.id);
