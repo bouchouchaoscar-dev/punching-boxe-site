@@ -130,12 +130,9 @@ export function calculerTarif(
 
   const total = cotisationNette + adhesion + prepa;
 
-  const moisLabel = String(mf).replace(".", ",");
   const lines: PricingLine[] = [
     {
-      label: `${PACKAGE_LABEL[input.packageType]} (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})${
-        mf < 10 ? ` — prorata ${moisLabel}/10 mois` : ""
-      }`,
+      label: `${PACKAGE_LABEL[input.packageType]} (${typeAdherent === "jeune" ? "Jeune" : "Adulte"})`,
       amount: cotisationProratisee,
     },
   ];

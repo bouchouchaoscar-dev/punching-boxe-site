@@ -269,7 +269,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   <button
                     type="button"
                     onClick={() => setSaisonEnCoursChoisie(false)}
-                    className="font-semibold text-orange hover:underline"
+                    className="inline font-semibold text-orange hover:underline"
                   >
                     Revenir à la saison {saisonCourante(now)}
                   </button>
@@ -281,7 +281,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   <button
                     type="button"
                     onClick={() => setSaisonEnCoursChoisie(true)}
-                    className="font-semibold text-orange hover:underline"
+                    className="inline font-semibold text-orange hover:underline"
                   >
                     Basculer sur {saisonQuiSeTermine(now)}
                   </button>
@@ -858,6 +858,12 @@ function LivePrice({
           {euro(tarif.total)}
         </span>
       </div>
+      {tarif.moisFactures < 10 && (
+        <p className="mt-3 text-xs leading-relaxed text-smoke">
+          Tarif calculé automatiquement selon votre mois d&apos;inscription
+          (dégressivité appliquée en cours de saison).
+        </p>
+      )}
     </div>
   );
 }
