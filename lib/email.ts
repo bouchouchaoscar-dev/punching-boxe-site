@@ -252,6 +252,7 @@ export async function sendPaiementEchec(d: {
   montant: number;
   date?: string | null;
   numero?: number | null;
+  nbEcheances?: number | null;
   code?: string | null;
 }) {
   const client = getResend();
@@ -260,6 +261,11 @@ export async function sendPaiementEchec(d: {
   const ech = d.numero ? ` (échéance n°${d.numero})` : "";
   const prevu = d.date ? ` prévu le <strong>${formatDateFr(d.date)}</strong>` : "";
   const famille = familleEchec(d.code);
+  // Dernière échéance → "finaliser", sinon "reprendre".
+  const verbe =
+    d.numero && d.nbEcheances && d.numero >= d.nbEcheances
+      ? "finaliser"
+      : "reprendre";
 
   // Une seule maquette, 3 variantes de texte selon la cause.
   let corps: string;
@@ -271,7 +277,7 @@ export async function sendPaiementEchec(d: {
   } else if (famille === "carte_morte") {
     corps = `
     <p style="line-height:1.6;color:#444">Le prélèvement de <strong>${euro(d.montant)}</strong>${ech}${prevu} n'a pas pu aboutir : votre carte n'est plus valide.</p>
-    <p style="line-height:1.6;color:#444">Connectez-vous pour régulariser avec une nouvelle carte et reprendre votre échéancier.</p>
+    <p style="line-height:1.6;color:#444">Connectez-vous pour régulariser avec une nouvelle carte et ${verbe} votre échéancier.</p>
     <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Régulariser mon paiement")}</p>`;
   } else {
     corps = `

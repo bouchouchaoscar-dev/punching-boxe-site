@@ -79,11 +79,14 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
         tone: "danger",
         text: `Votre prélèvement (échéance ${n}) n'a pas abouti par manque de provision. Réalimentez votre compte, le prélèvement sera représenté.`,
       };
-    if (famille === "carte_morte")
+    if (famille === "carte_morte") {
+      // Dernière échéance de l'échéancier → on "finalise", sinon on "reprend".
+      const verbe = n >= (a.nb_echeances ?? n) ? "finaliser" : "reprendre";
       return {
         tone: "danger",
-        text: "Votre carte n'est plus valide. Régularisez avec une nouvelle carte pour reprendre votre échéancier.",
+        text: `Votre carte n'est plus valide. Régularisez avec une nouvelle carte pour ${verbe} votre échéancier.`,
       };
+    }
     return {
       tone: "danger",
       text: `Votre dernier prélèvement (échéance ${n}) n'a pas abouti. Merci de régulariser votre paiement.`,

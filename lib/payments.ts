@@ -249,7 +249,7 @@ export async function marquerEcheanceEchec(
   // Email à l'adhérent, adapté à la famille de l'échec.
   const { data: adh } = await supabase
     .from("adherents")
-    .select("prenom, email")
+    .select("prenom, email, nb_echeances")
     .eq("id", paiement.adherent_id)
     .single();
   if (adh?.email) {
@@ -260,6 +260,7 @@ export async function marquerEcheanceEchec(
         montant: Number(paiement.montant || 0),
         date: paiement.date_prevue,
         numero: paiement.numero_echeance,
+        nbEcheances: adh.nb_echeances,
         code: code ?? null,
       });
     } catch (e) {
@@ -285,7 +286,7 @@ export async function chargerEcheance(
 
   const { data: a } = await supabase
     .from("adherents")
-    .select("id, stripe_customer_id, prenom, email")
+    .select("id, stripe_customer_id, prenom, email, nb_echeances")
     .eq("id", p.adherent_id)
     .single();
   if (!a?.stripe_customer_id) {
@@ -367,6 +368,7 @@ export async function chargerEcheance(
           montant: Number(p.montant || 0),
           date: p.date_prevue,
           numero: p.numero_echeance,
+          nbEcheances: a.nb_echeances,
           code,
         });
       } catch (mailErr) {
