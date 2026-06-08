@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { ButtonAction } from "@/components/ui/Button";
-import { euro, PACKAGE_LABEL } from "@/lib/pricing";
+import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
@@ -500,12 +500,16 @@ function PaiementsCard({
   const echec = adherent.statut_paiement === "echec_paiement";
   const echeances = paiements.filter((p) => p.numero_echeance != null);
   const supplements = paiements.filter((p) => p.numero_echeance == null);
-  // Adhésion (et éventuels suppléments) prélevée à l'inscription, hors échéancier :
-  // affichée AGRÉGÉE sur la 1ère échéance (n°1) — affichage seul, montants en base inchangés.
+  // ANCIENS dossiers (adhésion débitée à part, ligne numero=null) : on agrège ce
+  // supplément sur la n°1 pour l'affichage (montants en base inchangés).
   const supplementImmediat = supplements.reduce(
     (s, p) => s + Number(p.montant || 0),
     0,
   );
+  // Montant d'adhésion du dossier (déterministe). Sert à la NOTE "dont X€
+  // d'adhésion incluse" : pour les NOUVEAUX dossiers, l'adhésion est déjà fondue
+  // dans le montant de la n°1 (pas de ligne null), donc on l'affiche depuis ici.
+  const adhesionDossier = adherent.nouveau_membre ? TARIFS.adhesion : 0;
 
   return (
     <div className="rounded-[1.5rem] border border-line bg-white p-6">
@@ -585,10 +589,10 @@ function PaiementsCard({
               ))}
             </tbody>
           </table>
-          {supplementImmediat > 0 && (
+          {(supplementImmediat > 0 || adhesionDossier > 0) && (
             <p className="mt-2 text-xs text-smoke">
-              + Adhésion {euro(supplementImmediat)} incluse dans la 1ère échéance
-              (prélevée à l&apos;inscription, non fractionnée).
+              + Adhésion {euro(supplementImmediat > 0 ? supplementImmediat : adhesionDossier)} incluse
+              dans la 1ère échéance (prélevée à l&apos;inscription, non fractionnée).
             </p>
           )}
         </div>

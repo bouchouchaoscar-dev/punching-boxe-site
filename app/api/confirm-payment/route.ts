@@ -158,15 +158,16 @@ export async function POST(request: Request) {
     }
   };
 
-  // 1) Adhésion (30€) — immédiat, 1x séparé, NON fractionnée.
-  if (adhesion > 0) {
-    await chargerImmediat(adhesion, { type: "adhesion" }, null);
-  }
+  // 1) 1ère échéance = 1ère part de cotisation + adhésion (non fractionnée),
+  //    en UN SEUL prélèvement (aligné sur le comptant). L'adhésion reste tracée
+  //    via metadata.adhesion sur le PaymentIntent.
+  await chargerImmediat(
+    plan.premierPrelevement,
+    { numero: "1", adhesion: String(adhesion) },
+    1,
+  );
 
-  // 2) 1ère échéance (cotisation proratisée + prépa, répartie) — immédiat.
-  await chargerImmediat(plan.montants[0], { numero: "1" }, 1);
-
-  // 3) Échéances suivantes — planifiées (prélevées par le cron à échéance).
+  // 2) Échéances suivantes — planifiées (prélevées par le cron à échéance).
   for (let i = 1; i < n; i++) {
     await supabase.from("paiements").insert({
       adherent_id: adherent.id,
