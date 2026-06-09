@@ -26,12 +26,14 @@ const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
 
 type Disc = { BF: number; SAVATE: number; LES_2: number; AUTRE: number };
+type Ages = { jeunes: number; adultes: number; inconnu: number };
 type SerieEntry = {
   saison: string;
   source: "historique" | "natif";
   ca: number;
   effectifs: number;
   disciplines: Disc;
+  ages: Ages;
   enCours: boolean;
 };
 
@@ -252,11 +254,17 @@ function SaisonPassee({ entry }: { entry: SerieEntry }) {
     { name: "Les deux", value: entry.disciplines.LES_2, color: "#9ca3af" },
     { name: "À vérifier", value: entry.disciplines.AUTRE, color: "#e5e7eb" },
   ].filter((x) => x.value > 0);
+  const ages = [
+    { name: "Adultes", value: entry.ages.adultes, color: ORANGE },
+    { name: "Jeunes", value: entry.ages.jeunes, color: INK },
+    { name: "Inconnu", value: entry.ages.inconnu, color: "#e5e7eb" },
+  ].filter((x) => x.value > 0);
   return (
     <>
       <div className="mt-6 rounded-xl border border-line bg-paper-2 p-3 text-xs text-smoke">
-        Données historiques importées : CA, effectifs et disciplines disponibles.
-        Le détail mensuel et adultes/jeunes n&apos;est pas disponible pour les saisons passées.
+        Données historiques importées : CA, effectifs, disciplines et répartition
+        adultes/jeunes (âge à la saison). Le détail mensuel n&apos;est pas disponible ;
+        le statut adultes/jeunes est indicatif (quelques naissances manquantes ou à vérifier).
       </div>
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Kpi label="Chiffre d'affaires" value={euro(entry.ca)} accent />
@@ -266,14 +274,20 @@ function SaisonPassee({ entry }: { entry: SerieEntry }) {
           value={entry.effectifs > 0 ? euro(Math.round(entry.ca / entry.effectifs)) : "—"}
         />
       </div>
-      {disc.length > 0 && (
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+      <div className="mt-8 grid gap-5 lg:grid-cols-2">
+        {disc.length > 0 && (
           <ChartCard title="Répartition des disciplines">
             <Donut data={disc} inner={55} />
             <ChartLegend items={disc} />
           </ChartCard>
-        </div>
-      )}
+        )}
+        {ages.length > 0 && (
+          <ChartCard title="Adultes / Jeunes (âge à la saison)">
+            <Donut data={ages} inner={55} />
+            <ChartLegend items={ages} />
+          </ChartCard>
+        )}
+      </div>
     </>
   );
 }

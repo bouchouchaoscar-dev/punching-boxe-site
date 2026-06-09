@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { saisonCourante } from "@/lib/saison";
+import { statutAge } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
 
 type Disc = { BF: number; SAVATE: number; LES_2: number; AUTRE: number };
 const discVide = (): Disc => ({ BF: 0, SAVATE: 0, LES_2: 0, AUTRE: 0 });
+type Ages = { jeunes: number; adultes: number; inconnu: number };
+const agesVide = (): Ages => ({ jeunes: 0, adultes: 0, inconnu: 0 });
 
 async function paginate(
   supabase: ReturnType<typeof getSupabaseAdmin>,
@@ -44,26 +47,33 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdmin();
   const courante = saisonCourante(new Date());
 
+  // Naissances des anciens (pour le statut jeune/adulte à la saison).
+  const personnes = await paginate(supabase, "anciens_adherents", "id, date_naissance");
+  const naissanceById = new Map<string, string | null>();
+  for (const p of personnes) naissanceById.set(p.id, p.date_naissance ?? null);
+
   // --- Saisons PASSÉES : historique_saisons ---
-  const hist = await paginate(supabase, "historique_saisons", "saison, montant, disciplines");
-  const histBySaison = new Map<string, { ca: number; eff: number; disc: Disc }>();
+  const hist = await paginate(supabase, "historique_saisons", "ancien_id, saison, montant, disciplines");
+  const histBySaison = new Map<string, { ca: number; eff: number; disc: Disc; ages: Ages }>();
   for (const h of hist) {
     const s = h.saison as string;
     if (!s) continue;
     let agg = histBySaison.get(s);
-    if (!agg) { agg = { ca: 0, eff: 0, disc: discVide() }; histBySaison.set(s, agg); }
+    if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; histBySaison.set(s, agg); }
     agg.ca += Number(h.montant || 0);
     agg.eff += 1;
     agg.disc[discPrincipale(h.disciplines)] += 1;
+    const st = statutAge(naissanceById.get(h.ancien_id), s);
+    agg.ages[st === "jeune" ? "jeunes" : st === "adulte" ? "adultes" : "inconnu"] += 1;
   }
 
   // --- Saisons PRÉSENT/FUTUR : adherents (dossiers ACTIFS) ---
   const adh = await paginate(
     supabase,
     "adherents",
-    "saison, montant_total, statut_paiement, engage_at, package",
+    "saison, montant_total, statut_paiement, engage_at, package, type_adherent",
   );
-  const natifBySaison = new Map<string, { ca: number; eff: number; disc: Disc }>();
+  const natifBySaison = new Map<string, { ca: number; eff: number; disc: Disc; ages: Ages }>();
   for (const a of adh) {
     const s = a.saison as string;
     if (!s) continue;
@@ -73,11 +83,13 @@ export async function GET(request: Request) {
       !!a.engage_at;
     if (!actif) continue;
     let agg = natifBySaison.get(s);
-    if (!agg) { agg = { ca: 0, eff: 0, disc: discVide() }; natifBySaison.set(s, agg); }
+    if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; natifBySaison.set(s, agg); }
     agg.ca += Number(a.montant_total || 0);
     agg.eff += 1;
     if (a.package === "savate_prepa") agg.disc.SAVATE += 1;
     else agg.disc.BF += 1;
+    // Natifs : statut figé à l'inscription (type_adherent).
+    agg.ages[a.type_adherent === "jeune" ? "jeunes" : a.type_adherent === "adulte" ? "adultes" : "inconnu"] += 1;
   }
 
   // --- Union des saisons + série (source choisie par la règle passé/présent) ---
@@ -93,6 +105,7 @@ export async function GET(request: Request) {
       ca: 0,
       eff: 0,
       disc: discVide(),
+      ages: agesVide(),
     };
     return {
       saison: s,
@@ -100,6 +113,7 @@ export async function GET(request: Request) {
       ca: Math.round(src.ca),
       effectifs: src.eff,
       disciplines: src.disc,
+      ages: src.ages,
       enCours: s === courante,
     };
   });

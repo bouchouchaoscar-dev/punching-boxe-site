@@ -46,6 +46,38 @@ export function anneeDebutSaison(saison: string): number {
   return parseInt(saison.slice(0, 4), 10);
 }
 
+// Seuil "jeune" : moins de 13 ans (cohérent avec l'esprit de la règle native).
+export const SEUIL_JEUNE_ANS = 13;
+
+/**
+ * Jeune/adulte d'un ANCIEN pour une saison donnée : âge au 1er septembre de
+ * l'année de début de saison (l'âge à l'époque, pas l'âge actuel). Dynamique.
+ * Renvoie null si la naissance est absente/invalide (→ "inconnu").
+ */
+export function estJeune(
+  dateNaissance: string | null | undefined,
+  saison: string,
+): boolean | null {
+  const d = normaliserDate(dateNaissance);
+  if (!d) return null;
+  const naiss = new Date(d);
+  if (Number.isNaN(naiss.getTime())) return null;
+  const ref = new Date(`${anneeDebutSaison(saison)}-09-01`);
+  let age = ref.getFullYear() - naiss.getFullYear();
+  const m = ref.getMonth() - naiss.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < naiss.getDate())) age--;
+  return age < SEUIL_JEUNE_ANS;
+}
+
+/** "jeune" | "adulte" | "inconnu" pour une saison donnée. */
+export function statutAge(
+  dateNaissance: string | null | undefined,
+  saison: string,
+): "jeune" | "adulte" | "inconnu" {
+  const j = estJeune(dateNaissance, saison);
+  return j === null ? "inconnu" : j ? "jeune" : "adulte";
+}
+
 /** Règle 30€ : pas d'historique → 30€ (nouveau) ; sinon gap ≥ SEUIL → 30€. */
 export function doitPayerAdhesion(
   derniereSaisonActive: string | null,

@@ -4,14 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
 
-type Hist = { saison: string; disciplines: string[]; montant: number | null };
+type Hist = {
+  saison: string;
+  disciplines: string[];
+  montant: number | null;
+  statut: "jeune" | "adulte" | "inconnu";
+};
 type Ancien = {
   id: string;
   nom: string;
   prenom: string;
   email: string | null;
   telephone: string | null;
+  adresse: string | null;
+  code_postal: string | null;
   ville: string | null;
+  date_naissance: string | null;
   a_verifier: boolean;
   derniere_saison: string | null;
   classe: "saison_derniere" | "tiede" | "froid" | null;
@@ -20,6 +28,27 @@ type Ancien = {
   total_paye: number;
   historique: Hist[];
 };
+
+const STATUT_LABEL: Record<Hist["statut"], string> = {
+  jeune: "Jeune",
+  adulte: "Adulte",
+  inconnu: "—",
+};
+
+function formatNaissance(d: string | null): string {
+  if (!d) return "—";
+  const date = new Date(d);
+  if (Number.isNaN(date.getTime())) return "—";
+  const jj = date.toLocaleDateString("fr-FR");
+  let age = new Date().getFullYear() - date.getFullYear();
+  const m = new Date().getMonth() - date.getMonth();
+  if (m < 0 || (m === 0 && new Date().getDate() < date.getDate())) age--;
+  return `${jj} (${age} ans)`;
+}
+function adresseComplete(a: Ancien): string {
+  const l = [a.adresse, [a.code_postal, a.ville].filter(Boolean).join(" ")].filter(Boolean);
+  return l.length ? l.join(", ") : "—";
+}
 
 const DISC_LABEL: Record<string, string> = {
   BF: "Boxe Française",
@@ -207,9 +236,10 @@ function Fiche({ a }: { a: Ancien }) {
             Coordonnées
           </h3>
           <dl className="mt-2 space-y-1.5 text-sm">
+            <Line label="Date de naissance" value={formatNaissance(a.date_naissance)} />
             <Line label="Email" value={a.email ?? "—"} />
             <Line label="Téléphone" value={a.telephone ?? "—"} />
-            <Line label="Ville" value={a.ville ?? "—"} />
+            <Line label="Adresse" value={adresseComplete(a)} />
           </dl>
           <h3 className="font-display mt-4 text-sm font-extrabold uppercase text-ink">
             Synthèse
@@ -232,6 +262,7 @@ function Fiche({ a }: { a: Ancien }) {
                 <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
                   <th className="px-3 py-2 font-bold">Saison</th>
                   <th className="px-3 py-2 font-bold">Discipline</th>
+                  <th className="px-3 py-2 font-bold">Statut</th>
                   <th className="px-3 py-2 text-right font-bold">Montant</th>
                 </tr>
               </thead>
@@ -240,6 +271,7 @@ function Fiche({ a }: { a: Ancien }) {
                   <tr key={h.saison} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 font-semibold text-ink">{h.saison}</td>
                     <td className="px-3 py-2 text-smoke">{discList(h.disciplines)}</td>
+                    <td className="px-3 py-2 text-smoke">{STATUT_LABEL[h.statut]}</td>
                     <td className="px-3 py-2 text-right font-semibold text-ink">
                       {h.montant == null ? "—" : euro(h.montant)}
                     </td>

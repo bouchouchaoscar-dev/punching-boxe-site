@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { saisonCourante } from "@/lib/saison";
-import { classerAncien, type ClasseAncien } from "@/lib/anciennete";
+import { classerAncien, statutAge, type ClasseAncien } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
 
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   const personnes = await paginate(
     supabase,
     "anciens_adherents",
-    "id, nom, prenom, email, telephone, ville, a_verifier",
+    "id, nom, prenom, email, telephone, adresse, code_postal, ville, date_naissance, a_verifier",
   );
   const hist = await paginate(
     supabase,
@@ -61,9 +61,10 @@ export async function GET(request: Request) {
 
   const anciens = personnes
     .map((p) => {
-      const h = (histByAncien.get(p.id) ?? []).sort((a, b) =>
-        b.saison.localeCompare(a.saison),
-      );
+      const h = (histByAncien.get(p.id) ?? [])
+        .sort((a, b) => b.saison.localeCompare(a.saison))
+        // Statut jeune/adulte/inconnu À LA SAISON (âge à l'époque).
+        .map((x) => ({ ...x, statut: statutAge(p.date_naissance, x.saison) }));
       const derniere = h.length ? h[0].saison : null;
       const disciplines = [...new Set(h.flatMap((x) => x.disciplines))];
       const totalPaye = h.reduce((s, x) => s + (x.montant ?? 0), 0);
@@ -74,7 +75,10 @@ export async function GET(request: Request) {
         prenom: p.prenom,
         email: p.email,
         telephone: p.telephone,
+        adresse: p.adresse,
+        code_postal: p.code_postal,
         ville: p.ville,
+        date_naissance: p.date_naissance,
         a_verifier: !!p.a_verifier,
         derniere_saison: derniere,
         classe,
