@@ -3,9 +3,23 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import { VARIABLES, type TemplateMail } from "@/lib/campagnes";
+import {
+  VARIABLES,
+  BOUTONS,
+  CATEGORIES,
+  type TemplateMail,
+} from "@/lib/campagnes";
 
-const empty = { id: "", nom: "", objet: "", contenu: "", est_defaut: false };
+const empty = {
+  id: "",
+  nom: "",
+  objet: "",
+  contenu: "",
+  categorie: "informatif" as string,
+  est_defaut: false,
+};
+const catLabel = (k: string | null) =>
+  CATEGORIES.find((c) => c.key === k)?.label ?? "Autres";
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<TemplateMail[]>([]);
@@ -41,6 +55,7 @@ export default function TemplatesPage() {
             nom: edit.nom,
             objet: edit.objet ?? "",
             contenu: edit.contenu ?? "",
+            categorie: edit.categorie ?? null,
           }),
         },
       );
@@ -88,44 +103,56 @@ export default function TemplatesPage() {
           <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
         </div>
       ) : (
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {templates.map((t) => (
-            <div
-              key={t.id}
-              className="rounded-2xl border border-line bg-white p-5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-ink">{t.nom}</p>
-                  <p className="mt-0.5 truncate text-sm text-smoke">{t.objet}</p>
+        <div className="mt-8 space-y-8">
+          {[
+            ...CATEGORIES,
+            { key: "__autres__", label: "Autres" },
+          ].map((cat) => {
+            const items = templates.filter((t) =>
+              cat.key === "__autres__"
+                ? !t.categorie || !CATEGORIES.some((c) => c.key === t.categorie)
+                : t.categorie === cat.key,
+            );
+            if (items.length === 0) return null;
+            return (
+              <section key={cat.key}>
+                <h2 className="font-display text-lg font-extrabold uppercase tracking-wide text-ink">
+                  {cat.label}{" "}
+                  <span className="text-sm font-semibold text-smoke">({items.length})</span>
+                </h2>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  {items.map((t) => (
+                    <div key={t.id} className="rounded-2xl border border-line bg-white p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-ink">{t.nom}</p>
+                          <p className="mt-0.5 truncate text-sm text-smoke">{t.objet}</p>
+                        </div>
+                        {t.est_defaut && (
+                          <span className="shrink-0 rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase text-smoke">
+                            Défaut
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs text-smoke">
+                        {t.contenu}
+                      </p>
+                      <div className="mt-4 flex gap-3">
+                        <button onClick={() => setEdit(t)} className="text-sm font-bold text-orange">
+                          Modifier
+                        </button>
+                        {!t.est_defaut && (
+                          <button onClick={() => remove(t)} className="text-sm font-semibold text-red-600">
+                            Supprimer
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {t.est_defaut && (
-                  <span className="shrink-0 rounded-full bg-paper-2 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase text-smoke">
-                    Défaut
-                  </span>
-                )}
-              </div>
-              <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs text-smoke">
-                {t.contenu}
-              </p>
-              <div className="mt-4 flex gap-3">
-                <button
-                  onClick={() => setEdit(t)}
-                  className="text-sm font-bold text-orange"
-                >
-                  Modifier
-                </button>
-                {!t.est_defaut && (
-                  <button
-                    onClick={() => remove(t)}
-                    className="text-sm font-semibold text-red-600"
-                  >
-                    Supprimer
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+              </section>
+            );
+          })}
         </div>
       )}
 
@@ -149,6 +176,22 @@ export default function TemplatesPage() {
               />
               <label className="block">
                 <span className="mb-1.5 block text-sm font-semibold text-ink">
+                  Famille
+                </span>
+                <select
+                  value={edit.categorie ?? "informatif"}
+                  onChange={(e) => setEdit({ ...edit, categorie: e.target.value })}
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-ink">
                   Contenu
                 </span>
                 <textarea
@@ -159,6 +202,9 @@ export default function TemplatesPage() {
                 />
                 <span className="mt-1 block text-xs text-smoke">
                   Variables : {VARIABLES.map((v) => v.token).join(" ")}
+                </span>
+                <span className="mt-1 block text-xs text-smoke">
+                  Boutons (CTA) : {BOUTONS.map((b) => b.token).join(" ")}
                 </span>
               </label>
             </div>

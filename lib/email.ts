@@ -49,7 +49,8 @@ const packageLabel = (p?: PackageType | null) => (p ? PACKAGE_LABEL[p] : "—");
 
 function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
-    <div style="background:#0a0a0a;padding:24px;text-align:center">
+    <div style="background:#0a0a0a;padding:22px 24px;text-align:center">
+      <img src="${SITE_URL}/logo/logo.png" alt="Punching Boxe" width="56" height="56" style="display:block;margin:0 auto 10px;width:56px;height:56px;border-radius:9999px;object-fit:cover" />
       <span style="color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:18px">Punching <span style="color:#FF6B00">Boxe</span></span>
     </div>
     <div style="padding:28px 24px">${inner}</div>
@@ -319,7 +320,18 @@ export function getResendClient(): Resend | null {
  * (RGPD). Les mails TRANSACTIONNELS utilisent `wrap()` directement → pas de lien.
  */
 export function renderCampagne(contenu: string, email?: string): string {
-  const corps = `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${escapeHtml(contenu)}</div>`;
+  // Le contenu est échappé (sécurité), puis les jetons de bouton sont remplacés
+  // par de vrais CTA orange cliquables (style identique aux transactionnels).
+  const corpsTexte = escapeHtml(contenu)
+    .replace(
+      /\{\{bouton_inscription\}\}/g,
+      button(`${SITE_URL}/inscription`, "S'inscrire maintenant"),
+    )
+    .replace(
+      /\{\{bouton_espace\}\}/g,
+      button(`${SITE_URL}/mon-espace`, "Accéder à mon espace"),
+    );
+  const corps = `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${corpsTexte}</div>`;
   const pied = email
     ? `<div style="margin-top:22px;padding-top:14px;border-top:1px solid #eee;font-size:12px;color:#999;line-height:1.5">
         Vous recevez cet email en tant que membre du Punching Boxe.<br/>

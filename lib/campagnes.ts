@@ -30,6 +30,7 @@ export interface TemplateMail {
   nom: string;
   objet: string;
   contenu: string;
+  categorie: string | null;
   est_defaut: boolean;
   created_at: string;
 }
@@ -181,12 +182,21 @@ export function filtrerAnciens<
   });
 }
 
-// ---- Variables de personnalisation ----
+// ---- Variables de personnalisation (texte) ----
 export const VARIABLES: { token: string; label: string }[] = [
   { token: "{{prenom}}", label: "Prénom" },
   { token: "{{nom}}", label: "Nom" },
   { token: "{{formule}}", label: "Formule" },
   { token: "{{montant}}", label: "Montant" },
+  { token: "{{saison}}", label: "Saison en cours" },
+  { token: "{{derniere_saison}}", label: "Dernière saison (ancien)" },
+  { token: "{{disciplines}}", label: "Disciplines (ancien)" },
+];
+
+// ---- Boutons (rendus en CTA orange cliquable par renderCampagne) ----
+export const BOUTONS: { token: string; label: string }[] = [
+  { token: "{{bouton_inscription}}", label: "Bouton « S'inscrire »" },
+  { token: "{{bouton_espace}}", label: "Bouton « Mon espace »" },
 ];
 
 export type DestinataireVars = {
@@ -194,6 +204,9 @@ export type DestinataireVars = {
   nom?: string | null;
   formule?: string | null;
   montant?: number | string | null;
+  saison?: string | null;
+  derniere_saison?: string | null;
+  disciplines?: string | null;
 };
 
 export function remplacerVariables(texte: string, v: DestinataireVars): string {
@@ -201,7 +214,35 @@ export function remplacerVariables(texte: string, v: DestinataireVars): string {
     .replace(/\{\{prenom\}\}/g, v.prenom ?? "")
     .replace(/\{\{nom\}\}/g, v.nom ?? "")
     .replace(/\{\{formule\}\}/g, v.formule ?? "")
-    .replace(/\{\{montant\}\}/g, v.montant != null ? String(v.montant) : "");
+    .replace(/\{\{montant\}\}/g, v.montant != null ? String(v.montant) : "")
+    .replace(/\{\{saison\}\}/g, v.saison ?? "")
+    .replace(/\{\{derniere_saison\}\}/g, v.derniere_saison ?? "")
+    .replace(/\{\{disciplines\}\}/g, v.disciplines ?? "");
+}
+
+// ---- Catégories de templates (4 familles) ----
+export type CategorieTemplate =
+  | "informatif"
+  | "relance_admin"
+  | "reinscription"
+  | "reactivation";
+
+export const CATEGORIES: { key: CategorieTemplate; label: string }[] = [
+  { key: "informatif", label: "Informatif" },
+  { key: "relance_admin", label: "Relance administrative" },
+  { key: "reinscription", label: "Réinscription" },
+  { key: "reactivation", label: "Réactivation" },
+];
+
+// Libellés disciplines (pour {{disciplines}} propre).
+export function disciplinesLabel(ds: string[] | null | undefined): string {
+  const map: Record<string, string> = {
+    BF: "Boxe Française",
+    SAVATE: "Savate",
+    LES_2: "Boxe Française et Savate",
+    AUTRE: "",
+  };
+  return (ds ?? []).map((d) => map[d] ?? d).filter(Boolean).join(", ");
 }
 
 export function formuleLabel(pkg?: string | null): string {
@@ -209,13 +250,20 @@ export function formuleLabel(pkg?: string | null): string {
 }
 
 // ---- Templates par défaut (auto-insérés en base s'ils sont absents) ----
-export const DEFAULT_TEMPLATES: { nom: string; objet: string; contenu: string }[] = [
+export const DEFAULT_TEMPLATES: {
+  nom: string;
+  objet: string;
+  contenu: string;
+  categorie: CategorieTemplate;
+}[] = [
+  // ===== INFORMATIF =====
   {
     nom: "Mail de rentrée septembre",
+    categorie: "informatif",
     objet: "C'est la rentrée au Punching Boxe ! 🥊",
     contenu: `Bonjour {{prenom}},
 
-La nouvelle saison 2026-2027 commence bientôt et nous avons hâte de vous retrouver sur les tatamis !
+La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver sur les tatamis !
 
 Les cours reprennent en septembre.
 Retrouvez tous les horaires sur notre site : punching-boxe.com
@@ -224,56 +272,182 @@ Retrouvez tous les horaires sur notre site : punching-boxe.com
 Pascal et l'équipe du Punching Boxe`,
   },
   {
-    nom: "Relance certificat médical manquant",
-    objet: "⚠️ Document manquant — Certificat médical",
-    contenu: `Bonjour {{prenom}},
-
-Votre dossier d'inscription est presque complet ! Il nous manque votre certificat médical pour finaliser votre inscription.
-
-Connectez-vous à votre espace adhérent pour le déposer : punching-boxe.com/mon-espace
-
-Merci et à bientôt,
-Pascal Bouchoucha`,
-  },
-  {
-    nom: "Relance paiement espèces en attente",
-    objet: "💰 Règlement en attente — Punching Boxe",
-    contenu: `Bonjour {{prenom}},
-
-Nous n'avons pas encore reçu votre règlement de {{montant}}€ pour la saison 2026-2027.
-
-Pensez à régler en espèces auprès du professeur lors de votre prochain cours.
-
-À bientôt,
-Pascal Bouchoucha`,
-  },
-  {
     nom: "Mail de fin de saison juin",
+    categorie: "informatif",
     objet: "Fin de saison — Merci et à l'année prochaine ! 🥊",
     contenu: `Bonjour {{prenom}},
 
 La saison se termine bientôt et nous tenions à vous remercier pour votre fidélité cette année.
 
-Les inscriptions pour la saison 2027-2028 ouvriront en juin.
-Restez connectés !
+Les inscriptions pour la saison prochaine ouvriront en juin. Restez connectés !
 
 À l'année prochaine,
-Pascal et toute l'équipe`,
+Pascal et l'équipe du Punching Boxe`,
   },
   {
     nom: "Annonce modification horaires",
+    categorie: "informatif",
     objet: "📅 Modification des horaires",
     contenu: `Bonjour {{prenom}},
 
 Nous vous informons d'une modification des horaires de cours.
 
-[Détaillez ici les changements]
+[Détaillez ici les changements.]
 
-Pour toute question :
-contact@punching-boxe.com
-07 60 83 98 30
+Pour toute question, répondez simplement à cet email.
 
 Cordialement,
-Pascal Bouchoucha`,
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Fermeture pendant les vacances scolaires",
+    categorie: "informatif",
+    objet: "🗓️ Pas de cours pendant les vacances",
+    contenu: `Bonjour {{prenom}},
+
+Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas de cours sur cette période.
+
+Les cours reprendront normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme sur les rings !
+
+Sportivement,
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Événement / stage / compétition à venir",
+    categorie: "informatif",
+    objet: "🥊 Un événement à ne pas manquer",
+    contenu: `Bonjour {{prenom}},
+
+Un événement se prépare au club et on aimerait vous y voir !
+
+[Précisez ici : date, lieu, type (stage, compétition, gala), horaires et modalités.]
+
+Que vous veniez participer ou encourager, votre présence compte. Pour toute question, répondez simplement à cet email.
+
+À très vite,
+Pascal et l'équipe du Punching Boxe`,
+  },
+
+  // ===== RELANCE ADMINISTRATIVE =====
+  {
+    nom: "Relance certificat médical manquant",
+    categorie: "relance_admin",
+    objet: "⚠️ Document manquant — Certificat médical",
+    contenu: `Bonjour {{prenom}},
+
+Votre dossier d'inscription est presque complet ! Il nous manque votre certificat médical pour finaliser votre inscription.
+
+Connectez-vous à votre espace adhérent pour le déposer en quelques clics.
+
+{{bouton_espace}}
+
+Merci et à bientôt,
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Relance paiement espèces en attente",
+    categorie: "relance_admin",
+    objet: "💰 Règlement en attente — Punching Boxe",
+    contenu: `Bonjour {{prenom}},
+
+Nous n'avons pas encore reçu votre règlement de {{montant}}€ pour la saison {{saison}}.
+
+Pensez à régler en espèces auprès du professeur lors de votre prochain cours.
+
+À bientôt,
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Relance dossier incomplet (pièce manquante)",
+    categorie: "relance_admin",
+    objet: "📄 Une pièce manque à votre dossier",
+    contenu: `Bonjour {{prenom}},
+
+Votre inscription est presque finalisée : il manque une pièce à votre dossier pour qu'il soit complet.
+
+Connectez-vous à votre espace adhérent pour voir les documents manquants et les déposer en quelques clics.
+
+{{bouton_espace}}
+
+Merci d'avance,
+Pascal et l'équipe du Punching Boxe`,
+  },
+
+  // ===== RÉINSCRIPTION =====
+  {
+    nom: "Mail de lancement des inscriptions",
+    categorie: "reinscription",
+    objet: "Les inscriptions {{saison}} sont ouvertes ! 🥊",
+    contenu: `Bonjour {{prenom}},
+
+La nouvelle saison approche, et on a une bonne nouvelle : le Punching Boxe passe au tout numérique pour vous simplifier la vie.
+
+Fini les papiers à remplir sur place : votre inscription se fait désormais 100% en ligne, en quelques minutes, depuis votre canapé.
+
+Vous réalisez votre inscription depuis votre espace adhérent personnel, où vous pouvez ensuite suivre vos dossiers, vos paiements et vos documents.
+
+Vous pouvez régler comme vous le souhaitez :
+- Par carte en une fois
+- Par carte en plusieurs fois (paiement échelonné)
+- En espèces auprès du professeur, comme avant
+
+Vous souhaitez inscrire plusieurs personnes ? Depuis ce même espace, vous gérez les inscriptions de toute la famille : vos enfants, vos proches, plusieurs dossiers réunis au même endroit. Pas besoin de créer un compte par personne, vous suivez tout depuis le vôtre.
+
+{{bouton_inscription}}
+
+On a hâte de vous retrouver sur les rings cette saison !
+
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Réinscription — saison dernière",
+    categorie: "reinscription",
+    objet: "🥊 On vous attend pour la saison {{saison}} !",
+    contenu: `Bonjour {{prenom}},
+
+Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver sur les rings cette année !
+
+Les inscriptions pour la saison {{saison}} sont ouvertes. La réinscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement en une ou plusieurs fois, ou en espèces auprès du professeur, comme vous préférez.
+
+{{bouton_inscription}}
+
+Au plaisir de vous revoir,
+Pascal et l'équipe du Punching Boxe`,
+  },
+  {
+    nom: "Réinscription — tièdes (adhésion offerte)",
+    categorie: "reinscription",
+    objet: "🥊 Votre place vous attend (adhésion offerte)",
+    contenu: `Bonjour {{prenom}},
+
+Cela fait quelque temps qu'on ne vous a pas vu au club, et on aimerait beaucoup vous retrouver pour la saison {{saison}}.
+
+Bonne nouvelle : comme votre absence est récente, vous n'avez pas à repayer les frais d'adhésion cette saison. Il ne vous reste que la cotisation à régler pour reprendre l'entraînement.
+
+L'inscription se fait en ligne, en quelques minutes, depuis votre espace adhérent.
+
+{{bouton_inscription}}
+
+On garde votre place au chaud,
+Pascal et l'équipe du Punching Boxe`,
+  },
+
+  // ===== RÉACTIVATION =====
+  {
+    nom: "Réactivation — anciens (revenez au club)",
+    categorie: "reactivation",
+    objet: "🥊 Et si vous repreniez la boxe ?",
+    contenu: `Bonjour {{prenom}},
+
+Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le Punching Boxe a évolué depuis, et on serait ravis de vous revoir sur les rings.
+
+Tout est désormais en ligne : vous pouvez vous réinscrire en quelques minutes depuis votre espace adhérent, régler par carte (en une ou plusieurs fois) ou en espèces auprès du professeur.
+
+Que ce soit pour reprendre en douceur ou retrouver le rythme, votre place est ici.
+
+{{bouton_inscription}}
+
+À très bientôt, on l'espère,
+Pascal et l'équipe du Punching Boxe`,
   },
 ];

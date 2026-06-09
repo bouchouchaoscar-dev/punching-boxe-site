@@ -242,6 +242,7 @@ create table if not exists public.templates_mail (
   nom         text not null,
   objet       text not null,
   contenu     text not null,
+  categorie   text check (categorie in ('informatif','relance_admin','reinscription','reactivation')),
   est_defaut  boolean default false,
   created_at  timestamptz default now()
 );

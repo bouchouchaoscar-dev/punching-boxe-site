@@ -11,6 +11,7 @@ import {
   filtrerAnciens,
   remplacerVariables,
   formuleLabel,
+  disciplinesLabel,
   type SmartListKey,
   type SegmentAncienKey,
   type DisciplineKey,
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
+  const saisonRef = saisonCourante(new Date()); // {{saison}} = saison en cours
 
   // Index email → variables (dédup, insensible à la casse).
   const map = new Map<string, Recipient>();
@@ -96,6 +98,9 @@ export async function POST(request: Request) {
     nom: a.nom,
     formule: formuleLabel(a.package),
     montant: a.montant_total,
+    saison: a.saison || saisonRef,
+    derniere_saison: "",
+    disciplines: formuleLabel(a.package),
   });
 
   if (smartLists.length > 0) {
@@ -108,7 +113,7 @@ export async function POST(request: Request) {
     for (const e of manualEmails) {
       const a = byEmail.get(e);
       if (a) add(adherentVars(a));
-      else add({ email: e });
+      else add({ email: e, saison: saisonRef });
     }
   }
 
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
       .from("contacts_mailing")
       .select("email, prenom, nom");
     for (const c of data ?? []) {
-      add({ email: c.email, prenom: c.prenom, nom: c.nom });
+      add({ email: c.email, prenom: c.prenom, nom: c.nom, saison: saisonRef });
     }
   }
 
@@ -138,7 +143,6 @@ export async function POST(request: Request) {
       .select("ancien_id")
       .not("ancien_id", "is", null);
     const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
-    const saisonRef = saisonCourante(new Date());
     for (const a of filtrerAnciens(anciens, anciensSegments, disciplines, saisonRef)) {
       if (migres.has(a.id)) continue;
       if (!a.email || !a.email.trim()) {
@@ -149,7 +153,10 @@ export async function POST(request: Request) {
         email: a.email,
         prenom: a.prenom,
         nom: a.nom,
-        formule: (a.disciplines ?? []).join(" / "),
+        saison: saisonRef,
+        derniere_saison: a.derniere_saison ?? "",
+        disciplines: disciplinesLabel(a.disciplines),
+        formule: disciplinesLabel(a.disciplines),
       });
     }
   }

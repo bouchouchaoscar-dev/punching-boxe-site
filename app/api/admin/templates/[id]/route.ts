@@ -15,7 +15,7 @@ export async function PUT(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
   }
   const { id } = await params;
-  let body: { nom?: string; objet?: string; contenu?: string };
+  let body: { nom?: string; objet?: string; contenu?: string; categorie?: string };
   try {
     body = await request.json();
   } catch {
@@ -26,6 +26,7 @@ export async function PUT(request: Request, { params }: Ctx) {
   if (body.nom !== undefined) update.nom = String(body.nom);
   if (body.objet !== undefined) update.objet = String(body.objet);
   if (body.contenu !== undefined) update.contenu = String(body.contenu);
+  if (body.categorie !== undefined) update.categorie = body.categorie || null;
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

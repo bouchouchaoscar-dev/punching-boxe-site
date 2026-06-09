@@ -17,14 +17,32 @@ export async function GET(request: Request) {
   // Seed des templates par défaut absents (par nom).
   const { data: existing } = await supabase
     .from("templates_mail")
-    .select("nom");
+    .select("nom, categorie");
   const noms = new Set((existing ?? []).map((t) => t.nom));
   const manquants = DEFAULT_TEMPLATES.filter((t) => !noms.has(t.nom)).map((t) => ({
     ...t,
     est_defaut: true,
   }));
   if (manquants.length > 0) {
-    await supabase.from("templates_mail").insert(manquants);
+    const { error: insErr } = await supabase.from("templates_mail").insert(manquants);
+    // Tolérance : colonne categorie pas encore créée → insert sans elle.
+    if (insErr && /categorie/.test(insErr.message)) {
+      await supabase.from("templates_mail").insert(
+        manquants.map(({ categorie: _c, ...rest }) => rest),
+      );
+    }
+  }
+
+  // Backfill catégorie des défauts existants (par nom) si manquante.
+  for (const t of DEFAULT_TEMPLATES) {
+    const ex = (existing ?? []).find((e) => e.nom === t.nom);
+    if (ex && !ex.categorie) {
+      await supabase
+        .from("templates_mail")
+        .update({ categorie: t.categorie })
+        .eq("nom", t.nom)
+        .then(undefined, () => {}); // ignore si colonne absente
+    }
   }
 
   const { data, error } = await supabase
@@ -44,7 +62,7 @@ export async function POST(request: Request) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
   }
-  let body: { nom?: string; objet?: string; contenu?: string };
+  let body: { nom?: string; objet?: string; contenu?: string; categorie?: string };
   try {
     body = await request.json();
   } catch {
@@ -61,6 +79,7 @@ export async function POST(request: Request) {
       nom: body.nom.trim(),
       objet: String(body.objet || ""),
       contenu: String(body.contenu || ""),
+      categorie: body.categorie || null,
       est_defaut: false,
     })
     .select()

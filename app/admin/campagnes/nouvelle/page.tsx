@@ -9,6 +9,7 @@ import {
   SEGMENTS_ANCIENS,
   DISCIPLINES,
   VARIABLES,
+  BOUTONS,
   filtrerAdherents,
   filtrerAnciens,
   remplacerVariables,
@@ -604,6 +605,15 @@ export default function NouvelleCampagnePage() {
                     className="rounded-full border border-line bg-paper-2 px-2.5 py-1 text-xs font-semibold text-ink hover:border-orange"
                   >
                     {v.label}
+                  </button>
+                ))}
+                {BOUTONS.map((b) => (
+                  <button
+                    key={b.token}
+                    onClick={() => insertVar(b.token)}
+                    className="rounded-full border border-orange/30 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange hover:border-orange"
+                  >
+                    {b.label}
                   </button>
                 ))}
               </div>
