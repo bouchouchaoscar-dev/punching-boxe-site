@@ -58,6 +58,20 @@ export function doitPayerAdhesion(
   );
 }
 
+// Classement d'un ancien pour le mailing, RELATIF à la saison de référence
+// (donc dynamique d'année en année). Même gap que les 30€ → 1 source de vérité.
+export type ClasseAncien = "saison_derniere" | "tiede" | "froid";
+export function classerAncien(
+  derniereSaisonActive: string | null,
+  saisonRef: string,
+): ClasseAncien | null {
+  if (!derniereSaisonActive) return null; // sans historique → non classable
+  const gap = anneeDebutSaison(saisonRef) - anneeDebutSaison(derniereSaisonActive);
+  if (gap >= SEUIL_ADHESION_GAP) return "froid"; // gap ≥ 4 → adhésion à repayer
+  if (gap <= 1) return "saison_derniere"; // gap 0/1 → saison précédente (cible chaude)
+  return "tiede"; // gap 2-3 → adhésion encore gratuite
+}
+
 export type EvaluationAnciennete = {
   paieAdhesion: boolean;
   ancienId: string | null;

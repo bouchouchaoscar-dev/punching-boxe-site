@@ -1,5 +1,7 @@
 import type { Adherent } from "./types";
 import { CLUB } from "./constants";
+import { saisonCourante } from "./saison";
+import { classerAncien } from "./anciennete";
 
 export type StatutCampagne = "brouillon" | "envoye" | "erreur";
 
@@ -54,9 +56,11 @@ export type SmartListKey =
   | "certificat_manquant"
   | "especes_attente"
   | "dossier_incomplet"
-  | "nouveaux";
+  | "nouveaux"
+  | "adherents_actuels";
 
 export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
+  { key: "adherents_actuels", label: "Adhérents actuels (saison en cours)" },
   { key: "tous", label: "Tous les adhérents" },
   { key: "boxe", label: "Formule Boxe Française" },
   { key: "savate", label: "Formule Savate et Prépa" },
@@ -95,6 +99,14 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
       return !a.documents_valides;
     case "nouveaux":
       return !!a.nouveau_membre && a.saison === CLUB.saison;
+    case "adherents_actuels":
+      // Natifs inscrits à la SAISON EN COURS (dynamique) et réellement actifs.
+      return (
+        a.saison === saisonCourante(new Date()) &&
+        (a.statut_paiement === "paye" ||
+          a.statut_paiement === "confirme_especes" ||
+          !!a.engage_at)
+      );
     default:
       return false;
   }
@@ -107,6 +119,66 @@ export function filtrerAdherents(
 ): Adherent[] {
   if (keys.length === 0) return [];
   return adherents.filter((a) => keys.some((k) => matchSmartList(a, k)));
+}
+
+// ---- Segments ANCIENS (non-natifs importés), classés dynamiquement ----
+export type SegmentAncienKey =
+  | "anciens_saison_derniere"
+  | "anciens_tiedes"
+  | "anciens_froids";
+
+export const SEGMENTS_ANCIENS: { key: SegmentAncienKey; label: string }[] = [
+  { key: "anciens_saison_derniere", label: "Anciens de la saison dernière" },
+  { key: "anciens_tiedes", label: "Anciens tièdes (adhésion encore gratuite)" },
+  { key: "anciens_froids", label: "Anciens froids (adhésion à repayer)" },
+];
+
+export type DisciplineKey = "BF" | "SAVATE" | "LES_2";
+export const DISCIPLINES: { key: DisciplineKey; label: string }[] = [
+  { key: "BF", label: "Boxe Française" },
+  { key: "SAVATE", label: "Savate" },
+  { key: "LES_2", label: "Les deux" },
+];
+
+// Ligne de la vue anciens_recence (1 par ancien).
+export type AncienRecence = {
+  id: string;
+  nom: string | null;
+  prenom: string | null;
+  email: string | null;
+  derniere_saison: string | null;
+  disciplines: string[] | null;
+};
+
+const SEGMENT_VERS_CLASSE: Record<SegmentAncienKey, string> = {
+  anciens_saison_derniere: "saison_derniere",
+  anciens_tiedes: "tiede",
+  anciens_froids: "froid",
+};
+
+/**
+ * Filtre les anciens selon les segments cochés (union) + un filtre discipline
+ * optionnel (OU). La classe est calculée par rapport à `saisonRef` → dynamique.
+ */
+export function filtrerAnciens<
+  T extends { derniere_saison: string | null; disciplines: string[] | null },
+>(
+  anciens: T[],
+  segments: SegmentAncienKey[],
+  disciplines: DisciplineKey[],
+  saisonRef: string,
+): T[] {
+  if (segments.length === 0) return [];
+  const classesVoulues = new Set(segments.map((s) => SEGMENT_VERS_CLASSE[s]));
+  return anciens.filter((a) => {
+    const classe = classerAncien(a.derniere_saison, saisonRef);
+    if (!classe || !classesVoulues.has(classe)) return false;
+    if (disciplines.length > 0) {
+      const d = a.disciplines ?? [];
+      if (!disciplines.some((x) => d.includes(x))) return false;
+    }
+    return true;
+  });
 }
 
 // ---- Variables de personnalisation ----

@@ -8,11 +8,16 @@ import {
 } from "@/lib/email";
 import {
   filtrerAdherents,
+  filtrerAnciens,
   remplacerVariables,
   formuleLabel,
   type SmartListKey,
+  type SegmentAncienKey,
+  type DisciplineKey,
+  type AncienRecence,
   type DestinataireVars,
 } from "@/lib/campagnes";
+import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,6 +43,8 @@ export async function POST(request: Request) {
     objet?: string;
     contenu?: string;
     smartLists?: SmartListKey[];
+    anciensSegments?: SegmentAncienKey[];
+    disciplines?: DisciplineKey[];
     includeContacts?: boolean;
     manualEmails?: string[];
   };
@@ -115,6 +122,38 @@ export async function POST(request: Request) {
     }
   }
 
+  // 4) Segments ANCIENS (non-natifs), classés dynamiquement (vue anciens_recence).
+  const anciensSegments = body.anciensSegments ?? [];
+  const disciplines = body.disciplines ?? [];
+  let exclusSansEmail = 0;
+  if (anciensSegments.length > 0) {
+    const { data: rec } = await supabase
+      .from("anciens_recence")
+      .select("id, nom, prenom, email, derniere_saison, disciplines");
+    const anciens = (rec ?? []) as AncienRecence[];
+    // Dédoublonnage niveau 1 : un ancien RÉINSCRIT (référencé par adherents.ancien_id)
+    // est représenté par son dossier natif → on l'exclut du sourcing anciens.
+    const { data: migr } = await supabase
+      .from("adherents")
+      .select("ancien_id")
+      .not("ancien_id", "is", null);
+    const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
+    const saisonRef = saisonCourante(new Date());
+    for (const a of filtrerAnciens(anciens, anciensSegments, disciplines, saisonRef)) {
+      if (migres.has(a.id)) continue;
+      if (!a.email || !a.email.trim()) {
+        exclusSansEmail++; // conservé en base, juste non joignable par mail
+        continue;
+      }
+      add({
+        email: a.email,
+        prenom: a.prenom,
+        nom: a.nom,
+        formule: (a.disciplines ?? []).join(" / "),
+      });
+    }
+  }
+
   // Exclusion RGPD : retirer les emails désinscrits du marketing (toutes sources).
   const { data: optouts } = await supabase
     .from("desinscriptions_mailing")
@@ -161,6 +200,8 @@ export async function POST(request: Request) {
     liste_type: "mixte",
     liste_filtre: {
       smartLists,
+      anciensSegments,
+      disciplines,
       includeContacts: !!body.includeContacts,
       manualEmails: manualEmails.length,
     },
@@ -179,5 +220,11 @@ export async function POST(request: Request) {
   }
   if (insErr) console.error("Insert campagne:", insErr);
 
-  return NextResponse.json({ success: sent > 0, sent, doublons, exclus });
+  return NextResponse.json({
+    success: sent > 0,
+    sent,
+    doublons,
+    exclus,
+    exclusSansEmail,
+  });
 }

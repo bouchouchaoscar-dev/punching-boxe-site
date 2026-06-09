@@ -6,13 +6,27 @@ import { useRouter } from "next/navigation";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import {
   SMART_LISTS,
+  SEGMENTS_ANCIENS,
+  DISCIPLINES,
   VARIABLES,
   filtrerAdherents,
+  filtrerAnciens,
   remplacerVariables,
   type SmartListKey,
+  type SegmentAncienKey,
+  type DisciplineKey,
   type TemplateMail,
 } from "@/lib/campagnes";
+import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
+
+// Forme allégée renvoyée par /api/admin/anciens-recence (peu de PII côté client).
+type AncienLite = {
+  id: string;
+  derniere_saison: string | null;
+  disciplines: string[];
+  has_email: boolean;
+};
 
 type ListePerso = { nom: string; emails: string[] };
 const LS_KEY = "pbnp_listes_perso";
@@ -30,6 +44,9 @@ export default function NouvelleCampagnePage() {
 
   // Étape 1
   const [smartLists, setSmartLists] = useState<SmartListKey[]>([]);
+  const [anciensSegments, setAnciensSegments] = useState<SegmentAncienKey[]>([]);
+  const [disciplines, setDisciplines] = useState<DisciplineKey[]>([]);
+  const [anciens, setAnciens] = useState<AncienLite[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -50,6 +67,7 @@ export default function NouvelleCampagnePage() {
     sent: number;
     exclus: number;
     doublons: number;
+    exclusSansEmail: number;
   } | null>(null);
 
   useEffect(() => {
@@ -65,12 +83,26 @@ export default function NouvelleCampagnePage() {
       .then((r) => r.json())
       .then((d) => setTemplates(d.templates ?? []))
       .catch(() => {});
+    fetch("/api/admin/anciens-recence", { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setAnciens(d.anciens ?? []))
+      .catch(() => {});
     try {
       setSavedLists(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
     } catch {
       setSavedLists([]);
     }
   }, []);
+
+  // Anciens correspondant aux segments/disciplines, séparés selon présence d'email.
+  const { anciensAvecEmail, anciensSansEmail } = useMemo(() => {
+    const saisonRef = saisonCourante(new Date());
+    const f = filtrerAnciens(anciens, anciensSegments, disciplines, saisonRef);
+    return {
+      anciensAvecEmail: f.filter((a) => a.has_email).length,
+      anciensSansEmail: f.filter((a) => !a.has_email).length,
+    };
+  }, [anciens, anciensSegments, disciplines]);
 
   // ---- Calcul des destinataires (côté client, indicatif) ----
   const { count, doublons } = useMemo(() => {
@@ -81,9 +113,12 @@ export default function NouvelleCampagnePage() {
     const brut = [...fromSmart, ...manual];
     const uniq = new Set(brut);
     const adh = uniq.size;
-    const total = adh + (includeContacts ? contactsCount : 0);
+    // Anciens comptés à part (emails non exposés au client) ; le serveur
+    // dédoublonne l'ensemble à l'envoi. Comptage indicatif.
+    const total =
+      adh + anciensAvecEmail + (includeContacts ? contactsCount : 0);
     return { count: total, doublons: brut.length - adh };
-  }, [adherents, smartLists, manualSelected, includeContacts, contactsCount]);
+  }, [adherents, smartLists, manualSelected, anciensAvecEmail, includeContacts, contactsCount]);
 
   // Destinataires adhérents réels (smart ∪ sélection manuelle), dédupliqués.
   const recipientsAdh = useMemo(() => {
@@ -119,6 +154,14 @@ export default function NouvelleCampagnePage() {
 
   function toggleSmart(k: SmartListKey) {
     setSmartLists((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
+  }
+  function toggleSegment(k: SegmentAncienKey) {
+    setAnciensSegments((s) =>
+      s.includes(k) ? s.filter((x) => x !== k) : [...s, k],
+    );
+  }
+  function toggleDiscipline(k: DisciplineKey) {
+    setDisciplines((s) => (s.includes(k) ? s.filter((x) => x !== k) : [...s, k]));
   }
   function toggleManual(email: string) {
     setManualSelected((s) => {
@@ -240,6 +283,8 @@ export default function NouvelleCampagnePage() {
           objet,
           contenu,
           smartLists,
+          anciensSegments,
+          disciplines,
           includeContacts,
           manualEmails: [...manualSelected],
         }),
@@ -251,6 +296,7 @@ export default function NouvelleCampagnePage() {
           sent: d.sent ?? 0,
           exclus: d.exclus ?? 0,
           doublons: d.doublons ?? 0,
+          exclusSansEmail: d.exclusSansEmail ?? 0,
         });
       } else {
         setConfirmOpen(false);
@@ -336,6 +382,85 @@ export default function NouvelleCampagnePage() {
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Segments ANCIENS (non-natifs importés) */}
+            <div>
+              <h2 className="font-display text-lg font-extrabold uppercase text-ink">
+                Anciens adhérents
+              </h2>
+              <p className="mt-1 text-xs text-smoke">
+                Classement automatique selon la saison en cours. Les anciens
+                réinscrits et sans email sont exclus de l&apos;envoi.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {SEGMENTS_ANCIENS.map((seg) => {
+                  const saisonRef = saisonCourante(new Date());
+                  const n = filtrerAnciens(
+                    anciens,
+                    [seg.key],
+                    disciplines,
+                    saisonRef,
+                  ).filter((a) => a.has_email).length;
+                  return (
+                    <label
+                      key={seg.key}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line p-3 text-sm hover:border-orange/40"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={anciensSegments.includes(seg.key)}
+                        onChange={() => toggleSegment(seg.key)}
+                        className="mt-0.5 h-4 w-4 accent-orange"
+                      />
+                      <span>
+                        {seg.label}
+                        <span className="mt-0.5 block text-xs text-smoke">
+                          {n} avec email
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {/* Filtre discipline (OU), applicable aux segments anciens */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-smoke">
+                  Discipline :
+                </span>
+                {DISCIPLINES.map((d) => (
+                  <label
+                    key={d.key}
+                    className={`flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      disciplines.includes(d.key)
+                        ? "border-orange bg-orange-50 text-orange"
+                        : "border-line text-ink hover:border-orange/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={disciplines.includes(d.key)}
+                      onChange={() => toggleDiscipline(d.key)}
+                      className="h-3.5 w-3.5 accent-orange"
+                    />
+                    {d.label}
+                  </label>
+                ))}
+                {disciplines.length > 0 && (
+                  <button
+                    onClick={() => setDisciplines([])}
+                    className="text-xs font-semibold text-smoke underline-offset-2 hover:underline"
+                  >
+                    réinitialiser
+                  </button>
+                )}
+              </div>
+              {anciensSegments.length > 0 && anciensSansEmail > 0 && (
+                <p className="mt-2 text-xs text-smoke">
+                  {anciensSansEmail} ancien{anciensSansEmail > 1 ? "s" : ""} sans
+                  email dans cette sélection (non joignable{anciensSansEmail > 1 ? "s" : ""} par mail).
+                </p>
+              )}
             </div>
 
             {/* Sélection manuelle + listes perso */}
@@ -638,6 +763,12 @@ export default function NouvelleCampagnePage() {
                     label="Désinscrits exclus"
                     value={String(result.exclus)}
                   />
+                  {result.exclusSansEmail > 0 && (
+                    <Row
+                      label="Anciens sans email (exclus)"
+                      value={String(result.exclusSansEmail)}
+                    />
+                  )}
                 </dl>
                 <button
                   onClick={() => router.push("/admin/campagnes")}
