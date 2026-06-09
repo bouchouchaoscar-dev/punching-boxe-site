@@ -115,9 +115,21 @@ export async function POST(request: Request) {
     }
   }
 
-  const recipients = [...map.values()];
+  // Exclusion RGPD : retirer les emails désinscrits du marketing (toutes sources).
+  const { data: optouts } = await supabase
+    .from("desinscriptions_mailing")
+    .select("email");
+  const desinscrits = new Set(
+    (optouts ?? []).map((o) => String(o.email).toLowerCase()),
+  );
+  const dedupCount = map.size;
+  const recipients = [...map.values()].filter((r) => !desinscrits.has(r.email));
+  const exclus = dedupCount - recipients.length;
   if (recipients.length === 0) {
-    return NextResponse.json({ error: "Aucun destinataire." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Aucun destinataire (liste vide ou tous désinscrits).", exclus },
+      { status: 400 },
+    );
   }
 
   // Envoi par lots de 50.
@@ -127,7 +139,7 @@ export async function POST(request: Request) {
       from: MAIL_FROM,
       to: r.email,
       subject: remplacerVariables(objet, r),
-      html: renderCampagne(remplacerVariables(contenu, r)),
+      html: renderCampagne(remplacerVariables(contenu, r), r.email),
     }));
     const { error } = await resend.batch.send(emails);
     if (!error) sent += lot.length;
@@ -135,7 +147,7 @@ export async function POST(request: Request) {
   }
 
   // Sauvegarde de la campagne.
-  const doublons = totalAvant - recipients.length;
+  const doublons = totalAvant - dedupCount;
   // Liste réelle des destinataires (pour la page détail / réutilisation).
   const destinatairesListe = recipients.map((r) => ({
     nom: r.nom ?? null,
@@ -167,5 +179,5 @@ export async function POST(request: Request) {
   }
   if (insErr) console.error("Insert campagne:", insErr);
 
-  return NextResponse.json({ success: sent > 0, sent, doublons });
+  return NextResponse.json({ success: sent > 0, sent, doublons, exclus });
 }

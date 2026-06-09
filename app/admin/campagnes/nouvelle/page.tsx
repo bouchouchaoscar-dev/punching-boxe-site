@@ -46,6 +46,11 @@ export default function NouvelleCampagnePage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    sent: number;
+    exclus: number;
+    doublons: number;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/adherents", { cache: "no-store" })
@@ -241,7 +246,12 @@ export default function NouvelleCampagnePage() {
       });
       const d = await res.json();
       if (res.ok && d.success) {
-        router.push("/admin/campagnes");
+        // Bilan affiché (dont les désinscrits exclus) avant retour à l'historique.
+        setResult({
+          sent: d.sent ?? 0,
+          exclus: d.exclus ?? 0,
+          doublons: d.doublons ?? 0,
+        });
       } else {
         setConfirmOpen(false);
         setToast(d.error || "L'envoi a échoué.");
@@ -608,29 +618,62 @@ export default function NouvelleCampagnePage() {
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
           <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
-            <h2 className="font-display text-xl font-extrabold uppercase text-ink">
-              Confirmer l&apos;envoi
-            </h2>
-            <p className="mt-3 text-sm text-smoke">
-              Vous allez envoyer cet email à <strong>{count}</strong> personne
-              {count > 1 ? "s" : ""}. Cette action est irréversible.
-            </p>
-            <div className="mt-5 flex justify-center gap-3">
-              <button
-                onClick={() => setConfirmOpen(false)}
-                disabled={sending}
-                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={envoyer}
-                disabled={sending}
-                className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50"
-              >
-                {sending ? "Envoi…" : "Envoyer maintenant"}
-              </button>
-            </div>
+            {result ? (
+              <>
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+                  ✅
+                </div>
+                <h2 className="font-display mt-4 text-xl font-extrabold uppercase text-ink">
+                  Campagne envoyée
+                </h2>
+                <dl className="mx-auto mt-4 max-w-xs space-y-2 text-sm">
+                  <Row
+                    label="Emails envoyés"
+                    value={`${result.sent} destinataire${result.sent > 1 ? "s" : ""}`}
+                  />
+                  {result.doublons > 0 && (
+                    <Row label="Doublons retirés" value={String(result.doublons)} />
+                  )}
+                  <Row
+                    label="Désinscrits exclus"
+                    value={String(result.exclus)}
+                  />
+                </dl>
+                <button
+                  onClick={() => router.push("/admin/campagnes")}
+                  className="mt-6 rounded-full bg-orange px-6 py-2.5 text-sm font-bold text-white hover:bg-orange/90"
+                >
+                  Voir l&apos;historique
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 className="font-display text-xl font-extrabold uppercase text-ink">
+                  Confirmer l&apos;envoi
+                </h2>
+                <p className="mt-3 text-sm text-smoke">
+                  Vous allez envoyer cet email à <strong>{count}</strong> personne
+                  {count > 1 ? "s" : ""}. Les désinscrits sont automatiquement
+                  exclus. Cette action est irréversible.
+                </p>
+                <div className="mt-5 flex justify-center gap-3">
+                  <button
+                    onClick={() => setConfirmOpen(false)}
+                    disabled={sending}
+                    className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={envoyer}
+                    disabled={sending}
+                    className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50"
+                  >
+                    {sending ? "Envoi…" : "Envoyer maintenant"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -258,6 +258,16 @@ create table if not exists public.contacts_mailing (
 -- Les 5 templates par défaut sont auto-insérés par l'application au premier
 -- chargement de /admin/campagnes/templates (insertion par `nom` si absent).
 
+-- Désinscription marketing (RGPD), par EMAIL (clé d'envoi des campagnes).
+-- Présence d'une ligne = désinscrit des CAMPAGNES (les transactionnels partent
+-- toujours). Réinscription = suppression de la ligne.
+create table if not exists public.desinscriptions_mailing (
+  email       text primary key,
+  created_at  timestamptz not null default now(),
+  source      text
+);
+alter table public.desinscriptions_mailing enable row level security;
+
 -- ---------- Table admin_users (optionnelle — auth gérée en dur côté app) ----------
 create table if not exists public.admin_users (
   id            uuid primary key default gen_random_uuid(),

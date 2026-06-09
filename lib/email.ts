@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { CLUB, SITE_URL, HORAIRES, SALLES } from "./constants";
+import { unsubscribeUrl } from "./unsubscribe";
 import { euro, PACKAGE_LABEL, type ModePaiement, type PackageType } from "./pricing";
 import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
@@ -312,11 +313,20 @@ export const MAIL_FROM = FROM;
 export function getResendClient(): Resend | null {
   return getResend();
 }
-/** Rend le contenu texte d'une campagne dans le gabarit HTML du club. */
-export function renderCampagne(contenu: string): string {
-  return wrap(
-    `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${escapeHtml(contenu)}</div>`,
-  );
+/**
+ * Rend le contenu texte d'une CAMPAGNE (marketing) dans le gabarit du club.
+ * Si `email` est fourni, ajoute un pied de page avec le lien de désinscription
+ * (RGPD). Les mails TRANSACTIONNELS utilisent `wrap()` directement → pas de lien.
+ */
+export function renderCampagne(contenu: string, email?: string): string {
+  const corps = `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${escapeHtml(contenu)}</div>`;
+  const pied = email
+    ? `<div style="margin-top:22px;padding-top:14px;border-top:1px solid #eee;font-size:12px;color:#999;line-height:1.5">
+        Vous recevez cet email en tant que membre du Punching Boxe.<br/>
+        <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
+       </div>`
+    : "";
+  return wrap(corps + pied);
 }
 
 /** Formulaire de contact → email à Pascal (avec reply-to vers l'expéditeur). */
