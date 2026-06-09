@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,14 +18,35 @@ import {
   YAxis,
 } from "recharts";
 import { useSaisonAdmin, ALL_SAISONS } from "./SaisonContext";
+import { adminAuthHeaders } from "@/lib/admin-auth";
+import { analyserSaisons } from "@/lib/stats-insights";
 import { euro } from "@/lib/pricing";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
 
+type Disc = { BF: number; SAVATE: number; LES_2: number; AUTRE: number };
+type SerieEntry = {
+  saison: string;
+  source: "historique" | "natif";
+  ca: number;
+  effectifs: number;
+  disciplines: Disc;
+  enCours: boolean;
+};
+
 export function Dashboard() {
   const { adherents, loading, error, selectedSaison } = useSaisonAdmin();
+  const [serie, setSerie] = useState<SerieEntry[]>([]);
 
+  useEffect(() => {
+    fetch("/api/admin/stats-saisons", { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setSerie(d.serie ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Vue NATIVE (saison en cours) : calculée depuis les dossiers natifs du contexte.
   const data = useMemo(() => {
     const paid = adherents.filter(
       (a) => a.statut_paiement === "paye" || a.statut_paiement === "confirme_especes",
@@ -33,30 +57,17 @@ export function Dashboard() {
       const d = new Date(a.created_at);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
-    const attenteEspeces = adherents.filter(
-      (a) => a.statut_paiement === "en_attente",
-    ).length;
-    const echecs = adherents.filter(
-      (a) => a.statut_paiement === "echec_paiement",
-    ).length;
+    const attenteEspeces = adherents.filter((a) => a.statut_paiement === "en_attente").length;
+    const echecs = adherents.filter((a) => a.statut_paiement === "echec_paiement").length;
     const formuleBoxe = adherents.filter(
       (a) => a.package === "boxe_classique" && !a.option_prepa_physique,
     ).length;
     const boxePrepa = adherents.filter(
       (a) => a.package === "boxe_classique" && a.option_prepa_physique,
     ).length;
-    const savateForme = adherents.filter(
-      (a) => a.package === "savate_prepa",
-    ).length;
+    const savateForme = adherents.filter((a) => a.package === "savate_prepa").length;
 
-    // Les 12 mois de la saison (Juil → Juin), juillet/août inclus (à 0).
-    const SEASON_LABELS = [
-      "Juil", "Août", "Sept", "Oct", "Nov", "Déc",
-      "Janv", "Févr", "Mars", "Avril", "Mai", "Juin",
-    ];
-    // Année de départ de la saison AFFICHÉE (suit le sélecteur). Pour une saison
-    // "AAAA-BBBB", l'année de départ est AAAA. En mode "toutes saisons", on se
-    // cale sur la saison en cours (graphe = fenêtre courante par défaut).
+    const SEASON_LABELS = ["Juil","Août","Sept","Oct","Nov","Déc","Janv","Févr","Mars","Avril","Mai","Juin"];
     const seasonStartYear =
       selectedSaison !== ALL_SAISONS && /^\d{4}-\d{4}$/.test(selectedSaison)
         ? parseInt(selectedSaison.slice(0, 4), 10)
@@ -64,7 +75,7 @@ export function Dashboard() {
           ? now.getFullYear()
           : now.getFullYear() - 1;
     const months = SEASON_LABELS.map((label, idx) => {
-      const monthIndex = (6 + idx) % 12; // 0→Juil(6) … 6→Janv(0)
+      const monthIndex = (6 + idx) % 12;
       const year = idx <= 5 ? seasonStartYear : seasonStartYear + 1;
       return { key: `${year}-${monthIndex}`, label };
     });
@@ -81,26 +92,8 @@ export function Dashboard() {
 
     const adultes = adherents.filter((a) => a.type_adherent === "adulte").length;
     const jeunes = adherents.filter((a) => a.type_adherent === "jeune").length;
-
-    // Modes de paiement regroupés : en ligne (Stripe) vs espèces.
-    const enLigne = adherents.filter((a) =>
-      (a.mode_paiement ?? "").startsWith("stripe"),
-    ).length;
-    const especes = adherents.filter(
-      (a) => a.mode_paiement === "especes",
-    ).length;
-    const repartitionMode = [
-      { name: "Paiement en ligne", value: enLigne, color: ORANGE },
-      { name: "Espèces", value: especes, color: INK },
-    ].filter((x) => x.value > 0);
-
-    // Répartition des formules.
-    const boxe = adherents.filter((a) => a.package === "boxe_classique").length;
-    const savate = adherents.filter((a) => a.package === "savate_prepa").length;
-    const repartitionFormule = [
-      { name: "Boxe Française", value: boxe, color: ORANGE },
-      { name: "Savate et Prépa", value: savate, color: INK },
-    ].filter((x) => x.value > 0);
+    const enLigne = adherents.filter((a) => (a.mode_paiement ?? "").startsWith("stripe")).length;
+    const especes = adherents.filter((a) => a.mode_paiement === "especes").length;
 
     return {
       total: adherents.length,
@@ -116,8 +109,14 @@ export function Dashboard() {
         { name: "Adultes", value: adultes, color: ORANGE },
         { name: "Jeunes", value: jeunes, color: INK },
       ].filter((x) => x.value > 0),
-      repartitionMode,
-      repartitionFormule,
+      repartitionMode: [
+        { name: "Paiement en ligne", value: enLigne, color: ORANGE },
+        { name: "Espèces", value: especes, color: INK },
+      ].filter((x) => x.value > 0),
+      repartitionFormule: [
+        { name: "Boxe Française", value: adherents.filter((a) => a.package === "boxe_classique").length, color: ORANGE },
+        { name: "Savate et Prépa", value: savateForme, color: INK },
+      ].filter((x) => x.value > 0),
     };
   }, [adherents, selectedSaison]);
 
@@ -129,17 +128,18 @@ export function Dashboard() {
     );
   }
 
+  const enAll = selectedSaison === ALL_SAISONS;
+  const entry = serie.find((s) => s.saison === selectedSaison);
+  const estPasse = !enAll && entry?.source === "historique";
+
   return (
     <div>
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-display text-4xl font-black uppercase text-ink">
-            Tableau de bord
-          </h1>
+          <h1 className="font-display text-4xl font-black uppercase text-ink">Tableau de bord</h1>
           <p className="mt-1 text-smoke">
-            {selectedSaison === ALL_SAISONS
-              ? "Toutes les saisons"
-              : `Saison ${selectedSaison}`}
+            {enAll ? "Toutes les saisons" : `Saison ${selectedSaison}`}
+            {entry?.enCours ? " (en cours)" : ""}
           </p>
         </div>
       </div>
@@ -150,7 +150,37 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* KPIs */}
+      {enAll ? (
+        <ToutesSaisons serie={serie} />
+      ) : estPasse && entry ? (
+        <SaisonPassee entry={entry} />
+      ) : (
+        <SaisonNative data={data} />
+      )}
+    </div>
+  );
+}
+
+type Repart = { name: string; value: number; color: string }[];
+type NatifData = {
+  total: number;
+  encaisse: number;
+  nouveauxMois: number;
+  attenteEspeces: number;
+  echecs: number;
+  formuleBoxe: number;
+  boxePrepa: number;
+  savateForme: number;
+  byMonth: { mois: string; inscriptions: number; montant: number }[];
+  typeData: Repart;
+  repartitionMode: Repart;
+  repartitionFormule: Repart;
+};
+
+// ---- Vue saison NATIVE (en cours) ----
+function SaisonNative({ data }: { data: NatifData }) {
+  return (
+    <>
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Adhérents" value={String(data.total)} accent />
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
@@ -164,12 +194,9 @@ export function Dashboard() {
 
       {data.total === 0 ? (
         <div className="mt-10 rounded-[1.5rem] border border-dashed border-line bg-white p-12 text-center">
-          <p className="font-display text-2xl font-extrabold uppercase text-ink">
-            Aucun adhérent
-          </p>
+          <p className="font-display text-2xl font-extrabold uppercase text-ink">Aucun adhérent</p>
           <p className="mx-auto mt-2 max-w-md text-sm text-smoke">
-            Les inscriptions apparaîtront ici dès la première soumission du
-            formulaire en ligne (Supabase doit être configuré).
+            Les inscriptions de cette saison apparaîtront ici dès la première soumission.
           </p>
         </div>
       ) : (
@@ -186,13 +213,7 @@ export function Dashboard() {
                 <XAxis dataKey="mois" tick={{ fontSize: 12 }} stroke="#bbb" />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#bbb" width={28} />
                 <Tooltip />
-                <Area
-                  type="monotone"
-                  dataKey="inscriptions"
-                  stroke={ORANGE}
-                  strokeWidth={2.5}
-                  fill="url(#o)"
-                />
+                <Area type="monotone" dataKey="inscriptions" stroke={ORANGE} strokeWidth={2.5} fill="url(#o)" />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -209,87 +230,148 @@ export function Dashboard() {
           </ChartCard>
 
           <ChartCard title="Adultes / Jeunes">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={data.typeData}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={3}
-                >
-                  {data.typeData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <Donut data={data.typeData} inner={55} />
             <ChartLegend items={data.typeData} />
           </ChartCard>
 
-          <ChartCard title="Modes de paiement">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={data.repartitionMode}
-                  dataKey="value"
-                  nameKey="name"
-                  outerRadius={85}
-                >
-                  {data.repartitionMode.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <ChartLegend items={data.repartitionMode} />
-          </ChartCard>
-
           <ChartCard title="Répartition des formules">
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={data.repartitionFormule}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={3}
-                >
-                  {data.repartitionFormule.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            <Donut data={data.repartitionFormule} inner={55} />
             <ChartLegend items={data.repartitionFormule} />
           </ChartCard>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
-function ChartLegend({
-  items,
-}: {
-  items: { name: string; value: number; color: string }[];
-}) {
+// ---- Vue saison PASSÉE (historique importé : CA + effectifs + disciplines) ----
+function SaisonPassee({ entry }: { entry: SerieEntry }) {
+  const disc = [
+    { name: "Boxe Française", value: entry.disciplines.BF, color: ORANGE },
+    { name: "Savate", value: entry.disciplines.SAVATE, color: INK },
+    { name: "Les deux", value: entry.disciplines.LES_2, color: "#9ca3af" },
+    { name: "À vérifier", value: entry.disciplines.AUTRE, color: "#e5e7eb" },
+  ].filter((x) => x.value > 0);
+  return (
+    <>
+      <div className="mt-6 rounded-xl border border-line bg-paper-2 p-3 text-xs text-smoke">
+        Données historiques importées : CA, effectifs et disciplines disponibles.
+        Le détail mensuel et adultes/jeunes n&apos;est pas disponible pour les saisons passées.
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <Kpi label="Chiffre d'affaires" value={euro(entry.ca)} accent />
+        <Kpi label="Effectifs" value={String(entry.effectifs)} />
+        <Kpi
+          label="CA moyen / adhérent"
+          value={entry.effectifs > 0 ? euro(Math.round(entry.ca / entry.effectifs)) : "—"}
+        />
+      </div>
+      {disc.length > 0 && (
+        <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          <ChartCard title="Répartition des disciplines">
+            <Donut data={disc} inner={55} />
+            <ChartLegend items={disc} />
+          </ChartCard>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ---- Vue TOUTES SAISONS (évolution CA + effectifs + analyse par règles) ----
+function ToutesSaisons({ serie }: { serie: SerieEntry[] }) {
+  const completes = serie.filter((s) => !s.enCours);
+  const caTotal = completes.reduce((s, x) => s + x.ca, 0);
+  const insights = analyserSaisons(
+    serie.map((s) => ({ saison: s.saison, ca: s.ca, effectifs: s.effectifs, enCours: s.enCours })),
+  );
+  const chartData = serie.map((s) => ({
+    saison: s.saison.replace("-", "\n"),
+    ca: s.ca,
+    effectifs: s.effectifs,
+    enCours: s.enCours,
+  }));
+
+  return (
+    <>
+      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+        <Kpi label="CA cumulé (saisons complètes)" value={euro(caTotal)} accent />
+        <Kpi label="Saisons" value={String(serie.length)} />
+        <Kpi
+          label="Effectifs dernière saison complète"
+          value={String(completes.length ? completes[completes.length - 1].effectifs : 0)}
+        />
+      </div>
+
+      <div className="mt-8 grid gap-5 lg:grid-cols-2">
+        <ChartCard title="Évolution du chiffre d'affaires">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+              <XAxis dataKey="saison" tick={{ fontSize: 11 }} stroke="#bbb" interval={0} />
+              <YAxis tick={{ fontSize: 12 }} stroke="#bbb" width={50} />
+              <Tooltip formatter={(v) => euro(Number(v))} />
+              <Bar dataKey="ca" radius={[6, 6, 0, 0]}>
+                {chartData.map((d, i) => (
+                  <Cell key={i} fill={d.enCours ? "#f9b27a" : ORANGE} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="mt-2 text-xs text-smoke">La saison en cours (teinte claire) est incomplète.</p>
+        </ChartCard>
+
+        <ChartCard title="Évolution des effectifs">
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+              <XAxis dataKey="saison" tick={{ fontSize: 11 }} stroke="#bbb" interval={0} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} stroke="#bbb" width={32} />
+              <Tooltip />
+              <Line type="monotone" dataKey="effectifs" stroke={INK} strokeWidth={2.5} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      {insights.length > 0 && (
+        <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-5 sm:p-6">
+          <h3 className="mb-3 font-display text-lg font-extrabold uppercase text-ink">Analyse</h3>
+          <ul className="space-y-2">
+            {insights.map((t, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-ink">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange" />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Donut({ data, inner }: { data: { name: string; value: number; color: string }[]; inner: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie data={data} dataKey="value" nameKey="name" innerRadius={inner} outerRadius={85} paddingAngle={3}>
+          {data.map((d, i) => (
+            <Cell key={i} fill={d.color} />
+          ))}
+        </Pie>
+        <Tooltip />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ChartLegend({ items }: { items: { name: string; value: number; color: string }[] }) {
   return (
     <div className="mt-4 flex flex-wrap items-center justify-center gap-4">
       {items.map((it) => (
-        <span
-          key={it.name}
-          className="inline-flex items-center gap-2 text-sm font-bold text-ink"
-        >
-          <span
-            className="h-3.5 w-3.5 rounded-[4px]"
-            style={{ backgroundColor: it.color }}
-          />
+        <span key={it.name} className="inline-flex items-center gap-2 text-sm font-bold text-ink">
+          <span className="h-3.5 w-3.5 rounded-[4px]" style={{ backgroundColor: it.color }} />
           {it.name} <span className="font-semibold text-smoke">({it.value})</span>
         </span>
       ))}
@@ -320,24 +402,12 @@ function Kpi({
             : "border-line bg-white"
       }`}
     >
-      <p
-        className={`text-xs font-bold uppercase tracking-wide ${
-          accent ? "text-white/50" : "text-smoke"
-        }`}
-      >
+      <p className={`text-xs font-bold uppercase tracking-wide ${accent ? "text-white/50" : "text-smoke"}`}>
         {label}
       </p>
       <p
         className={`font-display mt-2 text-3xl font-black ${
-          danger
-            ? value === "0"
-              ? "text-ink"
-              : "text-red-600"
-            : warn
-              ? "text-orange"
-              : accent
-                ? "text-white"
-                : "text-ink"
+          danger ? (value === "0" ? "text-ink" : "text-red-600") : warn ? "text-orange" : accent ? "text-white" : "text-ink"
         }`}
       >
         {value}
@@ -346,18 +416,10 @@ function Kpi({
   );
 }
 
-function ChartCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-[1.5rem] border border-line bg-white p-5 sm:p-6">
-      <h3 className="mb-4 font-display text-lg font-extrabold uppercase text-ink">
-        {title}
-      </h3>
+      <h3 className="mb-4 font-display text-lg font-extrabold uppercase text-ink">{title}</h3>
       {children}
     </div>
   );

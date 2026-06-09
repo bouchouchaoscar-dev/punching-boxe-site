@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { Adherent } from "@/lib/types";
 import { saisonCourante } from "@/lib/saison";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 // Sentinelle "toutes saisons" + clé de persistance du choix.
 export const ALL_SAISONS = "all";
@@ -30,6 +31,8 @@ const SaisonContext = createContext<Ctx | null>(null);
 
 export function SaisonProvider({ children }: { children: React.ReactNode }) {
   const [allAdherents, setAllAdherents] = useState<Adherent[]>([]);
+  // Saisons historiques (anciens importés) pour étendre le sélecteur au passé.
+  const [saisonsHisto, setSaisonsHisto] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // Défaut = saison courante ; éventuel choix mémorisé chargé côté client.
@@ -68,15 +71,20 @@ export function SaisonProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+    // Saisons connues (historique ∪ natifs ∪ courante) pour le sélecteur.
+    fetch("/api/admin/saisons", { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setSaisonsHisto(d.seasons ?? []))
+      .catch(() => {});
   }, [refresh]);
 
-  // Saisons présentes ∪ saison courante, triées décroissant (plus récente en 1er).
+  // Saisons natifs ∪ historiques ∪ saison courante, triées décroissant.
   const saisons = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(saisonsHisto);
     for (const a of allAdherents) if (a.saison) set.add(a.saison);
     set.add(saisonCourante(new Date()));
     return [...set].sort().reverse();
-  }, [allAdherents]);
+  }, [allAdherents, saisonsHisto]);
 
   // Si le choix mémorisé n'existe plus (et n'est pas "toutes"), revenir à la courante.
   useEffect(() => {
