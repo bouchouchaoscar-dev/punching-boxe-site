@@ -24,11 +24,14 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdmin();
   const today = new Date().toISOString().slice(0, 10);
 
-  // Échéances dues, non encore prélevées (pas de PaymentIntent).
+  // Échéances dues, non encore prélevées (pas de PaymentIntent). On inclut aussi
+  // 'en_cours' = claim resté bloqué par un run précédent interrompu : la reprise
+  // est sûre grâce à la clé d'idempotence (cf. chargerEcheance) → pas de
+  // double-débit. (Un débit réussi serait 'paye', un échec 'echec' → exclus.)
   const { data: dues, error } = await supabase
     .from("paiements")
     .select("id")
-    .eq("statut", "en_attente")
+    .in("statut", ["en_attente", "en_cours"])
     .not("numero_echeance", "is", null)
     .is("stripe_payment_intent_id", null)
     .lte("date_prevue", today);

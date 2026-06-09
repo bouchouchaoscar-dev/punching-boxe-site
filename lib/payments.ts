@@ -283,6 +283,8 @@ export async function chargerEcheance(
     .eq("id", paiementId)
     .maybeSingle();
   if (!p) return { ok: false, error: "Échéance introuvable." };
+  // Garde-fou : déjà payée → on ne reprélève jamais.
+  if (p.statut === "paye") return { ok: true, status: "succeeded" };
 
   const { data: a } = await supabase
     .from("adherents")
@@ -302,25 +304,52 @@ export async function chargerEcheance(
     | undefined;
   if (!pm) return { ok: false, error: "Aucune carte enregistrée." };
 
+  // CLAIM atomique : on s'approprie la ligne AVANT tout débit, en passant
+  // 'en_attente' (ou un 'en_cours' resté bloqué par un run précédent interrompu)
+  // → 'en_cours'. Si une autre exécution l'a déjà prise (ou qu'un PI est déjà
+  // rattaché), on n'a rien à faire → pas de double-prélèvement.
+  const { data: claimed } = await supabase
+    .from("paiements")
+    .update({ statut: "en_cours" })
+    .eq("id", p.id)
+    .in("statut", ["en_attente", "en_cours"])
+    .is("stripe_payment_intent_id", null)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) {
+    return {
+      ok: false,
+      error: "Échéance déjà en cours de traitement ou non éligible.",
+    };
+  }
+
   try {
-    const pi = await stripe.paymentIntents.create({
-      amount: Math.round(Number(p.montant) * 100),
-      currency: "eur",
-      customer: a.stripe_customer_id,
-      payment_method: pm,
-      off_session: true,
-      confirm: true,
-      description: `Échéance ${p.numero_echeance ?? ""}`,
-      metadata: {
-        adherentId: a.id,
-        paiementId: p.id,
-        numero: String(p.numero_echeance ?? ""),
+    const pi = await stripe.paymentIntents.create(
+      {
+        amount: Math.round(Number(p.montant) * 100),
+        currency: "eur",
+        customer: a.stripe_customer_id,
+        payment_method: pm,
+        off_session: true,
+        confirm: true,
+        description: `Échéance ${p.numero_echeance ?? ""}`,
+        metadata: {
+          adherentId: a.id,
+          paiementId: p.id,
+          numero: String(p.numero_echeance ?? ""),
+        },
       },
-    });
+      // Idempotence : reprendre CETTE échéance à CETTE date prévue (ex. claim
+      // bloqué relancé au run suivant) NE peut PAS redébiter — Stripe renvoie le
+      // même PaymentIntent au lieu d'en créer un second.
+      { idempotencyKey: `echeance-${p.id}-${p.date_prevue ?? "x"}` },
+    );
     await supabase
       .from("paiements")
       .update({
         stripe_payment_intent_id: pi.id,
+        // Succès → 'paye'. Sinon on relâche le claim ('en_attente') ; le PI étant
+        // désormais rattaché, le cron ne le reprendra pas (anti-double).
         statut: pi.status === "succeeded" ? "paye" : "en_attente",
         ...(pi.status === "succeeded"
           ? { date_paiement: new Date().toISOString() }
