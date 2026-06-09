@@ -196,9 +196,12 @@ export function FicheAdherent({ id }: { id: string }) {
     );
 
   const dossier = evaluerDossier(a);
-  // X = échéances numérotées déjà payées (s'actualise au fil des prélèvements cron).
+  // X = échéances numérotées encaissées (une échéance remboursée a bien été
+  // prélevée → comptée). S'actualise au fil des prélèvements cron.
   const paidEcheances = paiements.filter(
-    (p) => p.statut === "paye" && p.numero_echeance != null,
+    (p) =>
+      p.numero_echeance != null &&
+      (p.statut === "paye" || p.statut === "rembourse"),
   ).length;
 
   return (

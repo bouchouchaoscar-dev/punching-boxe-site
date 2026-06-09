@@ -52,21 +52,11 @@ const SLATE = "bg-ink/10 text-ink"; // annulé / remboursé (distinct de "en att
  * - carte fractionnée non payée → « En attente » (gris)           [X = 0]
  * `paidEcheances` = nombre d'échéances NUMÉROTÉES déjà payées.
  */
-export function paiementStatut(
+// Statut « de base » (mode + avancement), sans tenir compte du remboursement.
+function baseStatut(
   a: PaiementInfo,
   paidEcheances: number,
 ): { label: string; cls: string } {
-  // Annulé / remboursé : prioritaire, distinct de « En attente ».
-  if (a.annule_at) {
-    return (a.montant_rembourse ?? 0) > 0
-      ? { label: "↩️ Remboursé", cls: SLATE }
-      : { label: "⛔ Annulé", cls: SLATE };
-  }
-  if ((a.montant_rembourse ?? 0) > 0) {
-    // Remboursé sans annulation (remboursement partiel, échéances conservées).
-    return { label: "↩️ Remboursé (partiel)", cls: SLATE };
-  }
-
   if (a.statut_paiement === "echec_paiement")
     return { label: "❌ Échec · à régulariser", cls: RED };
 
@@ -91,6 +81,28 @@ export function paiementStatut(
   return a.statut_paiement === "paye"
     ? { label: "✅ Payé en ligne", cls: GREEN }
     : { label: "⏳ En attente", cls: GRAY };
+}
+
+export function paiementStatut(
+  a: PaiementInfo,
+  paidEcheances: number,
+): { label: string; cls: string } {
+  // Dossier réellement ANNULÉ (annule_at posé) → statut plein « ardoise »,
+  // distinct de « En attente ».
+  if (a.annule_at) {
+    return (a.montant_rembourse ?? 0) > 0
+      ? { label: "↩️ Remboursé", cls: SLATE }
+      : { label: "⛔ Annulé", cls: SLATE };
+  }
+
+  // Remboursement PARTIEL avec échéances conservées (pas d'annulation) : on garde
+  // le statut « en cours » (couleur + X/N) et on mentionne le remboursement —
+  // important car des prélèvements peuvent continuer.
+  const base = baseStatut(a, paidEcheances);
+  if ((a.montant_rembourse ?? 0) > 0) {
+    return { label: `${base.label} · remboursé partiel`, cls: base.cls };
+  }
+  return base;
 }
 
 export function PaiementStatut({

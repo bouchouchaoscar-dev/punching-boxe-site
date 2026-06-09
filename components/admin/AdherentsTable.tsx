@@ -37,9 +37,14 @@ export function AdherentsTable() {
           if (p.statut === "paye") {
             enc[p.adherent_id] =
               (enc[p.adherent_id] ?? 0) + Number(p.montant || 0);
-            // X = échéances NUMÉROTÉES payées (exclut la ligne adhésion numero=null).
-            if (p.numero_echeance != null)
-              paid[p.adherent_id] = (paid[p.adherent_id] ?? 0) + 1;
+          }
+          // X = échéances NUMÉROTÉES encaissées (exclut la ligne adhésion
+          // numero=null). Une échéance remboursée a bien été prélevée → comptée.
+          if (
+            p.numero_echeance != null &&
+            (p.statut === "paye" || p.statut === "rembourse")
+          ) {
+            paid[p.adherent_id] = (paid[p.adherent_id] ?? 0) + 1;
           }
         }
         setEncaisseMap(enc);
