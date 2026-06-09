@@ -93,8 +93,22 @@ export default function CampagneDetailPage({
 
   const b = STATUT_BADGE[campagne.statut] ?? STATUT_BADGE.brouillon;
   const t = TYPE_BADGE[campagne.type ?? "campagne"] ?? TYPE_BADGE.campagne;
+  const individuel = campagne.type === "individuel";
   const dateEnvoi = new Date(campagne.envoye_at ?? campagne.created_at);
   const destinataires = campagne.destinataires_liste ?? [];
+  // Normalise les deux formats figés : ancien (plat, 1 personne) et nouveau
+  // (groupé par email, familles préservées).
+  const groupes = destinataires.map((d) => ({
+    email: d.email,
+    personnes:
+      d.personnes && d.personnes.length
+        ? d.personnes
+        : [{ prenom: d.prenom ?? null, nom: d.nom ?? null }],
+  }));
+  const nbPersonnes =
+    campagne.nb_destinataires ??
+    groupes.reduce((s, g) => s + g.personnes.length, 0);
+  const nbEmails = campagne.nb_envoyes ?? groupes.length;
 
   return (
     <div className="max-w-3xl">
@@ -145,12 +159,14 @@ export default function CampagneDetailPage({
 
       {/* Actions */}
       <div className="mt-5 flex flex-wrap gap-3">
-        <button
-          onClick={dupliquer}
-          className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90"
-        >
-          Dupliquer cette campagne
-        </button>
+        {!individuel && (
+          <button
+            onClick={dupliquer}
+            className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+          >
+            Dupliquer cette campagne
+          </button>
+        )}
         <button
           onClick={() => setConfirmDelete(true)}
           className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
@@ -177,29 +193,48 @@ export default function CampagneDetailPage({
             Destinataires
           </h2>
           <span className="text-sm font-semibold text-smoke">
-            {campagne.nb_destinataires ?? destinataires.length} au total
-            {campagne.nb_envoyes != null && (
-              <> · {campagne.nb_envoyes} envoyé{campagne.nb_envoyes > 1 ? "s" : ""}</>
-            )}
-            {campagne.nb_exclus != null && campagne.nb_exclus > 0 && (
-              <> · {campagne.nb_exclus} exclu{campagne.nb_exclus > 1 ? "s" : ""}</>
+            {individuel ? (
+              "1 destinataire"
+            ) : (
+              <>
+                {nbPersonnes} adhérent{nbPersonnes > 1 ? "s" : ""} touché
+                {nbPersonnes > 1 ? "s" : ""} · {nbEmails} email
+                {nbEmails > 1 ? "s" : ""}
+                {campagne.nb_exclus != null && campagne.nb_exclus > 0 && (
+                  <> · {campagne.nb_exclus} exclu{campagne.nb_exclus > 1 ? "s" : ""}</>
+                )}
+              </>
             )}
           </span>
         </div>
 
-        {destinataires.length > 0 ? (
-          <ul className="mt-4 divide-y divide-line">
-            {destinataires.map((d, i) => {
-              const nomComplet = `${d.prenom ?? ""} ${d.nom ?? ""}`.trim();
+        {!individuel && campagne.cible && (
+          <p className="mt-3 text-sm">
+            <span className="font-semibold text-ink">Liste ciblée :</span>{" "}
+            <span className="text-smoke">{campagne.cible}</span>
+          </p>
+        )}
+
+        {groupes.length > 0 ? (
+          <ul className="mt-4 max-h-96 divide-y divide-line overflow-y-auto">
+            {groupes.map((g, i) => {
+              const noms = g.personnes
+                .map((p) => `${p.prenom ?? ""} ${p.nom ?? ""}`.trim())
+                .filter(Boolean);
               return (
                 <li
-                  key={`${d.email}-${i}`}
+                  key={`${g.email}-${i}`}
                   className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
                 >
                   <span className="font-semibold text-ink">
-                    {nomComplet || "—"}
+                    {noms.length ? noms.join(", ") : "—"}
+                    {g.personnes.length > 1 && (
+                      <span className="ml-2 rounded-full bg-paper-2 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-smoke">
+                        {g.personnes.length} pers. · 1 email
+                      </span>
+                    )}
                   </span>
-                  <span className="text-smoke">{d.email}</span>
+                  <span className="text-smoke">{g.email}</span>
                 </li>
               );
             })}

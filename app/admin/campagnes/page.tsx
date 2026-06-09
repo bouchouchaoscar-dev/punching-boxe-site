@@ -124,7 +124,18 @@ export default function CampagnesPage() {
                       )}
                     </td>
                     <td className="p-4 text-smoke">
-                      {individuel ? "1" : (c.nb_destinataires ?? 0)}
+                      {individuel ? (
+                        "1"
+                      ) : (
+                        <>
+                          {c.nb_destinataires ?? 0}
+                          {c.nb_envoyes != null && (
+                            <span className="block text-xs text-smoke/70">
+                              {c.nb_envoyes} email{c.nb_envoyes > 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td className="p-4">
                       <span
@@ -134,28 +145,30 @@ export default function CampagnesPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          dupliquer(c);
-                        }}
-                        title="Dupliquer cette campagne"
-                        aria-label="Dupliquer cette campagne"
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink transition-colors hover:border-orange hover:text-orange"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                      {!individuel && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dupliquer(c);
+                          }}
+                          title="Dupliquer cette campagne"
+                          aria-label="Dupliquer cette campagne"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink transition-colors hover:border-orange hover:text-orange"
                         >
-                          <rect x="9" y="9" width="13" height="13" rx="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                      </button>
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <rect x="9" y="9" width="13" height="13" rx="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

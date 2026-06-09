@@ -5,10 +5,105 @@ import { classerAncien } from "./anciennete";
 
 export type StatutCampagne = "brouillon" | "envoye" | "erreur";
 
+// Format figé à l'envoi. Deux variantes coexistent :
+// - ancien (plat)   : { nom, prenom, email }  → 1 entrée = 1 personne
+// - nouveau (groupé): { email, personnes[] }  → 1 entrée = 1 email, N personnes
+//   (familles partageant une adresse, préservées).
 export interface DestinataireCampagne {
+  email: string;
   nom?: string | null;
   prenom?: string | null;
+  personnes?: { nom?: string | null; prenom?: string | null }[];
+}
+
+/**
+ * Assemble une liste de prénoms en salutation lisible :
+ * [] → "", ["Oscar"] → "Oscar", ["Oscar","Léon"] → "Oscar et Léon",
+ * ["Oscar","Léon","Marie"] → "Oscar, Léon et Marie".
+ */
+export function joindrePrenoms(
+  prenoms: (string | null | undefined)[],
+): string {
+  const uniq = [
+    ...new Set(prenoms.map((p) => (p ?? "").trim()).filter(Boolean)),
+  ];
+  if (uniq.length === 0) return "";
+  if (uniq.length === 1) return uniq[0];
+  return `${uniq.slice(0, -1).join(", ")} et ${uniq[uniq.length - 1]}`;
+}
+
+// Une personne candidate à un envoi (après dédoublonnage par identité en amont).
+export type PersonneEnvoi = {
+  personKey: string;
   email: string;
+  prenom?: string | null;
+  nom?: string | null;
+  formule?: string | null;
+  montant?: number | string | null;
+  saison?: string | null;
+  derniere_saison?: string | null;
+  disciplines?: string | null;
+};
+
+export type EnvoiGroupe = {
+  email: string;
+  personnes: PersonneEnvoi[];
+  vars: DestinataireVars;
+};
+
+/**
+ * ÉTAGE 2 du sourcing : regroupe par EMAIL une liste de personnes DÉJÀ
+ * dédoublonnées par identité (étage 1, en amont). Les familles (personnes
+ * différentes, même email) sont préservées : 1 email = 1 envoi portant TOUTES
+ * les personnes.
+ *
+ * - `{{prenom}}` devient la salutation jointe ("Oscar et Léon").
+ * - Si plusieurs personnes sur l'email, les variables INDIVIDUELLES
+ *   (formule/montant/disciplines/dernière saison) sont VIDÉES (afficher la
+ *   valeur d'un seul membre serait trompeur). Si une seule, valeurs normales.
+ * - `exclus` = emails désinscrits (exclusion RGPD au niveau email).
+ */
+export function regrouperParEmail(
+  personnes: PersonneEnvoi[],
+  exclus: Set<string>,
+  saisonRef: string,
+): { envois: EnvoiGroupe[]; personnesExclues: number } {
+  const groupes = new Map<string, PersonneEnvoi[]>();
+  for (const p of personnes) {
+    const email = p.email.trim().toLowerCase();
+    if (!email) continue;
+    const arr = groupes.get(email);
+    if (arr) arr.push(p);
+    else groupes.set(email, [p]);
+  }
+
+  const envois: EnvoiGroupe[] = [];
+  let personnesExclues = 0;
+  for (const [email, membres] of groupes) {
+    if (exclus.has(email)) {
+      personnesExclues += membres.length;
+      continue;
+    }
+    const multi = membres.length > 1;
+    const rep = membres[0];
+    const prenom = joindrePrenoms(membres.map((m) => m.prenom));
+    // Nom commun si tous identiques (famille), sinon celui du représentant.
+    const noms = [
+      ...new Set(membres.map((m) => (m.nom ?? "").trim()).filter(Boolean)),
+    ];
+    const nomGroupe = noms.length === 1 ? noms[0] : rep.nom ?? "";
+    const vars: DestinataireVars = {
+      prenom,
+      nom: multi ? nomGroupe : rep.nom ?? "",
+      saison: multi ? saisonRef : rep.saison || saisonRef,
+      formule: multi ? "" : rep.formule ?? "",
+      montant: multi ? "" : rep.montant ?? "",
+      derniere_saison: multi ? "" : rep.derniere_saison ?? "",
+      disciplines: multi ? "" : rep.disciplines ?? "",
+    };
+    envois.push({ email, personnes: membres, vars });
+  }
+  return { envois, personnesExclues };
 }
 
 export type TypeEnvoi = "campagne" | "individuel";

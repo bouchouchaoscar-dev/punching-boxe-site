@@ -10,6 +10,7 @@ import {
   filtrerAdherents,
   filtrerAnciens,
   remplacerVariables,
+  regrouperParEmail,
   formuleLabel,
   disciplinesLabel,
   SMART_LISTS,
@@ -19,14 +20,12 @@ import {
   type SegmentAncienKey,
   type DisciplineKey,
   type AncienRecence,
-  type DestinataireVars,
+  type PersonneEnvoi,
 } from "@/lib/campagnes";
 import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 
 export const runtime = "nodejs";
-
-type Recipient = { email: string } & DestinataireVars;
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -75,14 +74,16 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const saisonRef = saisonCourante(new Date()); // {{saison}} = saison en cours
 
-  // Index email → variables (dédup, insensible à la casse).
-  const map = new Map<string, Recipient>();
+  // ---- Étage 1 : dédoublonnage par PERSONNE (clé d'identité, pas l'email) ----
+  // Fusionne les VRAIS doublons (même personne captée par 2 listes) sans écraser
+  // les familles (personnes différentes partageant une même adresse email).
+  const personnes = new Map<string, PersonneEnvoi>();
   let totalAvant = 0;
-  const add = (r: Recipient) => {
-    const key = r.email.trim().toLowerCase();
-    if (!key) return;
+  const addPersonne = (p: PersonneEnvoi) => {
+    const email = p.email.trim().toLowerCase();
+    if (!email) return;
     totalAvant++;
-    if (!map.has(key)) map.set(key, { ...r, email: key });
+    if (!personnes.has(p.personKey)) personnes.set(p.personKey, { ...p, email });
   };
 
   // 1) Listes intelligentes (adhérents).
@@ -95,7 +96,8 @@ export async function POST(request: Request) {
     const { data } = await supabase.from("adherents").select("*");
     adherents = (data ?? []) as Adherent[];
   }
-  const adherentVars = (a: Adherent): Recipient => ({
+  const adherentPersonne = (a: Adherent): PersonneEnvoi => ({
+    personKey: `natif:${a.id}`,
     email: a.email,
     prenom: a.prenom,
     nom: a.nom,
@@ -107,16 +109,17 @@ export async function POST(request: Request) {
   });
 
   if (smartLists.length > 0) {
-    for (const a of filtrerAdherents(adherents, smartLists)) add(adherentVars(a));
+    for (const a of filtrerAdherents(adherents, smartLists))
+      addPersonne(adherentPersonne(a));
   }
 
-  // 2) Sélection manuelle (emails d'adhérents).
+  // 2) Sélection manuelle (emails d'adhérents ou emails libres).
   if (manualEmails.length > 0) {
     const byEmail = new Map(adherents.map((a) => [a.email.toLowerCase(), a]));
     for (const e of manualEmails) {
       const a = byEmail.get(e);
-      if (a) add(adherentVars(a));
-      else add({ email: e, saison: saisonRef });
+      if (a) addPersonne(adherentPersonne(a));
+      else addPersonne({ personKey: `email:${e}`, email: e, saison: saisonRef });
     }
   }
 
@@ -124,9 +127,15 @@ export async function POST(request: Request) {
   if (body.includeContacts) {
     const { data } = await supabase
       .from("contacts_mailing")
-      .select("email, prenom, nom");
+      .select("id, email, prenom, nom");
     for (const c of data ?? []) {
-      add({ email: c.email, prenom: c.prenom, nom: c.nom, saison: saisonRef });
+      addPersonne({
+        personKey: `contact:${c.id}`,
+        email: c.email,
+        prenom: c.prenom,
+        nom: c.nom,
+        saison: saisonRef,
+      });
     }
   }
 
@@ -139,8 +148,8 @@ export async function POST(request: Request) {
       .from("anciens_recence")
       .select("id, nom, prenom, email, derniere_saison, disciplines");
     const anciens = (rec ?? []) as AncienRecence[];
-    // Dédoublonnage niveau 1 : un ancien RÉINSCRIT (référencé par adherents.ancien_id)
-    // est représenté par son dossier natif → on l'exclut du sourcing anciens.
+    // Un ancien RÉINSCRIT (référencé par adherents.ancien_id) est représenté par
+    // son dossier natif → on l'exclut du sourcing anciens.
     const { data: migr } = await supabase
       .from("adherents")
       .select("ancien_id")
@@ -152,7 +161,8 @@ export async function POST(request: Request) {
         exclusSansEmail++; // conservé en base, juste non joignable par mail
         continue;
       }
-      add({
+      addPersonne({
+        personKey: `ancien:${a.id}`,
         email: a.email,
         prenom: a.prenom,
         nom: a.nom,
@@ -164,45 +174,60 @@ export async function POST(request: Request) {
     }
   }
 
-  // Exclusion RGPD : retirer les emails désinscrits du marketing (toutes sources).
+  // Vrais doublons fusionnés (même personne captée plusieurs fois).
+  const doublons = totalAvant - personnes.size;
+
+  // Exclusion RGPD au niveau EMAIL (si l'email est désinscrit, tout le groupe).
   const { data: optouts } = await supabase
     .from("desinscriptions_mailing")
     .select("email");
   const desinscrits = new Set(
     (optouts ?? []).map((o) => String(o.email).toLowerCase()),
   );
-  const dedupCount = map.size;
-  const recipients = [...map.values()].filter((r) => !desinscrits.has(r.email));
-  const exclus = dedupCount - recipients.length;
-  if (recipients.length === 0) {
+
+  // ---- Étage 2 : regroupement par EMAIL (familles préservées) ----
+  const { envois, personnesExclues } = regrouperParEmail(
+    [...personnes.values()],
+    desinscrits,
+    saisonRef,
+  );
+
+  if (envois.length === 0) {
     return NextResponse.json(
-      { error: "Aucun destinataire (liste vide ou tous désinscrits).", exclus },
+      {
+        error: "Aucun destinataire (liste vide ou tous désinscrits).",
+        exclus: personnesExclues,
+      },
       { status: 400 },
     );
   }
 
-  // Envoi par lots de 50.
-  let sent = 0;
-  for (const lot of chunk(recipients, 50)) {
-    const emails = lot.map((r) => ({
+  // Personnes réellement ciblées (décompte "X touchés via Y emails").
+  const personnesCiblees = envois.reduce((s, e) => s + e.personnes.length, 0);
+
+  // Envoi : 1 email par groupe, par lots de 50.
+  let emailsEnvoyes = 0;
+  for (const lot of chunk(envois, 50)) {
+    const emails = lot.map((e) => ({
       from: MAIL_FROM,
-      to: r.email,
-      subject: remplacerVariables(objet, r),
-      html: renderCampagne(remplacerVariables(contenu, r), r.email),
+      to: e.email,
+      subject: remplacerVariables(objet, e.vars),
+      html: renderCampagne(remplacerVariables(contenu, e.vars), e.email),
     }));
     const { error } = await resend.batch.send(emails);
-    if (!error) sent += lot.length;
+    if (!error) emailsEnvoyes += lot.length;
     else console.error("Resend batch error:", error);
   }
 
   // Sauvegarde de la campagne.
-  const doublons = totalAvant - dedupCount;
-  // Liste réelle des destinataires, FIGÉE à l'envoi (pour la page détail /
-  // réutilisation). Le segment glissant n'est jamais recalculé après coup.
-  const destinatairesListe = recipients.map((r) => ({
-    nom: r.nom ?? null,
-    prenom: r.prenom ?? null,
-    email: r.email,
+  // Liste réelle des destinataires, FIGÉE à l'envoi, GROUPÉE par email
+  // (familles préservées). Jamais recalculée après coup.
+  const destinatairesListe = envois.map((e) => ({
+    email: e.email,
+    personnes: e.personnes.map((p) => ({
+      prenom: p.prenom ?? null,
+      nom: p.nom ?? null,
+    })),
   }));
   // Résumé lisible de la cible (segments/listes), pour l'historique unifié.
   const cibleParts: string[] = [];
@@ -237,10 +262,10 @@ export async function POST(request: Request) {
       includeContacts: !!body.includeContacts,
       manualEmails: manualEmails.length,
     },
-    nb_destinataires: recipients.length,
-    nb_envoyes: sent,
-    nb_exclus: exclus + exclusSansEmail,
-    statut: sent > 0 ? "envoye" : "erreur",
+    nb_destinataires: personnesCiblees, // personnes touchées
+    nb_envoyes: emailsEnvoyes, // emails réellement envoyés
+    nb_exclus: personnesExclues + exclusSansEmail,
+    statut: emailsEnvoyes > 0 ? "envoye" : "erreur",
     envoye_at: new Date().toISOString(),
     destinataires_liste: destinatairesListe,
   };
@@ -264,10 +289,11 @@ export async function POST(request: Request) {
   if (insErr) console.error("Insert campagne:", insErr);
 
   return NextResponse.json({
-    success: sent > 0,
-    sent,
-    doublons,
-    exclus,
+    success: emailsEnvoyes > 0,
+    emails: emailsEnvoyes, // nb d'emails envoyés
+    personnes: personnesCiblees, // nb de personnes touchées
+    doublons, // vrais doublons (même personne) fusionnés
+    exclus: personnesExclues, // désinscrits (personnes)
     exclusSansEmail,
   });
 }

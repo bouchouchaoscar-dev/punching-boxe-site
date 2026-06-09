@@ -64,7 +64,8 @@ export default function NouvelleCampagnePage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    sent: number;
+    emails: number;
+    personnes: number;
     exclus: number;
     doublons: number;
     exclusSansEmail: number;
@@ -293,7 +294,8 @@ export default function NouvelleCampagnePage() {
       if (res.ok && d.success) {
         // Bilan affiché (dont les désinscrits exclus) avant retour à l'historique.
         setResult({
-          sent: d.sent ?? 0,
+          emails: d.emails ?? 0,
+          personnes: d.personnes ?? 0,
           exclus: d.exclus ?? 0,
           doublons: d.doublons ?? 0,
           exclusSansEmail: d.exclusSansEmail ?? 0,
@@ -738,18 +740,21 @@ export default function NouvelleCampagnePage() {
                 <h2 className="font-display mt-4 text-xl font-extrabold uppercase text-ink">
                   Campagne envoyée
                 </h2>
+                <p className="mt-3 text-sm text-smoke">
+                  <strong className="text-ink">{result.personnes}</strong> adhérent
+                  {result.personnes > 1 ? "s" : ""} touché
+                  {result.personnes > 1 ? "s" : ""} via{" "}
+                  <strong className="text-ink">{result.emails}</strong> email
+                  {result.emails > 1 ? "s" : ""}.
+                </p>
                 <dl className="mx-auto mt-4 max-w-xs space-y-2 text-sm">
-                  <Row
-                    label="Emails envoyés"
-                    value={`${result.sent} destinataire${result.sent > 1 ? "s" : ""}`}
-                  />
                   {result.doublons > 0 && (
-                    <Row label="Doublons retirés" value={String(result.doublons)} />
+                    <Row
+                      label="Doublons fusionnés"
+                      value={String(result.doublons)}
+                    />
                   )}
-                  <Row
-                    label="Désinscrits exclus"
-                    value={String(result.exclus)}
-                  />
+                  <Row label="Désinscrits exclus" value={String(result.exclus)} />
                   {result.exclusSansEmail > 0 && (
                     <Row
                       label="Anciens sans email (exclus)"
