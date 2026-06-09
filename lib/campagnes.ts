@@ -270,7 +270,7 @@ export const DEFAULT_TEMPLATES: {
     objet: "C'est la rentrée au Punching Boxe ! 🥊",
     contenu: `Bonjour {{prenom}},
 
-La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver sur les tatamis !
+La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver sur le ring !
 
 Les cours reprennent en septembre.
 Retrouvez tous les horaires sur notre site : punching-boxe.com

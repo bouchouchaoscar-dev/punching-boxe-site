@@ -23,6 +23,11 @@ const FROM =
   process.env.RESEND_FROM || "Punching Boxe <onboarding@resend.dev>";
 const ADMIN_TO = process.env.ADMIN_NOTIFY_EMAIL || CLUB.email;
 
+// Orange EXACT du logo (échantillonné sur public/logo/logo.png), pour que le
+// "BOXE" du bandeau et les CTA matchent parfaitement le logo rond. Une seule
+// teinte d'orange dans tout l'email.
+const ORANGE = "#F84800";
+
 const MODE_LABEL: Record<ModePaiement, string> = {
   stripe_1x: "Carte — 1 fois",
   stripe_2x: "Carte — 2 fois",
@@ -51,7 +56,7 @@ function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
     <div style="background:#0a0a0a;padding:22px 24px;text-align:center">
       <img src="${SITE_URL}/logo/logo.png" alt="Punching Boxe" width="56" height="56" style="display:block;margin:0 auto 10px;width:56px;height:56px;border-radius:9999px;object-fit:cover" />
-      <span style="color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:18px">Punching <span style="color:#FF6B00">Boxe</span></span>
+      <span style="color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:18px">Punching <span style="color:${ORANGE}">Boxe</span></span>
     </div>
     <div style="padding:28px 24px">${inner}</div>
     <div style="background:#fafafa;padding:18px 24px;font-size:12px;color:#666;text-align:center">
@@ -61,7 +66,7 @@ function wrap(inner: string) {
 }
 
 function button(href: string, label: string) {
-  return `<a href="${href}" style="display:inline-block;background:#FF6B00;color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700;margin-top:6px">${label}</a>`;
+  return `<a href="${href}" style="display:inline-block;background:${ORANGE};color:#fff;text-decoration:none;padding:12px 22px;border-radius:999px;font-weight:700;margin-top:6px">${label}</a>`;
 }
 
 function tableEcheances(echeances: Echeance[]) {
@@ -151,7 +156,7 @@ export async function sendAdherentConfirmation(d: MailData) {
     <p style="margin:6px 0 18px">${button(`${SITE_URL}/mon-espace`, "Accéder à mon espace")}</p>
     ${blocHoraires()}
     ${blocSalles()}
-    <p style="margin-top:18px;font-weight:700;color:#FF6B00">À bientôt à la salle ! 🥊</p>
+    <p style="margin-top:18px;font-weight:700;color:${ORANGE}">À bientôt à la salle ! 🥊</p>
   `);
 
   return client.emails.send({
