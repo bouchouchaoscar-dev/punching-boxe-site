@@ -59,6 +59,11 @@ export interface Adherent {
   lien_parente: LienParente | null;
   // Moment d'engagement (1er paiement passé) : posé une seule fois, sinon null.
   engage_at: string | null;
+  // Ancienneté : clé de matching + lien vers l'ancien importé (1 match ferme)
+  // + flag d'ambiguïté (≥2 candidats, résolution admin en phase 2).
+  match_key: string | null;
+  ancien_id: string | null;
+  match_a_verifier: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

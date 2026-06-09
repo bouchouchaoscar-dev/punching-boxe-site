@@ -90,7 +90,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       ? saisonQuiSeTermine(now)
       : saisonCourante(now);
   const [packageType, setPackageType] = useState<PackageType>("boxe_classique");
-  const [nouveauMembre, setNouveauMembre] = useState(true);
+  // L'adhésion 30€ est décidée par le SERVEUR (ancienneté). true par défaut
+  // (affichage prudent) jusqu'à la vérification à l'étape Paiement.
+  const [paieAdhesion, setPaieAdhesion] = useState(true);
+  const [ancienneteLoading, setAncienneteLoading] = useState(false);
   const [prepa, setPrepa] = useState(false);
   const [nbFamille, setNbFamille] = useState(0);
 
@@ -132,14 +135,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
         {
           dateNaissance,
           packageType,
-          nouveauMembre,
+          nouveauMembre: paieAdhesion,
           optionPrepaPhysique: prepa,
           nbMembresFamille: nbFamille,
         },
         now,
         saisonEnCoursChoisie,
       ),
-    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille, now, saisonEnCoursChoisie],
+    [dateNaissance, packageType, paieAdhesion, prepa, nbFamille, now, saisonEnCoursChoisie],
   );
 
   // Devis proratisé (selon la date de référence) + échéances autorisées.
@@ -149,15 +152,52 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
         {
           date_naissance: dateNaissance || "2000-01-01",
           package: packageType,
-          nouveau_membre: nouveauMembre,
+          nouveau_membre: paieAdhesion,
           option_prepa_physique: prepa,
           nb_membres_famille: nbFamille,
         },
         now,
         saisonEnCoursChoisie,
       ),
-    [dateNaissance, packageType, nouveauMembre, prepa, nbFamille, now, saisonEnCoursChoisie],
+    [dateNaissance, packageType, paieAdhesion, prepa, nbFamille, now, saisonEnCoursChoisie],
   );
+
+  // À l'entrée de l'étape Paiement : le serveur dit si l'adhésion 30€ s'applique
+  // (selon l'ancienneté). Un seul appel ; le montant final est de toute façon
+  // recalculé serveur à la création du dossier.
+  useEffect(() => {
+    if (step !== 3 || !token || !nom.trim() || !prenom.trim() || !dateNaissance)
+      return;
+    let annule = false;
+    setAncienneteLoading(true);
+    fetch("/api/inscription/anciennete", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        nom,
+        prenom,
+        date_naissance: dateNaissance,
+        saison_en_cours: saisonEnCoursChoisie,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (annule || typeof d?.paieAdhesion !== "boolean") return;
+        setPaieAdhesion(d.paieAdhesion);
+      })
+      .catch(() => {
+        /* en cas d'échec, on garde le défaut prudent (adhésion affichée) */
+      })
+      .finally(() => {
+        if (!annule) setAncienneteLoading(false);
+      });
+    return () => {
+      annule = true;
+    };
+  }, [step, token, nom, prenom, dateNaissance, saisonEnCoursChoisie]);
 
   const payload = (): InscriptionPayload => ({
     nom,
@@ -169,7 +209,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     ville,
     code_postal: codePostal,
     package: packageType,
-    nouveau_membre: nouveauMembre,
+    nouveau_membre: paieAdhesion,
     option_prepa_physique: prepa,
     nb_membres_famille: nbFamille,
     mode_paiement: mode ?? "especes",
@@ -470,12 +510,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </div>
                 </div>
 
-                <Toggle
-                  label="Nouveau membre ?"
-                  hint="Adhésion de 30€ la première année."
-                  value={nouveauMembre}
-                  onChange={setNouveauMembre}
-                />
+                {/* L'adhésion 30€ n'est plus déclarée par l'adhérent : le serveur
+                    la décide selon l'ancienneté (cf. récap à l'étape Paiement). */}
 
                 {packageType === "boxe_classique" ? (
                   <Toggle
@@ -578,6 +614,18 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   {devis.proratise && (
                     <p className="mt-2 rounded-lg bg-orange-50 px-3 py-2 text-xs font-semibold text-orange">
                       Tarif calculé au prorata des mois restants de la saison.
+                    </p>
+                  )}
+                  {/* Décision adhésion (serveur) : statut affiché, jamais saisi. */}
+                  {ancienneteLoading ? (
+                    <p className="mt-2 text-xs text-smoke">Calcul de votre tarif…</p>
+                  ) : paieAdhesion ? (
+                    <p className="mt-2 text-xs text-smoke">
+                      Adhésion au club incluse&nbsp;: {euro(30)} (première inscription).
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-smoke">
+                      Membre déjà connu du club&nbsp;: pas d&apos;adhésion cette saison.
                     </p>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
+import { matchKey } from "./anciennete";
 import type { NewAdherent } from "./types";
 
 /** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
@@ -110,6 +111,11 @@ export function buildAdherentInsert(
     titulaire_id: titulaireId,
     lien_parente: p.lien_parente,
     engage_at: null,
+    // Clé de matching déterministe (les routes posent ancien_id / match_a_verifier
+    // après l'évaluation serveur de l'ancienneté).
+    match_key: matchKey(p.nom, p.prenom, p.date_naissance),
+    ancien_id: null,
+    match_a_verifier: false,
     stripe_payment_intent_id: null,
     saison,
     photo_url: p.photo_url || null,
@@ -160,4 +166,7 @@ export const OPTIONAL_DOC_COLUMNS = [
   "derniere_erreur_code",
   "vu_par_admin",
   "engage_at",
+  "match_key",
+  "ancien_id",
+  "match_a_verifier",
 ] as const;

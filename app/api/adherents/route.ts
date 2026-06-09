@@ -8,6 +8,8 @@ import {
 } from "@/lib/inscription";
 import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
 import { getAuthUser } from "@/lib/auth-server";
+import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
+import { evaluerAnciennete } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
 
@@ -54,9 +56,23 @@ export async function POST(request: Request) {
     nb_membres_famille: cntErr ? 0 : nbFoyer ?? 0,
   };
 
+  // Ancienneté (autorité serveur sur l'adhésion 30€), même pour les espèces.
+  const now = new Date();
+  const saisonEnCours = !!payloadAuto.saison_en_cours && estJuin(now);
+  const saisonInscription = saisonEnCours
+    ? saisonQuiSeTermine(now)
+    : saisonCourante(now);
+  const anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  payloadAuto.nouveau_membre = anc.paieAdhesion; // on n'écoute plus le client
+
   // Espèces → en_attente ; paiement carte traité via create-payment-intent.
   // titulaire_id = user.id (jamais une valeur fournie par le client).
-  const record = buildAdherentInsert(payloadAuto, "en_attente", user.id);
+  // montant_total est recalculé par buildAdherentInsert avec le bon nouveau_membre.
+  const record = {
+    ...buildAdherentInsert(payloadAuto, "en_attente", user.id),
+    ancien_id: anc.ancienId,
+    match_a_verifier: anc.ambigu,
+  };
 
   let { data, error } = await supabase
     .from("adherents")

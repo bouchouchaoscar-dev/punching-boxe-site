@@ -10,6 +10,8 @@ import {
 import { nbEcheances } from "@/lib/pricing";
 import { devisPourAdherent, planEcheances } from "@/lib/tarifs";
 import { getAuthUser } from "@/lib/auth-server";
+import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
+import { evaluerAnciennete } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
 
@@ -58,6 +60,16 @@ export async function POST(request: Request) {
   };
 
   const now = new Date();
+  // Ancienneté (autorité serveur sur l'adhésion 30€) : saison d'inscription
+  // calculée comme à la création du dossier (bascule juin incluse).
+  const saisonEnCours = !!payloadAuto.saison_en_cours && estJuin(now);
+  const saisonInscription = saisonEnCours
+    ? saisonQuiSeTermine(now)
+    : saisonCourante(now);
+  const anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  // On écrase la valeur client : le serveur décide qui paie les 30€.
+  payloadAuto.nouveau_membre = anc.paieAdhesion;
+
   // moisFactures gère lui-même la bascule "juin = 2 mois" ; on transmet le drapeau.
   const devis = devisPourAdherent(payloadAuto, now, !!payloadAuto.saison_en_cours);
   const n = nbEcheances(payload.mode_paiement);
@@ -78,6 +90,9 @@ export async function POST(request: Request) {
     montant_total: devis.total,
     nb_echeances: n,
     prochaine_echeance: n > 1 ? plan.dates[1] : null,
+    // Matching ancienneté : lien ferme si 1 candidat, flag si ambigu.
+    ancien_id: anc.ancienId,
+    match_a_verifier: anc.ambigu,
   };
   let { data: adherent, error: insErr } = await supabase
     .from("adherents")
