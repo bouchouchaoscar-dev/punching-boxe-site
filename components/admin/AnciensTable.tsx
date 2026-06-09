@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
+import { formatTelephone } from "@/lib/telephone";
 import { EnvoiMailModal } from "./EnvoiMailModal";
 
 type Hist = {
@@ -270,7 +271,7 @@ function Fiche({ a }: { a: Ancien }) {
           <dl className="mt-2 space-y-1.5 text-sm">
             <Line label="Date de naissance" value={formatNaissance(a.date_naissance)} />
             <Line label="Email" value={a.email ?? "—"} />
-            <Line label="Téléphone" value={a.telephone ?? "—"} />
+            <Line label="Téléphone" value={formatTelephone(a.telephone) || "—"} />
             <Line label="Adresse" value={adresseComplete(a)} />
           </dl>
           <h3 className="font-display mt-4 text-sm font-extrabold uppercase text-ink">

@@ -6,6 +6,7 @@ import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
 import { euro } from "@/lib/pricing";
 import { evaluerDossier } from "@/lib/dossier";
+import { formatTelephone } from "@/lib/telephone";
 import type { Adherent } from "@/lib/types";
 
 export function AdherentsTable() {
@@ -94,7 +95,7 @@ export function AdherentsTable() {
       a.nom,
       a.prenom,
       a.email,
-      a.telephone ?? "",
+      formatTelephone(a.telephone),
       a.type_adherent,
       a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française",
       a.statut_paiement,

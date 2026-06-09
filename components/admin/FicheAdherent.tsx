@@ -7,6 +7,7 @@ import { EnvoiMailModal } from "./EnvoiMailModal";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
+import { formatTelephone } from "@/lib/telephone";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
@@ -316,7 +317,7 @@ export function FicheAdherent({ id }: { id: string }) {
               />
               <Info label="Date de naissance" value={new Date(a.date_naissance).toLocaleDateString("fr-FR")} />
               <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} />
-              <EditableInfo label="Téléphone" editing={editing} value={form.telephone ?? ""} onChange={(v) => setForm({ ...form, telephone: v })} display={a.telephone ?? "—"} />
+              <EditableInfo label="Téléphone" editing={editing} value={form.telephone ?? ""} onChange={(v) => setForm({ ...form, telephone: v })} display={a.telephone ? formatTelephone(a.telephone) : "—"} />
               <EditableInfo label="Adresse" editing={editing} value={form.adresse ?? ""} onChange={(v) => setForm({ ...form, adresse: v })} display={a.adresse ?? "—"} />
               <EditableInfo label="Code postal" editing={editing} value={form.code_postal ?? ""} onChange={(v) => setForm({ ...form, code_postal: v })} display={a.code_postal ?? "—"} />
               <EditableInfo label="Ville" editing={editing} value={form.ville ?? ""} onChange={(v) => setForm({ ...form, ville: v })} display={a.ville ?? "—"} />
