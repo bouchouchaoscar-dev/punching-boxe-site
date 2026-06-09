@@ -12,6 +12,11 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   erreur: { label: "❌ Erreur", cls: "bg-red-50 text-red-700" },
 };
 
+const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  campagne: { label: "Campagne", cls: "bg-orange-50 text-orange" },
+  individuel: { label: "Individuel", cls: "bg-paper-2 text-ink/70" },
+};
+
 export default function CampagneDetailPage({
   params,
 }: {
@@ -87,6 +92,7 @@ export default function CampagneDetailPage({
   }
 
   const b = STATUT_BADGE[campagne.statut] ?? STATUT_BADGE.brouillon;
+  const t = TYPE_BADGE[campagne.type ?? "campagne"] ?? TYPE_BADGE.campagne;
   const dateEnvoi = new Date(campagne.envoye_at ?? campagne.created_at);
   const destinataires = campagne.destinataires_liste ?? [];
 
@@ -96,7 +102,7 @@ export default function CampagneDetailPage({
         href="/admin/campagnes"
         className="text-sm font-semibold text-smoke hover:text-ink"
       >
-        ← Campagnes
+        ← Historique des envois
       </Link>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
@@ -117,12 +123,24 @@ export default function CampagneDetailPage({
               minute: "2-digit",
             })}
           </p>
+          {campagne.cible && (
+            <p className="mt-1 text-sm font-semibold text-ink">
+              Cible : <span className="font-medium text-smoke">{campagne.cible}</span>
+            </p>
+          )}
         </div>
-        <span
-          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${b.cls}`}
-        >
-          {b.label}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${t.cls}`}
+          >
+            {t.label}
+          </span>
+          <span
+            className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold ${b.cls}`}
+          >
+            {b.label}
+          </span>
+        </div>
       </div>
 
       {/* Actions */}
@@ -160,6 +178,12 @@ export default function CampagneDetailPage({
           </h2>
           <span className="text-sm font-semibold text-smoke">
             {campagne.nb_destinataires ?? destinataires.length} au total
+            {campagne.nb_envoyes != null && (
+              <> · {campagne.nb_envoyes} envoyé{campagne.nb_envoyes > 1 ? "s" : ""}</>
+            )}
+            {campagne.nb_exclus != null && campagne.nb_exclus > 0 && (
+              <> · {campagne.nb_exclus} exclu{campagne.nb_exclus > 1 ? "s" : ""}</>
+            )}
           </span>
         </div>
 

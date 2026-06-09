@@ -12,6 +12,19 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   erreur: { label: "❌ Erreur", cls: "bg-red-50 text-red-700" },
 };
 
+const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  campagne: { label: "Campagne", cls: "bg-orange-50 text-orange" },
+  individuel: { label: "Individuel", cls: "bg-paper-2 text-ink/70" },
+};
+
+function dateHeure(iso: string): string {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("fr-FR")} ${d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
 export default function CampagnesPage() {
   const router = useRouter();
   const [campagnes, setCampagnes] = useState<Campagne[]>([]);
@@ -38,10 +51,10 @@ export default function CampagnesPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-black uppercase text-ink">
-            Campagnes
+            Historique des envois
           </h1>
           <p className="mt-1 text-smoke">
-            Emails groupés aux adhérents et contacts du club.
+            Campagnes groupées et mails individuels, du plus récent au plus ancien.
           </p>
         </div>
         <div className="flex gap-3">
@@ -67,13 +80,14 @@ export default function CampagnesPage() {
           </div>
         ) : campagnes.length === 0 ? (
           <div className="p-12 text-center text-smoke">
-            Aucune campagne pour le moment.
+            Aucun envoi pour le moment.
           </div>
         ) : (
-          <table className="w-full min-w-[40rem] text-left text-sm">
+          <table className="w-full min-w-[44rem] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
                 <th className="p-4 font-bold">Date</th>
+                <th className="p-4 font-bold">Type</th>
                 <th className="p-4 font-bold">Objet</th>
                 <th className="p-4 font-bold">Destinataires</th>
                 <th className="p-4 font-bold">Statut</th>
@@ -83,6 +97,8 @@ export default function CampagnesPage() {
             <tbody>
               {campagnes.map((c) => {
                 const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
+                const t = TYPE_BADGE[c.type ?? "campagne"] ?? TYPE_BADGE.campagne;
+                const individuel = c.type === "individuel";
                 return (
                   <tr
                     key={c.id}
@@ -90,12 +106,26 @@ export default function CampagnesPage() {
                     className="cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-paper-2"
                   >
                     <td className="whitespace-nowrap p-4 text-smoke">
-                      {new Date(c.envoye_at ?? c.created_at).toLocaleDateString(
-                        "fr-FR",
+                      {dateHeure(c.envoye_at ?? c.created_at)}
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${t.cls}`}
+                      >
+                        {t.label}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className="font-semibold text-ink">{c.objet}</span>
+                      {c.cible && (
+                        <span className="mt-0.5 block text-xs text-smoke">
+                          {c.cible}
+                        </span>
                       )}
                     </td>
-                    <td className="p-4 font-semibold text-ink">{c.objet}</td>
-                    <td className="p-4 text-smoke">{c.nb_destinataires ?? 0}</td>
+                    <td className="p-4 text-smoke">
+                      {individuel ? "1" : (c.nb_destinataires ?? 0)}
+                    </td>
                     <td className="p-4">
                       <span
                         className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${b.cls}`}

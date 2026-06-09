@@ -12,6 +12,9 @@ import {
   remplacerVariables,
   formuleLabel,
   disciplinesLabel,
+  SMART_LISTS,
+  SEGMENTS_ANCIENS,
+  DISCIPLINES,
   type SmartListKey,
   type SegmentAncienKey,
   type DisciplineKey,
@@ -194,16 +197,38 @@ export async function POST(request: Request) {
 
   // Sauvegarde de la campagne.
   const doublons = totalAvant - dedupCount;
-  // Liste réelle des destinataires (pour la page détail / réutilisation).
+  // Liste réelle des destinataires, FIGÉE à l'envoi (pour la page détail /
+  // réutilisation). Le segment glissant n'est jamais recalculé après coup.
   const destinatairesListe = recipients.map((r) => ({
     nom: r.nom ?? null,
     prenom: r.prenom ?? null,
     email: r.email,
   }));
-  const insertPayload = {
+  // Résumé lisible de la cible (segments/listes), pour l'historique unifié.
+  const cibleParts: string[] = [];
+  for (const k of smartLists) {
+    cibleParts.push(SMART_LISTS.find((s) => s.key === k)?.label ?? k);
+  }
+  for (const s of anciensSegments) {
+    cibleParts.push(SEGMENTS_ANCIENS.find((x) => x.key === s)?.label ?? s);
+  }
+  if (disciplines.length > 0) {
+    cibleParts.push(
+      disciplines.map((d) => DISCIPLINES.find((x) => x.key === d)?.label ?? d).join(" / "),
+    );
+  }
+  if (body.includeContacts) cibleParts.push("Contacts importés");
+  if (manualEmails.length > 0) {
+    cibleParts.push(`${manualEmails.length} email(s) manuel(s)`);
+  }
+  const cible = cibleParts.join(" · ") || "Personnalisé";
+
+  const insertPayload: Record<string, unknown> = {
     titre: (body.titre || objet).slice(0, 200),
     objet,
     contenu,
+    type: "campagne",
+    cible,
     liste_type: "mixte",
     liste_filtre: {
       smartLists,
@@ -213,17 +238,28 @@ export async function POST(request: Request) {
       manualEmails: manualEmails.length,
     },
     nb_destinataires: recipients.length,
+    nb_envoyes: sent,
+    nb_exclus: exclus + exclusSansEmail,
     statut: sent > 0 ? "envoye" : "erreur",
     envoye_at: new Date().toISOString(),
     destinataires_liste: destinatairesListe,
   };
-  // Tolérance : si la colonne destinataires_liste n'existe pas encore (migration
-  // non appliquée), on réinsère sans elle pour ne pas bloquer l'envoi.
-  let { error: insErr } = await supabase.from("campagnes").insert(insertPayload);
-  if (insErr && /destinataires_liste/.test(insErr.message)) {
-    const { destinataires_liste: _omit, ...sansListe } = insertPayload;
-    void _omit;
-    ({ error: insErr } = await supabase.from("campagnes").insert(sansListe));
+  // Tolérance : si une colonne ajoutée par la migration n'existe pas encore,
+  // on la retire et on réinsère, pour ne jamais bloquer l'envoi.
+  const colonnesOptionnelles = [
+    "destinataires_liste",
+    "type",
+    "cible",
+    "nb_envoyes",
+    "nb_exclus",
+  ];
+  let insErr: { message: string } | null = null;
+  for (;;) {
+    ({ error: insErr } = await supabase.from("campagnes").insert(insertPayload));
+    if (!insErr) break;
+    const offending = colonnesOptionnelles.find((k) => insErr!.message.includes(k));
+    if (!offending) break;
+    delete insertPayload[offending];
   }
   if (insErr) console.error("Insert campagne:", insErr);
 

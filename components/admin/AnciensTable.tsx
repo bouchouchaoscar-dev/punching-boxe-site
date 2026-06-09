@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
+import { saisonCourante } from "@/lib/saison";
+import { EnvoiMailModal } from "./EnvoiMailModal";
 
 type Hist = {
   saison: string;
@@ -227,8 +229,38 @@ export function AnciensTable() {
 }
 
 function Fiche({ a }: { a: Ancien }) {
+  const [mailOpen, setMailOpen] = useState(false);
   return (
     <div className="border-t border-line bg-paper-2 px-4 py-5 sm:px-5">
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={() => setMailOpen(true)}
+          disabled={!a.email}
+          title={a.email ? undefined : "Pas d'email"}
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-bold text-ink transition-colors hover:border-orange hover:text-orange disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          ✉ Envoyer un mail
+        </button>
+      </div>
+      {mailOpen && (
+        <EnvoiMailModal
+          cible={{
+            type: "ancien",
+            id: a.id,
+            prenom: a.prenom,
+            nom: a.nom,
+            email: a.email,
+            vars: {
+              prenom: a.prenom,
+              nom: a.nom,
+              saison: saisonCourante(new Date()),
+              derniere_saison: a.derniere_saison ?? "",
+              disciplines: discList(a.disciplines),
+            },
+          }}
+          onClose={() => setMailOpen(false)}
+        />
+      )}
       <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
         {/* Coordonnées + dérivés */}
         <div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
+import { EnvoiMailModal } from "./EnvoiMailModal";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
@@ -65,6 +66,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [famille, setFamille] = useState<MembreFoyer[]>([]);
   const [relancing, setRelancing] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -230,6 +232,12 @@ export function FicheAdherent({ id }: { id: string }) {
               <div className="mt-3">
                 <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
               </div>
+              <button
+                onClick={() => setMailOpen(true)}
+                className="mt-4 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-bold text-ink transition-colors hover:border-orange hover:text-orange"
+              >
+                ✉ Envoyer un mail
+              </button>
             </div>
           </div>
 
@@ -470,6 +478,28 @@ export function FicheAdherent({ id }: { id: string }) {
           />
         </div>
       </div>
+
+      {/* Envoi d'un mail individuel */}
+      {mailOpen && (
+        <EnvoiMailModal
+          cible={{
+            type: "natif",
+            id: a.id,
+            prenom: a.prenom,
+            nom: a.nom,
+            email: a.email,
+            vars: {
+              prenom: a.prenom,
+              nom: a.nom,
+              formule: a.package ? PACKAGE_LABEL[a.package] : "",
+              montant: a.montant_total,
+              saison: a.saison,
+            },
+          }}
+          onClose={() => setMailOpen(false)}
+          onSent={() => showToast("Mail envoyé ✓")}
+        />
+      )}
 
       {/* Toast */}
       {toast && (

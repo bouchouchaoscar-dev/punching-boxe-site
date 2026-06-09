@@ -11,6 +11,8 @@ export interface DestinataireCampagne {
   email: string;
 }
 
+export type TypeEnvoi = "campagne" | "individuel";
+
 export interface Campagne {
   id: string;
   titre: string;
@@ -23,6 +25,11 @@ export interface Campagne {
   envoye_at: string | null;
   destinataires_liste: DestinataireCampagne[] | null;
   created_at: string;
+  // Historique unifié : distingue les campagnes groupées des mails individuels.
+  type?: TypeEnvoi;
+  cible?: string | null;
+  nb_envoyes?: number | null;
+  nb_exclus?: number | null;
 }
 
 export interface TemplateMail {
