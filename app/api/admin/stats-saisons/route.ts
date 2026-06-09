@@ -71,16 +71,17 @@ export async function GET(request: Request) {
   const adh = await paginate(
     supabase,
     "adherents",
-    "saison, montant_total, statut_paiement, engage_at, package, type_adherent",
+    "saison, montant_total, statut_paiement, engage_at, package, type_adherent, annule_at",
   );
   const natifBySaison = new Map<string, { ca: number; eff: number; disc: Disc; ages: Ages }>();
   for (const a of adh) {
     const s = a.saison as string;
     if (!s) continue;
     const actif =
-      a.statut_paiement === "paye" ||
-      a.statut_paiement === "confirme_especes" ||
-      !!a.engage_at;
+      !a.annule_at &&
+      (a.statut_paiement === "paye" ||
+        a.statut_paiement === "confirme_especes" ||
+        !!a.engage_at);
     if (!actif) continue;
     let agg = natifBySaison.get(s);
     if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; natifBySaison.set(s, agg); }

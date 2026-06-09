@@ -64,17 +64,31 @@ export interface Adherent {
   match_key: string | null;
   ancien_id: string | null;
   match_a_verifier: boolean;
+  // Remboursements / litiges (reflet de Stripe) + annulation d'inscription.
+  // Optionnels : valeurs par défaut en base, non posées à l'insertion.
+  montant_rembourse?: number;
+  rembourse_at?: string | null;
+  litige?: boolean;
+  litige_statut?: string | null; // 'ouvert' | 'gagne' | 'perdu'
+  annule_at?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
 
-export type StatutPaiementEcheance = "en_attente" | "paye" | "echec";
+export type StatutPaiementEcheance =
+  | "en_attente"
+  | "en_cours" // claim du cron (transitoire, avant débit)
+  | "paye"
+  | "echec"
+  | "rembourse"
+  | "annule";
 
 export interface Paiement {
   id: string;
   adherent_id: string;
   stripe_payment_intent_id: string | null;
   montant: number;
+  montant_rembourse: number;
   statut: StatutPaiementEcheance;
   numero_echeance: number | null;
   date_prevue: string | null;

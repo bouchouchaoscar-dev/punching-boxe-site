@@ -204,8 +204,10 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
       return !!a.nouveau_membre && a.saison === CLUB.saison;
     case "adherents_actuels":
       // Natifs inscrits à la SAISON EN COURS (dynamique) et réellement actifs.
+      // Une inscription annulée sort des actifs.
       return (
         a.saison === saisonCourante(new Date()) &&
+        !a.annule_at &&
         (a.statut_paiement === "paye" ||
           a.statut_paiement === "confirme_especes" ||
           !!a.engage_at)

@@ -6,6 +6,8 @@ import {
   marquerEcheanceEchec,
   markAdherentPaid,
   appliquerRegularisation,
+  appliquerRemboursement,
+  appliquerLitige,
 } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -60,6 +62,23 @@ export async function POST(request: Request) {
     case "setup_intent.succeeded": {
       // Carte enregistrée : rien à faire ici, la confirmation déclenche
       // les prélèvements (cf. /api/confirm-payment).
+      break;
+    }
+    case "charge.refunded": {
+      // Remboursement (total ou partiel) fait dans Stripe → reflet dans l'app.
+      await appliquerRemboursement(event.data.object as Stripe.Charge);
+      break;
+    }
+    case "charge.dispute.created": {
+      // Litige / chargeback ouvert → flag + arrêt des échéances futures.
+      await appliquerLitige(event.data.object as Stripe.Dispute, "ouvert");
+      break;
+    }
+    case "charge.dispute.closed": {
+      // Litige tranché → on enregistre l'issue (won/lost).
+      const dispute = event.data.object as Stripe.Dispute;
+      const issue = dispute.status === "won" ? "gagne" : "perdu";
+      await appliquerLitige(dispute, issue);
       break;
     }
     default:

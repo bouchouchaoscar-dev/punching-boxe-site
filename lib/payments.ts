@@ -223,6 +223,105 @@ export async function appliquerRegularisation(
   await nettoyerStatutEchec(adherentId);
 }
 
+// Extrait un id depuis un champ Stripe qui peut être une string ou un objet.
+function stripeId(v: string | { id?: string } | null | undefined): string | null {
+  if (!v) return null;
+  return typeof v === "string" ? v : v.id ?? null;
+}
+
+/**
+ * Reflet d'un remboursement Stripe (fait dans le dashboard ou via l'API).
+ * Idempotent : on FIXE le montant remboursé de l'échéance (= amount_refunded du
+ * charge) puis on recalcule le cumul du dossier. Aucun mouvement d'argent ici.
+ */
+export async function appliquerRemboursement(
+  charge: Stripe.Charge,
+): Promise<void> {
+  const pi = stripeId(charge.payment_intent);
+  if (!pi) return;
+  const supabase = getSupabaseAdmin();
+
+  const { data: paiement } = await supabase
+    .from("paiements")
+    .select("id, adherent_id, statut")
+    .eq("stripe_payment_intent_id", pi)
+    .maybeSingle();
+  if (!paiement) return; // charge non rattachée à une échéance connue
+
+  const refundedThis = Math.round(Number(charge.amount_refunded ?? 0)) / 100;
+  const fully = charge.refunded === true;
+  await supabase
+    .from("paiements")
+    .update({
+      montant_rembourse: refundedThis,
+      // Remboursée à 100 % → 'rembourse'. Partiel → on garde le statut existant.
+      ...(fully ? { statut: "rembourse" } : {}),
+    })
+    .eq("id", paiement.id);
+
+  // Cumul dossier (recalcul = idempotent même si l'event est rejoué).
+  const { data: lignes } = await supabase
+    .from("paiements")
+    .select("montant_rembourse")
+    .eq("adherent_id", paiement.adherent_id);
+  const total =
+    Math.round(
+      (lignes ?? []).reduce((s, r) => s + Number(r.montant_rembourse || 0), 0) *
+        100,
+    ) / 100;
+
+  await supabase
+    .from("adherents")
+    .update({
+      montant_rembourse: total,
+      rembourse_at: total > 0 ? new Date().toISOString() : null,
+    })
+    .eq("id", paiement.adherent_id);
+}
+
+/**
+ * Reflet d'un litige (chargeback) Stripe.
+ * - 'ouvert' (dispute.created) : flag + on STOPPE les échéances futures (on ne
+ *   prélève plus une carte contestée).
+ * - 'gagne' / 'perdu' (dispute.closed) : on met à jour l'issue.
+ * Idempotent.
+ */
+export async function appliquerLitige(
+  dispute: Stripe.Dispute,
+  statut: "ouvert" | "gagne" | "perdu",
+): Promise<void> {
+  const pi = stripeId(dispute.payment_intent) ?? stripeId(dispute.charge);
+  if (!pi) return;
+  const supabase = getSupabaseAdmin();
+
+  const { data: paiement } = await supabase
+    .from("paiements")
+    .select("adherent_id")
+    .eq("stripe_payment_intent_id", pi)
+    .maybeSingle();
+  if (!paiement) return;
+  const adherentId = paiement.adherent_id;
+
+  await supabase
+    .from("adherents")
+    .update({ litige: true, litige_statut: statut })
+    .eq("id", adherentId);
+
+  // Litige ouvert → on coupe les prélèvements à venir (sécurité).
+  if (statut === "ouvert") {
+    await supabase
+      .from("paiements")
+      .update({ statut: "annule" })
+      .eq("adherent_id", adherentId)
+      .in("statut", ["en_attente", "en_cours"])
+      .not("numero_echeance", "is", null);
+    await supabase
+      .from("adherents")
+      .update({ prochaine_echeance: null })
+      .eq("id", adherentId);
+  }
+}
+
 /** Marque l'échéance liée à un PaymentIntent en échec + statut adhérent. */
 export async function marquerEcheanceEchec(
   paymentIntentId: string,
