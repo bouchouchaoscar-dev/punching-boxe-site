@@ -1,14 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import {
-  VARIABLES,
-  BOUTONS,
-  CATEGORIES,
-  type TemplateMail,
-} from "@/lib/campagnes";
+import { CATEGORIES, type TemplateMail } from "@/lib/campagnes";
+import { VariablesBar } from "@/components/admin/VariablesBar";
 
 const empty = {
   id: "",
@@ -26,6 +22,24 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [edit, setEdit] = useState<Partial<TemplateMail> | null>(null);
   const [busy, setBusy] = useState(false);
+  const contenuRef = useRef<HTMLTextAreaElement>(null);
+
+  // Insère une variable/bouton à la position du curseur (comme le constructeur).
+  function insertVar(token: string) {
+    const el = contenuRef.current;
+    const cur = edit?.contenu ?? "";
+    if (!el) {
+      setEdit((e) => ({ ...e, contenu: cur + token }));
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    setEdit((e) => ({ ...e, contenu: cur.slice(0, start) + token + cur.slice(end) }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + token.length;
+    });
+  }
 
   async function load() {
     setLoading(true);
@@ -190,23 +204,19 @@ export default function TemplatesPage() {
                   ))}
                 </select>
               </label>
-              <label className="block">
+              <div>
                 <span className="mb-1.5 block text-sm font-semibold text-ink">
                   Contenu
                 </span>
+                <VariablesBar onInsert={insertVar} />
                 <textarea
-                  rows={8}
+                  ref={contenuRef}
+                  rows={12}
                   value={edit.contenu ?? ""}
                   onChange={(e) => setEdit({ ...edit, contenu: e.target.value })}
-                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                  className="focus-ring min-h-[16rem] w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm leading-relaxed outline-none focus:border-orange"
                 />
-                <span className="mt-1 block text-xs text-smoke">
-                  Variables : {VARIABLES.map((v) => v.token).join(" ")}
-                </span>
-                <span className="mt-1 block text-xs text-smoke">
-                  Boutons (CTA) : {BOUTONS.map((b) => b.token).join(" ")}
-                </span>
-              </label>
+              </div>
             </div>
             <div className="mt-5 flex items-center justify-end gap-3">
               <button

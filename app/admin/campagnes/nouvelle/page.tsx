@@ -8,8 +8,6 @@ import {
   SMART_LISTS,
   SEGMENTS_ANCIENS,
   DISCIPLINES,
-  VARIABLES,
-  BOUTONS,
   filtrerAdherents,
   filtrerAnciens,
   remplacerVariables,
@@ -19,6 +17,7 @@ import {
   type TemplateMail,
 } from "@/lib/campagnes";
 import { saisonCourante } from "@/lib/saison";
+import { VariablesBar } from "@/components/admin/VariablesBar";
 import type { Adherent } from "@/lib/types";
 
 // Forme allégée renvoyée par /api/admin/anciens-recence (peu de PII côté client).
@@ -594,36 +593,14 @@ export default function NouvelleCampagnePage() {
             </label>
 
             <div>
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold text-ink">
-                  Insérer une variable :
-                </span>
-                {VARIABLES.map((v) => (
-                  <button
-                    key={v.token}
-                    onClick={() => insertVar(v.token)}
-                    className="rounded-full border border-line bg-paper-2 px-2.5 py-1 text-xs font-semibold text-ink hover:border-orange"
-                  >
-                    {v.label}
-                  </button>
-                ))}
-                {BOUTONS.map((b) => (
-                  <button
-                    key={b.token}
-                    onClick={() => insertVar(b.token)}
-                    className="rounded-full border border-orange/30 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange hover:border-orange"
-                  >
-                    {b.label}
-                  </button>
-                ))}
-              </div>
+              <VariablesBar onInsert={insertVar} />
               <textarea
                 ref={contenuRef}
-                rows={12}
+                rows={16}
                 value={contenu}
                 onChange={(e) => setContenu(e.target.value)}
-                placeholder="Rédigez votre message… Utilisez {{prenom}}, {{nom}}, {{formule}}, {{montant}}."
-                className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
+                placeholder="Rédigez votre message… Insérez les variables avec les boutons ci-dessus."
+                className="focus-ring min-h-[20rem] w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
               />
             </div>
 
