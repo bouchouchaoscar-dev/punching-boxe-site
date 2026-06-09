@@ -415,16 +415,16 @@ Au plaisir de vous revoir,
 Pascal et l'équipe du Punching Boxe`,
   },
   {
-    nom: "Réinscription — tièdes (adhésion offerte)",
+    nom: "Réinscription — tièdes",
     categorie: "reinscription",
-    objet: "🥊 Votre place vous attend (adhésion offerte)",
+    objet: "🥊 Votre place vous attend pour la saison {{saison}}",
     contenu: `Bonjour {{prenom}},
 
 Cela fait quelque temps qu'on ne vous a pas vu au club, et on aimerait beaucoup vous retrouver pour la saison {{saison}}.
 
-Bonne nouvelle : comme votre absence est récente, vous n'avez pas à repayer les frais d'adhésion cette saison. Il ne vous reste que la cotisation à régler pour reprendre l'entraînement.
+L'inscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement par carte (en une ou plusieurs fois) ou en espèces auprès du professeur.
 
-L'inscription se fait en ligne, en quelques minutes, depuis votre espace adhérent.
+Bon à savoir : votre absence étant récente, vous n'avez pas de frais d'adhésion à repayer cette saison, seulement votre cotisation.
 
 {{bouton_inscription}}
 
