@@ -10,6 +10,7 @@ import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
+  { href: "/admin/anciens", label: "Anciens", icon: "history" },
   { href: "/admin/campagnes", label: "Campagnes", icon: "mail" },
 ];
 
@@ -129,6 +130,13 @@ function Icon({ name }: { name: string }) {
       <svg {...common}>
         <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         <path d="m22 6-10 7L2 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (name === "history")
+    return (
+      <svg {...common}>
+        <path d="M3 3v5h5M3.05 13a9 9 0 1 0 2.6-6.36L3 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   return (
