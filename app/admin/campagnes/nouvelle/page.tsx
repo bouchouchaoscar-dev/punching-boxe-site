@@ -106,19 +106,40 @@ export default function NouvelleCampagnePage() {
   }, [anciens, anciensSegments, disciplines]);
 
   // ---- Calcul des destinataires (côté client, indicatif) ----
-  const { count, doublons } = useMemo(() => {
-    const fromSmart = filtrerAdherents(adherents, smartLists).map((a) =>
-      a.email.toLowerCase(),
+  // On compte les PERSONNES (pas les emails) : 1 email peut regrouper plusieurs
+  // membres d'une famille. Le serveur fait le regroupement réel à l'envoi.
+  const { personnes, emails, doublons } = useMemo(() => {
+    const byEmail = new Map(
+      adherents.map((a) => [a.email.toLowerCase(), a] as const),
     );
-    const manual = [...manualSelected].map((e) => e.toLowerCase());
-    const brut = [...fromSmart, ...manual];
-    const uniq = new Set(brut);
-    const adh = uniq.size;
-    // Anciens comptés à part (emails non exposés au client) ; le serveur
-    // dédoublonne l'ensemble à l'envoi. Comptage indicatif.
-    const total =
-      adh + anciensAvecEmail + (includeContacts ? contactsCount : 0);
-    return { count: total, doublons: brut.length - adh };
+    // Personnes adhérentes distinctes (par id), smart ∪ sélection manuelle.
+    const ids = new Set<string>();
+    let occurrences = 0;
+    for (const a of filtrerAdherents(adherents, smartLists)) {
+      occurrences++;
+      ids.add(a.id);
+    }
+    for (const e of manualSelected) {
+      const a = byEmail.get(e.toLowerCase());
+      if (a) {
+        occurrences++;
+        ids.add(a.id);
+      }
+    }
+    // Emails distincts côté adhérents (familles regroupées).
+    const emailsAdh = new Set<string>();
+    for (const a of adherents)
+      if (ids.has(a.id)) emailsAdh.add(a.email.toLowerCase());
+
+    const personnesAdh = ids.size;
+    // Anciens + contacts : emails non exposés au client → comptés tels quels
+    // (indicatif, le serveur dédoublonne l'ensemble à l'envoi).
+    const sup = anciensAvecEmail + (includeContacts ? contactsCount : 0);
+    return {
+      personnes: personnesAdh + sup,
+      emails: emailsAdh.size + sup,
+      doublons: occurrences - personnesAdh, // vrais doublons (même personne)
+    };
   }, [adherents, smartLists, manualSelected, anciensAvecEmail, includeContacts, contactsCount]);
 
   // Destinataires adhérents réels (smart ∪ sélection manuelle), dédupliqués.
@@ -554,9 +575,11 @@ export default function NouvelleCampagnePage() {
             </div>
 
             <div className="rounded-xl bg-orange-50 p-4 text-sm font-semibold text-orange">
-              {count} destinataire{count > 1 ? "s" : ""} sélectionné
-              {count > 1 ? "s" : ""}
-              {doublons > 0 ? ` (${doublons} doublon${doublons > 1 ? "s" : ""} supprimé${doublons > 1 ? "s" : ""})` : ""}
+              {personnes} personne{personnes > 1 ? "s" : ""} · {emails} email
+              {emails > 1 ? "s" : ""}
+              {doublons > 0
+                ? ` (${doublons} doublon${doublons > 1 ? "s" : ""} fusionné${doublons > 1 ? "s" : ""})`
+                : ""}
             </div>
           </div>
         )}
@@ -632,7 +655,10 @@ export default function NouvelleCampagnePage() {
             </h2>
             <dl className="space-y-2 text-sm">
               <Row label="Objet" value={objet || "—"} />
-              <Row label="Destinataires" value={`${count} personne${count > 1 ? "s" : ""}`} />
+              <Row
+                label="Destinataires"
+                value={`${personnes} personne${personnes > 1 ? "s" : ""} · ${emails} email${emails > 1 ? "s" : ""}`}
+              />
             </dl>
             <div>
               <p className="text-sm font-semibold text-ink">
@@ -673,7 +699,7 @@ export default function NouvelleCampagnePage() {
 
             <button
               onClick={() => setConfirmOpen(true)}
-              disabled={count === 0 || !objet || !contenu}
+              disabled={personnes === 0 || !objet || !contenu}
               className="w-full rounded-full bg-orange px-6 py-3 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50 sm:w-auto"
             >
               Envoyer maintenant
@@ -696,7 +722,7 @@ export default function NouvelleCampagnePage() {
           {step < 2 && (
             <button
               onClick={() => setStep((s) => s + 1)}
-              disabled={step === 0 && count === 0}
+              disabled={step === 0 && personnes === 0}
               className="rounded-full bg-ink px-6 py-2.5 text-sm font-bold text-white hover:bg-orange disabled:opacity-40"
             >
               Continuer
@@ -775,8 +801,9 @@ export default function NouvelleCampagnePage() {
                   Confirmer l&apos;envoi
                 </h2>
                 <p className="mt-3 text-sm text-smoke">
-                  Vous allez envoyer cet email à <strong>{count}</strong> personne
-                  {count > 1 ? "s" : ""}. Les désinscrits sont automatiquement
+                  Vous allez toucher <strong>{personnes}</strong> personne
+                  {personnes > 1 ? "s" : ""} via <strong>{emails}</strong> email
+                  {emails > 1 ? "s" : ""}. Les désinscrits sont automatiquement
                   exclus. Cette action est irréversible.
                 </p>
                 <div className="mt-5 flex justify-center gap-3">

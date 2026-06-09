@@ -30,14 +30,6 @@ export default function CampagnesPage() {
   const [campagnes, setCampagnes] = useState<Campagne[]>([]);
   const [loading, setLoading] = useState(true);
 
-  function dupliquer(c: Campagne) {
-    sessionStorage.setItem(
-      "pbnp_duplicate_campagne",
-      JSON.stringify({ objet: c.objet, contenu: c.contenu }),
-    );
-    router.push("/admin/campagnes/nouvelle");
-  }
-
   useEffect(() => {
     fetch("/api/admin/campagnes", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
@@ -91,7 +83,6 @@ export default function CampagnesPage() {
                 <th className="p-4 font-bold">Objet</th>
                 <th className="p-4 font-bold">Destinataires</th>
                 <th className="p-4 font-bold">Statut</th>
-                <th className="p-4 text-right font-bold">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -143,32 +134,6 @@ export default function CampagnesPage() {
                       >
                         {b.label}
                       </span>
-                    </td>
-                    <td className="p-4 text-right">
-                      {!individuel && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            dupliquer(c);
-                          }}
-                          title="Dupliquer cette campagne"
-                          aria-label="Dupliquer cette campagne"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-ink transition-colors hover:border-orange hover:text-orange"
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <rect x="9" y="9" width="13" height="13" rx="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        </button>
-                      )}
                     </td>
                   </tr>
                 );

@@ -44,15 +44,6 @@ export default function CampagneDetailPage({
       .finally(() => setLoading(false));
   }, [id]);
 
-  function dupliquer() {
-    if (!campagne) return;
-    sessionStorage.setItem(
-      "pbnp_duplicate_campagne",
-      JSON.stringify({ objet: campagne.objet, contenu: campagne.contenu }),
-    );
-    router.push("/admin/campagnes/nouvelle");
-  }
-
   async function supprimer() {
     setDeleting(true);
     try {
@@ -159,14 +150,6 @@ export default function CampagneDetailPage({
 
       {/* Actions */}
       <div className="mt-5 flex flex-wrap gap-3">
-        {!individuel && (
-          <button
-            onClick={dupliquer}
-            className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90"
-          >
-            Dupliquer cette campagne
-          </button>
-        )}
         <button
           onClick={() => setConfirmDelete(true)}
           className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
