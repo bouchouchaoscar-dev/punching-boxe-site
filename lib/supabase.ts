@@ -10,19 +10,11 @@ export function isSupabaseConfigured() {
   return Boolean(url && anonKey);
 }
 
-/** Client navigateur (clé anon) — RLS désactivé côté DB (outil interne). */
-let browserClient: SupabaseClient | null = null;
-export function getSupabaseBrowser(): SupabaseClient {
-  if (!url || !anonKey) {
-    throw new Error("Supabase non configuré (NEXT_PUBLIC_SUPABASE_URL / ANON_KEY).");
-  }
-  if (!browserClient) {
-    browserClient = createClient(url, anonKey, {
-      auth: { persistSession: false },
-    });
-  }
-  return browserClient;
-}
+// Sécurité : la RLS est ACTIVÉE sur toutes les tables (deny-all sans policy) ;
+// l'accès aux données se fait UNIQUEMENT côté serveur via la service role
+// (getSupabaseAdmin), qui contourne la RLS. La clé anon publique ne sert qu'à
+// l'authentification (cf. lib/supabase-auth.ts) — aucun client de DONNÉES anon
+// n'est exposé ici, volontairement (pas d'accès anon accidentel aux tables).
 
 /** Client serveur privilégié (service role) pour les routes API. */
 let adminClient: SupabaseClient | null = null;

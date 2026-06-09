@@ -1,8 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 // Client navigateur DÉDIÉ à l'authentification des ADHÉRENTS (Supabase Auth).
-// Distinct de getSupabaseBrowser() (persistSession: false) : ici on PERSISTE la
-// session en localStorage pour garder l'adhérent connecté entre les visites.
+// Seul usage de la clé anon : l'AUTH (jamais la lecture de tables — RLS deny-all,
+// les données passent par la service role côté serveur). On PERSISTE la session
+// en localStorage pour garder l'adhérent connecté entre les visites.
 // L'auth ADMIN reste séparée (localStorage maison, cf. lib/admin-auth.ts).
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
