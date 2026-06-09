@@ -301,6 +301,9 @@ export function FicheAdherent({ id }: { id: string }) {
               </ButtonAction>
             )}
           </div>
+
+          {/* Foyer — sous le bloc Paiement, dans la colonne de gauche. */}
+          <FamilleCard membres={famille} currentId={a.id} />
         </div>
 
         {/* Colonne droite : infos + documents */}
@@ -512,11 +515,6 @@ export function FicheAdherent({ id }: { id: string }) {
             onRelance={relancerPaiement}
           />
         </div>
-      </div>
-
-      {/* Foyer — info secondaire, pleine largeur, compacte et repliable. */}
-      <div className="mt-6">
-        <FamilleCard membres={famille} currentId={a.id} />
       </div>
 
       {/* Envoi d'un mail individuel */}
@@ -769,7 +767,7 @@ function FamilleCard({
       </button>
 
       {open && (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-3 space-y-2">
           {membres.map((m) => {
             const current = m.id === currentId;
             const lien = m.lien_parente ? LIEN_LABEL_COURT[m.lien_parente] : "—";
