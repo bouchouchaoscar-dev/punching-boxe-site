@@ -25,22 +25,29 @@ export function StatutBadge({ statut }: { statut: StatutPaiement }) {
 // ---- Statut "intelligent" selon le mode de règlement + l'avancement ----
 type PaiementInfo = Pick<
   Adherent,
-  "mode_paiement" | "statut_paiement" | "nb_echeances"
+  | "mode_paiement"
+  | "statut_paiement"
+  | "nb_echeances"
+  | "annule_at"
+  | "montant_rembourse"
 >;
 
 // Échelle : gris (en attente, NON engagé) → orange (engagé X/N) → vert (payé)
-// → rouge (échec). « Engagé » = 1er paiement passé.
+// → rouge (échec) → ardoise (annulé / remboursé). « Engagé » = 1er paiement passé.
 const GREEN = "bg-green-50 text-green-700";
 const ORANGE = "bg-orange-50 text-orange-600";
 const RED = "bg-red-50 text-red-700";
 const GRAY = "bg-paper-2 text-smoke";
+const SLATE = "bg-ink/10 text-ink"; // annulé / remboursé (distinct de "en attente")
 
 /**
- * Libellé de statut de paiement adapté au mode + à l'engagement :
- * - échec                       → « Échec paiement » (rouge)
+ * Libellé de statut de paiement adapté au mode + à l'engagement. Source unique
+ * partagée par la liste ET la fiche (cohérence garantie). Priorités :
+ * - annulé / remboursé          → « Remboursé » / « Annulé » (ardoise) — distinct de "En attente"
+ * - échec                       → « Échec · à régulariser » (rouge)
  * - espèces                     → « Espèces confirmé » (vert) / « Espèces en attente » (gris)
  * - carte 1x                    → « Payé en ligne » (vert) / « En attente » (gris)
- * - carte fractionnée soldée    → « Payé en ligne » (vert)
+ * - carte fractionnée soldée    → « Payé en ligne N/N » (vert)
  * - carte fractionnée engagée   → « Engagé · X/N payé » (orange)  [1 ≤ X < N]
  * - carte fractionnée non payée → « En attente » (gris)           [X = 0]
  * `paidEcheances` = nombre d'échéances NUMÉROTÉES déjà payées.
@@ -49,8 +56,19 @@ export function paiementStatut(
   a: PaiementInfo,
   paidEcheances: number,
 ): { label: string; cls: string } {
+  // Annulé / remboursé : prioritaire, distinct de « En attente ».
+  if (a.annule_at) {
+    return (a.montant_rembourse ?? 0) > 0
+      ? { label: "↩️ Remboursé", cls: SLATE }
+      : { label: "⛔ Annulé", cls: SLATE };
+  }
+  if ((a.montant_rembourse ?? 0) > 0) {
+    // Remboursé sans annulation (remboursement partiel, échéances conservées).
+    return { label: "↩️ Remboursé (partiel)", cls: SLATE };
+  }
+
   if (a.statut_paiement === "echec_paiement")
-    return { label: "❌ Échec paiement", cls: RED };
+    return { label: "❌ Échec · à régulariser", cls: RED };
 
   if (a.mode_paiement === "especes")
     return a.statut_paiement === "confirme_especes"
@@ -61,7 +79,8 @@ export function paiementStatut(
   if (a.mode_paiement !== "stripe_1x") {
     const n = a.nb_echeances || nbEcheances(a.mode_paiement);
     if (n > 1) {
-      if (paidEcheances >= n) return { label: "✅ Payé en ligne", cls: GREEN };
+      if (paidEcheances >= n)
+        return { label: `✅ Payé en ligne ${n}/${n}`, cls: GREEN };
       if (paidEcheances >= 1)
         return { label: `🟠 Engagé · ${paidEcheances}/${n} payé`, cls: ORANGE };
       return { label: "⏳ En attente", cls: GRAY };
