@@ -363,9 +363,6 @@ export function FicheAdherent({ id }: { id: string }) {
             </dl>
           </div>
 
-          {/* Foyer (autres dossiers du même titulaire) */}
-          <FamilleCard membres={famille} currentId={a.id} />
-
           {/* Documents */}
           <div className="rounded-[1.5rem] border border-line bg-white p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -515,6 +512,11 @@ export function FicheAdherent({ id }: { id: string }) {
             onRelance={relancerPaiement}
           />
         </div>
+      </div>
+
+      {/* Foyer — info secondaire, pleine largeur, compacte et repliable. */}
+      <div className="mt-6">
+        <FamilleCard membres={famille} currentId={a.id} />
       </div>
 
       {/* Envoi d'un mail individuel */}
@@ -735,70 +737,78 @@ function FamilleCard({
   membres: MembreFoyer[];
   currentId: string;
 }) {
+  // Replié par défaut au-delà de 4 membres pour ne pas dominer la page.
+  const [open, setOpen] = useState(membres.length <= 4);
   // Pas de titulaire / pas de foyer → endpoint renvoie [] → on n'affiche rien.
   if (membres.length === 0) return null;
-  const autres = membres.filter((m) => m.id !== currentId);
 
   return (
-    <div className="rounded-[1.5rem] border border-line bg-white p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="font-display text-lg font-extrabold uppercase text-ink">
-          Foyer
+    <div className="rounded-[1.5rem] border border-line bg-white p-5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3"
+      >
+        <h3 className="font-display text-base font-extrabold uppercase text-ink">
+          Foyer{" "}
+          <span className="text-sm font-semibold text-smoke">
+            · {membres.length} dossier{membres.length > 1 ? "s" : ""}
+          </span>
         </h3>
-        <span className="text-sm font-semibold text-smoke">
-          {membres.length} dossier{membres.length > 1 ? "s" : ""}
-        </span>
-      </div>
+        <svg
+          className={`h-4 w-4 shrink-0 text-smoke transition-transform ${open ? "rotate-180" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
 
-      {autres.length === 0 ? (
-        <p className="mt-3 text-sm text-smoke">
-          Aucun autre membre dans ce foyer.
-        </p>
-      ) : (
-        <ul className="mt-4 space-y-2">
+      {open && (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {membres.map((m) => {
             const current = m.id === currentId;
             const lien = m.lien_parente ? LIEN_LABEL_COURT[m.lien_parente] : "—";
             const cat = m.type_adherent === "jeune" ? "Jeune" : "Adulte";
             const inner = (
               <div
-                className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3 transition-colors ${
+                className={`h-full rounded-xl border p-2.5 transition-colors ${
                   current
                     ? "border-orange/40 bg-orange-50"
                     : "border-line hover:border-orange/40"
                 }`}
               >
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                    <span className="truncate">
-                      {m.prenom} {m.nom}
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+                  <span className="truncate">
+                    {m.prenom} {m.nom}
+                  </span>
+                  {current && (
+                    <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.5rem] font-bold uppercase tracking-wide text-white">
+                      Ce dossier
                     </span>
-                    {current && (
-                      <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white">
-                        Dossier courant
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-xs text-smoke">
-                    {lien} · {cat}
-                  </p>
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs text-smoke">
+                  {lien} · {cat}
+                </p>
+                <div className="mt-1.5">
+                  <StatutBadge statut={m.statut_paiement} />
                 </div>
-                <StatutBadge statut={m.statut_paiement} />
               </div>
             );
-            return (
-              <li key={m.id}>
-                {current ? (
-                  inner
-                ) : (
-                  <Link href={`/admin/adherents/${m.id}`} className="block">
-                    {inner}
-                  </Link>
-                )}
-              </li>
+            return current ? (
+              <div key={m.id}>{inner}</div>
+            ) : (
+              <Link key={m.id} href={`/admin/adherents/${m.id}`} className="block">
+                {inner}
+              </Link>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );
