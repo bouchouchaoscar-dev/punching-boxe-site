@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "./supabase";
 import { getStripe } from "./stripe";
 import {
@@ -320,6 +321,63 @@ export async function appliquerLitige(
       .update({ prochaine_echeance: null })
       .eq("id", adherentId);
   }
+}
+
+/**
+ * Annule une inscription côté ÉCHÉANCES : passe toutes les échéances non réglées
+ * (en_attente / en_cours / echec) en 'annule' → le cron ne les prélève plus, et
+ * pose annule_at (une seule fois) + vide prochaine_echeance. Aucun mouvement
+ * d'argent. Partagé par /annuler et /gerer-paiement.
+ */
+export async function annulerEcheances(
+  supabase: SupabaseClient,
+  adherentId: string,
+): Promise<{ annulees: number }> {
+  const { data } = await supabase
+    .from("paiements")
+    .update({ statut: "annule" })
+    .eq("adherent_id", adherentId)
+    .in("statut", ["en_attente", "en_cours", "echec"])
+    .not("numero_echeance", "is", null)
+    .select("id");
+  await supabase
+    .from("adherents")
+    .update({ prochaine_echeance: null })
+    .eq("id", adherentId);
+  // annule_at posé une seule fois (ne pas écraser une annulation antérieure).
+  await supabase
+    .from("adherents")
+    .update({ annule_at: new Date().toISOString() })
+    .eq("id", adherentId)
+    .is("annule_at", null);
+  return { annulees: data?.length ?? 0 };
+}
+
+/**
+ * Alloue un montant à rembourser (en CENTIMES) sur les échéances payées, de la
+ * plus récente à la plus ancienne : dernière remboursée en entier, puis
+ * partiellement la précédente, etc. Arithmétique entière (centimes) → pas de
+ * dérive flottante. Fonction PURE (testable).
+ */
+export function allouerRemboursement(
+  payees: { id: string; remb: number; numero_echeance: number | null }[],
+  cibleCents: number,
+): { id: string; part: number }[] {
+  const ordered = [...payees].sort(
+    (a, b) => (b.numero_echeance ?? 0) - (a.numero_echeance ?? 0),
+  );
+  const out: { id: string; part: number }[] = [];
+  let reste = Math.max(0, Math.round(cibleCents));
+  for (const e of ordered) {
+    if (reste <= 0) break;
+    const cap = Math.round(Number(e.remb) * 100);
+    const part = Math.min(reste, cap);
+    if (part > 0) {
+      out.push({ id: e.id, part });
+      reste -= part;
+    }
+  }
+  return out;
 }
 
 /** Marque l'échéance liée à un PaymentIntent en échec + statut adhérent. */

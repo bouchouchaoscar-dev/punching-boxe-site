@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { EnvoiMailModal } from "./EnvoiMailModal";
+import { GererPaiementModal } from "./GererPaiementModal";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
-import { adminAuthHeaders } from "@/lib/admin-auth";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
@@ -69,8 +69,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [famille, setFamille] = useState<MembreFoyer[]>([]);
   const [relancing, setRelancing] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
-  const [annulOpen, setAnnulOpen] = useState(false);
-  const [annuling, setAnnuling] = useState(false);
+  const [gererOpen, setGererOpen] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -117,26 +116,6 @@ export function FicheAdherent({ id }: { id: string }) {
       );
     } finally {
       setRelancing(false);
-    }
-  }
-
-  async function annulerInscription() {
-    setAnnuling(true);
-    try {
-      const res = await fetch(`/api/admin/adherents/${id}/annuler`, {
-        method: "POST",
-        headers: adminAuthHeaders(),
-      });
-      const data = await res.json().catch(() => ({}));
-      setAnnulOpen(false);
-      await load();
-      showToast(
-        res.ok && data.success
-          ? `Inscription annulée — ${data.echeancesAnnulees ?? 0} échéance(s) stoppée(s)`
-          : data.error || "Annulation impossible.",
-      );
-    } finally {
-      setAnnuling(false);
     }
   }
 
@@ -288,14 +267,12 @@ export function FicheAdherent({ id }: { id: string }) {
               >
                 ✉ Envoyer un mail
               </button>
-              {!a.annule_at && (
-                <button
-                  onClick={() => setAnnulOpen(true)}
-                  className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
-                >
-                  Annuler l&apos;inscription
-                </button>
-              )}
+              <button
+                onClick={() => setGererOpen(true)}
+                className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange"
+              >
+                Gérer le paiement
+              </button>
             </div>
           </div>
 
@@ -559,38 +536,18 @@ export function FicheAdherent({ id }: { id: string }) {
         />
       )}
 
-      {/* Confirmation annulation */}
-      {annulOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
-            <h2 className="font-display text-xl font-extrabold uppercase text-ink">
-              Annuler l&apos;inscription ?
-            </h2>
-            <p className="mt-3 text-sm text-smoke">
-              Les prélèvements à venir de <strong>{a.prenom} {a.nom}</strong> seront
-              stoppés (échéances non payées annulées) et le dossier sortira des
-              effectifs actifs. <strong>Aucun remboursement</strong> n&apos;est
-              déclenché : si besoin, rembourse depuis Stripe (l&apos;app le
-              reflétera).
-            </p>
-            <div className="mt-5 flex justify-center gap-3">
-              <button
-                onClick={() => setAnnulOpen(false)}
-                disabled={annuling}
-                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-              >
-                Retour
-              </button>
-              <button
-                onClick={annulerInscription}
-                disabled={annuling}
-                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-              >
-                {annuling ? "Annulation…" : "Confirmer l'annulation"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Gérer le paiement (remboursement / annulation) */}
+      {gererOpen && (
+        <GererPaiementModal
+          adherent={a}
+          paiements={paiements}
+          onClose={() => setGererOpen(false)}
+          onDone={(msg) => {
+            setGererOpen(false);
+            load();
+            showToast(msg);
+          }}
+        />
       )}
 
       {/* Toast */}
