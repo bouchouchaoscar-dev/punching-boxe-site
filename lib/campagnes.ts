@@ -307,7 +307,7 @@ Pascal et l'équipe du Punching Boxe`,
 
 Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas de cours sur cette période.
 
-Les cours reprendront normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme sur les rings !
+Les cours reprendront normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme sur le ring !
 
 Sportivement,
 Pascal et l'équipe du Punching Boxe`,
@@ -395,7 +395,7 @@ Vous souhaitez inscrire plusieurs personnes ? Depuis ce même espace, vous gére
 
 {{bouton_inscription}}
 
-On a hâte de vous retrouver sur les rings cette saison !
+On a hâte de vous retrouver sur le ring cette saison !
 
 Pascal et l'équipe du Punching Boxe`,
   },
@@ -405,7 +405,7 @@ Pascal et l'équipe du Punching Boxe`,
     objet: "🥊 On vous attend pour la saison {{saison}} !",
     contenu: `Bonjour {{prenom}},
 
-Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver sur les rings cette année !
+Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver sur le ring cette année !
 
 Les inscriptions pour la saison {{saison}} sont ouvertes. La réinscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement en une ou plusieurs fois, ou en espèces auprès du professeur, comme vous préférez.
 
@@ -426,6 +426,8 @@ L'inscription se fait désormais en ligne, en quelques minutes, depuis votre esp
 
 Bon à savoir : votre absence étant récente, vous n'avez pas de frais d'adhésion à repayer cette saison, seulement votre cotisation.
 
+Et si vous préférez reprendre tranquillement, venez quand vous voulez faire une séance d'essai à l'un de nos cours, le temps de retrouver vos sensations avant de vous réinscrire. Les horaires sont sur notre site.
+
 {{bouton_inscription}}
 
 On garde votre place au chaud,
@@ -439,11 +441,11 @@ Pascal et l'équipe du Punching Boxe`,
     objet: "🥊 Et si vous repreniez la boxe ?",
     contenu: `Bonjour {{prenom}},
 
-Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le Punching Boxe a évolué depuis, et on serait ravis de vous revoir sur les rings.
+Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le Punching Boxe a évolué depuis, et on serait ravis de vous revoir sur le ring.
 
 Tout est désormais en ligne : vous pouvez vous réinscrire en quelques minutes depuis votre espace adhérent, régler par carte (en une ou plusieurs fois) ou en espèces auprès du professeur.
 
-Que ce soit pour reprendre en douceur ou retrouver le rythme, votre place est ici.
+Et pas de pression : vous pouvez passer quand vous voulez faire une séance d'essai à l'un de nos cours pour vous remettre en jambes, avant de décider. Retrouvez tous les horaires sur notre site.
 
 {{bouton_inscription}}
 
