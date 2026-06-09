@@ -162,42 +162,48 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     [dateNaissance, packageType, paieAdhesion, prepa, nbFamille, now, saisonEnCoursChoisie],
   );
 
-  // À l'entrée de l'étape Paiement : le serveur dit si l'adhésion 30€ s'applique
-  // (selon l'ancienneté). Un seul appel ; le montant final est de toute façon
-  // recalculé serveur à la création du dossier.
+  // Dès que l'identité est complète et valide, on demande au serveur si
+  // l'adhésion 30€ s'applique (selon l'ancienneté), avec un léger debounce.
+  // Le bon statut s'affiche donc dès l'étape Options. Re-déclenché si l'identité
+  // change. Affichage anticipé seulement : le serveur tranche à la soumission.
   useEffect(() => {
-    if (step !== 3 || !token || !nom.trim() || !prenom.trim() || !dateNaissance)
-      return;
+    const identiteOk =
+      !!token &&
+      !!nom.trim() &&
+      !!prenom.trim() &&
+      /^\d{4}-\d{2}-\d{2}$/.test(dateNaissance);
+    if (!identiteOk) return;
     let annule = false;
-    setAncienneteLoading(true);
-    fetch("/api/inscription/anciennete", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        nom,
-        prenom,
-        date_naissance: dateNaissance,
-        saison_en_cours: saisonEnCoursChoisie,
-      }),
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (annule || typeof d?.paieAdhesion !== "boolean") return;
-        setPaieAdhesion(d.paieAdhesion);
-      })
-      .catch(() => {
-        /* en cas d'échec, on garde le défaut prudent (adhésion affichée) */
-      })
-      .finally(() => {
+    const timer = window.setTimeout(async () => {
+      setAncienneteLoading(true);
+      try {
+        const res = await fetch("/api/inscription/anciennete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            nom,
+            prenom,
+            date_naissance: dateNaissance,
+            saison_en_cours: saisonEnCoursChoisie,
+          }),
+        });
+        const d = await res.json();
+        if (!annule && typeof d?.paieAdhesion === "boolean")
+          setPaieAdhesion(d.paieAdhesion);
+      } catch {
+        /* échec → on garde le défaut prudent (adhésion affichée) */
+      } finally {
         if (!annule) setAncienneteLoading(false);
-      });
+      }
+    }, 500);
     return () => {
       annule = true;
+      window.clearTimeout(timer);
     };
-  }, [step, token, nom, prenom, dateNaissance, saisonEnCoursChoisie]);
+  }, [token, nom, prenom, dateNaissance, saisonEnCoursChoisie]);
 
   const payload = (): InscriptionPayload => ({
     nom,
@@ -536,7 +542,11 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     −{tarif.remisePct}% appliqués automatiquement sur la cotisation.
                   </p>
                 )}
-                <LivePrice tarif={tarif} />
+                <LivePrice
+                  tarif={tarif}
+                  paieAdhesion={paieAdhesion}
+                  loading={ancienneteLoading}
+                />
               </div>
             )}
 
@@ -868,9 +878,13 @@ function Input({
 function LivePrice({
   tarif,
   big,
+  paieAdhesion,
+  loading,
 }: {
   tarif: ReturnType<typeof calculerTarif>;
   big?: boolean;
+  paieAdhesion?: boolean;
+  loading?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-line bg-paper-2 p-5">
@@ -892,6 +906,16 @@ function LivePrice({
             </span>
           </div>
         ))}
+        {/* Statut d'adhésion (décidé serveur) : calcul en cours, ou mention
+            rassurante pour un ancien reconnu, là où la ligne 30€ apparaîtrait. */}
+        {loading ? (
+          <p className="text-xs italic text-smoke">Calcul de votre tarif…</p>
+        ) : paieAdhesion === false ? (
+          <div className="flex items-center justify-between rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
+            <span>Membre déjà connu du club</span>
+            <span>adhésion non due</span>
+          </div>
+        ) : null}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
         <span className="font-display text-lg font-extrabold uppercase text-ink">
