@@ -604,7 +604,12 @@ export default function NouvelleCampagnePage() {
                 Template
               </span>
               <select
-                onChange={(e) => applyTemplate(e.target.value)}
+                onChange={(e) => {
+                  applyTemplate(e.target.value);
+                  // Retire le focus du select après le choix, sinon son contour
+                  // orange (:focus-visible) reste affiché en permanence.
+                  e.target.blur();
+                }}
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
               >
                 <option value="">Message libre (vide)</option>
@@ -621,11 +626,11 @@ export default function NouvelleCampagnePage() {
               <VariablesBar onInsert={insertVar} />
               <textarea
                 ref={contenuRef}
-                rows={16}
+                rows={20}
                 value={contenu}
                 onChange={(e) => setContenu(e.target.value)}
                 placeholder="Rédigez votre message… Insérez les variables avec les boutons ci-dessus."
-                className="focus-ring min-h-[20rem] w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
+                className="focus-ring min-h-[28rem] w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
               />
             </div>
 
