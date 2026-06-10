@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
   if (when.getTime() < Date.now() - 60_000) {
     return NextResponse.json(
-      { error: "La date d'envoi doit être dans le futur." },
+      { error: "L'heure choisie est déjà passée, choisis un créneau futur." },
       { status: 400 },
     );
   }

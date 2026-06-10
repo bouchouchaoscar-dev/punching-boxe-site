@@ -386,6 +386,12 @@ export default function NouvelleCampagnePage() {
       `${a.prenom} ${a.nom} ${a.email}`.toLowerCase().includes(search.toLowerCase()),
   );
 
+  // Garde anti-passé : créneau (date + heure) strictement dans le futur.
+  const scheduledPast =
+    planifier &&
+    !!scheduledDate &&
+    new Date(`${scheduledDate}T${scheduledTime}`).getTime() <= Date.now();
+
   return (
     <div className="max-w-3xl">
       <Link
@@ -795,6 +801,11 @@ export default function NouvelleCampagnePage() {
                   La campagne partira automatiquement à cette date (à l&apos;heure
                   près). Le segment est recalculé au moment de l&apos;envoi.
                 </p>
+                {scheduledPast && (
+                  <p className="mt-2 text-sm font-semibold text-red-600">
+                    L&apos;heure choisie est déjà passée, choisis un créneau futur.
+                  </p>
+                )}
               </div>
             )}
 
@@ -804,7 +815,7 @@ export default function NouvelleCampagnePage() {
                 personnes === 0 ||
                 !objet ||
                 !contenu ||
-                (planifier && !scheduledDate)
+                (planifier && (!scheduledDate || scheduledPast))
               }
               className="w-full rounded-full bg-orange px-6 py-3 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50 sm:w-auto"
             >
