@@ -67,16 +67,21 @@ export async function GET(request: Request) {
     agg.ages[st === "jeune" ? "jeunes" : st === "adulte" ? "adultes" : "inconnu"] += 1;
   }
 
-  // --- Saisons PRÉSENT/FUTUR : adherents (dossiers ACTIFS) ---
+  // --- Saisons PRÉSENT/FUTUR : adherents ---
+  // CA = ENCAISSÉ NET RÉEL depuis la table paiements (Σ montant − montant_rembourse,
+  // tous dossiers confondus : un dossier fermé garde l'argent déjà encaissé, un
+  // remboursement le déduit). Effectifs / disciplines / âges = comptés sur les ACTIFS.
   const adh = await paginate(
     supabase,
     "adherents",
-    "saison, montant_total, statut_paiement, engage_at, package, type_adherent, annule_at",
+    "id, saison, statut_paiement, engage_at, package, type_adherent, annule_at",
   );
+  const saisonByAdh = new Map<string, string>();
   const natifBySaison = new Map<string, { ca: number; eff: number; disc: Disc; ages: Ages }>();
   for (const a of adh) {
     const s = a.saison as string;
     if (!s) continue;
+    saisonByAdh.set(a.id as string, s);
     const actif =
       !a.annule_at &&
       (a.statut_paiement === "paye" ||
@@ -85,12 +90,27 @@ export async function GET(request: Request) {
     if (!actif) continue;
     let agg = natifBySaison.get(s);
     if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; natifBySaison.set(s, agg); }
-    agg.ca += Number(a.montant_total || 0);
     agg.eff += 1;
     if (a.package === "savate_prepa") agg.disc.SAVATE += 1;
     else agg.disc.BF += 1;
     // Natifs : statut figé à l'inscription (type_adherent).
     agg.ages[a.type_adherent === "jeune" ? "jeunes" : a.type_adherent === "adulte" ? "adultes" : "inconnu"] += 1;
+  }
+
+  // CA net par saison : lignes encaissées (payées / partiellement remboursées),
+  // rattachées à la saison du dossier (carte + espèces confondus).
+  const paiements = await paginate(
+    supabase,
+    "paiements",
+    "adherent_id, montant, montant_rembourse, statut",
+  );
+  for (const p of paiements) {
+    if (p.statut !== "paye" && p.statut !== "rembourse") continue;
+    const s = saisonByAdh.get(p.adherent_id as string);
+    if (!s) continue;
+    let agg = natifBySaison.get(s);
+    if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; natifBySaison.set(s, agg); }
+    agg.ca += Number(p.montant || 0) - Number(p.montant_rembourse || 0);
   }
 
   // --- Union des saisons + série (source choisie par la règle passé/présent) ---

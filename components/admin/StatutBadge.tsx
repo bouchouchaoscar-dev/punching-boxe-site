@@ -87,20 +87,19 @@ export function paiementStatut(
   a: PaiementInfo,
   paidEcheances: number,
 ): { label: string; cls: string } {
-  // Dossier réellement ANNULÉ (annule_at posé) → statut plein « ardoise »,
-  // distinct de « En attente ».
+  // Dossier FERMÉ (annule_at posé = fin d'inscription) → statut plein « ardoise ».
   if (a.annule_at) {
     return (a.montant_rembourse ?? 0) > 0
-      ? { label: "↩️ Remboursé", cls: SLATE }
-      : { label: "⛔ Annulé", cls: SLATE };
+      ? { label: "↩️ Fin d'inscription · remboursé", cls: SLATE }
+      : { label: "⛔ Fin d'inscription", cls: SLATE };
   }
 
-  // Remboursement PARTIEL avec échéances conservées (pas d'annulation) : on garde
-  // le statut « en cours » (couleur + X/N) et on mentionne le remboursement —
-  // important car des prélèvements peuvent continuer.
+  // Remboursement avec dossier TOUJOURS ACTIF (pas de fermeture) : on garde le
+  // statut « en cours » (couleur + X/N) et on mentionne le remboursement —
+  // les prélèvements peuvent continuer.
   const base = baseStatut(a, paidEcheances);
   if ((a.montant_rembourse ?? 0) > 0) {
-    return { label: `${base.label} · remboursé partiel`, cls: base.cls };
+    return { label: `${base.label} · remboursé`, cls: base.cls };
   }
   return base;
 }

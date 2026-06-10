@@ -40,21 +40,36 @@ type SerieEntry = {
 export function Dashboard() {
   const { adherents, loading, error, selectedSaison } = useSaisonAdmin();
   const [serie, setSerie] = useState<SerieEntry[]>([]);
+  // Encaissé NET par adhérent (Σ montant − remboursé, payé/remboursé), source unique
+  // = table paiements. Sert au KPI « Encaissé » + au graphe mensuel.
+  const [netByAdh, setNetByAdh] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetch("/api/admin/stats-saisons", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setSerie(d.serie ?? []))
       .catch(() => {});
+    fetch("/api/paiements", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, number> = {};
+        for (const p of d.paiements ?? []) {
+          if (p.statut !== "paye" && p.statut !== "rembourse") continue;
+          map[p.adherent_id] =
+            (map[p.adherent_id] || 0) +
+            (Number(p.montant || 0) - Number(p.montant_rembourse || 0));
+        }
+        setNetByAdh(map);
+      })
+      .catch(() => {});
   }, []);
 
   // Vue NATIVE (saison en cours) : calculée depuis les dossiers natifs du contexte.
   const data = useMemo(() => {
-    const paid = adherents.filter(
-      (a) => a.statut_paiement === "paye" || a.statut_paiement === "confirme_especes",
-    );
     const now = new Date();
-    const encaisse = paid.reduce((s, a) => s + Number(a.montant_total || 0), 0);
+    // Encaissé = NET réel depuis paiements (carte + espèces, déduction des
+    // remboursements ; un dossier fermé garde l'argent déjà encaissé).
+    const encaisse = adherents.reduce((s, a) => s + (netByAdh[a.id] || 0), 0);
     const nouveauxMois = adherents.filter((a) => {
       const d = new Date(a.created_at);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -86,9 +101,8 @@ export function Dashboard() {
         const d = new Date(a.created_at);
         return `${d.getFullYear()}-${d.getMonth()}` === m.key;
       });
-      const montant = insc
-        .filter((a) => a.statut_paiement !== "en_attente")
-        .reduce((s, a) => s + Number(a.montant_total || 0), 0);
+      // Montant = encaissé NET, rattaché au mois d'inscription du dossier.
+      const montant = insc.reduce((s, a) => s + (netByAdh[a.id] || 0), 0);
       return { mois: m.label, inscriptions: insc.length, montant };
     });
 
@@ -120,7 +134,7 @@ export function Dashboard() {
         { name: "Savate et Prépa", value: savateForme, color: INK },
       ].filter((x) => x.value > 0),
     };
-  }, [adherents, selectedSaison]);
+  }, [adherents, selectedSaison, netByAdh]);
 
   if (loading) {
     return (

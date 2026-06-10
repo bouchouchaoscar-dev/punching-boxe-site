@@ -7,16 +7,16 @@ import { annulerEcheances, allouerRemboursement } from "@/lib/payments";
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
-type Mode = "refund_keep" | "refund_stop" | "refund_all" | "stop_only";
-const MODES: Mode[] = ["refund_keep", "refund_stop", "refund_all", "stop_only"];
+type Canal = "stripe" | "especes";
 
 const cents = (n: number) => Math.round(Number(n) * 100);
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// POST — panneau « Gérer le paiement ». Rembourse (montant libre / intégral) et/ou
-// stoppe les échéances. Argent réel → garde-fous : idempotence par actionId
-// (table remboursements en clé primaire) + plafond serveur + clés d'idempotence
-// Stripe par échéance + ordre STOP puis REFUND.
+// POST — « Gérer le paiement » : découple le REMBOURSEMENT (montant, carte ou
+// espèces) du STATUT (fermer ou non l'inscription).
+//   { actionId, montant, fermer, canal }
+// Garde-fous N2 conservés : idempotence par actionId (PK), plafond serveur,
+// clés d'idempotence Stripe par charge, allocation centimes, ordre STOP→REFUND.
 export async function POST(request: Request, { params }: Ctx) {
   const { id } = await params;
   if (!isAdminRequest(request)) {
@@ -26,25 +26,32 @@ export async function POST(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
   }
 
-  let body: { actionId?: string; mode?: Mode; montant?: number };
+  let body: { actionId?: string; montant?: number; fermer?: boolean; canal?: Canal };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Corps invalide." }, { status: 400 });
   }
   const actionId = String(body.actionId || "").trim();
-  const mode = body.mode as Mode;
   if (!actionId) {
     return NextResponse.json({ error: "actionId requis." }, { status: 400 });
   }
-  if (!MODES.includes(mode)) {
-    return NextResponse.json({ error: "Mode invalide." }, { status: 400 });
+  const fermer = !!body.fermer;
+  const montant = round2(Number(body.montant || 0));
+  if (montant < 0) {
+    return NextResponse.json({ error: "Montant invalide." }, { status: 400 });
+  }
+  if (montant === 0 && !fermer) {
+    return NextResponse.json(
+      { error: "Aucune action : indique un montant à rembourser et/ou ferme l'inscription." },
+      { status: 400 },
+    );
   }
 
   const supabase = getSupabaseAdmin();
 
-  // --- Idempotence (ceinture n°1) : l'actionId est la clé primaire. Si la ligne
-  // existe déjà (double-clic / retry), on NE rejoue PAS : on renvoie l'état connu.
+  // --- Idempotence (ceinture n°1) : actionId = clé primaire. Déjà traité → on
+  // renvoie l'état connu, on NE rejoue PAS. ---
   const { data: existing } = await supabase
     .from("remboursements")
     .select("*")
@@ -60,12 +67,11 @@ export async function POST(request: Request, { params }: Ctx) {
   const { error: claimErr } = await supabase.from("remboursements").insert({
     id: actionId,
     adherent_id: id,
-    mode,
-    montant_demande: body.montant ?? null,
+    montant_demande: montant || null,
+    ferme_inscription: fermer,
     statut: "en_cours",
   });
   if (claimErr) {
-    // Course : une autre requête a inséré le même actionId entre-temps.
     const { data: now } = await supabase
       .from("remboursements")
       .select("*")
@@ -89,77 +95,91 @@ export async function POST(request: Request, { params }: Ctx) {
   try {
     const { data: adherent } = await supabase
       .from("adherents")
-      .select("id, mode_paiement")
+      .select("id")
       .eq("id", id)
       .maybeSingle();
     if (!adherent) return await fail(404, "Dossier introuvable.");
 
-    const needRefund = mode !== "stop_only";
-    if (needRefund && !isStripeConfigured()) {
-      return await fail(503, "Paiement en ligne non configuré.");
-    }
-
-    // Échéances PAYÉES avec une charge Stripe → remboursable = montant - déjà remboursé.
+    // Lignes encaissées (montant - déjà remboursé). Carte = avec PaymentIntent ;
+    // espèces = ligne d'encaissement sans PI (créée à la confirmation espèces).
     const { data: echRows } = await supabase
       .from("paiements")
       .select("id, montant, montant_rembourse, stripe_payment_intent_id, numero_echeance")
       .eq("adherent_id", id)
       .eq("statut", "paye");
-    const payees = (echRows ?? [])
+    const aRemb = (e: { montant: number; montant_rembourse: number }) =>
+      round2(Number(e.montant || 0) - Number(e.montant_rembourse || 0));
+    const stripeRows = (echRows ?? [])
       .filter((e) => e.stripe_payment_intent_id)
-      .map((e) => ({
-        ...e,
-        remb: round2(Number(e.montant || 0) - Number(e.montant_rembourse || 0)),
-      }))
+      .map((e) => ({ ...e, remb: aRemb(e) }))
       .filter((e) => e.remb > 0);
-    const remboursableTotal = round2(payees.reduce((s, e) => s + e.remb, 0));
+    const especesRows = (echRows ?? [])
+      .filter((e) => !e.stripe_payment_intent_id)
+      .map((e) => ({ ...e, remb: aRemb(e) }))
+      .filter((e) => e.remb > 0);
 
-    // Montant cible (serveur autoritaire, plafonné).
-    let cible = 0;
-    if (mode === "refund_all") {
-      cible = remboursableTotal;
-    } else if (mode === "refund_keep" || mode === "refund_stop") {
-      cible = round2(Number(body.montant || 0));
-      if (!(cible > 0)) return await fail(400, "Montant à rembourser invalide.");
-      if (cents(cible) > cents(remboursableTotal)) {
-        return await fail(
-          400,
-          `Montant supérieur au remboursable (max ${remboursableTotal} €).`,
-        );
-      }
+    // Canal : fourni par le client, sinon auto (charges Stripe → carte).
+    const canal: Canal =
+      body.canal === "especes" || body.canal === "stripe"
+        ? body.canal
+        : stripeRows.length > 0
+          ? "stripe"
+          : "especes";
+    const rows = canal === "stripe" ? stripeRows : especesRows;
+    const remboursable = round2(rows.reduce((s, e) => s + e.remb, 0));
+
+    // Plafond serveur.
+    if (montant > 0 && cents(montant) > cents(remboursable)) {
+      return await fail(
+        400,
+        `Montant supérieur au remboursable (max ${remboursable} €).`,
+      );
+    }
+    if (montant > 0 && canal === "stripe" && !isStripeConfigured()) {
+      return await fail(503, "Paiement en ligne non configuré.");
     }
 
-    // --- ORDRE : STOP d'abord (modes 2/3/4), puis REFUND. ---
-    const doStop = mode !== "refund_keep";
+    // --- ORDRE : STOP d'abord (si fermeture), puis REFUND. ---
     let echeancesAnnulees = 0;
-    if (doStop) {
+    if (fermer) {
       const r = await annulerEcheances(supabase, id);
       echeancesAnnulees = r.annulees;
     }
 
-    // --- REFUND : allocation centimes, de la plus récente à la plus ancienne. ---
-    const refunds: { paiementId: string; montant: number; refundId: string }[] = [];
-    if (cible > 0) {
-      const stripe = getStripe();
-      const byId = new Map(payees.map((e) => [e.id, e]));
-      const allocation = allouerRemboursement(payees, cents(cible));
+    // --- REFUND : allocation centimes, plus récente → plus ancienne. ---
+    const refunds: {
+      paiementId: string;
+      montant: number;
+      refundId: string | null;
+    }[] = [];
+    if (montant > 0) {
+      const byId = new Map(rows.map((e) => [e.id, e]));
+      const allocation = allouerRemboursement(rows, cents(montant));
+      const stripe = canal === "stripe" ? getStripe() : null;
       for (const { id: pid, part } of allocation) {
         const e = byId.get(pid)!;
-        const refund = await stripe.refunds.create(
-          { payment_intent: e.stripe_payment_intent_id as string, amount: part },
-          { idempotencyKey: `rb-${actionId}-${e.id}` }, // ceinture n°2
-        );
+        let refundId: string | null = null;
+        if (canal === "stripe" && stripe) {
+          const refund = await stripe.refunds.create(
+            { payment_intent: e.stripe_payment_intent_id as string, amount: part },
+            { idempotencyKey: `rb-${actionId}-${e.id}` }, // ceinture n°2
+          );
+          refundId = refund.id;
+        }
         const nouveauRemb = round2(Number(e.montant_rembourse || 0) + part / 100);
         const fully = cents(nouveauRemb) >= cents(Number(e.montant || 0));
         await supabase
           .from("paiements")
-          .update({ montant_rembourse: nouveauRemb, ...(fully ? { statut: "rembourse" } : {}) })
+          .update({
+            montant_rembourse: nouveauRemb,
+            ...(fully ? { statut: "rembourse" } : {}),
+          })
           .eq("id", e.id);
-        refunds.push({ paiementId: e.id, montant: part / 100, refundId: refund.id });
+        refunds.push({ paiementId: e.id, montant: part / 100, refundId });
       }
     }
 
-    // Cumul dossier (recalcul = idempotent ; le webreflet N1 convergera).
+    // Cumul dossier = somme des montant_rembourse (carte + espèces).
     const { data: allP } = await supabase
       .from("paiements")
       .select("montant_rembourse")
@@ -181,16 +201,20 @@ export async function POST(request: Request, { params }: Ctx) {
       .update({
         statut: "fait",
         montant_effectif: montantEffectif,
-        detail: { mode, refunds, echeancesAnnulees },
+        canal,
+        ferme_inscription: fermer,
+        detail: { canal, fermer, refunds, echeancesAnnulees },
         finished_at: new Date().toISOString(),
       })
       .eq("id", actionId);
 
     return NextResponse.json({
       success: true,
+      canal,
       montantRembourse: montantEffectif,
+      ferme: fermer,
       echeancesAnnulees,
-      remboursableRestant: round2(remboursableTotal - montantEffectif),
+      remboursableRestant: round2(remboursable - montantEffectif),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erreur lors du remboursement.";

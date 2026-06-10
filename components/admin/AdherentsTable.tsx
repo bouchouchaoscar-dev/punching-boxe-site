@@ -31,12 +31,16 @@ export function AdherentsTable() {
         for (const p of (d.paiements ?? []) as {
           adherent_id: string;
           montant: number;
+          montant_rembourse: number | null;
           statut: string;
           numero_echeance: number | null;
         }[]) {
-          if (p.statut === "paye") {
+          // Encaissé NET = payé − remboursé (lignes payées + remboursées).
+          if (p.statut === "paye" || p.statut === "rembourse") {
             enc[p.adherent_id] =
-              (enc[p.adherent_id] ?? 0) + Number(p.montant || 0);
+              (enc[p.adherent_id] ?? 0) +
+              Number(p.montant || 0) -
+              Number(p.montant_rembourse || 0);
           }
           // X = échéances NUMÉROTÉES encaissées (exclut la ligne adhésion
           // numero=null). Une échéance remboursée a bien été prélevée → comptée.

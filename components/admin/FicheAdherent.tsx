@@ -16,6 +16,15 @@ import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
+// Ligne d'historique de remboursement (table remboursements).
+type RemboursementLigne = {
+  id: string;
+  montant_effectif: number | null;
+  canal: string | null; // 'stripe' | 'especes'
+  ferme_inscription: boolean;
+  created_at: string;
+};
+
 // Membre du foyer (autre dossier rattaché au même titulaire_id).
 type MembreFoyer = {
   id: string;
@@ -73,6 +82,9 @@ export function FicheAdherent({ id }: { id: string }) {
   const [relancing, setRelancing] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [gererOpen, setGererOpen] = useState(false);
+  const [finOpen, setFinOpen] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const [remboursements, setRemboursements] = useState<RemboursementLigne[]>([]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -112,6 +124,19 @@ export function FicheAdherent({ id }: { id: string }) {
       } catch {
         /* best-effort */
       }
+      // Historique des remboursements du dossier.
+      try {
+        const resR = await fetch(
+          `/api/admin/adherents/${id}/remboursements`,
+          { headers: adminAuthHeaders(), cache: "no-store" },
+        );
+        if (resR.ok) {
+          const dr = await resR.json();
+          setRemboursements(dr.remboursements ?? []);
+        }
+      } catch {
+        /* best-effort */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
     } finally {
@@ -132,6 +157,27 @@ export function FicheAdherent({ id }: { id: string }) {
       );
     } finally {
       setRelancing(false);
+    }
+  }
+
+  // Fin d'inscription SANS mouvement d'argent (arrangement interne).
+  async function finInscription() {
+    setFinishing(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/annuler`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      setFinOpen(false);
+      await load();
+      showToast(
+        res.ok && data.success
+          ? `Inscription terminée — ${data.echeancesAnnulees ?? 0} échéance(s) stoppée(s)`
+          : data.error || "Action impossible.",
+      );
+    } finally {
+      setFinishing(false);
     }
   }
 
@@ -259,7 +305,7 @@ export function FicheAdherent({ id }: { id: string }) {
                 <div className="mt-3 space-y-1.5">
                   {a.annule_at && (
                     <span className="block rounded-lg bg-ink/5 px-3 py-1.5 text-xs font-bold text-ink">
-                      ⛔ Inscription annulée le{" "}
+                      ⛔ Fin d&apos;inscription le{" "}
                       {new Date(a.annule_at).toLocaleDateString("fr-FR")}
                     </span>
                   )}
@@ -292,6 +338,14 @@ export function FicheAdherent({ id }: { id: string }) {
               >
                 Gérer le paiement
               </button>
+              {!a.annule_at && (
+                <button
+                  onClick={() => setFinOpen(true)}
+                  className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+                >
+                  Fin d&apos;inscription
+                </button>
+              )}
             </div>
           </div>
 
@@ -540,6 +594,11 @@ export function FicheAdherent({ id }: { id: string }) {
             relancing={relancing}
             onRelance={relancerPaiement}
           />
+
+          {/* Historique des remboursements */}
+          {remboursements.length > 0 && (
+            <RemboursementsCard remboursements={remboursements} />
+          )}
         </div>
       </div>
 
@@ -565,7 +624,7 @@ export function FicheAdherent({ id }: { id: string }) {
         />
       )}
 
-      {/* Gérer le paiement (remboursement / annulation) */}
+      {/* Gérer le paiement (remboursement / fin d'inscription) */}
       {gererOpen && (
         <GererPaiementModal
           adherent={a}
@@ -577,6 +636,39 @@ export function FicheAdherent({ id }: { id: string }) {
             showToast(msg);
           }}
         />
+      )}
+
+      {/* Fin d'inscription (sans mouvement d'argent) */}
+      {finOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-xl font-extrabold uppercase text-ink">
+              Fin d&apos;inscription ?
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              Le dossier de <strong>{a.prenom} {a.nom}</strong> sera fermé : il
+              sort des effectifs actifs et des relances, et les échéances à venir
+              sont stoppées. <strong>Aucun remboursement</strong> n&apos;est
+              déclenché (pour rembourser, utilise « Gérer le paiement »).
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                onClick={() => setFinOpen(false)}
+                disabled={finishing}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Retour
+              </button>
+              <button
+                onClick={finInscription}
+                disabled={finishing}
+                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {finishing ? "…" : "Confirmer la fin d'inscription"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}
@@ -600,11 +692,16 @@ function PaiementsCard({
   relancing: boolean;
   onRelance: () => void;
 }) {
-  const encaisse = paiements
-    .filter((p) => p.statut === "paye")
-    .reduce((s, p) => s + Number(p.montant || 0), 0);
-  const total = Number(adherent.montant_total || 0);
-  const reste = Math.max(0, Math.round((total - encaisse) * 100) / 100);
+  // Encaissé NET = payé − remboursé (carte + espèces), depuis les paiements.
+  const collectees = paiements.filter(
+    (p) => p.statut === "paye" || p.statut === "rembourse",
+  );
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const paye = r2(collectees.reduce((s, p) => s + Number(p.montant || 0), 0));
+  const rembourse = r2(
+    collectees.reduce((s, p) => s + Number(p.montant_rembourse || 0), 0),
+  );
+  const encaisse = r2(paye - rembourse);
   const echec = adherent.statut_paiement === "echec_paiement";
   const echeances = paiements.filter((p) => p.numero_echeance != null);
   const supplements = paiements.filter((p) => p.numero_echeance == null);
@@ -659,9 +756,9 @@ function PaiementsCard({
       )}
 
       <div className="mt-4 grid grid-cols-3 gap-3 text-center">
-        <Stat label="Total" value={euro(total)} />
+        <Stat label="Payé" value={euro(paye)} />
+        <Stat label="Remboursé" value={euro(rembourse)} />
         <Stat label="Encaissé" value={euro(encaisse)} accent />
-        <Stat label="Reste" value={euro(reste)} />
       </div>
 
       {echeances.length > 0 ? (
@@ -709,6 +806,45 @@ function PaiementsCard({
           Aucune échéance enregistrée (paiement en espèces ou non démarré).
         </p>
       )}
+    </div>
+  );
+}
+
+function RemboursementsCard({
+  remboursements,
+}: {
+  remboursements: RemboursementLigne[];
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-line bg-white p-6">
+      <h3 className="font-display text-lg font-extrabold uppercase text-ink">
+        Remboursements
+      </h3>
+      <ul className="mt-3 divide-y divide-line">
+        {remboursements.map((r) => (
+          <li
+            key={r.id}
+            className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+          >
+            <span className="flex items-center gap-2">
+              <span className="font-semibold text-ink">
+                {euro(Number(r.montant_effectif || 0))}
+              </span>
+              <span className="rounded-full bg-paper-2 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-smoke">
+                {r.canal === "especes" ? "Espèces" : "Carte"}
+              </span>
+              {r.ferme_inscription && (
+                <span className="rounded-full bg-ink/10 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-ink">
+                  Fin d&apos;inscription
+                </span>
+              )}
+            </span>
+            <span className="text-smoke">
+              {new Date(r.created_at).toLocaleDateString("fr-FR")}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
