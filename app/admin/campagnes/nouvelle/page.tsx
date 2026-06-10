@@ -18,6 +18,7 @@ import {
 } from "@/lib/campagnes";
 import { saisonCourante } from "@/lib/saison";
 import { VariablesBar } from "@/components/admin/VariablesBar";
+import { EmojiPicker } from "@/components/admin/EmojiPicker";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { NumberStepper } from "@/components/ui/NumberStepper";
 import type { Adherent } from "@/lib/types";
@@ -85,6 +86,7 @@ export default function NouvelleCampagnePage() {
   const [contenu, setContenu] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const contenuRef = useRef<HTMLTextAreaElement>(null);
+  const objetRef = useRef<HTMLInputElement>(null);
 
   // Étape 3
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -259,6 +261,22 @@ export default function NouvelleCampagnePage() {
     requestAnimationFrame(() => {
       el.focus();
       el.selectionStart = el.selectionEnd = start + token.length;
+    });
+  }
+
+  // Insère un emoji à la position du curseur dans l'OBJET.
+  function insertObjet(s: string) {
+    const el = objetRef.current;
+    if (!el) {
+      setObjet((o) => o + s);
+      return;
+    }
+    const start = el.selectionStart ?? objet.length;
+    const end = el.selectionEnd ?? objet.length;
+    setObjet((o) => o.slice(0, start) + s + o.slice(end));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + s.length;
     });
   }
 
@@ -643,17 +661,19 @@ export default function NouvelleCampagnePage() {
         {/* ÉTAPE 2 */}
         {step === 1 && (
           <div className="space-y-5">
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-semibold text-ink">
-                Objet
-              </span>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-sm font-semibold text-ink">Objet</span>
+                <EmojiPicker onPick={insertObjet} />
+              </div>
               <input
+                ref={objetRef}
                 value={objet}
                 onChange={(e) => setObjet(e.target.value)}
                 placeholder="Objet de l'email"
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
               />
-            </label>
+            </div>
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-ink">
@@ -679,6 +699,10 @@ export default function NouvelleCampagnePage() {
             </label>
 
             <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-sm font-semibold text-ink">Message</span>
+                <EmojiPicker onPick={insertVar} />
+              </div>
               <VariablesBar onInsert={insertVar} />
               <textarea
                 ref={contenuRef}
