@@ -51,8 +51,9 @@ export function Hero() {
             className="mt-7 max-w-xl text-base leading-relaxed text-smoke sm:text-lg"
           >
             Un club historique, 200+ adhérents, des cours pour tous les âges dès
-            5 ans. Boxe Française et Savate Fitness inclus dans une seule
-            adhésion.
+            5 ans. Boxe Française ou cours de préparation physique : choisissez
+            ce qui vous convient, avancez à votre rythme. Inscription 100% en
+            ligne.
           </motion.p>
 
           <motion.div
