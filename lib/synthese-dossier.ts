@@ -130,9 +130,9 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
       obligManquantes.length === 1
         ? `Il ne reste que ${obligManquantes[0].label} à déposer`
         : `Il vous manque ${obligManquantes.map((x) => x.label).join(", ")} à déposer`;
-    // Le certificat (non bloquant) est mentionné en note secondaire.
+    // Le certificat (non bloquant mais obligatoire) est mentionné en note.
     const noteCertif = certifManquant
-      ? " Pensez aussi à fournir votre certificat médical dès que possible."
+      ? " À fournir aussi dans les meilleurs délais : votre certificat médical (obligatoire pour la pratique)."
       : "";
     return {
       tone: "action",
@@ -140,18 +140,19 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
     };
   }
   if (certifManquant) {
-    // Obligatoires validées + paiement acquis : l'inscription EST validée, le
-    // certificat ne bloque pas → message rassurant (pas "en retard").
+    // Obligatoires validées + paiement acquis : l'inscription EST validée (le
+    // certificat ne bloque pas car il dépend d'un médecin), MAIS il reste
+    // obligatoire et attendu rapidement → rassurant sans banaliser.
     if (d.obligatoiresOk && (solde || especesOk || fracEnCours)) {
       return {
         tone: "success",
-        text: "Votre inscription est validée ! Il ne reste qu'à fournir votre certificat médical dès que possible (non obligatoire pour valider l'inscription).",
+        text: "Votre inscription est validée. Pensez à fournir votre certificat médical dans les meilleurs délais : il reste obligatoire pour la pratique.",
         rappel: especesDues ? RAPPEL_ESPECES_COMP : undefined,
       };
     }
     return {
       tone: "action",
-      text: `${prefixePaye}Il ne reste que ${CERTIF.label} à fournir pour compléter votre dossier.${compEspeces}`,
+      text: `${prefixePaye}Il reste ${CERTIF.label} à fournir dans les meilleurs délais (obligatoire pour la pratique).${compEspeces}`,
     };
   }
   if (enAttenteValidation) {

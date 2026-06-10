@@ -122,6 +122,6 @@ export function badgeDossierAdherent(a: Adherent): BadgeAdherent {
   if (certEtat === "valide") return { ton: "complet", label: "🟢 Dossier complet" };
   return {
     ton: "inscription_ok",
-    label: "🟢 Inscription validée · certificat à fournir",
+    label: "🟢 Inscription validée · certificat obligatoire à fournir",
   };
 }

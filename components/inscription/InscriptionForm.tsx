@@ -240,8 +240,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     adresse.trim() &&
     codePostal.trim() &&
     ville.trim();
-  // Documents OBLIGATOIRES (le certificat médical est facultatif : déposable
-  // plus tard depuis l'espace adhérent).
+  // Documents OBLIGATOIRES au dépôt. Le certificat médical n'est PAS dans
+  // cette liste car il dépend d'un tiers (médecin) et ne doit pas bloquer
+  // l'inscription/le paiement ; il reste obligatoire et déposable plus tard
+  // depuis l'espace adhérent.
   const REQUIRED_FILES: FileFieldKey[] = [
     "fiche_inscription",
     "reglement",
@@ -586,10 +588,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     onChange={onFile}
                   />
                   <p className="mt-1.5 text-xs leading-relaxed text-smoke">
-                    Le certificat médical n&apos;est pas requis pour valider votre
-                    inscription, mais il devra être fourni dans les plus brefs
-                    délais. Vous pourrez le déposer depuis votre espace personnel
-                    dès que vous l&apos;aurez.
+                    Le certificat médical n&apos;est pas bloquant pour finaliser
+                    votre inscription et payer. Il reste cependant obligatoire et
+                    doit être fourni dans les meilleurs délais. Vous pourrez le
+                    déposer depuis votre espace personnel une fois obtenu.
                   </p>
                 </div>
                 <FileDrop
