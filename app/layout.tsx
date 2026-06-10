@@ -25,16 +25,19 @@ export const metadata: Metadata = {
     template: "%s · Punching Boxe Nogent-Le Perreux",
   },
   description:
-    "Club de Boxe Française et Savate à Nogent-sur-Marne et Le Perreux. Cours enfants et adultes, Savate Fitness, Préparation Physique. 200+ adhérents. Inscription en ligne.",
+    "Club de boxe, savate et préparation physique à Nogent-sur-Marne et Le Perreux (94). Cours de boxe française, savate, fitness et remise en forme pour enfants et adultes dès 5 ans. 200+ adhérents, 4 salles. Inscription 100% en ligne.",
   keywords: [
-    "club boxe française Nogent-sur-Marne",
+    "club de boxe Nogent-sur-Marne",
+    "cours de boxe Le Perreux",
     "boxe française Val-de-Marne",
-    "cours boxe Nogent Le Perreux",
-    "savate fitness Nogent",
-    "cours préparation physique Nogent",
-    "cardio training Val-de-Marne",
-    "club sport Nogent-sur-Marne",
+    "cours de savate Nogent",
+    "cours de fitness Nogent-sur-Marne",
+    "cours de remise en forme Le Perreux",
+    "préparation physique 94",
+    "salle de sport Nogent Le Perreux",
     "cours boxe enfants adultes 94",
+    "inscription boxe en ligne",
+    "club sport est parisien",
   ],
   authors: [{ name: CLUB.nom }],
   alternates: { canonical: "/" },
@@ -46,13 +49,14 @@ export const metadata: Metadata = {
     title:
       "Punching Boxe Nogent-Le Perreux | Club de Boxe Française et Savate depuis 2000",
     description:
-      "Club de Boxe Française et Savate à Nogent-sur-Marne et Le Perreux. Cours enfants et adultes, Savate Fitness, Préparation Physique. Inscription en ligne.",
+      "Club de boxe, savate et préparation physique à Nogent-sur-Marne et Le Perreux (94). Cours de boxe, savate, fitness et remise en forme, enfants et adultes. Inscription 100% en ligne.",
     images: [{ url: "/images/IMG_0558.jpg", width: 1200, height: 630, alt: CLUB.nom }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Punching Boxe Nogent-Le Perreux — Boxe Française et Savate",
-    description: "Club de Boxe Française et Savate Fitness dans le Val-de-Marne.",
+    title: "Punching Boxe Nogent-Le Perreux — Boxe, Savate & Préparation physique",
+    description:
+      "Club de boxe française, savate, fitness et remise en forme dans le Val-de-Marne. Inscription 100% en ligne.",
     images: ["/images/IMG_0558.jpg"],
   },
 };

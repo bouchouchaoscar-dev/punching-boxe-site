@@ -10,7 +10,7 @@ export const metadata = pageMeta({
   title:
     "À propos | Club de Boxe Française à Nogent-sur-Marne depuis 2000 - Punching Boxe",
   description:
-    "Le Punching Boxe de Nogent-Le Perreux : club de Boxe Française et Savate depuis 2000, 200+ adhérents, 4 salles, 25+ ans d'expérience à Nogent-sur-Marne, Le Perreux et dans le Val-de-Marne (94).",
+    "Le Punching Boxe de Nogent-Le Perreux : club de boxe française, savate et préparation physique depuis 2000. 200+ adhérents, 4 salles à Nogent-sur-Marne, Le Perreux et dans le Val-de-Marne (94). Gestion moderne, inscription 100% en ligne.",
   path: "/a-propos",
   image: "/images/IMG_0558.jpg",
 });

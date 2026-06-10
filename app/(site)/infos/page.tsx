@@ -12,7 +12,7 @@ import { FAQ } from "@/components/infos/FAQ";
 export const metadata = pageMeta({
   title: "Tarifs et Horaires | Punching Boxe Nogent-Le Perreux 2026-2027",
   description:
-    "Tarifs saison 2026-2027 : Formule Boxe 430€/an, Savate et Prépa 390€/an. Horaires des cours sur 4 salles à Nogent et Le Perreux.",
+    "Tarifs et horaires saison 2026-2027 : Boxe Française, Savate, fitness et préparation physique. Cours sur 4 salles à Nogent-sur-Marne et Le Perreux (94). Inscription 100% en ligne.",
   path: "/infos",
   image: "/images/IMG_0544.jpg",
 });

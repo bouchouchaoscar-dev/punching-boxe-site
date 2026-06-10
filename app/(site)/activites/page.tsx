@@ -8,9 +8,9 @@ import { pageMeta } from "@/lib/seo";
 
 export const metadata = pageMeta({
   title:
-    "Activités | Boxe Française, Savate Fitness et Prépa Physique - Punching Boxe Nogent",
+    "Cours de Boxe, Savate, Fitness & Préparation physique - Punching Boxe Nogent-Le Perreux",
   description:
-    "Découvrez nos activités : Boxe Française pour tous niveaux, Savate Fitness cardio, Préparation Physique. Cours enfants dès 5 ans et adultes.",
+    "Cours de boxe française, savate, fitness et remise en forme à Nogent-sur-Marne et Le Perreux (94). Préparation physique, cardio, tous niveaux, enfants dès 5 ans et adultes. Inscription 100% en ligne.",
   path: "/activites",
   image: "/images/IMG_0558.jpg",
 });
