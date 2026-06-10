@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Toggle } from "@/components/ui/Toggle";
@@ -9,6 +9,7 @@ import { ButtonAction } from "@/components/ui/Button";
 import { FileDrop, type FileFieldKey } from "./FileDrop";
 import { StripePayment, type StripePlan } from "./StripePayment";
 import { PostalCityFields } from "./PostalCityFields";
+import { AttestationModal } from "./AttestationModal";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
@@ -106,6 +107,11 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
   const [mode, setMode] = useState<ModePaiement | null>(null);
   const [accepteConditions, setAccepteConditions] = useState(false);
+  // Attestation foyer (remise familiale) : modal obligatoire avant validation
+  // dès qu'une remise s'applique (3e dossier et + du foyer).
+  const [attesteFoyer, setAttesteFoyer] = useState(false);
+  const [attestOpen, setAttestOpen] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -263,6 +269,17 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setError("");
     setPlan(null);
     setStep((s) => Math.max(0, s - 1));
+  }
+
+  // Garde attestation : si une remise familiale s'applique (3e dossier et +),
+  // on exige l'attestation sur l'honneur via le modal avant de lancer l'action.
+  function avecAttestation(action: () => void) {
+    if (tarif.remisePct > 0 && !attesteFoyer) {
+      pendingAction.current = action;
+      setAttestOpen(true);
+      return;
+    }
+    action();
   }
 
   async function submitEspeces() {
@@ -824,7 +841,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
             {step === 3 && mode === "especes" && (
               <ButtonAction
-                onClick={submitEspeces}
+                onClick={() => avecAttestation(submitEspeces)}
                 size="lg"
                 disabled={busy || !accepteConditions}
               >
@@ -833,7 +850,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
             )}
             {step === 3 && mode && mode !== "especes" && (
               <ButtonAction
-                onClick={startStripe}
+                onClick={() => avecAttestation(startStripe)}
                 size="lg"
                 disabled={busy || !accepteConditions}
               >
@@ -843,6 +860,23 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           </div>
         )}
       </div>
+
+      {attestOpen && (
+        <AttestationModal
+          message={`Ce dossier bénéficie d'une remise familiale (à partir du 3e membre du foyer). En continuant, vous attestez que ces membres appartiennent au même foyer familial. Une vérification sera effectuée lors de votre venue au club.`}
+          onConfirm={() => {
+            setAttesteFoyer(true);
+            setAttestOpen(false);
+            const a = pendingAction.current;
+            pendingAction.current = null;
+            a?.();
+          }}
+          onCancel={() => {
+            setAttestOpen(false);
+            pendingAction.current = null;
+          }}
+        />
+      )}
     </div>
   );
 }
