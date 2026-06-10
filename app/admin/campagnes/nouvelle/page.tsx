@@ -471,6 +471,36 @@ export default function NouvelleCampagnePage() {
         {/* ÉTAPE 1 */}
         {step === 0 && (
           <div className="space-y-6">
+            {/* Légende repliable : explique les appellations des segments. */}
+            <details className="group rounded-xl border border-line bg-paper-2/60">
+              <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+                Comprendre les segments
+                <span className="text-smoke transition-transform group-open:rotate-180">
+                  ⌄
+                </span>
+              </summary>
+              <div className="space-y-2 border-t border-line px-4 py-3 text-xs leading-relaxed text-smoke">
+                <p>
+                  <strong className="text-ink">Adhérents actuels</strong> :
+                  inscrits via le site pour la saison en cours.
+                </p>
+                <p>
+                  <strong className="text-ink">Adhérents non réinscrits</strong> :
+                  inscrits la saison dernière, pas encore cette saison.
+                </p>
+                <p>
+                  <strong className="text-ink">Anciens</strong> (base importée) :
+                  saison dernière = dernière venue l&apos;an passé ; tièdes =
+                  absents 2 à 3 ans (adhésion encore offerte) ; froids = absents
+                  plus de 3 ans.
+                </p>
+                <p>
+                  Les segments <strong className="text-ink">jeune / adulte</strong>{" "}
+                  se croisent avec les autres (ce sont des filtres).
+                </p>
+              </div>
+            </details>
+
             <div>
               <h2 className="font-display text-lg font-extrabold uppercase text-ink">
                 Listes intelligentes

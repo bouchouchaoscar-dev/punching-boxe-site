@@ -120,9 +120,15 @@ export default function TemplatesPage() {
         ← Campagnes
       </Link>
       <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-display text-4xl font-black uppercase text-ink">
-          Templates d&apos;email
-        </h1>
+        <div>
+          <h1 className="font-display text-4xl font-black uppercase text-ink">
+            Templates d&apos;email
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-smoke">
+            La bibliothèque de modèles, classés par famille. Réutilisez-les dans
+            une campagne ou créez-en de nouveaux.
+          </p>
+        </div>
         <button
           onClick={() => setEdit({ ...empty })}
           className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange/90"

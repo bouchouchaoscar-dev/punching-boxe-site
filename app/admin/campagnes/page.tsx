@@ -82,6 +82,12 @@ export default function CampagnesPage() {
             Campagnes, mails individuels et envois planifiés, du plus récent au
             plus ancien.
           </p>
+          <p className="mt-2 max-w-2xl text-sm text-smoke">
+            Envoyez une campagne en quelques clics grâce aux listes
+            intelligentes, écrivez librement ou partez d&apos;un template,
+            planifiez pour plus tard. Tout l&apos;historique des envois est
+            conservé ici.
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link

@@ -121,6 +121,11 @@ export function AnciensTable() {
           <p className="mt-1 text-smoke">
             {filtered.length} / {anciens.length} ancien{anciens.length > 1 ? "s" : ""}
           </p>
+          <p className="mt-2 max-w-2xl text-sm text-smoke">
+            Toute la base d&apos;anciens adhérents importée. Dès qu&apos;un ancien
+            se réinscrit via le site, il est reconnu automatiquement et bascule
+            dans les adhérents.
+          </p>
         </div>
       </div>
 

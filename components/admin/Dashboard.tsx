@@ -157,6 +157,10 @@ export function Dashboard() {
             {enAll ? "Toutes les saisons" : `Saison ${selectedSaison}`}
             {entry?.enCours ? " (en cours)" : ""}
           </p>
+          <p className="mt-2 max-w-2xl text-sm text-smoke">
+            Les statistiques du club en temps réel : nombre d&apos;adhérents,
+            formules choisies, chiffre d&apos;affaires et évolution par saison.
+          </p>
         </div>
       </div>
 

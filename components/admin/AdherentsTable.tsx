@@ -136,6 +136,12 @@ export function AdherentsTable() {
             {filtered.length} / {adherents.length} adhérent
             {adherents.length > 1 ? "s" : ""}
           </p>
+          <p className="mt-2 max-w-2xl text-sm text-smoke">
+            Suivez l&apos;avancée des dossiers, validez ou refusez les pièces,
+            contrôlez les paiements. Depuis une fiche, envoyez un mail (message
+            libre ou template), gérez un remboursement ou mettez fin à une
+            inscription.
+          </p>
         </div>
         <button
           onClick={exportCsv}
