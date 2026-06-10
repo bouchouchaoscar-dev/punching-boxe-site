@@ -18,7 +18,15 @@ import {
 } from "@/lib/campagnes";
 import { saisonCourante } from "@/lib/saison";
 import { VariablesBar } from "@/components/admin/VariablesBar";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { NumberStepper } from "@/components/ui/NumberStepper";
 import type { Adherent } from "@/lib/types";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
 
 // Forme allégée renvoyée par /api/admin/anciens-recence (peu de PII côté client).
 type AncienLite = {
@@ -45,7 +53,7 @@ export default function NouvelleCampagnePage() {
       new URLSearchParams(window.location.search).get("planifier") === "1",
     );
   }, []);
-  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledDate, setScheduledDate] = useState(() => todayISO());
   const [scheduledTime, setScheduledTime] = useState("09:00");
 
   // Données
@@ -746,25 +754,44 @@ export default function NouvelleCampagnePage() {
             </div>
 
             {planifier && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <div className="rounded-xl border border-orange/30 bg-orange-50 p-4">
                 <p className="text-sm font-semibold text-ink">
                   🕓 Date et heure d&apos;envoi
                 </p>
-                <div className="mt-2 flex flex-wrap gap-3">
-                  <input
-                    type="date"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    className="focus-ring rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange"
+                <div className="mt-3 flex flex-wrap items-end gap-4">
+                  <div className="w-full sm:w-56">
+                    <DatePicker
+                      label="Date"
+                      value={scheduledDate}
+                      onChange={setScheduledDate}
+                    />
+                  </div>
+                  <NumberStepper
+                    label="Heure"
+                    suffix="h"
+                    min={0}
+                    max={23}
+                    value={Number(scheduledTime.split(":")[0] || 0)}
+                    onChange={(h) =>
+                      setScheduledTime(
+                        `${pad2(h)}:${scheduledTime.split(":")[1] || "00"}`,
+                      )
+                    }
                   />
-                  <input
-                    type="time"
-                    value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="focus-ring rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange"
+                  <NumberStepper
+                    label="Minutes"
+                    suffix="min"
+                    min={0}
+                    max={59}
+                    value={Number(scheduledTime.split(":")[1] || 0)}
+                    onChange={(m) =>
+                      setScheduledTime(
+                        `${scheduledTime.split(":")[0] || "09"}:${pad2(m)}`,
+                      )
+                    }
                   />
                 </div>
-                <p className="mt-2 text-xs text-smoke">
+                <p className="mt-3 text-xs text-smoke">
                   La campagne partira automatiquement à cette date (à l&apos;heure
                   près). Le segment est recalculé au moment de l&apos;envoi.
                 </p>
