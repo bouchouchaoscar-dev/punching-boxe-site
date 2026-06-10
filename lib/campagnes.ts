@@ -3,7 +3,12 @@ import { CLUB } from "./constants";
 import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
 
-export type StatutCampagne = "brouillon" | "envoye" | "erreur";
+export type StatutCampagne =
+  | "brouillon"
+  | "envoye"
+  | "erreur"
+  | "planifiee"
+  | "en_cours";
 
 // Format figé à l'envoi. Deux variantes coexistent :
 // - ancien (plat)   : { nom, prenom, email }  → 1 entrée = 1 personne
@@ -125,6 +130,9 @@ export interface Campagne {
   cible?: string | null;
   nb_envoyes?: number | null;
   nb_exclus?: number | null;
+  // Campagnes planifiées (envoi différé).
+  scheduled_at?: string | null;
+  etat?: "active" | "pause" | null;
 }
 
 export interface TemplateMail {

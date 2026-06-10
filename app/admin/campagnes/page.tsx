@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminAuthHeaders } from "@/lib/admin-auth";
@@ -10,6 +10,8 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
   brouillon: { label: "📝 Brouillon", cls: "bg-orange-50 text-orange-600" },
   erreur: { label: "❌ Erreur", cls: "bg-red-50 text-red-700" },
+  planifiee: { label: "🕓 Planifiée", cls: "bg-blue-50 text-blue-700" },
+  en_cours: { label: "⏳ Envoi en cours", cls: "bg-blue-50 text-blue-700" },
 };
 
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -29,14 +31,45 @@ export default function CampagnesPage() {
   const router = useRouter();
   const [campagnes, setCampagnes] = useState<Campagne[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch("/api/admin/campagnes", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setCampagnes(d.campagnes ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function togglePause(c: Campagne) {
+    setBusy(c.id);
+    try {
+      await fetch(`/api/admin/campagnes/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
+        body: JSON.stringify({ etat: c.etat === "pause" ? "active" : "pause" }),
+      });
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function supprimer(c: Campagne) {
+    if (!confirm(`Supprimer la campagne planifiée « ${c.objet} » ?`)) return;
+    setBusy(c.id);
+    try {
+      await fetch(`/api/admin/campagnes/${c.id}`, {
+        method: "DELETE",
+        headers: adminAuthHeaders(),
+      });
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div>
@@ -46,15 +79,22 @@ export default function CampagnesPage() {
             Historique des envois
           </h1>
           <p className="mt-1 text-smoke">
-            Campagnes groupées et mails individuels, du plus récent au plus ancien.
+            Campagnes, mails individuels et envois planifiés, du plus récent au
+            plus ancien.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link
             href="/admin/campagnes/templates"
             className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink"
           >
             Templates
+          </Link>
+          <Link
+            href="/admin/campagnes/nouvelle?planifier=1"
+            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange"
+          >
+            🕓 Planifier une campagne
           </Link>
           <Link
             href="/admin/campagnes/nouvelle"
@@ -75,7 +115,7 @@ export default function CampagnesPage() {
             Aucun envoi pour le moment.
           </div>
         ) : (
-          <table className="w-full min-w-[44rem] text-left text-sm">
+          <table className="w-full min-w-[48rem] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
                 <th className="p-4 font-bold">Date</th>
@@ -83,10 +123,13 @@ export default function CampagnesPage() {
                 <th className="p-4 font-bold">Objet</th>
                 <th className="p-4 font-bold">Destinataires</th>
                 <th className="p-4 font-bold">Statut</th>
+                <th className="p-4 font-bold"></th>
               </tr>
             </thead>
             <tbody>
               {campagnes.map((c) => {
+                const planifiee =
+                  c.statut === "planifiee" || c.statut === "en_cours";
                 const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
                 const t = TYPE_BADGE[c.type ?? "campagne"] ?? TYPE_BADGE.campagne;
                 const individuel = c.type === "individuel";
@@ -97,7 +140,16 @@ export default function CampagnesPage() {
                     className="cursor-pointer border-b border-line transition-colors last:border-0 hover:bg-paper-2"
                   >
                     <td className="whitespace-nowrap p-4 text-smoke">
-                      {dateHeure(c.envoye_at ?? c.created_at)}
+                      {planifiee && c.scheduled_at ? (
+                        <>
+                          <span className="block text-xs uppercase tracking-wide text-blue-600">
+                            Prévu
+                          </span>
+                          {dateHeure(c.scheduled_at)}
+                        </>
+                      ) : (
+                        dateHeure(c.envoye_at ?? c.created_at)
+                      )}
                     </td>
                     <td className="p-4">
                       <span
@@ -115,18 +167,20 @@ export default function CampagnesPage() {
                       )}
                     </td>
                     <td className="p-4 text-smoke">
-                      {individuel ? (
-                        "1"
-                      ) : (
-                        <>
-                          {c.nb_destinataires ?? 0}
-                          {c.nb_envoyes != null && (
-                            <span className="block text-xs text-smoke/70">
-                              {c.nb_envoyes} email{c.nb_envoyes > 1 ? "s" : ""}
-                            </span>
+                      {planifiee
+                        ? "—"
+                        : individuel
+                          ? "1"
+                          : (
+                            <>
+                              {c.nb_destinataires ?? 0}
+                              {c.nb_envoyes != null && (
+                                <span className="block text-xs text-smoke/70">
+                                  {c.nb_envoyes} email{c.nb_envoyes > 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </>
                           )}
-                        </>
-                      )}
                     </td>
                     <td className="p-4">
                       <span
@@ -134,6 +188,34 @@ export default function CampagnesPage() {
                       >
                         {b.label}
                       </span>
+                      {planifiee && c.etat === "pause" && (
+                        <span className="mt-1 block text-xs font-semibold text-amber-600">
+                          ⏸ en pause
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4 text-right">
+                      {c.statut === "planifiee" && (
+                        <div
+                          className="flex justify-end gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => togglePause(c)}
+                            disabled={busy === c.id}
+                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                          >
+                            {c.etat === "pause" ? "Reprendre" : "Pause"}
+                          </button>
+                          <button
+                            onClick={() => supprimer(c)}
+                            disabled={busy === c.id}
+                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );

@@ -10,6 +10,8 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
   brouillon: { label: "📝 Brouillon", cls: "bg-orange-50 text-orange-600" },
   erreur: { label: "❌ Erreur", cls: "bg-red-50 text-red-700" },
+  planifiee: { label: "🕓 Planifiée", cls: "bg-blue-50 text-blue-700" },
+  en_cours: { label: "⏳ Envoi en cours", cls: "bg-blue-50 text-blue-700" },
 };
 
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
@@ -29,6 +31,22 @@ export default function CampagneDetailPage({
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function togglePause(etat: "active" | "pause") {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/campagnes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
+        body: JSON.stringify({ etat }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.campagne) setCampagne(d.campagne);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     fetch(`/api/admin/campagnes/${id}`, {
@@ -148,8 +166,33 @@ export default function CampagneDetailPage({
         </div>
       </div>
 
+      {/* Bannière campagne planifiée */}
+      {campagne.statut === "planifiee" && campagne.scheduled_at && (
+        <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          🕓 <strong>Envoi prévu</strong> le{" "}
+          {new Date(campagne.scheduled_at).toLocaleString("fr-FR", {
+            dateStyle: "long",
+            timeStyle: "short",
+          })}
+          {campagne.etat === "pause" ? (
+            <span className="font-semibold"> · ⏸ en pause (ne partira pas)</span>
+          ) : (
+            <span> · le segment sera recalculé au moment de l&apos;envoi</span>
+          )}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="mt-5 flex flex-wrap gap-3">
+        {campagne.statut === "planifiee" && (
+          <button
+            onClick={() => togglePause(campagne.etat === "pause" ? "active" : "pause")}
+            disabled={busy}
+            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+          >
+            {campagne.etat === "pause" ? "Reprendre" : "Mettre en pause"}
+          </button>
+        )}
         <button
           onClick={() => setConfirmDelete(true)}
           className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"

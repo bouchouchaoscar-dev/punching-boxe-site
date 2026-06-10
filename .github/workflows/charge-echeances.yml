@@ -1,14 +1,14 @@
-name: Charge échéances Stripe
+name: Cron — échéances Stripe + campagnes planifiées
 on:
   schedule:
-    - cron: '0 6 * * *'  # Tous les jours à 6h UTC
+    - cron: '0 * * * *'  # Toutes les heures : échéances dues + campagnes planifiées à l'heure dite
   workflow_dispatch:  # Permet de lancer manuellement
 
 jobs:
   charge:
     runs-on: ubuntu-latest
     steps:
-      - name: Déclencher le prélèvement des échéances
+      - name: Déclencher le cron (échéances + campagnes planifiées)
         run: |
           curl -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \

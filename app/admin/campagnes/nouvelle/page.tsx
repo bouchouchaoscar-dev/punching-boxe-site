@@ -36,6 +36,14 @@ const STEPS = ["Destinataires", "Composer", "Envoi"];
 export default function NouvelleCampagnePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  // Mode planification (?planifier=1). Lu côté client (pas de Suspense requis).
+  const [planifier] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("planifier") === "1",
+  );
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("09:00");
 
   // Données
   const [adherents, setAdherents] = useState<Adherent[]>([]);
@@ -64,6 +72,7 @@ export default function NouvelleCampagnePage() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [result, setResult] = useState<{
+    planifie?: boolean;
     emails: number;
     personnes: number;
     exclus: number;
@@ -293,23 +302,45 @@ export default function NouvelleCampagnePage() {
     input.click();
   }
 
-  // ---- Envoi ----
+  // ---- Envoi / Planification ----
   async function envoyer() {
     setSending(true);
     try {
+      const payload = {
+        titre: objet,
+        objet,
+        contenu,
+        smartLists,
+        anciensSegments,
+        disciplines,
+        includeContacts,
+        manualEmails: [...manualSelected],
+      };
+
+      if (planifier) {
+        const scheduledAt = new Date(
+          `${scheduledDate}T${scheduledTime}:00`,
+        ).toISOString();
+        const res = await fetch("/api/admin/campagnes/planifier", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
+          body: JSON.stringify({ ...payload, scheduledAt }),
+        });
+        const d = await res.json();
+        if (res.ok && d.success) {
+          setResult({ planifie: true, emails: 0, personnes: 0, exclus: 0, doublons: 0, exclusSansEmail: 0 });
+        } else {
+          setConfirmOpen(false);
+          setToast(d.error || "La planification a échoué.");
+          window.setTimeout(() => setToast(null), 4000);
+        }
+        return;
+      }
+
       const res = await fetch("/api/admin/send-campagne", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
-        body: JSON.stringify({
-          titre: objet,
-          objet,
-          contenu,
-          smartLists,
-          anciensSegments,
-          disciplines,
-          includeContacts,
-          manualEmails: [...manualSelected],
-        }),
+        body: JSON.stringify(payload),
       });
       const d = await res.json();
       if (res.ok && d.success) {
@@ -353,7 +384,7 @@ export default function NouvelleCampagnePage() {
         ← Campagnes
       </Link>
       <h1 className="mt-4 font-display text-4xl font-black uppercase text-ink">
-        Nouvelle campagne
+        {planifier ? "Planifier une campagne" : "Nouvelle campagne"}
       </h1>
 
       {/* Stepper */}
@@ -702,12 +733,43 @@ export default function NouvelleCampagnePage() {
               </div>
             </div>
 
+            {planifier && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-semibold text-ink">
+                  🕓 Date et heure d&apos;envoi
+                </p>
+                <div className="mt-2 flex flex-wrap gap-3">
+                  <input
+                    type="date"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    className="focus-ring rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange"
+                  />
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="focus-ring rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange"
+                  />
+                </div>
+                <p className="mt-2 text-xs text-smoke">
+                  La campagne partira automatiquement à cette date (à l&apos;heure
+                  près). Le segment est recalculé au moment de l&apos;envoi.
+                </p>
+              </div>
+            )}
+
             <button
               onClick={() => setConfirmOpen(true)}
-              disabled={personnes === 0 || !objet || !contenu}
+              disabled={
+                personnes === 0 ||
+                !objet ||
+                !contenu ||
+                (planifier && !scheduledDate)
+              }
               className="w-full rounded-full bg-orange px-6 py-3 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50 sm:w-auto"
             >
-              Envoyer maintenant
+              {planifier ? "Planifier l'envoi" : "Envoyer maintenant"}
             </button>
           </div>
         )}
@@ -763,7 +825,38 @@ export default function NouvelleCampagnePage() {
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
           <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
-            {result ? (
+            {result?.planifie ? (
+              <>
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-2xl">
+                  🕓
+                </div>
+                <h2 className="font-display mt-4 text-xl font-extrabold uppercase text-ink">
+                  Campagne planifiée
+                </h2>
+                <p className="mt-3 text-sm text-smoke">
+                  Elle partira le{" "}
+                  <strong className="text-ink">
+                    {scheduledDate
+                      ? new Date(
+                          `${scheduledDate}T${scheduledTime}`,
+                        ).toLocaleString("fr-FR", {
+                          dateStyle: "long",
+                          timeStyle: "short",
+                        })
+                      : ""}
+                  </strong>{" "}
+                  (segment recalculé à ce moment-là). Tu peux la mettre en pause
+                  ou la supprimer dans l&apos;historique tant qu&apos;elle n&apos;est
+                  pas partie.
+                </p>
+                <button
+                  onClick={() => router.push("/admin/campagnes")}
+                  className="mt-6 rounded-full bg-orange px-6 py-2.5 text-sm font-bold text-white hover:bg-orange/90"
+                >
+                  Voir l&apos;historique
+                </button>
+              </>
+            ) : result ? (
               <>
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
                   ✅
@@ -803,13 +896,25 @@ export default function NouvelleCampagnePage() {
             ) : (
               <>
                 <h2 className="font-display text-xl font-extrabold uppercase text-ink">
-                  Confirmer l&apos;envoi
+                  {planifier ? "Confirmer la planification" : "Confirmer l'envoi"}
                 </h2>
                 <p className="mt-3 text-sm text-smoke">
-                  Vous allez toucher <strong>{personnes}</strong> personne
-                  {personnes > 1 ? "s" : ""} via <strong>{emails}</strong> email
-                  {emails > 1 ? "s" : ""}. Les désinscrits sont automatiquement
-                  exclus. Cette action est irréversible.
+                  {planifier ? (
+                    <>
+                      L&apos;envoi sera programmé. Le segment (~
+                      <strong>{personnes}</strong> personne
+                      {personnes > 1 ? "s" : ""} aujourd&apos;hui) sera
+                      <strong> recalculé</strong> au moment de l&apos;envoi. Les
+                      désinscrits seront exclus à ce moment-là.
+                    </>
+                  ) : (
+                    <>
+                      Vous allez toucher <strong>{personnes}</strong> personne
+                      {personnes > 1 ? "s" : ""} via <strong>{emails}</strong> email
+                      {emails > 1 ? "s" : ""}. Les désinscrits sont automatiquement
+                      exclus. Cette action est irréversible.
+                    </>
+                  )}
                 </p>
                 <div className="mt-5 flex justify-center gap-3">
                   <button
@@ -824,7 +929,13 @@ export default function NouvelleCampagnePage() {
                     disabled={sending}
                     className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange/90 disabled:opacity-50"
                   >
-                    {sending ? "Envoi…" : "Envoyer maintenant"}
+                    {sending
+                      ? planifier
+                        ? "Planification…"
+                        : "Envoi…"
+                      : planifier
+                        ? "Planifier"
+                        : "Envoyer maintenant"}
                   </button>
                 </div>
               </>

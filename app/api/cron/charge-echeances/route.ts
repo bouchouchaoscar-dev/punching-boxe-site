@@ -2,8 +2,81 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
+import { envoyerCampagne, type RecetteCampagne } from "@/lib/envoi-campagne";
 
 export const runtime = "nodejs";
+
+/**
+ * Envoie les campagnes PLANIFIÉES dont l'heure est atteinte (active, non
+ * envoyée). Claim atomique (planifiee → en_cours) AVANT envoi → pas de double
+ * envoi si le cron repasse. Segments recalculés au jour J (même chemin que
+ * l'envoi manuel). Échec → 'erreur' sans renvoi auto.
+ */
+async function envoyerCampagnesPlanifiees() {
+  const supabase = getSupabaseAdmin();
+  const nowIso = new Date().toISOString();
+  const { data: dues } = await supabase
+    .from("campagnes")
+    .select("id")
+    .eq("statut", "planifiee")
+    .eq("etat", "active")
+    .lte("scheduled_at", nowIso);
+
+  const results: { id: string; statut: string; envoyes?: number }[] = [];
+  for (const c of dues ?? []) {
+    // Claim : seule une exécution peut passer planifiee → en_cours.
+    const { data: claimed } = await supabase
+      .from("campagnes")
+      .update({ statut: "en_cours" })
+      .eq("id", c.id)
+      .eq("statut", "planifiee")
+      .eq("etat", "active")
+      .select("id, objet, contenu, liste_filtre")
+      .maybeSingle();
+    if (!claimed) {
+      results.push({ id: c.id, statut: "ignoree" });
+      continue;
+    }
+
+    const recette = {
+      ...(claimed.liste_filtre as RecetteCampagne),
+      objet: claimed.objet as unknown as string,
+      contenu: claimed.contenu as unknown as string,
+    } as RecetteCampagne;
+
+    let res;
+    try {
+      res = await envoyerCampagne(supabase, recette);
+    } catch (e) {
+      console.error("Envoi campagne planifiée:", e);
+      await supabase
+        .from("campagnes")
+        .update({ statut: "erreur" })
+        .eq("id", c.id);
+      results.push({ id: c.id, statut: "erreur" });
+      continue;
+    }
+
+    await supabase
+      .from("campagnes")
+      .update({
+        statut: res.emailsEnvoyes > 0 ? "envoye" : "erreur",
+        envoye_at: new Date().toISOString(),
+        cible: res.cible,
+        nb_destinataires: res.personnesCiblees,
+        nb_envoyes: res.emailsEnvoyes,
+        nb_exclus: res.exclus + res.exclusSansEmail,
+        destinataires_liste: res.destinatairesListe,
+      })
+      .eq("id", c.id);
+    results.push({
+      id: c.id,
+      statut: res.emailsEnvoyes > 0 ? "envoye" : "erreur",
+      envoyes: res.emailsEnvoyes,
+    });
+  }
+  return results;
+}
 
 /**
  * Job quotidien (Vercel Cron) : prélève les échéances dont la date prévue est
@@ -46,5 +119,8 @@ export async function GET(request: Request) {
     results.push({ id: p.id, ...r });
   }
 
-  return NextResponse.json({ traitees: results.length, results });
+  // Campagnes planifiées dont l'heure est atteinte.
+  const campagnes = await envoyerCampagnesPlanifiees();
+
+  return NextResponse.json({ traitees: results.length, results, campagnes });
 }
