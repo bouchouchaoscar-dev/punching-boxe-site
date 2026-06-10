@@ -1,5 +1,4 @@
 import type { Adherent } from "./types";
-import { CLUB } from "./constants";
 import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
 
@@ -158,14 +157,15 @@ export interface ContactMailing {
 // ---- Listes intelligentes (filtres sur les adhérents) ----
 export type SmartListKey =
   | "tous"
+  | "non_reinscrits"
   | "boxe"
   | "savate"
   | "adultes"
   | "jeunes"
-  | "avec_prepa"
-  | "sans_prepa"
+  | "fait_prepa"
   | "certificat_manquant"
   | "especes_attente"
+  | "echec_paiement"
   | "dossier_incomplet"
   | "nouveaux"
   | "adherents_actuels";
@@ -173,14 +173,15 @@ export type SmartListKey =
 export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
   { key: "adherents_actuels", label: "Adhérents actuels (saison en cours)" },
   { key: "tous", label: "Tous les adhérents" },
+  { key: "non_reinscrits", label: "Adhérents non réinscrits (saison dernière)" },
   { key: "boxe", label: "Formule Boxe Française" },
   { key: "savate", label: "Formule Savate et Prépa" },
   { key: "adultes", label: "Adultes uniquement" },
   { key: "jeunes", label: "Jeunes uniquement" },
-  { key: "avec_prepa", label: "Avec option Prépa Physique" },
-  { key: "sans_prepa", label: "Sans option Prépa Physique" },
+  { key: "fait_prepa", label: "Fait de la préparation physique" },
   { key: "certificat_manquant", label: "Certificat médical manquant" },
   { key: "especes_attente", label: "Paiement espèces en attente" },
+  { key: "echec_paiement", label: "À régulariser (échec de paiement)" },
   { key: "dossier_incomplet", label: "Dossier incomplet" },
   { key: "nouveaux", label: "Nouveaux membres cette saison" },
 ];
@@ -198,18 +199,27 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
       return a.type_adherent === "adulte";
     case "jeunes":
       return a.type_adherent === "jeune";
-    case "avec_prepa":
-      return !!a.option_prepa_physique;
-    case "sans_prepa":
-      return !a.option_prepa_physique;
+    case "fait_prepa":
+      // Pratique réellement la prépa : formule Savate & Prépa (incluse) OU
+      // Boxe Française avec l'option prépa physique.
+      return (
+        a.package === "savate_prepa" ||
+        (a.package === "boxe_classique" && !!a.option_prepa_physique)
+      );
     case "certificat_manquant":
       return !a.certificat_medical_url;
     case "especes_attente":
       return a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
+    case "echec_paiement":
+      return a.statut_paiement === "echec_paiement";
     case "dossier_incomplet":
       return !a.documents_valides;
     case "nouveaux":
-      return !!a.nouveau_membre && a.saison === CLUB.saison;
+      // Saison EN COURS dynamique (plus de constante en dur).
+      return !!a.nouveau_membre && a.saison === saisonCourante(new Date());
+    case "non_reinscrits":
+      // Segment CROSS-ROW : géré dans filtrerAdherents (faux ici par défaut).
+      return false;
     case "adherents_actuels":
       // Natifs inscrits à la SAISON EN COURS (dynamique) et réellement actifs.
       // Une inscription annulée sort des actifs.
@@ -231,6 +241,45 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
 // devient inopérant).
 const TYPE_KEYS: SmartListKey[] = ["adultes", "jeunes"];
 
+// Actif = engagé/payé et non annulé (même définition que "adherents_actuels").
+function estActifAdherent(a: Adherent): boolean {
+  return (
+    !a.annule_at &&
+    (a.statut_paiement === "paye" ||
+      a.statut_paiement === "confirme_especes" ||
+      !!a.engage_at)
+  );
+}
+// Identité d'une personne (pour le cross-saison) : clé de matching si dispo,
+// sinon email.
+const identitePersonne = (a: Adherent): string =>
+  a.match_key || (a.email ? a.email.toLowerCase() : a.id);
+
+/**
+ * Ensemble des dossiers (ids) ACTIFS la saison DERNIÈRE mais dont la personne
+ * n'a PAS de dossier actif la saison EN COURS → non réinscrits (relance).
+ */
+function idsNonReinscrits(adherents: Adherent[]): Set<string> {
+  const courante = saisonCourante(new Date());
+  const y = parseInt(courante.slice(0, 4), 10);
+  const precedente = `${y - 1}-${y}`;
+  const actifsCourante = new Set<string>();
+  for (const a of adherents) {
+    if (a.saison === courante && estActifAdherent(a))
+      actifsCourante.add(identitePersonne(a));
+  }
+  const res = new Set<string>();
+  for (const a of adherents) {
+    if (
+      a.saison === precedente &&
+      estActifAdherent(a) &&
+      !actifsCourante.has(identitePersonne(a))
+    )
+      res.add(a.id);
+  }
+  return res;
+}
+
 export function filtrerAdherents(
   adherents: Adherent[],
   keys: SmartListKey[],
@@ -239,12 +288,19 @@ export function filtrerAdherents(
   const typeKeys = keys.filter((k) => TYPE_KEYS.includes(k));
   const baseKeys = keys.filter((k) => !TYPE_KEYS.includes(k));
 
+  // Précalcul du segment CROSS-ROW "non réinscrits" (si demandé).
+  const nonReinscrits = baseKeys.includes("non_reinscrits")
+    ? idsNonReinscrits(adherents)
+    : null;
+  const matchBase = (a: Adherent) =>
+    baseKeys.some((k) =>
+      k === "non_reinscrits" ? !!nonReinscrits?.has(a.id) : matchSmartList(a, k),
+    );
+
   // Base = union des listes "non-type". Si aucune n'est cochée (ex. seulement
   // "Adultes"), la base = tous les adhérents.
   const base =
-    baseKeys.length > 0
-      ? adherents.filter((a) => baseKeys.some((k) => matchSmartList(a, k)))
-      : adherents.slice();
+    baseKeys.length > 0 ? adherents.filter(matchBase) : adherents.slice();
 
   // Filtre type en ET : on ne garde que jeunes/adultes selon la sélection.
   if (typeKeys.length > 0) {

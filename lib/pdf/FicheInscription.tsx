@@ -3,6 +3,7 @@ import { styles } from "./theme";
 import { PdfFooter, PdfHeader } from "./Shared";
 import { CLUB } from "@/lib/constants";
 import { TARIFS } from "@/lib/pricing";
+import { saisonCourante } from "@/lib/saison";
 
 // Surcharges locales à la FICHE uniquement (pour tenir sur 1 page A4).
 // N'affecte ni le certificat médical ni le règlement intérieur.
@@ -48,10 +49,11 @@ function Check({ label }: { label: string }) {
 
 // Fiche d'inscription remasterisée — SANS carré photo (cf. brief).
 export function FicheInscriptionDoc() {
+  const saison = saisonCourante(new Date()); // saison dynamique (formulaire vierge)
   return (
-    <Document title={`Fiche d'inscription ${CLUB.saison}`} author={CLUB.nom}>
+    <Document title={`Fiche d'inscription ${saison}`} author={CLUB.nom}>
       <Page size="A4" style={[styles.page, f.page]}>
-        <PdfHeader title="Fiche d'inscription" season={CLUB.saison} />
+        <PdfHeader title="Fiche d'inscription" season={saison} />
 
         <Text style={[styles.small, f.small, { marginBottom: 3 }]}>
           À remplir lisiblement, en lettres capitales.
