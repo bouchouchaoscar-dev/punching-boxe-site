@@ -5,6 +5,8 @@ import Link from "next/link";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { EnvoiMailModal } from "./EnvoiMailModal";
 import { GererPaiementModal } from "./GererPaiementModal";
+import { HistoriqueSaisons, type HistLigne } from "./HistoriqueSaisons";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
@@ -67,6 +69,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [refuseMotif, setRefuseMotif] = useState("");
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [famille, setFamille] = useState<MembreFoyer[]>([]);
+  const [histAncien, setHistAncien] = useState<HistLigne[]>([]);
   const [relancing, setRelancing] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [gererOpen, setGererOpen] = useState(false);
@@ -95,6 +98,19 @@ export function FicheAdherent({ id }: { id: string }) {
       if (resF.ok) {
         const df = await resF.json();
         setFamille(df.membres ?? []);
+      }
+      // Historique d'ancien (si ce dossier est un réinscrit lié par ancien_id).
+      try {
+        const resH = await fetch(
+          `/api/admin/adherents/${id}/historique-ancien`,
+          { headers: adminAuthHeaders(), cache: "no-store" },
+        );
+        if (resH.ok) {
+          const dh = await resH.json();
+          setHistAncien(dh.historique ?? []);
+        }
+      } catch {
+        /* best-effort */
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
@@ -301,6 +317,16 @@ export function FicheAdherent({ id }: { id: string }) {
               </ButtonAction>
             )}
           </div>
+
+          {/* Historique des saisons — uniquement si réinscrit (ancien lié). */}
+          {histAncien.length > 0 && (
+            <div className="rounded-[1.5rem] border border-line bg-white p-5">
+              <h3 className="font-display text-base font-extrabold uppercase text-ink">
+                Historique des saisons
+              </h3>
+              <HistoriqueSaisons historique={histAncien} />
+            </div>
+          )}
 
           {/* Foyer — sous le bloc Paiement, dans la colonne de gauche. */}
           <FamilleCard membres={famille} currentId={a.id} />

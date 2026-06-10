@@ -6,6 +6,7 @@ import { euro } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import { formatTelephone } from "@/lib/telephone";
 import { EnvoiMailModal } from "./EnvoiMailModal";
+import { HistoriqueSaisons } from "./HistoriqueSaisons";
 
 type Hist = {
   saison: string;
@@ -34,11 +35,6 @@ type Ancien = {
   historique: Hist[];
 };
 
-const STATUT_LABEL: Record<Hist["statut"], string> = {
-  jeune: "Jeune",
-  adulte: "Adulte",
-  inconnu: "—",
-};
 
 function formatNaissance(d: string | null): string {
   if (!d) return "—";
@@ -299,30 +295,7 @@ function Fiche({ a }: { a: Ancien }) {
           <h3 className="font-display text-sm font-extrabold uppercase text-ink">
             Historique des saisons
           </h3>
-          <div className="mt-2 overflow-hidden rounded-xl border border-line bg-white">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
-                  <th className="px-3 py-2 font-bold">Saison</th>
-                  <th className="px-3 py-2 font-bold">Discipline</th>
-                  <th className="px-3 py-2 font-bold">Statut</th>
-                  <th className="px-3 py-2 text-right font-bold">Montant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.historique.map((h) => (
-                  <tr key={h.saison} className="border-b border-line last:border-0">
-                    <td className="px-3 py-2 font-semibold text-ink">{h.saison}</td>
-                    <td className="px-3 py-2 text-smoke">{discList(h.disciplines)}</td>
-                    <td className="px-3 py-2 text-smoke">{STATUT_LABEL[h.statut]}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-ink">
-                      {h.montant == null ? "—" : euro(h.montant)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <HistoriqueSaisons historique={a.historique} />
         </div>
       </div>
     </div>
