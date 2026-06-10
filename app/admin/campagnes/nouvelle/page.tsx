@@ -23,9 +23,17 @@ import { NumberStepper } from "@/components/ui/NumberStepper";
 import type { Adherent } from "@/lib/types";
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-function todayISO() {
+// Créneau par défaut = prochaine heure pleine (toujours dans le futur), date
+// incluse (gère le passage à minuit). Évite le message "heure déjà passée"
+// affiché à tort quand on planifie l'après-midi.
+function defaultSchedule() {
   const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return {
+    date: `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`,
+    time: `${pad2(d.getHours())}:00`,
+  };
 }
 
 // Forme allégée renvoyée par /api/admin/anciens-recence (peu de PII côté client).
@@ -53,8 +61,8 @@ export default function NouvelleCampagnePage() {
       new URLSearchParams(window.location.search).get("planifier") === "1",
     );
   }, []);
-  const [scheduledDate, setScheduledDate] = useState(() => todayISO());
-  const [scheduledTime, setScheduledTime] = useState("09:00");
+  const [scheduledDate, setScheduledDate] = useState(() => defaultSchedule().date);
+  const [scheduledTime, setScheduledTime] = useState(() => defaultSchedule().time);
 
   // Données
   const [adherents, setAdherents] = useState<Adherent[]>([]);
@@ -674,11 +682,14 @@ export default function NouvelleCampagnePage() {
               <VariablesBar onInsert={insertVar} />
               <textarea
                 ref={contenuRef}
-                rows={20}
+                rows={24}
                 value={contenu}
                 onChange={(e) => setContenu(e.target.value)}
                 placeholder="Rédigez votre message… Insérez les variables avec les boutons ci-dessus."
-                className="focus-ring min-h-[28rem] w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
+                // Hauteur en style INLINE : garantie même si la classe arbitraire
+                // Tailwind n'est pas générée (cause des tentatives qui ne tenaient pas).
+                style={{ minHeight: "34rem" }}
+                className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
               />
             </div>
 
