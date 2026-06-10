@@ -24,6 +24,8 @@ type Ancien = {
   ville: string | null;
   date_naissance: string | null;
   a_verifier: boolean;
+  reinscrit: boolean;
+  reinscrit_saison: string | null;
   derniere_saison: string | null;
   classe: "saison_derniere" | "tiede" | "froid" | null;
   disciplines: string[];
@@ -191,7 +193,15 @@ export function AnciensTable() {
                       <span className="font-semibold text-ink">
                         {a.nom} {a.prenom}
                       </span>
-                      {a.classe && <ClasseBadge classe={a.classe} />}
+                      {a.reinscrit && (
+                        <span
+                          className="rounded-full bg-green-50 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-green-700"
+                          title="Cet ancien s'est réinscrit via le site (dossier adhérent actif)"
+                        >
+                          ↩️ Réinscrit{a.reinscrit_saison ? ` ${a.reinscrit_saison}` : ""}
+                        </span>
+                      )}
+                      {a.classe && !a.reinscrit && <ClasseBadge classe={a.classe} />}
                       {a.a_verifier && (
                         <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-amber-700">
                           à vérifier

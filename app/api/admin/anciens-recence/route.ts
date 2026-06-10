@@ -26,14 +26,23 @@ export async function GET(request: Request) {
     .not("ancien_id", "is", null);
   const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
 
+  const lite = (a: { id: unknown; derniere_saison: unknown; disciplines: unknown }) => ({
+    id: a.id,
+    derniere_saison: a.derniere_saison,
+    disciplines: (a.disciplines as string[]) ?? [],
+  });
+
+  // Anciens ciblables (non réinscrits) + les RÉINSCRITS séparément (pour la
+  // mention "X réinscrits exclus" dans le constructeur de campagne).
   const anciens = (data ?? [])
     .filter((a) => !migres.has(a.id as string))
     .map((a) => ({
-      id: a.id,
-      derniere_saison: a.derniere_saison,
-      disciplines: a.disciplines ?? [],
+      ...lite(a),
       has_email: !!(a.email && String(a.email).trim()),
     }));
+  const migresAnciens = (data ?? [])
+    .filter((a) => migres.has(a.id as string))
+    .map(lite);
 
-  return NextResponse.json({ anciens });
+  return NextResponse.json({ anciens, migres: migresAnciens });
 }

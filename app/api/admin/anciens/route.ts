@@ -45,6 +45,20 @@ export async function GET(request: Request) {
     "ancien_id, saison, disciplines, montant",
   );
 
+  // Anciens RÉINSCRITS : dossiers natifs liés (ancien_id). On garde la saison la
+  // plus récente du/des dossier(s) lié(s) pour l'afficher ("Revenu en …").
+  const { data: migr } = await supabase
+    .from("adherents")
+    .select("ancien_id, saison")
+    .not("ancien_id", "is", null);
+  const reinscritSaison = new Map<string, string>();
+  for (const m of migr ?? []) {
+    const id = m.ancien_id as string;
+    const s = (m.saison as string | null) ?? "";
+    const prev = reinscritSaison.get(id);
+    if (!prev || s > prev) reinscritSaison.set(id, s);
+  }
+
   const histByAncien = new Map<
     string,
     { saison: string; disciplines: string[]; montant: number | null }[]
@@ -80,6 +94,8 @@ export async function GET(request: Request) {
         ville: p.ville,
         date_naissance: p.date_naissance,
         a_verifier: !!p.a_verifier,
+        reinscrit: reinscritSaison.has(p.id),
+        reinscrit_saison: reinscritSaison.get(p.id) ?? null,
         derniere_saison: derniere,
         classe,
         disciplines,

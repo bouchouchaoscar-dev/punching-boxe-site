@@ -75,6 +75,8 @@ export default function NouvelleCampagnePage() {
   const [anciensSegments, setAnciensSegments] = useState<SegmentAncienKey[]>([]);
   const [disciplines, setDisciplines] = useState<DisciplineKey[]>([]);
   const [anciens, setAnciens] = useState<AncienLite[]>([]);
+  // Anciens RÉINSCRITS (migrés) — exclus des relances ; sert à la mention.
+  const [migres, setMigres] = useState<Omit<AncienLite, "has_email">[]>([]);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -116,7 +118,10 @@ export default function NouvelleCampagnePage() {
       .catch(() => {});
     fetch("/api/admin/anciens-recence", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setAnciens(d.anciens ?? []))
+      .then((d) => {
+        setAnciens(d.anciens ?? []);
+        setMigres(d.migres ?? []);
+      })
       .catch(() => {});
     try {
       setSavedLists(JSON.parse(localStorage.getItem(LS_KEY) || "[]"));
@@ -134,6 +139,13 @@ export default function NouvelleCampagnePage() {
       anciensSansEmail: f.filter((a) => !a.has_email).length,
     };
   }, [anciens, anciensSegments, disciplines]);
+
+  // Réinscrits (migrés) tombant dans le segment choisi → exclus de la relance.
+  const anciensMigresExclus = useMemo(() => {
+    if (anciensSegments.length === 0) return 0;
+    const saisonRef = saisonCourante(new Date());
+    return filtrerAnciens(migres, anciensSegments, disciplines, saisonRef).length;
+  }, [migres, anciensSegments, disciplines]);
 
   // ---- Calcul des destinataires (côté client, indicatif) ----
   // On compte les PERSONNES (pas les emails) : 1 email peut regrouper plusieurs
@@ -556,6 +568,12 @@ export default function NouvelleCampagnePage() {
                 <p className="mt-2 text-xs text-smoke">
                   {anciensSansEmail} ancien{anciensSansEmail > 1 ? "s" : ""} sans
                   email dans cette sélection (non joignable{anciensSansEmail > 1 ? "s" : ""} par mail).
+                </p>
+              )}
+              {anciensMigresExclus > 0 && (
+                <p className="mt-1.5 rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
+                  ↩️ {anciensMigresExclus} contact{anciensMigresExclus > 1 ? "s" : ""} ayant migré
+                  (réinscrit{anciensMigresExclus > 1 ? "s" : ""}) {anciensMigresExclus > 1 ? "sont exclus" : "est exclu"} de cet envoi.
                 </p>
               )}
             </div>
