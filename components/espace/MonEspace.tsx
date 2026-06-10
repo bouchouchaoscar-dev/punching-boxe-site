@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 import { useAdherentSession } from "@/components/auth/useSession";
 import { getAuthClient } from "@/lib/supabase-auth";
 import { PaiementStatut } from "@/components/admin/StatutBadge";
-import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
+import {
+  evaluerDossier,
+  badgeDossierAdherent,
+  type DossierTon,
+} from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
@@ -317,7 +321,7 @@ export function MonEspace() {
                       <LienBadge lien={a.lien_parente} />
                     </span>
                     <span className="mt-2 flex flex-wrap items-center gap-2">
-                      <DossierBadge statut={dossier.statut} />
+                      <DossierBadge {...badgeDossierAdherent(a)} />
                       <PaiementStatut adherent={a} paidEcheances={paidMap[a.id] ?? 0} />
                       <span className="text-xs text-smoke">
                         {a.package ? PACKAGE_LABEL[a.package] : "—"}
@@ -342,6 +346,9 @@ export function MonEspace() {
                   <div className="border-t border-line p-5 sm:p-6">
                     {/* Synthèse dynamique : où en est le dossier + prochaine action */}
                     <SyntheseEncart {...syntheseDossier(a, paidMap[a.id] ?? 0)} />
+
+                    {/* Jauge de progression des pièces (sentiment d'avancement) */}
+                    <JaugeDossier valides={dossier.valides} total={dossier.total} />
 
                     <div className="mt-5 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
                     {/* Documents */}
@@ -576,16 +583,40 @@ function LienBadge({ lien }: { lien: LienParente | null }) {
   );
 }
 
-function DossierBadge({ statut }: { statut: DossierStatut }) {
-  const map = {
-    valide: { cls: "bg-green-50 text-green-700", label: "🟢 Dossier validé" },
-    presque: { cls: "bg-orange-50 text-orange-600", label: "🟠 Certificat manquant" },
-    incomplet: { cls: "bg-red-50 text-red-700", label: "🔴 Dossier incomplet" },
-  }[statut];
+function DossierBadge({ ton, label }: { ton: DossierTon; label: string }) {
+  const cls: Record<DossierTon, string> = {
+    complet: "bg-green-50 text-green-700",
+    inscription_ok: "bg-green-50 text-green-700",
+    verification: "bg-blue-50 text-blue-700",
+    presque: "bg-orange-50 text-orange-600",
+    incomplet: "bg-red-50 text-red-700",
+  };
   return (
-    <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${map.cls}`}>
-      {map.label}
+    <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${cls[ton]}`}>
+      {label}
     </span>
+  );
+}
+
+// Jauge "X/4 pièces validées" : verte une fois complète, orange en cours.
+function JaugeDossier({ valides, total }: { valides: number; total: number }) {
+  const pct = total > 0 ? Math.round((valides / total) * 100) : 0;
+  const complet = valides >= total;
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
+        <span className="text-ink">
+          {valides}/{total} pièces validées
+        </span>
+        <span className="text-smoke">{pct}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-paper-2">
+        <div
+          className={`h-full rounded-full transition-all ${complet ? "bg-green-500" : "bg-orange"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
   );
 }
 

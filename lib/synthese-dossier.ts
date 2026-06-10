@@ -125,16 +125,33 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
 
   // ---- Priorité 2 : documents incomplets ----
   if (obligManquantes.length > 0) {
-    const liste = obligManquantes.map((x) => x.label).join(", ");
+    // Une seule pièce obligatoire manquante → "Il ne reste que…" (encourageant).
+    const corps =
+      obligManquantes.length === 1
+        ? `Il ne reste que ${obligManquantes[0].label} à déposer`
+        : `Il vous manque ${obligManquantes.map((x) => x.label).join(", ")} à déposer`;
+    // Le certificat (non bloquant) est mentionné en note secondaire.
+    const noteCertif = certifManquant
+      ? " Pensez aussi à fournir votre certificat médical dès que possible."
+      : "";
     return {
       tone: "action",
-      text: `${prefixePaye}Il vous manque ${liste} à déposer pour finaliser votre dossier.${compEspeces}`,
+      text: `${prefixePaye}${corps} pour finaliser votre dossier.${compEspeces}${noteCertif}`,
     };
   }
   if (certifManquant) {
+    // Obligatoires validées + paiement acquis : l'inscription EST validée, le
+    // certificat ne bloque pas → message rassurant (pas "en retard").
+    if (d.obligatoiresOk && (solde || especesOk || fracEnCours)) {
+      return {
+        tone: "success",
+        text: "Votre inscription est validée ! Il ne reste qu'à fournir votre certificat médical dès que possible (non obligatoire pour valider l'inscription).",
+        rappel: especesDues ? RAPPEL_ESPECES_COMP : undefined,
+      };
+    }
     return {
       tone: "action",
-      text: `${prefixePaye}Il vous manque ${CERTIF.label} pour finaliser votre dossier.${compEspeces}`,
+      text: `${prefixePaye}Il ne reste que ${CERTIF.label} à fournir pour compléter votre dossier.${compEspeces}`,
     };
   }
   if (enAttenteValidation) {
