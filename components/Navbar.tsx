@@ -78,9 +78,12 @@ export function Navbar() {
             </Link>
             {session ? (
               // Connecté : le lien "Espace adhérent ✓" est déjà à gauche, on évite
-              // le doublon → ce bouton devient un raccourci "Nouvelle inscription".
+              // le doublon → ce bouton lance un NOUVEAU dossier d'inscription.
+              // Libellé court "Inscription" entre sm et lg (bandeau serré, sinon
+              // ça déborde), complet "Nouvelle inscription" en grand écran.
               <Button href="/inscription" size="md" className="hidden sm:inline-flex">
-                Nouvelle inscription
+                <span className="lg:hidden">Inscription</span>
+                <span className="hidden lg:inline">Nouvelle inscription</span>
               </Button>
             ) : (
               <Button href="/inscription" size="md" className="hidden sm:inline-flex">
