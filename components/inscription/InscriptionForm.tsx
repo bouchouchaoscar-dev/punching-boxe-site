@@ -579,16 +579,17 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   <FileDrop
                     field="certificat_medical"
                     adherentId={adherentId}
-                    label="Certificat médical signé (facultatif)"
+                    label="Certificat médical signé"
                     hint="PDF, max 5 Mo"
                     accept={{ "application/pdf": [".pdf"] }}
                     maxSizeMb={5}
                     onChange={onFile}
                   />
                   <p className="mt-1.5 text-xs leading-relaxed text-smoke">
-                    Vous n&apos;avez pas encore votre certificat médical ? Pas de
-                    problème — vous pourrez le déposer depuis votre espace
-                    personnel dès que vous l&apos;aurez.
+                    Le certificat médical n&apos;est pas requis pour valider votre
+                    inscription, mais il devra être fourni dans les plus brefs
+                    délais. Vous pourrez le déposer depuis votre espace personnel
+                    dès que vous l&apos;aurez.
                   </p>
                 </div>
                 <FileDrop

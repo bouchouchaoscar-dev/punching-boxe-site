@@ -101,11 +101,12 @@ export function PostalCityFields({
       <div className="relative" ref={wrapRef}>
         <label className="block">
           <span className="mb-1.5 block text-sm font-semibold text-ink">
-            Code postal
+            Code postal <span className="text-orange">*</span>
           </span>
           <input
             value={codePostal}
             inputMode="numeric"
+            required
             onChange={(e) => setCodePostal(normalizePostal(e.target.value))}
             onFocus={() => suggestions.length > 1 && setOpen(true)}
             placeholder="94130"
@@ -135,9 +136,12 @@ export function PostalCityFields({
       </div>
 
       <label className="block">
-        <span className="mb-1.5 block text-sm font-semibold text-ink">Ville</span>
+        <span className="mb-1.5 block text-sm font-semibold text-ink">
+          Ville <span className="text-orange">*</span>
+        </span>
         <input
           value={ville}
+          required
           onChange={(e) => setVille(e.target.value)}
           placeholder="Nogent-sur-Marne"
           className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
