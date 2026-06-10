@@ -54,6 +54,12 @@ export default function AProposPage() {
                 club transmet la Boxe Française avec exigence et bienveillance,
                 dans un véritable esprit d&apos;équipe.
               </p>
+              <p>
+                Fidèle à ses valeurs mais résolument moderne, le club est aussi
+                passé au tout numérique : inscription, paiement et espace
+                adhérent personnel se font désormais <strong>100% en ligne</strong>,
+                en quelques minutes — une gestion dématérialisée, sans paperasse.
+              </p>
             </div>
           </div>
         </div>

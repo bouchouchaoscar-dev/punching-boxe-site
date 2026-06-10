@@ -59,7 +59,7 @@ export default function HomePage() {
             <SectionHeading
               eyebrow="Le club"
               title={<>Un esprit d&apos;équipe, une frappe nette</>}
-              intro="Né en 2000 de la fusion de deux clubs locaux, le Punching Boxe de Nogent-Le Perreux fait vivre la Savate sur 4 salles d'entraînement. Femmes, hommes, enfants : plus de 200 adhérents partagent chaque saison la même passion."
+              intro="Né en 2000 de la fusion de deux clubs locaux, le Punching Boxe de Nogent-Le Perreux fait vivre la Savate sur 4 salles d'entraînement. Femmes, hommes, enfants : plus de 200 adhérents partagent chaque saison la même passion. Et côté coulisses, le club est passé au tout numérique : inscription, paiement et espace adhérent 100% en ligne."
             />
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {POURQUOI.map((p, i) => (

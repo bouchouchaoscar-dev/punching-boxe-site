@@ -213,6 +213,10 @@ export const POURQUOI = [
     titre: "Deux formules au choix",
     texte: "Boxe Française pour la pratique et la compétition, Savate et Prépa pour la remise en forme. À chacun sa voie.",
   },
+  {
+    titre: "Inscription 100% en ligne",
+    texte: "Club moderne et dématérialisé : inscription, paiement et espace adhérent se font entièrement en ligne, en quelques minutes.",
+  },
 ];
 
 export const NAV_LINKS = [

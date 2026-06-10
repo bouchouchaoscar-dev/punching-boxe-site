@@ -5,6 +5,7 @@ const WORDS = [
   "Tous niveaux",
   "Dès 5 ans",
   "Encadrement fédéral",
+  "Inscriptions 100% en ligne",
 ];
 
 export function Marquee() {

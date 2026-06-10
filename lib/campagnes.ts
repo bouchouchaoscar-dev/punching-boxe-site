@@ -505,6 +505,11 @@ Vous pouvez régler comme vous le souhaitez :
 
 Vous souhaitez inscrire plusieurs personnes ? Depuis ce même espace, vous gérez les inscriptions de toute la famille : vos enfants, vos proches, plusieurs dossiers réunis au même endroit. Pas besoin de créer un compte par personne, vous suivez tout depuis le vôtre.
 
+🥊 Et cette saison, deux formules pour trouver votre rythme :
+- Boxe Française : la pratique et la technique du sport de combat.
+- Savate & Prépa : accès à 3 cours par semaine (un cours de Savate + deux cours de préparation physique) pour se dépenser et se renforcer.
+On vous explique tout en détail sur le site.
+
 {{bouton_inscription}}
 
 On a hâte de vous retrouver sur le ring cette saison !
