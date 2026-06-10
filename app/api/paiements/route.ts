@@ -11,7 +11,9 @@ export async function GET() {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("paiements")
-    .select("adherent_id, montant, montant_rembourse, statut, numero_echeance");
+    .select(
+      "adherent_id, montant, montant_rembourse, statut, numero_echeance, date_paiement, created_at",
+    );
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ paiements: data ?? [] });
