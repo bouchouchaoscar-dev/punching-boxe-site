@@ -141,11 +141,11 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
     if (especesDues)
       return {
         tone: "action",
-        text: `Vos pièces ont bien été déposées et seront vérifiées par Pascal. ${RAPPEL_ESPECES}`,
+        text: `Vos pièces ont bien été déposées et sont en cours de vérification. ${RAPPEL_ESPECES}`,
       };
     return {
       tone: "info",
-      text: `${prefixePaye}Vos pièces ont bien été reçues. Pascal va les vérifier prochainement.`,
+      text: `${prefixePaye}Vos pièces ont bien été reçues et sont en cours de vérification.`,
     };
   }
 

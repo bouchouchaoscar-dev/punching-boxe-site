@@ -129,6 +129,26 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
   }
 
+  // Espèces confirmées → enregistrer l'ENCAISSEMENT (ligne paiements payée), pour
+  // que le montant compte dans "Encaissé" (fiche + liste). Idempotent : on
+  // n'insère que s'il n'existe encore aucune ligne payée pour ce dossier.
+  if (data?.statut_paiement === "confirme_especes") {
+    const { count } = await supabase
+      .from("paiements")
+      .select("id", { count: "exact", head: true })
+      .eq("adherent_id", id)
+      .eq("statut", "paye");
+    if ((count ?? 0) === 0) {
+      await supabase.from("paiements").insert({
+        adherent_id: id,
+        montant: data.montant_total,
+        statut: "paye",
+        numero_echeance: null,
+        date_paiement: new Date().toISOString(),
+      });
+    }
+  }
+
   // Notification email à l'adhérent (best-effort) lorsqu'un document est refusé.
   if (motifRefus && data?.email) {
     try {

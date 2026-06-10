@@ -226,12 +226,31 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
 }
 
 /** Adhérents correspondant à AU MOINS une des listes cochées (union). */
+// Clés de TYPE (jeune/adulte) : filtres TRANSVERSAUX appliqués en ET, pas des
+// listes unionnées (sinon "Tous" ∪ "Adultes" = tout le monde, le filtre type
+// devient inopérant).
+const TYPE_KEYS: SmartListKey[] = ["adultes", "jeunes"];
+
 export function filtrerAdherents(
   adherents: Adherent[],
   keys: SmartListKey[],
 ): Adherent[] {
   if (keys.length === 0) return [];
-  return adherents.filter((a) => keys.some((k) => matchSmartList(a, k)));
+  const typeKeys = keys.filter((k) => TYPE_KEYS.includes(k));
+  const baseKeys = keys.filter((k) => !TYPE_KEYS.includes(k));
+
+  // Base = union des listes "non-type". Si aucune n'est cochée (ex. seulement
+  // "Adultes"), la base = tous les adhérents.
+  const base =
+    baseKeys.length > 0
+      ? adherents.filter((a) => baseKeys.some((k) => matchSmartList(a, k)))
+      : adherents.slice();
+
+  // Filtre type en ET : on ne garde que jeunes/adultes selon la sélection.
+  if (typeKeys.length > 0) {
+    return base.filter((a) => typeKeys.some((k) => matchSmartList(a, k)));
+  }
+  return base;
 }
 
 // ---- Segments ANCIENS (non-natifs importés), classés dynamiquement ----

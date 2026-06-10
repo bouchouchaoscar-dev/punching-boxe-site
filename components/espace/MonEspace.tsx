@@ -133,7 +133,7 @@ export function MonEspace() {
           await loadDossier();
           showToast(
             field === "certificat_medical"
-              ? "Certificat déposé, Pascal va valider le dossier !"
+              ? "Certificat déposé, votre dossier va être vérifié !"
               : "Document déposé ✓",
           );
         } else {
@@ -232,7 +232,7 @@ export function MonEspace() {
       {adherents.length > 0 && (
         <p className="mt-4 border-l-2 border-line pl-3 text-xs leading-relaxed text-smoke">
           Tant que votre paiement n&apos;a pas été validé (ou vos espèces remises
-          à Pascal), vous pouvez supprimer un dossier pour le recréer, par
+          au professeur), vous pouvez supprimer un dossier pour le recréer, par
           exemple si vous vous êtes trompé de formule.
         </p>
       )}
@@ -626,7 +626,7 @@ function DocStatus({
         rel="noopener noreferrer"
         className="mt-1 inline-block text-xs font-semibold text-green-600 hover:underline"
       >
-        ✅ Validé par Pascal — voir
+        ✅ Validé — voir
       </a>
     );
 

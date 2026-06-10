@@ -230,7 +230,16 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
   const step1Ok =
-    !!lienParente && nom.trim() && prenom.trim() && dateNaissance && emailOk;
+    !!lienParente &&
+    nom.trim() &&
+    prenom.trim() &&
+    dateNaissance &&
+    emailOk &&
+    // Téléphone + adresse postale désormais obligatoires.
+    telephone.trim() &&
+    adresse.trim() &&
+    codePostal.trim() &&
+    ville.trim();
   // Documents OBLIGATOIRES (le certificat médical est facultatif : déposable
   // plus tard depuis l'espace adhérent).
   const REQUIRED_FILES: FileFieldKey[] = [
@@ -427,6 +436,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   value={formatPhone(telephone)}
                   onChange={(v) => setTelephone(normalizePhone(v))}
                   placeholder="07 60 83 98 30"
+                  required
                 />
                 <div className="sm:col-span-2">
                   <Input
@@ -445,7 +455,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   )}
                 </div>
                 <div className="sm:col-span-2">
-                  <Input label="Adresse" value={adresse} onChange={setAdresse} />
+                  <Input label="Adresse" value={adresse} onChange={setAdresse} required />
                 </div>
                 <PostalCityFields
                   codePostal={codePostal}

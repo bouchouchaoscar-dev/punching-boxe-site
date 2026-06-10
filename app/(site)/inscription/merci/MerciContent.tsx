@@ -49,8 +49,8 @@ export function MerciContent() {
           ) : (
             <>
               Votre inscription est enregistrée et votre paiement a bien été pris
-              en compte. Votre dossier est en cours de validation — Pascal
-              vérifiera vos documents dans les plus brefs délais.
+              en compte. Votre dossier est en cours de vérification, vos
+              documents seront contrôlés dans les plus brefs délais.
             </>
           )}
         </p>

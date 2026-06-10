@@ -44,6 +44,10 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.date_naissance) return "La date de naissance est requise.";
   if (!p.email?.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email))
     return "Un email valide est requis.";
+  if (!p.telephone?.trim()) return "Le téléphone est requis.";
+  if (!p.adresse?.trim()) return "L'adresse postale est requise.";
+  if (!p.code_postal?.trim()) return "Le code postal est requis.";
+  if (!p.ville?.trim()) return "La ville est requise.";
   const packages: PackageType[] = ["boxe_classique", "savate_prepa"];
   if (!p.package || !packages.includes(p.package))
     return "Formule (package) invalide.";
