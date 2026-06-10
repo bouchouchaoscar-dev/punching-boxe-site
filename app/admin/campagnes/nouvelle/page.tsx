@@ -36,12 +36,15 @@ const STEPS = ["Destinataires", "Composer", "Envoi"];
 export default function NouvelleCampagnePage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  // Mode planification (?planifier=1). Lu côté client (pas de Suspense requis).
-  const [planifier] = useState(
-    () =>
-      typeof window !== "undefined" &&
+  // Mode planification (?planifier=1). Lu APRÈS montage (post-hydratation) pour
+  // être fiable côté client en App Router (un initialiseur useState peut rester
+  // figé à la valeur serveur=false).
+  const [planifier, setPlanifier] = useState(false);
+  useEffect(() => {
+    setPlanifier(
       new URLSearchParams(window.location.search).get("planifier") === "1",
-  );
+    );
+  }, []);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("09:00");
 
@@ -701,7 +704,9 @@ export default function NouvelleCampagnePage() {
                 Aperçu des destinataires
               </p>
               <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-line bg-paper-2 p-3 text-xs text-smoke">
-                {recipientsAdh.length === 0 && !includeContacts ? (
+                {recipientsAdh.length === 0 &&
+                !includeContacts &&
+                anciensAvecEmail === 0 ? (
                   <div>Aucun destinataire sélectionné.</div>
                 ) : recipientsAdh.length <= 3 ? (
                   recipientsAdh.map((a) => (
@@ -722,6 +727,13 @@ export default function NouvelleCampagnePage() {
                     </span>{" "}
                     +{recipientsAdh.length - 3} autre
                     {recipientsAdh.length - 3 > 1 ? "s" : ""}…
+                  </div>
+                )}
+                {anciensAvecEmail > 0 && (
+                  <div className="mt-1">
+                    + {anciensAvecEmail} ancien{anciensAvecEmail > 1 ? "s" : ""} ciblé
+                    {anciensAvecEmail > 1 ? "s" : ""} (segment — nominatif non
+                    affiché, listés à l&apos;envoi)
                   </div>
                 )}
                 {includeContacts && contactsCount > 0 && (
