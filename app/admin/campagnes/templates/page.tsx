@@ -5,6 +5,7 @@ import Link from "next/link";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { CATEGORIES, type TemplateMail } from "@/lib/campagnes";
 import { VariablesBar } from "@/components/admin/VariablesBar";
+import { EmojiPicker } from "@/components/admin/EmojiPicker";
 
 const empty = {
   id: "",
@@ -23,6 +24,24 @@ export default function TemplatesPage() {
   const [edit, setEdit] = useState<Partial<TemplateMail> | null>(null);
   const [busy, setBusy] = useState(false);
   const contenuRef = useRef<HTMLTextAreaElement>(null);
+  const objetRef = useRef<HTMLInputElement>(null);
+
+  // Insère un texte (emoji) à la position du curseur dans l'OBJET.
+  function insertObjet(s: string) {
+    const el = objetRef.current;
+    const cur = edit?.objet ?? "";
+    if (!el) {
+      setEdit((e) => ({ ...e, objet: cur + s }));
+      return;
+    }
+    const start = el.selectionStart ?? cur.length;
+    const end = el.selectionEnd ?? cur.length;
+    setEdit((e) => ({ ...e, objet: cur.slice(0, start) + s + cur.slice(end) }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = el.selectionEnd = start + s.length;
+    });
+  }
 
   // Insère une variable/bouton à la position du curseur (comme le constructeur).
   function insertVar(token: string) {
@@ -183,11 +202,18 @@ export default function TemplatesPage() {
                 value={edit.nom ?? ""}
                 onChange={(v) => setEdit({ ...edit, nom: v })}
               />
-              <Field
-                label="Objet"
-                value={edit.objet ?? ""}
-                onChange={(v) => setEdit({ ...edit, objet: v })}
-              />
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-ink">Objet</span>
+                  <EmojiPicker onPick={insertObjet} />
+                </div>
+                <input
+                  ref={objetRef}
+                  value={edit.objet ?? ""}
+                  onChange={(e) => setEdit({ ...edit, objet: e.target.value })}
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                />
+              </div>
               <label className="block">
                 <span className="mb-1.5 block text-sm font-semibold text-ink">
                   Famille
@@ -205,9 +231,10 @@ export default function TemplatesPage() {
                 </select>
               </label>
               <div>
-                <span className="mb-1.5 block text-sm font-semibold text-ink">
-                  Contenu
-                </span>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-ink">Contenu</span>
+                  <EmojiPicker onPick={insertVar} />
+                </div>
                 <VariablesBar onInsert={insertVar} />
                 <textarea
                   ref={contenuRef}
