@@ -79,7 +79,7 @@ export function Logo({
           priority
         />
       </span>
-      <span className="inline-block leading-tight">
+      <span className="inline-flex flex-col items-start leading-tight">
         <span
           ref={topRef}
           className={`font-display block whitespace-nowrap font-extrabold uppercase tracking-tight ${
