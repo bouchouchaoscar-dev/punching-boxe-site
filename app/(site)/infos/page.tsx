@@ -8,6 +8,7 @@ import { EQUIPEMENT, PACKAGES, SALLES } from "@/lib/constants";
 import { TARIFS, euro } from "@/lib/pricing";
 import { WeeklyPlanning } from "@/components/infos/WeeklyPlanning";
 import { FAQ } from "@/components/infos/FAQ";
+import { TableauDegressif } from "@/components/infos/TableauDegressif";
 
 export const metadata = pageMeta({
   title: "Tarifs et Horaires | Punching Boxe Nogent-Le Perreux 2026-2027",
@@ -131,11 +132,7 @@ export default function InfosPage() {
           </Link>
         </p>
 
-        <p className="mt-3 text-center text-xs leading-relaxed text-smoke">
-          Inscription en cours d&apos;année : à partir de janvier, le tarif est
-          calculé au prorata des mois restants. Le montant exact est calculé
-          automatiquement lors de votre inscription.
-        </p>
+        <TableauDegressif />
 
         {/* Tarif famille */}
         <Reveal className="mt-12">
