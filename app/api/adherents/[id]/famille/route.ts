@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: Ctx) {
 
   const { data: cur } = await supabase
     .from("adherents")
-    .select("titulaire_id")
+    .select("titulaire_id, foyer_id")
     .eq("id", id)
     .maybeSingle();
 
@@ -25,12 +25,23 @@ export async function GET(_req: Request, { params }: Ctx) {
     return NextResponse.json({ titulaire_id: null, membres: [] });
   }
 
-  const { data, error } = await supabase
-    .from("adherents")
-    .select("id, nom, prenom, lien_parente, type_adherent, statut_paiement")
-    .eq("titulaire_id", cur.titulaire_id)
-    .order("created_at", { ascending: true });
+  // Foyer = dossiers du même titulaire (groupés) ∪ même foyer_id (comptes
+  // séparés rattachés). Les rattachés ont un titulaire_id différent.
+  const cols =
+    "id, nom, prenom, lien_parente, type_adherent, statut_paiement, titulaire_id, foyer_id";
+  let q = supabase.from("adherents").select(cols);
+  q = cur.foyer_id
+    ? q.or(`titulaire_id.eq.${cur.titulaire_id},foyer_id.eq.${cur.foyer_id}`)
+    : q.eq("titulaire_id", cur.titulaire_id);
 
+  const { data, error } = await q.order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ titulaire_id: cur.titulaire_id, membres: data ?? [] });
+
+  // Marqueur "compte séparé" : dossier rattaché via foyer_id (titulaire ≠ courant).
+  const membres = (data ?? []).map((m) => ({
+    ...m,
+    compte_separe: m.titulaire_id !== cur.titulaire_id,
+  }));
+
+  return NextResponse.json({ titulaire_id: cur.titulaire_id, membres });
 }

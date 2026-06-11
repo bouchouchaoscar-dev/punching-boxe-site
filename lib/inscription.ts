@@ -36,6 +36,11 @@ export interface InscriptionPayload {
   fiche_inscription_url?: string | null;
   certificat_medical_url?: string | null;
   reglement_url?: string | null;
+  // Rattachement famille (comptes séparés) : membres déjà inscrits cités par
+  // nom + prénom + naissance (jamais l'email). Le serveur résout + relie.
+  rattachements?: { nom?: string; prenom?: string; date_naissance?: string }[];
+  // Attestation sur l'honneur du foyer (cochée côté client avant validation).
+  attestation_foyer?: boolean;
 }
 
 export function validatePayload(p: Partial<InscriptionPayload>): string | null {
@@ -173,4 +178,6 @@ export const OPTIONAL_DOC_COLUMNS = [
   "match_key",
   "ancien_id",
   "match_a_verifier",
+  "foyer_id",
+  "attestation_foyer_at",
 ] as const;

@@ -7,6 +7,12 @@ import {
   type InscriptionPayload,
 } from "@/lib/inscription";
 import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
+import { remiseFamillePct } from "@/lib/pricing";
+import {
+  analyserFoyer,
+  appliquerMerges,
+  rattachementsRenseignes,
+} from "@/lib/foyer-server";
 import { getAuthUser } from "@/lib/auth-server";
 import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
 import { evaluerAnciennete } from "@/lib/anciennete";
@@ -44,16 +50,41 @@ export async function POST(request: Request) {
 
   const supabase = getSupabaseAdmin();
 
-  // Remise famille AUTOMATIQUE : le rang = nombre de dossiers déjà rattachés
-  // au titulaire (tous statuts, tous liens) + lui-même. On ignore toute valeur
-  // nb_membres_famille envoyée par le client. Comptage en échec → 0 (sûr).
-  const { count: nbFoyer, error: cntErr } = await supabase
-    .from("adherents")
-    .select("id", { count: "exact", head: true })
-    .eq("titulaire_id", user.id);
+  // Remise famille (autorité serveur) : décompte du foyer = membres FINALISÉS/
+  // ENGAGÉS (espèces en attente incluses) et NON fermés, union groupés ∪ rattachés.
+  const foyerNewId = crypto.randomUUID();
+  const analyse = await analyserFoyer(supabase, {
+    titulaireId: user.id,
+    rattachements: payload.rattachements,
+    newId: foyerNewId,
+  });
+  if (!analyse.ok) {
+    return NextResponse.json(
+      {
+        error:
+          analyse.raison === "introuvable"
+            ? "Un membre de famille indiqué n'a pas encore de dossier. Cette personne doit d'abord être inscrite."
+            : "Plusieurs personnes correspondent à un membre indiqué. Contactez le club pour le rattachement.",
+      },
+      { status: 400 },
+    );
+  }
+  const lienCree = rattachementsRenseignes(payload.rattachements).length > 0;
+  const remiseApplicable = remiseFamillePct(analyse.nbMembres) > 0;
+  if ((lienCree || remiseApplicable) && payload.attestation_foyer !== true) {
+    return NextResponse.json(
+      { error: "Attestation du foyer familial requise pour la remise." },
+      { status: 400 },
+    );
+  }
+  if (analyse.merges) await appliquerMerges(supabase, analyse.merges);
+  const attestationAt =
+    (lienCree || remiseApplicable) && payload.attestation_foyer === true
+      ? new Date().toISOString()
+      : null;
   const payloadAuto = {
     ...payload,
-    nb_membres_famille: cntErr ? 0 : nbFoyer ?? 0,
+    nb_membres_famille: analyse.nbMembres,
   };
 
   // Ancienneté (autorité serveur sur l'adhésion 30€), même pour les espèces.
@@ -72,6 +103,8 @@ export async function POST(request: Request) {
     ...buildAdherentInsert(payloadAuto, "en_attente", user.id),
     ancien_id: anc.ancienId,
     match_a_verifier: anc.ambigu,
+    foyer_id: analyse.foyerFinal,
+    attestation_foyer_at: attestationAt,
   };
 
   let { data, error } = await supabase

@@ -71,6 +71,10 @@ export interface Adherent {
   litige?: boolean;
   litige_statut?: string | null; // 'ouvert' | 'gagne' | 'perdu'
   annule_at?: string | null;
+  // Foyer élargi (rattachement de comptes séparés). NULL = foyer = titulaire_id
+  // (comportement groupé historique). + trace de l'attestation sur l'honneur.
+  foyer_id?: string | null;
+  attestation_foyer_at?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

@@ -108,10 +108,24 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [mode, setMode] = useState<ModePaiement | null>(null);
   const [accepteConditions, setAccepteConditions] = useState(false);
   // Attestation foyer (remise familiale) : modal obligatoire avant validation
-  // dès qu'une remise s'applique (3e dossier et + du foyer).
+  // dès qu'une remise s'applique (3e dossier et +) OU qu'un lien est créé.
   const [attesteFoyer, setAttesteFoyer] = useState(false);
   const [attestOpen, setAttestOpen] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
+  // Ref : l'attestation est lue à la construction du payload juste après le clic
+  // « Je confirme » du modal (évite le state figé du closure).
+  const attesteRef = useRef(false);
+  // Rattachement famille (comptes séparés) : membres déjà inscrits cités.
+  const [rattachOpen, setRattachOpen] = useState(false);
+  const [rattachements, setRattachements] = useState<
+    { nom: string; prenom: string; date_naissance: string }[]
+  >([{ nom: "", prenom: "", date_naissance: "" }]);
+  const [rattachInfo, setRattachInfo] = useState<{
+    ok: boolean;
+    raison: string | null;
+    membres: { trouve: boolean; ambigu: boolean }[];
+    nbMembresActuels: number | null;
+  } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -135,6 +149,46 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       });
   }, [token]);
 
+  // Rattachement famille : aperçu serveur (sans PII) quand des membres sont
+  // cités → statut par membre + nombre de membres comptés dans le foyer projeté.
+  useEffect(() => {
+    if (!token || !rattachOpen) {
+      setRattachInfo(null);
+      return;
+    }
+    const remplis = rattachements.filter(
+      (r) => r.nom.trim() && r.prenom.trim() && /^\d{4}-\d{2}-\d{2}$/.test(r.date_naissance),
+    );
+    if (remplis.length === 0) {
+      setRattachInfo(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      fetch("/api/famille/verifier", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ membres: remplis }),
+        signal: ctrl.signal,
+      })
+        .then((r) => r.json())
+        .then((d) => setRattachInfo(d))
+        .catch(() => {});
+    }, 400);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+  }, [token, rattachOpen, rattachements]);
+
+  // Décompte effectif du foyer pour l'aperçu de prix : si un rattachement valide
+  // est confirmé par le serveur, on prend son décompte (groupés ∪ rattachés),
+  // sinon le décompte groupé du compte. Le serveur reste autoritaire à la création.
+  const nbFoyerEffectif =
+    rattachOpen && rattachInfo?.ok && rattachInfo.nbMembresActuels != null
+      ? rattachInfo.nbMembresActuels
+      : nbFamille;
+
   const tarif = useMemo(
     () =>
       calculerTarif(
@@ -143,12 +197,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           packageType,
           nouveauMembre: paieAdhesion,
           optionPrepaPhysique: prepa,
-          nbMembresFamille: nbFamille,
+          nbMembresFamille: nbFoyerEffectif,
         },
         now,
         saisonEnCoursChoisie,
       ),
-    [dateNaissance, packageType, paieAdhesion, prepa, nbFamille, now, saisonEnCoursChoisie],
+    [dateNaissance, packageType, paieAdhesion, prepa, nbFoyerEffectif, now, saisonEnCoursChoisie],
   );
 
   // Devis proratisé (selon la date de référence) + échéances autorisées.
@@ -160,12 +214,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           package: packageType,
           nouveau_membre: paieAdhesion,
           option_prepa_physique: prepa,
-          nb_membres_famille: nbFamille,
+          nb_membres_famille: nbFoyerEffectif,
         },
         now,
         saisonEnCoursChoisie,
       ),
-    [dateNaissance, packageType, paieAdhesion, prepa, nbFamille, now, saisonEnCoursChoisie],
+    [dateNaissance, packageType, paieAdhesion, prepa, nbFoyerEffectif, now, saisonEnCoursChoisie],
   );
 
   // Dès que l'identité est complète et valide, on demande au serveur si
@@ -223,7 +277,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     package: packageType,
     nouveau_membre: paieAdhesion,
     option_prepa_physique: prepa,
-    nb_membres_famille: nbFamille,
+    nb_membres_famille: nbFoyerEffectif,
     mode_paiement: mode ?? "especes",
     // Choix explicite garanti par le gating step1Ok (jamais de défaut silencieux).
     lien_parente: lienParente as LienParente,
@@ -232,6 +286,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     fiche_inscription_url: files.fiche_inscription.url,
     certificat_medical_url: files.certificat_medical.url,
     reglement_url: files.reglement.url,
+    rattachements: rattachOpen
+      ? rattachements.filter(
+          (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
+        )
+      : [],
+    attestation_foyer: attesteRef.current,
   });
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
@@ -271,10 +331,16 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setStep((s) => Math.max(0, s - 1));
   }
 
-  // Garde attestation : si une remise familiale s'applique (3e dossier et +),
-  // on exige l'attestation sur l'honneur via le modal avant de lancer l'action.
+  // Garde attestation : si une remise familiale s'applique (3e dossier et +) OU
+  // si un lien famille est créé (rattachement), on exige l'attestation sur
+  // l'honneur via le modal avant de lancer l'action.
+  const lienRattachement =
+    rattachOpen &&
+    rattachements.some(
+      (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
+    );
   function avecAttestation(action: () => void) {
-    if (tarif.remisePct > 0 && !attesteFoyer) {
+    if ((tarif.remisePct > 0 || lienRattachement) && !attesteFoyer) {
       pendingAction.current = action;
       setAttestOpen(true);
       return;
@@ -490,6 +556,134 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     </span>
                   </p>
                 )}
+
+                {/* Rattachement famille (comptes séparés) — remise dès le 3e membre */}
+                <div className="sm:col-span-2 rounded-xl border border-line bg-paper-2 p-4">
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={rattachOpen}
+                      onChange={(e) => setRattachOpen(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                    />
+                    <span className="text-sm leading-relaxed text-ink">
+                      <strong>Un membre de ma famille est déjà inscrit</strong>
+                      <span className="mt-0.5 block text-xs text-smoke">
+                        Reliez les inscriptions des membres déjà inscrits (même
+                        sur un autre compte) pour bénéficier de la remise
+                        familiale, appliquée dès le 3e membre du foyer.
+                      </span>
+                    </span>
+                  </label>
+
+                  {rattachOpen && (
+                    <div className="mt-4 space-y-3">
+                      {rattachements.map((r, i) => (
+                        <div
+                          key={i}
+                          className="rounded-xl border border-line bg-white p-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wide text-smoke">
+                              Membre {i + 1}
+                            </span>
+                            {rattachements.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setRattachements((rs) =>
+                                    rs.filter((_, j) => j !== i),
+                                  )
+                                }
+                                className="text-xs font-semibold text-smoke hover:text-red-600"
+                              >
+                                Retirer
+                              </button>
+                            )}
+                          </div>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                            <input
+                              placeholder="Nom"
+                              value={r.nom}
+                              onChange={(e) =>
+                                setRattachements((rs) =>
+                                  rs.map((x, j) =>
+                                    j === i ? { ...x, nom: e.target.value } : x,
+                                  ),
+                                )
+                              }
+                              className="focus-ring rounded-lg border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                            />
+                            <input
+                              placeholder="Prénom"
+                              value={r.prenom}
+                              onChange={(e) =>
+                                setRattachements((rs) =>
+                                  rs.map((x, j) =>
+                                    j === i ? { ...x, prenom: e.target.value } : x,
+                                  ),
+                                )
+                              }
+                              className="focus-ring rounded-lg border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                            />
+                            <input
+                              type="date"
+                              value={r.date_naissance}
+                              onChange={(e) =>
+                                setRattachements((rs) =>
+                                  rs.map((x, j) =>
+                                    j === i
+                                      ? { ...x, date_naissance: e.target.value }
+                                      : x,
+                                  ),
+                                )
+                              }
+                              className="focus-ring rounded-lg border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
+                            />
+                          </div>
+                          {rattachInfo?.membres?.[i] && (
+                            <p className="mt-1.5 text-xs font-semibold">
+                              {rattachInfo.membres[i].trouve ? (
+                                <span className="text-green-600">
+                                  ✓ Membre trouvé
+                                </span>
+                              ) : rattachInfo.membres[i].ambigu ? (
+                                <span className="text-orange-600">
+                                  Plusieurs correspondances, contactez le club
+                                </span>
+                              ) : (
+                                <span className="text-red-600">
+                                  Aucun dossier trouvé (cette personne doit
+                                  d&apos;abord être inscrite)
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRattachements((rs) => [
+                            ...rs,
+                            { nom: "", prenom: "", date_naissance: "" },
+                          ])
+                        }
+                        className="text-sm font-bold text-orange hover:underline"
+                      >
+                        + Ajouter un membre de ma famille
+                      </button>
+                      {rattachInfo?.ok &&
+                        rattachInfo.nbMembresActuels != null && (
+                          <p className="text-xs font-semibold text-ink">
+                            Foyer reconnu : {rattachInfo.nbMembresActuels}{" "}
+                            membre(s) déjà compté(s). Ce dossier sera le{" "}
+                            {rattachInfo.nbMembresActuels + 1}e du foyer.
+                          </p>
+                        )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -865,6 +1059,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
         <AttestationModal
           message={`Ce dossier bénéficie d'une remise familiale (à partir du 3e membre du foyer). En continuant, vous attestez que ces membres appartiennent au même foyer familial. Une vérification sera effectuée lors de votre venue au club.`}
           onConfirm={() => {
+            attesteRef.current = true;
             setAttesteFoyer(true);
             setAttestOpen(false);
             const a = pendingAction.current;

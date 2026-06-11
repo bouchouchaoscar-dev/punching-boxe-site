@@ -25,7 +25,7 @@ type RemboursementLigne = {
   created_at: string;
 };
 
-// Membre du foyer (autre dossier rattaché au même titulaire_id).
+// Membre du foyer (même titulaire_id OU même foyer_id pour les comptes séparés).
 type MembreFoyer = {
   id: string;
   nom: string;
@@ -33,6 +33,8 @@ type MembreFoyer = {
   lien_parente: LienParente | null;
   type_adherent: "adulte" | "jeune" | null;
   statut_paiement: StatutPaiement;
+  // Dossier rattaché via foyer_id depuis un AUTRE compte (paiement séparé).
+  compte_separe?: boolean;
 };
 
 const LIEN_LABEL_COURT: Record<LienParente, string> = {
@@ -949,6 +951,11 @@ function FamilleCard({
                   {current && (
                     <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.5rem] font-bold uppercase tracking-wide text-white">
                       Ce dossier
+                    </span>
+                  )}
+                  {m.compte_separe && (
+                    <span className="shrink-0 rounded-full bg-ink/10 px-1.5 py-0.5 text-[0.5rem] font-bold uppercase tracking-wide text-ink">
+                      Compte séparé
                     </span>
                   )}
                 </p>
