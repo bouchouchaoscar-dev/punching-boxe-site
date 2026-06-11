@@ -48,7 +48,7 @@ export default function InfosPage() {
             première année seulement.
           </p>
 
-          <div className="mt-5 max-w-2xl rounded-xl border border-orange/25 bg-orange-50 px-4 py-3 text-sm leading-relaxed text-ink">
+          <div className="mt-5 max-w-2xl rounded-xl border border-orange/25 bg-white px-4 py-3 text-sm leading-relaxed text-smoke">
             <strong className="font-bold text-orange">
               Vous souhaitez rejoindre le club en cours d&apos;année ?
             </strong>{" "}
@@ -94,15 +94,16 @@ export default function InfosPage() {
                   ))}
                 </ul>
 
-                <div
-                  className={`mt-5 rounded-xl p-3 text-sm ${
-                    p.id === "boxe_classique"
-                      ? "bg-[#111111] text-white"
-                      : "bg-orange-50 text-ink"
-                  }`}
-                >
-                  {p.option ?? "Préparation Physique incluse, sans supplément."}
-                </div>
+                {/* Ajout possible (Boxe Française) : présenté comme une option,
+                    distinct des ✓ déjà inclus. Rien pour Savate & Prépa. */}
+                {p.option && (
+                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-dashed border-orange/40 p-3 text-sm font-semibold text-orange">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange text-[0.7rem] font-black leading-none text-white">
+                      +
+                    </span>
+                    <span>{p.option}</span>
+                  </div>
+                )}
 
                 <div className="mt-6">
                   <Button
