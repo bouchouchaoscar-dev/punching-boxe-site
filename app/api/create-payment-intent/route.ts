@@ -101,7 +101,7 @@ export async function POST(request: Request) {
   // On écrase la valeur client : le serveur décide qui paie les 30€.
   payloadAuto.nouveau_membre = anc.paieAdhesion;
 
-  // moisFactures gère lui-même la bascule "juin = 2 mois" ; on transmet le drapeau.
+  // La table de paliers gère la bascule juin (plancher vs plein) ; on transmet le drapeau.
   const devis = devisPourAdherent(payloadAuto, now, !!payloadAuto.saison_en_cours);
   const n = nbEcheances(payload.mode_paiement);
 

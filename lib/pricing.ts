@@ -37,9 +37,9 @@ export type PricingLine = { label: string; amount: number; muted?: boolean };
 export type PricingResult = {
   typeAdherent: TypeAdherent;
   packageType: PackageType;
-  cotisationBase: number; // cotisation annuelle de base (avant prorata/remise)
-  moisFactures: number; // nb de mois facturés (sur 10)
-  cotisationProratisee: number; // base proratisée (avant remise)
+  cotisationBase: number; // cotisation PLEIN tarif (début de saison), avant remise
+  mois: MoisPalier; // palier du mois d'inscription
+  cotisationProratisee: number; // cotisation du mois (lue dans la table), avant remise
   remisePct: number;
   remiseMontant: number;
   cotisationNette: number; // proratisée − remise famille
@@ -49,29 +49,74 @@ export type PricingResult = {
   lines: PricingLine[];
 };
 
+// ── Dégressivité par PALIERS FIXES (tables validées client) ──────────────
+// On ne calcule plus un prorata ÷10 : le montant de la cotisation ET de l'option
+// prépa sont LUS dans une table selon le mois d'inscription.
+
+export type MoisPalier =
+  | "sept" | "oct" | "nov" | "dec" | "jan"
+  | "fev" | "mars" | "avr" | "mai" | "juin";
+
+// Cotisation FIXE par mois d'inscription. Sept/oct/nov = plein tarif → on
+// référence TARIFS.cotisation (source unique : changer le plein met à jour ces 3).
+export const COTISATION_PALIERS: Record<
+  MoisPalier,
+  Record<PackageType, { adulte: number; jeune: number }>
+> = {
+  sept: TARIFS.cotisation,
+  oct: TARIFS.cotisation,
+  nov: TARIFS.cotisation,
+  dec: { boxe_classique: { adulte: 375, jeune: 355 }, savate_prepa: { adulte: 305, jeune: 285 } },
+  jan: { boxe_classique: { adulte: 320, jeune: 300 }, savate_prepa: { adulte: 260, jeune: 240 } },
+  fev: { boxe_classique: { adulte: 265, jeune: 250 }, savate_prepa: { adulte: 215, jeune: 200 } },
+  mars: { boxe_classique: { adulte: 210, jeune: 200 }, savate_prepa: { adulte: 170, jeune: 160 } },
+  avr: { boxe_classique: { adulte: 155, jeune: 150 }, savate_prepa: { adulte: 125, jeune: 120 } },
+  mai: { boxe_classique: { adulte: 100, jeune: 95 }, savate_prepa: { adulte: 80, jeune: 75 } },
+  juin: { boxe_classique: { adulte: 50, jeune: 50 }, savate_prepa: { adulte: 50, jeune: 50 } },
+};
+
+// Option prépa (Boxe Française uniquement) — DÉGRESSIVE selon le mois.
+// Sept→Fév = plein (TARIFS.prepaPhysique) ; mars/avr/mai = 35 ; juin = 10.
+export const PREPA_PALIERS: Record<MoisPalier, number> = {
+  sept: TARIFS.prepaPhysique,
+  oct: TARIFS.prepaPhysique,
+  nov: TARIFS.prepaPhysique,
+  dec: TARIFS.prepaPhysique,
+  jan: TARIFS.prepaPhysique,
+  fev: TARIFS.prepaPhysique,
+  mars: 35,
+  avr: 35,
+  mai: 35,
+  juin: 10,
+};
+
 /**
- * Nombre de mois facturés (sur une base 10 mois) selon le mois d'inscription.
- * - sept→déc : 10 (plein) · janv 8 · févr 6,5 · mars 5 · avr 4 · mai 3
- * - juin : 2 si "saison en cours" (bascule), sinon 10 (saison à venir)
- * - juil/août : 10 (saison à venir, plein)
+ * Mois d'inscription → palier de la table.
+ * - sept→mai : palier du mois calendaire.
+ * - juin : plancher ("juin") si "saison en cours" (bascule), sinon plein ("sept")
+ *   car c'est une inscription anticipée pour la saison à venir.
+ * - juil/août : plein ("sept"), saison à venir.
  */
-export function moisFactures(date: Date, saisonEnCours = false): number {
+export function moisPalier(date: Date, saisonEnCours = false): MoisPalier {
   const m = date.getMonth();
-  if (m === 5) return saisonEnCours ? 2 : 10; // juin
+  if (m === 5) return saisonEnCours ? "juin" : "sept";
   switch (m) {
-    case 0:
-      return 8; // janvier
-    case 1:
-      return 6.5; // février
-    case 2:
-      return 5; // mars
-    case 3:
-      return 4; // avril
-    case 4:
-      return 3; // mai
-    default:
-      return 10; // sept–déc, juil, août : plein
+    case 8: return "sept";
+    case 9: return "oct";
+    case 10: return "nov";
+    case 11: return "dec";
+    case 0: return "jan";
+    case 1: return "fev";
+    case 2: return "mars";
+    case 3: return "avr";
+    case 4: return "mai";
+    default: return "sept"; // juillet, août : saison à venir, plein
   }
+}
+
+/** Montant de l'option prépa (Boxe Française) selon le mois d'inscription. */
+export function prepaDuMois(date: Date, saisonEnCours = false): number {
+  return PREPA_PALIERS[moisPalier(date, saisonEnCours)];
 }
 
 /**
@@ -110,22 +155,23 @@ export function calculerTarif(
 
   const cotisationBase = TARIFS.cotisation[input.packageType][typeAdherent];
 
-  // 1) Prorata sur la cotisation (mois facturés / 10), arrondi à l'euro.
-  const mf = moisFactures(date, saisonEnCours);
-  const cotisationProratisee = Math.round((cotisationBase / 10) * mf);
+  // 1) Cotisation LUE dans la table de paliers selon le mois d'inscription.
+  const mois = moisPalier(date, saisonEnCours);
+  const cotisationProratisee =
+    COTISATION_PALIERS[mois][input.packageType][typeAdherent];
 
-  // 2) Remise famille APRÈS le prorata, sur la cotisation proratisée.
+  // 2) Remise famille sur la cotisation du mois (inchangé : 3e -10%, etc.).
   const remisePct = remiseFamillePct(input.nbMembresFamille || 0);
   const remiseMontant = Math.round((cotisationProratisee * remisePct) / 100);
   const cotisationNette = cotisationProratisee - remiseMontant;
 
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
 
-  // La Préparation Physique n'est facturée (+70€, JAMAIS proratisée) que dans
-  // le package Boxe Française. Dans Savate & Prépa, elle est incluse (0€).
+  // Option prépa : Boxe Française uniquement, DÉGRESSIVE selon le mois (table).
+  // Incluse (0€) dans Savate & Prépa. Fractionnée avec la cotisation (cf. tarifs.ts).
   const prepa =
     input.packageType === "boxe_classique" && input.optionPrepaPhysique
-      ? TARIFS.prepaPhysique
+      ? PREPA_PALIERS[mois]
       : 0;
 
   const total = cotisationNette + adhesion + prepa;
@@ -146,7 +192,7 @@ export function calculerTarif(
     lines.push({ label: "Adhésion au club (1ère année)", amount: adhesion });
   }
   if (prepa > 0) {
-    lines.push({ label: "Option Préparation Physique", amount: prepa });
+    lines.push({ label: "Préparation physique et savate", amount: prepa });
   }
   if (input.packageType === "savate_prepa") {
     lines.push({
@@ -160,7 +206,7 @@ export function calculerTarif(
     typeAdherent,
     packageType: input.packageType,
     cotisationBase,
-    moisFactures: mf,
+    mois,
     cotisationProratisee,
     remisePct,
     remiseMontant,

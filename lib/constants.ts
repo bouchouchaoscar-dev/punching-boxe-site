@@ -180,7 +180,7 @@ export const PACKAGES = [
       "Sur 4 salles d'entraînement",
       "+30 € la première année pour les nouveaux membres",
     ],
-    option: `+${TARIFS.prepaPhysique}€/an : inclure l'accès aux cours de préparation physique et de savate (mardi et jeudi 20h)`,
+    option: `+${TARIFS.prepaPhysique}€/an (dégressif en cours d'année) : inclure l'accès aux cours de préparation physique et de savate (mardi et jeudi 20h)`,
     orientation: "Loisir et compétition",
   },
   {

@@ -15,7 +15,7 @@ import {
   calculerTarif,
   euro,
   nbEcheances,
-  TARIFS,
+  prepaDuMois,
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
@@ -746,7 +746,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 {packageType === "boxe_classique" ? (
                   <Toggle
                     label="Inclure la préparation physique et la savate"
-                    hint={`Accès aux cours de prépa physique et de savate, 2 séances/semaine (mardi et jeudi 20h). +${TARIFS.prepaPhysique}€/an.`}
+                    hint={`Accès aux cours de prépa physique et de savate, 2 séances/semaine (mardi et jeudi 20h). +${prepaDuMois(now, saisonEnCoursChoisie)}€ (dégressif selon le mois d'inscription).`}
                     value={prepa}
                     onChange={setPrepa}
                   />
@@ -1173,7 +1173,7 @@ function LivePrice({
           {euro(tarif.total)}
         </span>
       </div>
-      {tarif.moisFactures < 10 && (
+      {tarif.cotisationProratisee < tarif.cotisationBase && (
         <p className="mt-3 text-xs leading-relaxed text-smoke">
           Tarif calculé automatiquement selon votre mois d&apos;inscription
           (dégressivité appliquée en cours de saison).

@@ -52,9 +52,9 @@ export default function InfosPage() {
             <strong className="font-bold text-orange">
               Vous souhaitez rejoindre le club en cours d&apos;année ?
             </strong>{" "}
-            À partir de janvier, le tarif est calculé au prorata des mois restants
-            de la saison. Le montant exact vous sera indiqué automatiquement lors
-            de votre inscription en ligne.
+            En cours de saison, le tarif est dégressif selon votre mois
+            d&apos;inscription. Le montant exact vous sera indiqué automatiquement
+            lors de votre inscription en ligne.
           </div>
         </Reveal>
 
