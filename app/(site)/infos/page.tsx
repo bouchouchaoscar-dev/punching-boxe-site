@@ -97,7 +97,7 @@ export default function InfosPage() {
                 {/* Ajout possible (Boxe Française) : présenté comme une option,
                     distinct des ✓ déjà inclus. Rien pour Savate & Prépa. */}
                 {p.option && (
-                  <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-dashed border-orange/40 p-3 text-sm font-semibold text-orange">
+                  <div className="mt-5 flex items-start gap-2.5 text-sm font-semibold text-orange">
                     <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange text-[0.7rem] font-black leading-none text-white">
                       +
                     </span>
