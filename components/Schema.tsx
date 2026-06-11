@@ -54,7 +54,7 @@ export function OrganizationSchema() {
     sport: ["Boxe Française", "Savate", "Préparation physique", "Fitness"],
     keywords:
       "club de boxe, cours de boxe, boxe française, savate, cours de fitness, remise en forme, préparation physique, Nogent-sur-Marne, Le Perreux-sur-Marne, Val-de-Marne, inscription en ligne",
-    priceRange: "390€-530€/an",
+    priceRange: "330€-530€/an",
     numberOfEmployees: 5,
     openingHours: [
       "Mo 19:00-21:00",

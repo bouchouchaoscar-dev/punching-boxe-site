@@ -2,6 +2,8 @@
 // Données du club — source unique de vérité.
 // ============================================================
 
+import { TARIFS } from "./pricing";
+
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://punching-boxe.com";
 
@@ -154,11 +156,11 @@ export const ACTIVITES = [
     inclus: false,
     tag: "Formule Savate et Prépa",
     resume:
-      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. En option (+100€) avec la Boxe Française, incluse dans le package Savate et Prépa.",
+      "Deux séances hebdomadaires de renforcement musculaire et de cardio pour développer puissance et explosivité. À inclure (+70€) avec la Boxe Française, ou comprise dans la formule Savate et Prépa.",
     points: [
       "2 séances par semaine (mardi et jeudi 20h)",
       "Renforcement musculaire + cardio intensif",
-      "Option +100€ avec Boxe Française · incluse en Savate et Prépa",
+      "+70€ à inclure avec la Boxe Française · comprise en Savate et Prépa",
     ],
     creneaux: ["Mardi 20h00 – 21h00", "Jeudi 20h00 – 21h00"],
   },
@@ -169,22 +171,24 @@ export const PACKAGES = [
   {
     id: "boxe_classique" as const,
     nom: "Boxe Française",
-    accroche: "L'apprentissage complet de la Boxe Française, enfants et adultes.",
-    tarifs: { adulte: 430, jeune: 410 },
+    accroche:
+      "L'apprentissage complet de la Boxe Française, enfants et adultes, avec la possibilité d'inclure l'accès aux cours de préparation physique et de savate.",
+    tarifs: TARIFS.cotisation.boxe_classique,
     inclus: [
       "Tous les cours de Boxe Française (enfants et adultes)",
       "Adultes : 5 cours/sem · Enfants : 4 cours/sem",
       "Sur 4 salles d'entraînement",
       "+30 € la première année pour les nouveaux membres",
     ],
-    option: "+100€/an : ajouter la Préparation Physique (mardi et jeudi 20h)",
+    option: `+${TARIFS.prepaPhysique}€/an : inclure l'accès aux cours de préparation physique et de savate (mardi et jeudi 20h)`,
     orientation: "Loisir et compétition",
   },
   {
     id: "savate_prepa" as const,
     nom: "Savate et Prépa",
-    accroche: "La remise en forme par la savate, sans esprit de compétition.",
-    tarifs: { adulte: 390, jeune: 370 },
+    accroche:
+      "La formule remise en forme : savate et préparation physique, 3 cours par semaine, sans esprit de compétition.",
+    tarifs: TARIFS.cotisation.savate_prepa,
     inclus: [
       "Savate Fitness (mercredi 18h30 – 19h30)",
       "Préparation Physique (mardi et jeudi 20h – 21h)",
@@ -192,7 +196,7 @@ export const PACKAGES = [
       "+30 € la première année pour les nouveaux membres",
     ],
     option: null,
-    orientation: "Fitness et remise en forme",
+    orientation: "Remise en forme",
   },
 ];
 

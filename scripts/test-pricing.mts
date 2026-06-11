@@ -6,8 +6,8 @@
 //   cotisationProratisee = round(base/10 * moisFactures)
 //   remiseMontant        = round(cotisationProratisee * remisePct/100)
 //   cotisationNette      = cotisationProratisee - remiseMontant
-//   total                = cotisationNette + adhesion(30 si nouveau) + prepa(100 si BF & option)
-// Prorata → cotisation SEULE. Adhésion (30) et prépa (100) = montants FIXES.
+//   total                = cotisationNette + adhesion(30 si nouveau) + prepa(70 si BF & option)
+// Prorata → cotisation SEULE. Adhésion (30) et prépa (70) = montants FIXES.
 // Remise famille → cotisation proratisée SEULE (jamais sur adhésion/prépa).
 // moisFactures : sept-déc/juil/août=10, janv=8, févr=6,5, mars=5, avr=4, mai=3,
 //                juin=10 (saison à venir) ou 2 (saison en cours).
@@ -89,20 +89,20 @@ function cas(
 console.log("============================================================");
 console.log("1) FORMULES DE BASE (sept, plein tarif, sans adhésion/remise)");
 console.log("============================================================");
-// BF adulte 430 / jeune 410 ; Savate adulte 390 / jeune 370.
+// BF adulte 430 / jeune 410 ; Savate adulte 350 / jeune 330.
 cas("BF adulte", { type: "adulte", pkg: "boxe_classique" }, SEPT, false, { total: 430 });
 cas("BF jeune", { type: "jeune", pkg: "boxe_classique" }, SEPT, false, { total: 410 });
-cas("Savate adulte", { type: "adulte", pkg: "savate_prepa" }, SEPT, false, { total: 390 });
-cas("Savate jeune", { type: "jeune", pkg: "savate_prepa" }, SEPT, false, { total: 370 });
-// Prépa +100 UNIQUEMENT sur BF.
-// BF adulte + prépa = 430 + 100 = 530.
+cas("Savate adulte", { type: "adulte", pkg: "savate_prepa" }, SEPT, false, { total: 350 });
+cas("Savate jeune", { type: "jeune", pkg: "savate_prepa" }, SEPT, false, { total: 330 });
+// Prépa +70 UNIQUEMENT sur BF.
+// BF adulte + prépa = 430 + 70 = 500.
 cas("BF adulte + prépa", { type: "adulte", pkg: "boxe_classique", prepa: true }, SEPT, false, {
-  total: 530,
-  prepa: 100,
+  total: 500,
+  prepa: 70,
 });
-// Savate adulte + option prépa cochée → prépa NON facturée (incluse) = 390.
+// Savate adulte + option prépa cochée → prépa NON facturée (incluse) = 350.
 cas("Savate adulte + option prépa (doit être ignorée)", { type: "adulte", pkg: "savate_prepa", prepa: true }, SEPT, false, {
-  total: 390,
+  total: 350,
   prepa: 0,
 });
 
@@ -148,11 +148,11 @@ cas("Mai (mf3) — fin de saison", { type: "adulte", pkg: "boxe_classique" }, MA
 cas("Octobre (mf10)", { type: "adulte", pkg: "boxe_classique" }, OCT, false, { total: 430, cotisationProratisee: 430 });
 cas("Juin saison À VENIR (mf10)", { type: "adulte", pkg: "boxe_classique" }, JUIN, false, { total: 430, cotisationProratisee: 430 });
 cas("Juin saison EN COURS (mf2)", { type: "adulte", pkg: "boxe_classique" }, JUIN, true, { total: 86, cotisationProratisee: 86 });
-// Prépa NON proratisée : mai 129 + prépa 100 = 229 (la prépa reste à 100).
+// Prépa NON proratisée : mai 129 + prépa 70 = 199 (la prépa reste à 70).
 cas("Prépa fixe sous prorata (mai +prépa)", { type: "adulte", pkg: "boxe_classique", prepa: true }, MAI, false, {
-  total: 229,
+  total: 199,
   cotisationProratisee: 129,
-  prepa: 100,
+  prepa: 70,
 });
 
 console.log("\n============================================================");
@@ -184,28 +184,28 @@ console.log("============================================================");
 // A (1er) BF adulte sept nouveau : 430 + 30 = 460.
 const A = calculerTarif({ typeAdherent: "adulte", packageType: "boxe_classique", nouveauMembre: true, optionPrepaPhysique: false, nbMembresFamille: 0 }, SEPT, false);
 eq("Famille A — BF adulte sept nouveau", A.total, 460);
-// B (2e) Savate jeune sept nouveau : 370 + 30 = 400 (0% remise).
+// B (2e) Savate jeune sept nouveau : 330 + 30 = 360 (0% remise).
 const B = calculerTarif({ typeAdherent: "jeune", packageType: "savate_prepa", nouveauMembre: true, optionPrepaPhysique: false, nbMembresFamille: 1 }, SEPT, false);
-eq("Famille B — Savate jeune sept nouveau", B.total, 400);
+eq("Famille B — Savate jeune sept nouveau", B.total, 360);
 // C (3e) BF jeune janv +prépa nouveau :
-//   proratisee round(410/10*8)=328 ; remise -10% round(32,8)=33 ; nette 295 ; +prépa 100 ; +30 = 425.
+//   proratisee round(410/10*8)=328 ; remise -10% round(32,8)=33 ; nette 295 ; +prépa 70 ; +30 = 395.
 const C = calculerTarif({ typeAdherent: "jeune", packageType: "boxe_classique", nouveauMembre: true, optionPrepaPhysique: true, nbMembresFamille: 2 }, JAN, false);
-eq("Famille C — BF jeune janv +prépa nouveau", C.total, 425);
+eq("Famille C — BF jeune janv +prépa nouveau", C.total, 395);
 eq("Famille C — cotisationNette", C.cotisationNette, 295);
-eq("Famille C — prepa", C.prepa, 100);
+eq("Famille C — prepa", C.prepa, 70);
 // D (4e) Savate adulte mai ancien :
-//   proratisee round(390/10*3)=117 ; remise -15% round(17,55)=18 ; nette 99 ; prépa 0 ; adhésion 0 = 99.
+//   proratisee round(350/10*3)=105 ; remise -15% round(15,75)=16 ; nette 89 ; prépa 0 ; adhésion 0 = 89.
 const D = calculerTarif({ typeAdherent: "adulte", packageType: "savate_prepa", nouveauMembre: false, optionPrepaPhysique: false, nbMembresFamille: 3 }, MAI, false);
-eq("Famille D — Savate adulte mai ancien", D.total, 99);
-eq("Famille D — total foyer (A+B+C+D)", A.total + B.total + C.total + D.total, 1384);
+eq("Famille D — Savate adulte mai ancien", D.total, 89);
+eq("Famille D — total foyer (A+B+C+D)", A.total + B.total + C.total + D.total, 1304);
 
 // Jeune en Savate, en cours de saison (mars), 3e de sa famille, nouveau :
-//   proratisee round(370/10*5)=185 ; remise -10% round(18,5)=19 ; nette 166 ; +30 = 196.
+//   proratisee round(330/10*5)=165 ; remise -10% round(16,5)=17 ; nette 148 ; +30 = 178.
 cas("Savate jeune mars 3e famille nouveau", { type: "jeune", pkg: "savate_prepa", nouveau: true, nbFamille: 2 }, MARS, false, {
-  total: 196,
-  cotisationProratisee: 185,
-  remiseMontant: 19,
-  cotisationNette: 166,
+  total: 178,
+  cotisationProratisee: 165,
+  remiseMontant: 17,
+  cotisationNette: 148,
   adhesion: 30,
 });
 

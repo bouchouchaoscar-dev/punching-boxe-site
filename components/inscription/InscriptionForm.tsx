@@ -15,6 +15,7 @@ import {
   calculerTarif,
   euro,
   nbEcheances,
+  TARIFS,
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
@@ -744,8 +745,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
                 {packageType === "boxe_classique" ? (
                   <Toggle
-                    label="Option Préparation Physique"
-                    hint="2 séances/semaine (mardi et jeudi 20h) — +100€/an."
+                    label="Inclure la préparation physique et la savate"
+                    hint={`Accès aux cours de prépa physique et de savate, 2 séances/semaine (mardi et jeudi 20h). +${TARIFS.prepaPhysique}€/an.`}
                     value={prepa}
                     onChange={setPrepa}
                   />
@@ -753,8 +754,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   <div className="flex items-center gap-3 rounded-xl border border-orange/20 bg-orange-50 p-4 text-sm text-ink">
                     <span className="text-lg">✓</span>
                     <span>
-                      <strong>Préparation Physique incluse</strong> dans le package
-                      Savate &amp; Prépa (mardi &amp; jeudi 20h), sans supplément.
+                      <strong>Préparation Physique et savate incluses</strong> dans
+                      la formule Savate &amp; Prépa (mardi &amp; jeudi 20h), sans
+                      supplément.
                     </span>
                   </div>
                 )}

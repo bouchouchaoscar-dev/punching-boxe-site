@@ -107,12 +107,12 @@ export default function ActivitesPage() {
           </h3>
           <p className="mt-3 max-w-2xl text-smoke">
             <strong>Boxe Française</strong> donne accès à tous les cours de Boxe
-            Française (enfants &amp; adultes), avec la Préparation Physique en
-            option (+100€/an). <strong>Savate &amp; Prépa</strong> regroupe la
-            Savate Fitness (mercredi 18h30) et la Préparation Physique, orientée
-            remise en forme. Cours dispensés de septembre à fin juin, soit 10 mois
-            par an. Toutes nos pratiques sont accessibles à tous, du débutant au
-            confirmé, dès 5 ans.
+            Française (enfants &amp; adultes), avec la possibilité d&apos;inclure
+            l&apos;accès aux cours de préparation physique et de savate (+70€/an).{" "}
+            <strong>Savate &amp; Prépa</strong> est la formule remise en forme :
+            savate et préparation physique, 3 cours par semaine. Cours dispensés
+            de septembre à fin juin, soit 10 mois par an. Toutes nos pratiques
+            sont accessibles à tous, du débutant au confirmé, dès 5 ans.
           </p>
           <div className="mt-6">
             <Button href="/infos">

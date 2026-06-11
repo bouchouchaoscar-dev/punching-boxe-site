@@ -10,11 +10,11 @@ export type PackageType = "boxe_classique" | "savate_prepa";
 
 export const TARIFS = {
   adhesion: 30, // 1ère année uniquement (nouveau membre)
-  prepaPhysique: 100,
+  prepaPhysique: 70,
   // La cotisation dépend désormais de la formule.
   cotisation: {
     boxe_classique: { adulte: 430, jeune: 410 },
-    savate_prepa: { adulte: 390, jeune: 370 },
+    savate_prepa: { adulte: 350, jeune: 330 },
   } as Record<PackageType, { adulte: number; jeune: number }>,
 } as const;
 
@@ -121,7 +121,7 @@ export function calculerTarif(
 
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
 
-  // La Préparation Physique n'est facturée (+100€, JAMAIS proratisée) que dans
+  // La Préparation Physique n'est facturée (+70€, JAMAIS proratisée) que dans
   // le package Boxe Française. Dans Savate & Prépa, elle est incluse (0€).
   const prepa =
     input.packageType === "boxe_classique" && input.optionPrepaPhysique

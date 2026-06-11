@@ -125,7 +125,7 @@ export function planEcheances(
 export type DevisInscription = {
   cotisation: number; // cotisation proratisée nette (après remise famille)
   adhesion: number; // adhésion (30€ 1ère année, sinon 0) — NON fractionnée
-  prepa: number; // option prépa physique (100€ ou 0) — fractionnée
+  prepa: number; // option prépa physique (70€ ou 0) — fractionnée
   supplements: number; // adhésion + prépa (récap prix)
   fractionnable: number; // cotisation + prépa = montant réparti sur les échéances
   total: number;
