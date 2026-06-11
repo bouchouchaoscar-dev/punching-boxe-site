@@ -30,18 +30,18 @@ export function Logo({
 
     const fit = () => {
       bot.style.letterSpacing = "0px";
+      bot.style.marginRight = "0px";
       const wt = top.getBoundingClientRect().width; // largeur ligne du haut
       const w0 = bot.getBoundingClientRect().width; // largeur naturelle ligne du bas
-      const n = (bot.textContent ?? "").length || 1;
-      if (wt <= w0) return; // déjà aussi large : on laisse l'espacement normal
-      let ls = (wt - w0) / n;
+      const n = (bot.textContent ?? "").length;
+      if (n < 2 || wt <= w0) return; // déjà aussi large : espacement normal
+      // letter-spacing s'ajoute APRÈS chaque lettre : le bord droit visible du
+      // dernier glyphe = w0 + (n-1)·ls. On résout pour qu'il tombe pile à wt.
+      const ls = (wt - w0) / (n - 1);
       bot.style.letterSpacing = `${ls}px`;
-      // Une passe de correction (compense l'espacement de fin) → largeur = exacte.
-      const w1 = bot.getBoundingClientRect().width;
-      if (w1 > w0) {
-        ls *= (wt - w0) / (w1 - w0);
-        bot.style.letterSpacing = `${ls}px`;
-      }
+      // On retire l'espacement résiduel ajouté après la DERNIÈRE lettre
+      // (sinon la boîte dépasse de `ls` à droite, sans glyphe visible).
+      bot.style.marginRight = `-${ls}px`;
     };
 
     fit();
