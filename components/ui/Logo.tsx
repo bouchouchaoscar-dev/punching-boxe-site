@@ -36,7 +36,7 @@ export function Logo({
           priority
         />
       </span>
-      <span className="whitespace-nowrap text-center leading-tight sm:text-left">
+      <span className="inline-block whitespace-nowrap leading-tight">
         <span
           className={`font-display block whitespace-nowrap text-center font-extrabold uppercase tracking-tight sm:text-left ${
             small ? "text-sm" : "text-sm sm:text-[1.15rem]"
@@ -44,11 +44,13 @@ export function Logo({
         >
           Punching Boxe
         </span>
+        {/* Ligne du bas calée sur la largeur de "Punching Boxe" (ci-dessus) :
+            justifiée (inter-caractères si supporté, sinon inter-mots) → mêmes
+            bords gauche ET droite que la ligne du haut, quelle que soit la
+            taille de police. "Punching Boxe" reste l'élément qui fixe la largeur. */}
         <span
-          className={`block whitespace-nowrap text-center font-semibold uppercase sm:text-left ${
-            small
-              ? "text-xs tracking-tight"
-              : "text-[0.6rem] tracking-[0.06em] sm:text-[0.72rem] sm:tracking-[0.22em]"
+          className={`block w-full whitespace-normal text-justify [text-align-last:justify] [text-justify:inter-character] font-semibold uppercase ${
+            small ? "text-xs" : "text-[0.6rem] sm:text-[0.72rem]"
           } ${variant === "light" ? "text-white/60" : "text-smoke"}`}
         >
           Nogent · Le Perreux
