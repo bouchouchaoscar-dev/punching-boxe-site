@@ -141,6 +141,23 @@ export default function EquipePage() {
         </div>
       </section>
 
+      {/* ---------- Accessible à tous (enchaîne sur "Venez les rencontrer") ---------- */}
+      <section className="container-px mx-auto max-w-3xl pb-4 text-center">
+        <Reveal>
+          <span className="eyebrow justify-center">Accessible à tous</span>
+          <h2 className="font-display mt-3 text-2xl font-extrabold uppercase text-ink sm:text-3xl">
+            La boxe, ce n&apos;est pas (que) du combat
+          </h2>
+          <p className="mt-4 leading-relaxed text-smoke">
+            C&apos;est un moyen de se dépenser, de prendre confiance en soi et
+            d&apos;apprendre à se défendre, dans un cadre bienveillant et ouvert
+            à tous les niveaux. Grâce à nos coachs qui vous accompagnent, chacun
+            progresse à son rythme et évolue dans les meilleures conditions, du
+            débutant au confirmé, enfant comme adulte.
+          </p>
+        </Reveal>
+      </section>
+
       <CTABanner title="Venez les rencontrer" />
     </>
   );
