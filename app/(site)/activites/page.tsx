@@ -111,7 +111,8 @@ export default function ActivitesPage() {
             option (+100€/an). <strong>Savate &amp; Prépa</strong> regroupe la
             Savate Fitness (mercredi 18h30) et la Préparation Physique, orientée
             remise en forme. Cours dispensés de septembre à fin juin, soit 10 mois
-            par an.
+            par an. Toutes nos pratiques sont accessibles à tous, du débutant au
+            confirmé, dès 5 ans.
           </p>
           <div className="mt-6">
             <Button href="/infos">

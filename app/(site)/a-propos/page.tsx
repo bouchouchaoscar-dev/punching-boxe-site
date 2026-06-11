@@ -49,10 +49,11 @@ export default function AProposPage() {
                 équipe pédagogique fédéralement diplômée.
               </p>
               <p>
-                Femmes, hommes et enfants — plus de 200 adhérents partagent
-                chaque saison la même passion, du débutant au compétiteur. Le
-                club transmet la Boxe Française avec exigence et bienveillance,
-                dans un véritable esprit d&apos;équipe.
+                Femmes, hommes et enfants, plus de 200 adhérents partagent
+                chaque saison la même passion, du débutant au compétiteur. Ici
+                la boxe est accessible à tous : débutants bienvenus, à tout âge
+                et à tout niveau. Le club transmet la Boxe Française avec exigence
+                et bienveillance, dans un véritable esprit d&apos;équipe.
               </p>
               <p>
                 Fidèle à ses valeurs mais résolument moderne, le club est aussi

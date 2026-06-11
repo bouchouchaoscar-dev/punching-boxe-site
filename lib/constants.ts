@@ -117,7 +117,7 @@ export const ACTIVITES = [
     inclus: true,
     tag: "Formule Boxe Française",
     resume:
-      "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Pour tous les âges, du débutant au compétiteur.",
+      "Discipline pieds-poings élégante et complète, la Boxe Française allie technique, vitesse et stratégie. Accessible à tous les âges et tous les niveaux, du loisir à la compétition.",
     points: [
       "Cours Enfants (1h) et Adultes (1h30)",
       "Adultes : 5 cours/semaine · Enfants : 4 cours/semaine",
@@ -178,7 +178,7 @@ export const PACKAGES = [
       "+30 € la première année pour les nouveaux membres",
     ],
     option: "+100€/an : ajouter la Préparation Physique (mardi et jeudi 20h)",
-    orientation: "Technique et compétition",
+    orientation: "Loisir et compétition",
   },
   {
     id: "savate_prepa" as const,
@@ -211,7 +211,7 @@ export const POURQUOI = [
   },
   {
     titre: "Deux formules au choix",
-    texte: "Boxe Française pour la pratique et la compétition, Savate et Prépa pour la remise en forme. À chacun sa voie.",
+    texte: "Boxe Française pour le loisir et la compétition, Savate et Prépa pour la remise en forme. À chacun sa voie.",
   },
   {
     titre: "Inscription 100% en ligne",

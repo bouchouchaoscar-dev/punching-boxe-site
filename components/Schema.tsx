@@ -70,7 +70,7 @@ export function OrganizationSchema() {
         name: "Formule Boxe Française",
         category: "Cours de boxe française",
         description:
-          "5 cours adultes / 4 cours enfants par semaine. Pratique, technique et compétition.",
+          "5 cours adultes / 4 cours enfants par semaine. Boxe loisir et compétition, accessible à tous les niveaux.",
       },
       {
         "@type": "Offer",

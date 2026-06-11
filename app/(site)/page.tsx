@@ -16,6 +16,23 @@ export default function HomePage() {
       <Hero />
       <Marquee />
 
+      {/* ---------- Accessible à tous (lève le frein "la boxe c'est violent") ---------- */}
+      <section className="container-px mx-auto max-w-3xl pt-16 text-center">
+        <Reveal>
+          <span className="eyebrow justify-center">Accessible à tous</span>
+          <h2 className="font-display mt-3 text-2xl font-extrabold uppercase text-ink sm:text-3xl">
+            La boxe, ce n&apos;est pas (que) du combat
+          </h2>
+          <p className="mt-4 leading-relaxed text-smoke">
+            C&apos;est avant tout un moyen de se dépenser, de prendre confiance
+            en soi, d&apos;apprendre à se défendre et de progresser, dans un
+            cadre bienveillant et ouvert à tous les niveaux. Débutant ou
+            confirmé, enfant ou adulte, chacun avance à son rythme. Notre
+            ambition&nbsp;: rendre la boxe accessible à tous.
+          </p>
+        </Reveal>
+      </section>
+
       {/* ---------- Chiffres clés ---------- */}
       <section className="container-px mx-auto max-w-7xl py-16">
         <div className="grid gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
