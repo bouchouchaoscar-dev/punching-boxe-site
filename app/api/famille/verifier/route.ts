@@ -38,7 +38,11 @@ export async function POST(request: Request) {
   const membres = await Promise.all(
     rats.map(async (m) => {
       const r = await resoudreMembre(supabase, m);
-      return { trouve: r.etat === "ok", ambigu: r.etat === "ambigu" };
+      return {
+        trouve: r.etat === "ok",
+        ambigu: r.etat === "ambigu",
+        ferme: r.etat === "ferme",
+      };
     }),
   );
 

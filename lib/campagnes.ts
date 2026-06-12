@@ -1,6 +1,7 @@
 import type { Adherent } from "./types";
 import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
+import { estActifCompte } from "./adherents-actifs";
 
 export type StatutCampagne =
   | "brouillon"
@@ -189,46 +190,52 @@ export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
 /** Prédicat d'une liste intelligente sur un adhérent. */
 function matchSmartList(a: Adherent, key: SmartListKey): boolean {
   switch (key) {
+    // EXCEPTION : "Tous" = toutes saisons, tous statuts (usage admin).
     case "tous":
       return true;
-    case "boxe":
-      return a.package === "boxe_classique";
-    case "savate":
-      return a.package === "savate_prepa";
+    // Filtres de TYPE transversaux (jeune/adulte) : non gatés ici, ils affinent
+    // une base ; la base "type seul" est déjà restreinte aux actifs courants.
     case "adultes":
       return a.type_adherent === "adulte";
     case "jeunes":
       return a.type_adherent === "jeune";
+    // EXCEPTION : segment cross-saison, géré dans filtrerAdherents.
+    case "non_reinscrits":
+      return false;
+
+    // ---- Sous-segments de "Adhérents actuels" : ACTIFS + SAISON EN COURS ----
+    case "adherents_actuels":
+      return estActifCourant(a);
+    case "boxe":
+      return estActifCourant(a) && a.package === "boxe_classique";
+    case "savate":
+      return estActifCourant(a) && a.package === "savate_prepa";
     case "fait_prepa":
-      // Pratique réellement la prépa : formule Savate & Prépa (incluse) OU
-      // Boxe Française avec l'option prépa physique.
+      // Pratique réellement la prépa : Savate & Prépa (incluse) OU BF + option.
       return (
-        a.package === "savate_prepa" ||
-        (a.package === "boxe_classique" && !!a.option_prepa_physique)
+        estActifCourant(a) &&
+        (a.package === "savate_prepa" ||
+          (a.package === "boxe_classique" && !!a.option_prepa_physique))
       );
     case "certificat_manquant":
-      return !a.certificat_medical_url;
+      return estActifCourant(a) && !a.certificat_medical_url;
     case "especes_attente":
-      return a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
-    case "echec_paiement":
-      return a.statut_paiement === "echec_paiement";
-    case "dossier_incomplet":
-      return !a.documents_valides;
-    case "nouveaux":
-      // Saison EN COURS dynamique (plus de constante en dur).
-      return !!a.nouveau_membre && a.saison === saisonCourante(new Date());
-    case "non_reinscrits":
-      // Segment CROSS-ROW : géré dans filtrerAdherents (faux ici par défaut).
-      return false;
-    case "adherents_actuels":
-      // Natifs inscrits à la SAISON EN COURS (dynamique) et réellement actifs.
-      // Une inscription annulée sort des actifs.
       return (
-        a.saison === saisonCourante(new Date()) &&
+        estActifCourant(a) &&
+        a.mode_paiement === "especes" &&
+        a.statut_paiement === "en_attente"
+      );
+    case "dossier_incomplet":
+      return estActifCourant(a) && !a.documents_valides;
+    case "nouveaux":
+      return estActifCourant(a) && !!a.nouveau_membre;
+    // "À régulariser" : échec de paiement non fermé de la saison en cours
+    // (inclut un 1er paiement échoué, qui n'est pas encore "actif").
+    case "echec_paiement":
+      return (
         !a.annule_at &&
-        (a.statut_paiement === "paye" ||
-          a.statut_paiement === "confirme_especes" ||
-          !!a.engage_at)
+        a.saison === saisonCourante(new Date()) &&
+        a.statut_paiement === "echec_paiement"
       );
     default:
       return false;
@@ -241,15 +248,11 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
 // devient inopérant).
 const TYPE_KEYS: SmartListKey[] = ["adultes", "jeunes"];
 
-// Actif = engagé/payé et non annulé (même définition que "adherents_actuels").
-function estActifAdherent(a: Adherent): boolean {
-  return (
-    !a.annule_at &&
-    (a.statut_paiement === "paye" ||
-      a.statut_paiement === "confirme_especes" ||
-      !!a.engage_at)
-  );
-}
+// Actif = défini par le helper CENTRAL (non fermé + engagé/payé OU espèces en
+// attente). "Actif de la SAISON EN COURS" pour les sous-segments du bloc haut.
+const estActifAdherent = estActifCompte;
+const estActifCourant = (a: Adherent): boolean =>
+  estActifCompte(a) && a.saison === saisonCourante(new Date());
 // Identité d'une personne (pour le cross-saison) : clé de matching si dispo,
 // sinon email.
 const identitePersonne = (a: Adherent): string =>
@@ -298,9 +301,12 @@ export function filtrerAdherents(
     );
 
   // Base = union des listes "non-type". Si aucune n'est cochée (ex. seulement
-  // "Adultes"), la base = tous les adhérents.
+  // "Adultes"/"Jeunes"), la base = les ACTIFS de la saison en cours (le filtre
+  // type affine ensuite) — surtout pas tous les dossiers/toutes saisons.
   const base =
-    baseKeys.length > 0 ? adherents.filter(matchBase) : adherents.slice();
+    baseKeys.length > 0
+      ? adherents.filter(matchBase)
+      : adherents.filter(estActifCourant);
 
   // Filtre type en ET : on ne garde que jeunes/adultes selon la sélection.
   if (typeKeys.length > 0) {

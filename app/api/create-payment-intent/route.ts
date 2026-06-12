@@ -62,15 +62,13 @@ export async function POST(request: Request) {
     newId: foyerNewId,
   });
   if (!analyse.ok) {
-    return NextResponse.json(
-      {
-        error:
-          analyse.raison === "introuvable"
-            ? "Un membre de famille indiqué n'a pas encore de dossier. Cette personne doit d'abord être inscrite."
-            : "Plusieurs personnes correspondent à un membre indiqué. Contactez le club pour le rattachement.",
-      },
-      { status: 400 },
-    );
+    const msgFoyer =
+      analyse.raison === "introuvable"
+        ? "Un membre de famille indiqué n'a pas encore de dossier. Cette personne doit d'abord être inscrite."
+        : analyse.raison === "ferme"
+          ? "Un membre indiqué a bien été trouvé, mais son inscription a été arrêtée (désinscrit). Il ne peut pas être pris en compte dans la remise familiale."
+          : "Plusieurs personnes correspondent à un membre indiqué. Contactez le club pour le rattachement.";
+    return NextResponse.json({ error: msgFoyer }, { status: 400 });
   }
   const lienCree = rattachementsRenseignes(payload.rattachements).length > 0;
   const remiseApplicable = remiseFamillePct(analyse.nbMembres) > 0;

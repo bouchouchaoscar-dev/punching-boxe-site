@@ -1,5 +1,5 @@
 import type { Adherent } from "./types";
-import { estEngage } from "./engagement";
+import { estActifCompte } from "./adherents-actifs";
 
 // ============================================================
 // Foyer familial — décompte pour la remise (groupés ∪ rattachés)
@@ -22,10 +22,10 @@ export type DossierFoyer = Pick<
  * (dossier carte resté en_attente sans engagement). Inclut les espèces en attente
  * (engagement réel : la personne a finalisé son inscription en choisissant espèces).
  */
+// Même définition que estActifCompte (source unique) : le foyer compte les
+// membres actifs (engagés/payés OU espèces en attente), jamais les fermés.
 export function compteDansFoyer(a: DossierFoyer): boolean {
-  if (a.annule_at) return false;
-  if (estEngage(a)) return true;
-  return a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
+  return estActifCompte(a);
 }
 
 /** Nombre de membres du foyer qui comptent, parmi un ensemble de dossiers. */
@@ -43,11 +43,12 @@ export function rangNouveau(dossiers: DossierFoyer[]): number {
 // État d'un membre cité (résolu en base via nom+prénom+naissance).
 export type FoyerSource =
   | { etat: "introuvable" } // aucun dossier
+  | { etat: "ferme" } // trouvé mais aucun dossier actif (inscription arrêtée)
   | { etat: "ambigu" } // plusieurs foyers distincts correspondent
   | { etat: "ok"; foyerId: string | null; titulaireId: string };
 
 export type ResolutionFoyer =
-  | { ok: false; raison: "introuvable" | "ambigu" }
+  | { ok: false; raison: "introuvable" | "ferme" | "ambigu" }
   | {
       ok: true;
       cible: string; // foyer_id final du foyer unifié
@@ -70,6 +71,8 @@ export function resoudreFoyerCible(
 ): ResolutionFoyer {
   if (membres.some((m) => m.etat === "introuvable"))
     return { ok: false, raison: "introuvable" };
+  if (membres.some((m) => m.etat === "ferme"))
+    return { ok: false, raison: "ferme" };
   if (membres.some((m) => m.etat === "ambigu"))
     return { ok: false, raison: "ambigu" };
 

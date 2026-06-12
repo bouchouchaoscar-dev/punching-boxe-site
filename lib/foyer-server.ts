@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { matchKey } from "./anciennete";
+import { estActifCompte } from "./adherents-actifs";
 import {
   compterFoyer,
   resoudreFoyerCible,
@@ -38,16 +39,22 @@ export async function resoudreMembre(
   if (!key) return { etat: "introuvable" };
   const { data } = await supabase
     .from("adherents")
-    .select("foyer_id, titulaire_id")
+    .select(
+      "foyer_id, titulaire_id, statut_paiement, echeances_payees, mode_paiement, annule_at",
+    )
     .eq("match_key", key);
   const rows = data ?? [];
   if (rows.length === 0) return { etat: "introuvable" };
-  // Foyers DISTINCTS représentés par les correspondances (foyer_id, sinon titulaire).
+  // On ne retient que les dossiers ACTIFS (non fermés). Une personne dont tous
+  // les dossiers sont fermés/désinscrits est "ferme" (trouvée mais arrêtée).
+  const actifs = rows.filter((r) => estActifCompte(r as any));
+  if (actifs.length === 0) return { etat: "ferme" };
+  // Foyers DISTINCTS représentés par les dossiers ACTIFS (foyer_id, sinon titulaire).
   const households = new Set(
-    rows.map((r) => (r.foyer_id as string | null) ?? `t:${r.titulaire_id}`),
+    actifs.map((r) => (r.foyer_id as string | null) ?? `t:${r.titulaire_id}`),
   );
   if (households.size > 1) return { etat: "ambigu" };
-  const first = rows[0];
+  const first = actifs[0];
   return {
     etat: "ok",
     foyerId: (first.foyer_id as string | null) ?? null,
@@ -108,7 +115,7 @@ async function compterUnion(
 }
 
 export type AnalyseFoyer =
-  | { ok: false; raison: "introuvable" | "ambigu" }
+  | { ok: false; raison: "introuvable" | "ferme" | "ambigu" }
   | {
       ok: true;
       foyerFinal: string | null; // foyer_id à poser sur le NOUVEAU dossier

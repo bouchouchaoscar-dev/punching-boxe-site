@@ -21,6 +21,7 @@ import { useSaisonAdmin, ALL_SAISONS } from "./SaisonContext";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { analyserSaisons } from "@/lib/stats-insights";
 import { euro } from "@/lib/pricing";
+import { estActifCompte } from "@/lib/adherents-actifs";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
@@ -81,21 +82,36 @@ export function Dashboard() {
     // Lignes encaissées rattachées à la saison sélectionnée.
     const payRowsSaison = payRows.filter((p) => adhIds.has(p.adherent_id));
     // Encaissé = NET réel depuis paiements (carte + espèces, déduction des
-    // remboursements ; un dossier fermé garde l'argent déjà encaissé).
+    // remboursements ; un dossier fermé garde l'argent déjà encaissé). On NE
+    // touche PAS à cet indicateur.
     const encaisse = payRowsSaison.reduce((s, p) => s + p.net, 0);
-    const nouveauxMois = adherents.filter((a) => {
+
+    // Tous les COMPTAGES de membres se font sur les ADHÉRENTS ACTIFS (définition
+    // centrale : non fermés + engagés/payés ou espèces en attente).
+    const actifs = adherents.filter(estActifCompte);
+
+    const nouveauxMois = actifs.filter((a) => {
       const d = new Date(a.created_at);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
-    const attenteEspeces = adherents.filter((a) => a.statut_paiement === "en_attente").length;
-    const echecs = adherents.filter((a) => a.statut_paiement === "echec_paiement").length;
-    const formuleBoxe = adherents.filter(
+    // Espèces RÉELLEMENT en attente (mode espèces, pas confirmées, non fermées).
+    const attenteEspeces = adherents.filter(
+      (a) =>
+        !a.annule_at &&
+        a.mode_paiement === "especes" &&
+        a.statut_paiement === "en_attente",
+    ).length;
+    // Échecs à régulariser : non fermés (inclut un 1er paiement échoué).
+    const echecs = adherents.filter(
+      (a) => !a.annule_at && a.statut_paiement === "echec_paiement",
+    ).length;
+    const formuleBoxe = actifs.filter(
       (a) => a.package === "boxe_classique" && !a.option_prepa_physique,
     ).length;
-    const boxePrepa = adherents.filter(
+    const boxePrepa = actifs.filter(
       (a) => a.package === "boxe_classique" && a.option_prepa_physique,
     ).length;
-    const savateForme = adherents.filter((a) => a.package === "savate_prepa").length;
+    const savateForme = actifs.filter((a) => a.package === "savate_prepa").length;
 
     // Fenêtre de 12 mois alignée sur la VRAIE étendue d'une saison (juin → mai,
     // cf. lib/saison) : les inscriptions anticipées de juin doivent compter.
@@ -113,8 +129,8 @@ export function Dashboard() {
       return { key: `${year}-${monthIndex}`, label };
     });
     const byMonth = months.map((m) => {
-      // Inscriptions = dossiers créés ce mois-là (date de création).
-      const inscriptions = adherents.filter(
+      // Inscriptions = dossiers ACTIFS créés ce mois-là (les fermés sont exclus).
+      const inscriptions = actifs.filter(
         (a) => moisKey(a.created_at) === m.key,
       ).length;
       // Montant = encaissé NET regroupé par mois de PAIEMENT.
@@ -124,13 +140,13 @@ export function Dashboard() {
       return { mois: m.label, inscriptions, montant };
     });
 
-    const adultes = adherents.filter((a) => a.type_adherent === "adulte").length;
-    const jeunes = adherents.filter((a) => a.type_adherent === "jeune").length;
-    const enLigne = adherents.filter((a) => (a.mode_paiement ?? "").startsWith("stripe")).length;
-    const especes = adherents.filter((a) => a.mode_paiement === "especes").length;
+    const adultes = actifs.filter((a) => a.type_adherent === "adulte").length;
+    const jeunes = actifs.filter((a) => a.type_adherent === "jeune").length;
+    const enLigne = actifs.filter((a) => (a.mode_paiement ?? "").startsWith("stripe")).length;
+    const especes = actifs.filter((a) => a.mode_paiement === "especes").length;
 
     return {
-      total: adherents.length,
+      total: actifs.length,
       encaisse,
       nouveauxMois,
       attenteEspeces,
@@ -148,7 +164,7 @@ export function Dashboard() {
         { name: "Espèces", value: especes, color: INK },
       ].filter((x) => x.value > 0),
       repartitionFormule: [
-        { name: "Boxe Française", value: adherents.filter((a) => a.package === "boxe_classique").length, color: ORANGE },
+        { name: "Boxe Française", value: actifs.filter((a) => a.package === "boxe_classique").length, color: ORANGE },
         { name: "Savate et Prépa", value: savateForme, color: INK },
       ].filter((x) => x.value > 0),
     };

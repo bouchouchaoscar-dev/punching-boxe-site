@@ -124,7 +124,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [rattachInfo, setRattachInfo] = useState<{
     ok: boolean;
     raison: string | null;
-    membres: { trouve: boolean; ambigu: boolean }[];
+    membres: { trouve: boolean; ambigu: boolean; ferme: boolean }[];
     nbMembresActuels: number | null;
   } | null>(null);
   const [error, setError] = useState("");
@@ -647,6 +647,13 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                               {rattachInfo.membres[i].trouve ? (
                                 <span className="text-green-600">
                                   ✓ Membre trouvé
+                                </span>
+                              ) : rattachInfo.membres[i].ferme ? (
+                                <span className="text-orange-600">
+                                  Cette personne a bien été trouvée, mais son
+                                  inscription a été arrêtée (statut : désinscrit).
+                                  Elle ne peut pas être comptée dans la remise
+                                  familiale.
                                 </span>
                               ) : rattachInfo.membres[i].ambigu ? (
                                 <span className="text-orange-600">
