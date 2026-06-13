@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 export function MerciContent() {
   const params = useSearchParams();
   const especes = params.get("mode") === "especes";
+  const prenom = (params.get("prenom") ?? "").trim();
 
   return (
     <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink px-6 py-16 text-center text-white">
@@ -37,7 +38,7 @@ export function MerciContent() {
         </motion.div>
 
         <h1 className="font-display mt-8 text-5xl font-black uppercase sm:text-6xl">
-          Bienvenue !
+          {prenom ? `Bienvenue ${prenom} !` : "Bienvenue !"}
         </h1>
         <p className="mt-5 text-lg leading-relaxed text-white/70">
           {especes ? (
@@ -63,8 +64,8 @@ export function MerciContent() {
         </p>
 
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
-          <Button href="/" variant="primary" size="lg">
-            Retour à l&apos;accueil
+          <Button href="/mon-espace" variant="primary" size="lg">
+            Voir mon dossier
           </Button>
           <Button href="/infos" variant="ghost" size="lg">
             Voir les horaires

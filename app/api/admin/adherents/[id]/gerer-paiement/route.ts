@@ -3,6 +3,7 @@ import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { annulerEcheances, allouerRemboursement } from "@/lib/payments";
+import { sendRemboursement, sendFinInscription } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -95,7 +96,7 @@ export async function POST(request: Request, { params }: Ctx) {
   try {
     const { data: adherent } = await supabase
       .from("adherents")
-      .select("id")
+      .select("id, email, prenom")
       .eq("id", id)
       .maybeSingle();
     if (!adherent) return await fail(404, "Dossier introuvable.");
@@ -207,6 +208,29 @@ export async function POST(request: Request, { params }: Ctx) {
         finished_at: new Date().toISOString(),
       })
       .eq("id", actionId);
+
+    // Email adhérent (best-effort) : remboursement (adaptatif) ou clôture seule.
+    if (adherent.email) {
+      try {
+        if (montantEffectif > 0) {
+          await sendRemboursement({
+            prenom: adherent.prenom ?? "",
+            email: adherent.email,
+            montant: montantEffectif,
+            canal,
+            ferme: fermer,
+          });
+        } else if (fermer) {
+          await sendFinInscription({
+            prenom: adherent.prenom ?? "",
+            email: adherent.email,
+            date: new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        console.error("Email remboursement/clôture:", e);
+      }
+    }
 
     return NextResponse.json({
       success: true,

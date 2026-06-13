@@ -23,6 +23,22 @@ export const PACKAGE_LABEL: Record<PackageType, string> = {
   savate_prepa: "Package Savate et Prépa",
 };
 
+/**
+ * Libellé d'affichage de la formule, incluant l'option prépa quand elle est
+ * prise (Boxe Française). Source UNIQUE pour l'espace adhérent, la fiche/liste
+ * admin et les emails. Ex. "Boxe Française + accès Préparation physique et Savate".
+ */
+export function formuleLabel(
+  p?: PackageType | null,
+  optionPrepa?: boolean,
+): string {
+  if (!p) return "—";
+  if (p === "savate_prepa") return "Savate et Prépa";
+  return optionPrepa
+    ? "Boxe Française + accès Préparation physique et Savate"
+    : "Boxe Française";
+}
+
 export type PricingInput = {
   dateNaissance?: string; // ISO yyyy-mm-dd — sert à déduire le type
   typeAdherent?: TypeAdherent; // override possible

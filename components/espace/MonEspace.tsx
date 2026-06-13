@@ -14,7 +14,7 @@ import {
 import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
-import { euro, PACKAGE_LABEL, remiseFamillePct } from "@/lib/pricing";
+import { euro, formuleLabel, remiseFamillePct } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
@@ -324,7 +324,7 @@ export function MonEspace() {
                       <DossierBadge {...badgeDossierAdherent(a)} />
                       <PaiementStatut adherent={a} paidEcheances={paidMap[a.id] ?? 0} />
                       <span className="text-xs text-smoke">
-                        {a.package ? PACKAGE_LABEL[a.package] : "—"}
+                        {formuleLabel(a.package, a.option_prepa_physique)}
                       </span>
                     </span>
                   </span>
@@ -413,7 +413,7 @@ export function MonEspace() {
                         Inscription
                       </h3>
                       <dl className="mt-3 space-y-2.5 text-sm">
-                        <Line label="Formule" value={a.package ? PACKAGE_LABEL[a.package] : "—"} />
+                        <Line label="Formule" value={formuleLabel(a.package, a.option_prepa_physique)} />
                         <Line
                           label="Catégorie"
                           value={a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
@@ -556,6 +556,7 @@ function SyntheseEncart({
     info: { cls: "border-line bg-paper-2", icon: "📩" },
     action: { cls: "border-orange/30 bg-orange-50", icon: "👉" },
     danger: { cls: "border-red-200 bg-red-50", icon: "⚠️" },
+    cloture: { cls: "border-ink/15 bg-ink/5", icon: "🔒" },
   };
   const m = map[tone];
   return (

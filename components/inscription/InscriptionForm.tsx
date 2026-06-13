@@ -364,7 +364,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l'inscription.");
-      router.push("/inscription/merci?mode=especes");
+      router.push(`/inscription/merci?mode=especes&prenom=${encodeURIComponent(prenom)}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue.");
       setBusy(false);
@@ -1001,7 +1001,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 {plan && (
                   <StripePayment
                     plan={plan}
-                    onSuccess={() => router.push("/inscription/merci")}
+                    onSuccess={() => router.push(`/inscription/merci?prenom=${encodeURIComponent(prenom)}`)}
                   />
                 )}
               </div>

@@ -2,12 +2,13 @@ import type { Adherent } from "./types";
 import { evaluerDossier } from "./dossier";
 import { estEngage } from "./engagement";
 import { familleEchec } from "./stripe-erreurs";
+import { euro } from "./pricing";
 
 // Phrase de synthèse dynamique affichée à l'adhérent (espace client) : croise
 // l'état des DOCUMENTS et du PAIEMENT pour dire où en est le dossier et la
 // prochaine action. Module PUR (aucun import serveur) → utilisable côté client.
 
-export type SyntheseTone = "success" | "info" | "action" | "danger";
+export type SyntheseTone = "success" | "info" | "action" | "danger" | "cloture";
 
 // `rappel` = note secondaire (ex. rappel espèces) rendue en nuance plus douce,
 // utile pour ne pas surcharger/angoisser un encart rouge (refus).
@@ -30,6 +31,18 @@ const CERTIF = {
 } as const;
 
 export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
+  // PRIORITÉ ABSOLUE : inscription clôturée (fin d'inscription) → plus de
+  // bandeau "complet/validé". On mentionne le remboursement le cas échéant.
+  if (a.annule_at) {
+    const remb = (a.montant_rembourse ?? 0) > 0;
+    return {
+      tone: "cloture",
+      text: remb
+        ? `Votre inscription a été clôturée. Un remboursement de ${euro(a.montant_rembourse!)} a été effectué.`
+        : "Votre inscription a été clôturée.",
+    };
+  }
+
   const d = evaluerDossier(a);
 
   // ---- Détail par document ----

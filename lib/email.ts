@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { CLUB, SITE_URL, HORAIRES, SALLES } from "./constants";
 import { unsubscribeUrl } from "./unsubscribe";
-import { euro, PACKAGE_LABEL, type ModePaiement, type PackageType } from "./pricing";
+import { euro, formuleLabel, type ModePaiement, type PackageType } from "./pricing";
 import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
 
@@ -44,13 +44,12 @@ type MailData = {
   email: string;
   type_adherent: string;
   package?: PackageType | null;
+  option_prepa_physique?: boolean;
   montant_total: number;
   mode_paiement: ModePaiement;
   adherentId?: string;
   echeances?: Echeance[];
 };
-
-const packageLabel = (p?: PackageType | null) => (p ? PACKAGE_LABEL[p] : "—");
 
 function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
@@ -142,7 +141,7 @@ export async function sendAdherentConfirmation(d: MailData) {
     <h1 style="font-size:22px;margin:0 0 8px">Bonjour ${d.prenom},</h1>
     <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> est confirmée.</p>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:18px 0">
-      <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
+      <p style="margin:4px 0"><strong>Formule :</strong> ${formuleLabel(d.package, d.option_prepa_physique)}</p>
       <p style="margin:4px 0"><strong>Montant :</strong> ${euro(d.montant_total)}</p>
       <p style="margin:4px 0"><strong>Mode de paiement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
     </div>
@@ -181,7 +180,7 @@ export async function sendAdminNotification(d: MailData) {
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
       <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
       <p style="margin:4px 0">${d.email}</p>
-      <p style="margin:4px 0"><strong>Formule :</strong> ${packageLabel(d.package)}</p>
+      <p style="margin:4px 0"><strong>Formule :</strong> ${formuleLabel(d.package, d.option_prepa_physique)}</p>
       <p style="margin:4px 0"><strong>Montant total :</strong> ${euro(d.montant_total)}</p>
       <p style="margin:4px 0"><strong>Mode de paiement :</strong> ${MODE_LABEL[d.mode_paiement]}</p>
     </div>
@@ -214,8 +213,8 @@ export async function sendDocumentActionRequired(d: {
       ${d.docLabel ? `<p style="margin:2px 0"><strong>Document :</strong> ${d.docLabel}</p>` : ""}
       ${d.motif ? `<p style="margin:2px 0"><strong>Motif :</strong> ${d.motif}</p>` : ""}
     </div>
-    <p style="line-height:1.6;color:#444">Connectez-vous à votre espace personnel pour le remplacer.</p>
-    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Accéder à mon espace")}</p>
+    <p style="line-height:1.6;color:#444">Merci de le redéposer au plus vite depuis votre espace personnel pour que nous puissions valider votre dossier.</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Régulariser mon dossier")}</p>
   `);
 
   return client.emails.send({
@@ -304,6 +303,71 @@ export async function sendPaiementEchec(d: {
     from: FROM,
     to: d.email,
     subject: "⚠️ Problème avec votre paiement",
+    html,
+  });
+}
+
+/** 6 — Email à l'adhérent : remboursement effectué (adaptatif carte/espèces,
+ *  fin d'inscription ou non). Le montant est le montant RÉELLEMENT remboursé. */
+export async function sendRemboursement(d: {
+  prenom: string;
+  email: string;
+  montant: number;
+  canal: "stripe" | "especes";
+  ferme: boolean;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const moyen = d.canal === "especes" ? "en espèces" : "par carte";
+  const suite = d.ferme
+    ? "Vos prélèvements sont arrêtés et votre inscription prend fin."
+    : "Vos prélèvements se poursuivent normalement aux dates prévues.";
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Confirmation de remboursement</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Vous avez été remboursé de <strong>${euro(d.montant)}</strong> ${moyen}.</p>
+    <p style="line-height:1.6;color:#444">${suite}</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon dossier")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: d.ferme
+      ? "Remboursement et fin de votre inscription"
+      : "Confirmation de votre remboursement",
+    html,
+  });
+}
+
+/** 7 — Email à l'adhérent : fin d'inscription SANS remboursement (clôture). */
+export async function sendFinInscription(d: {
+  prenom: string;
+  email: string;
+  date?: string | null;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const quand = d.date
+    ? ` à la date du <strong>${formatDateFr(d.date.slice(0, 10))}</strong>`
+    : "";
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Votre inscription a pris fin</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Votre adhésion au <strong>${CLUB.nom}</strong> a été clôturée${quand}. Vos éventuels prélèvements à venir sont arrêtés.</p>
+    <p style="line-height:1.6;color:#444">Vous restez le bienvenu si vous souhaitez revenir : il suffira de vous réinscrire en ligne.</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/inscription`, "Me réinscrire")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "Clôture de votre inscription",
     html,
   });
 }

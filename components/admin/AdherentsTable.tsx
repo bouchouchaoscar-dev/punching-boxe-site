@@ -11,6 +11,11 @@ import type { Adherent } from "@/lib/types";
 
 export function AdherentsTable() {
   const { adherents, loading, error, refresh } = useSaisonAdmin();
+  // Re-synchronise à l'affichage de la liste : en revenant d'une fiche, le badge
+  // "New" (vu_par_admin posé à la 1re consultation) doit refléter l'état à jour.
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
   const [statut, setStatut] = useState("all");

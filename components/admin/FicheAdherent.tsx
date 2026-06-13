@@ -8,7 +8,7 @@ import { GererPaiementModal } from "./GererPaiementModal";
 import { HistoriqueSaisons, type HistLigne } from "./HistoriqueSaisons";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { ButtonAction } from "@/components/ui/Button";
-import { euro, PACKAGE_LABEL, TARIFS } from "@/lib/pricing";
+import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
@@ -435,7 +435,7 @@ export function FicheAdherent({ id }: { id: string }) {
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               <Info
                 label="Formule"
-                value={a.package ? PACKAGE_LABEL[a.package] : "—"}
+                value={formuleLabel(a.package, a.option_prepa_physique)}
               />
               <Info label="Date de naissance" value={new Date(a.date_naissance).toLocaleDateString("fr-FR")} />
               <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} />
@@ -616,7 +616,7 @@ export function FicheAdherent({ id }: { id: string }) {
             vars: {
               prenom: a.prenom,
               nom: a.nom,
-              formule: a.package ? PACKAGE_LABEL[a.package] : "",
+              formule: formuleLabel(a.package, a.option_prepa_physique),
               montant: a.montant_total,
               saison: a.saison,
             },
@@ -776,7 +776,12 @@ function PaiementsCard({
             </thead>
             <tbody>
               {echeances.map((p) => (
-                <tr key={p.id} className="border-b border-line last:border-0">
+                <tr
+                  key={p.id}
+                  className={`border-b border-line last:border-0 ${
+                    p.statut === "annule" ? "opacity-50" : ""
+                  }`}
+                >
                   <td className="py-2 pr-3 font-semibold text-ink">
                     {p.numero_echeance}
                   </td>
@@ -885,6 +890,12 @@ function EcheanceStatut({ p }: { p: Paiement }) {
     );
   if (p.statut === "echec")
     return <span className="font-semibold text-red-600">❌ Échec</span>;
+  if (p.statut === "annule")
+    return (
+      <span className="font-semibold text-smoke">
+        ⊘ Annulée{p.date_prevue ? ` — était prévue le ${formatDateFr(p.date_prevue)}` : ""}
+      </span>
+    );
   return (
     <span className="font-semibold text-orange">
       ⏳ Prévu{p.date_prevue ? ` le ${formatDateFr(p.date_prevue)}` : ""}

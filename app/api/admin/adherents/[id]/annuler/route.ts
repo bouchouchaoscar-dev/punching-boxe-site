@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { annulerEcheances } from "@/lib/payments";
+import { sendFinInscription } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,19 @@ export async function POST(request: Request, { params }: Ctx) {
     .select("*")
     .eq("id", id)
     .single();
+
+  // Email de clôture (best-effort) : fin d'inscription sans remboursement.
+  if (updated?.email) {
+    try {
+      await sendFinInscription({
+        prenom: updated.prenom ?? "",
+        email: updated.email,
+        date: updated.annule_at ?? new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("Email clôture:", e);
+    }
+  }
 
   return NextResponse.json({
     success: true,
