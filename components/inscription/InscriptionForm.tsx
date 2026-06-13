@@ -627,19 +627,18 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                               }
                               className="focus-ring rounded-lg border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
                             />
-                            <input
-                              type="date"
+                            <DatePicker
                               value={r.date_naissance}
-                              onChange={(e) =>
+                              placeholder="Naissance"
+                              onChange={(iso) =>
                                 setRattachements((rs) =>
                                   rs.map((x, j) =>
                                     j === i
-                                      ? { ...x, date_naissance: e.target.value }
+                                      ? { ...x, date_naissance: iso }
                                       : x,
                                   ),
                                 )
                               }
-                              className="focus-ring rounded-lg border border-line bg-paper-2 px-3 py-2 text-sm outline-none focus:border-orange"
                             />
                           </div>
                           {rattachInfo?.membres?.[i] && (
@@ -1066,7 +1065,11 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
       {attestOpen && (
         <AttestationModal
-          message={`Ce dossier bénéficie d'une remise familiale (à partir du 3e membre du foyer). En continuant, vous attestez que ces membres appartiennent au même foyer familial. Une vérification sera effectuée lors de votre venue au club.`}
+          message={
+            tarif.remisePct > 0
+              ? `Ce dossier bénéficie d'une remise familiale de −${tarif.remisePct} % (${nbFoyerEffectif + 1}e membre${nbFoyerEffectif + 1 >= 5 ? " et plus" : ""} du foyer). En continuant, vous attestez que cette personne appartient à votre foyer familial.`
+              : `Vous ajoutez un membre de votre foyer. Ce lien sera pris en compte pour vos prochaines inscriptions : la remise familiale s'applique à partir du 3e membre. En continuant, vous attestez que cette personne appartient à votre foyer familial.`
+          }
           onConfirm={() => {
             attesteRef.current = true;
             setAttesteFoyer(true);

@@ -159,6 +159,9 @@ export interface ContactMailing {
 export type SmartListKey =
   | "tous"
   | "non_reinscrits"
+  | "adherents_tiedes"
+  | "adherents_froids"
+  | "arretees"
   | "boxe"
   | "savate"
   | "adultes"
@@ -168,13 +171,15 @@ export type SmartListKey =
   | "especes_attente"
   | "echec_paiement"
   | "dossier_incomplet"
-  | "nouveaux"
   | "adherents_actuels";
 
 export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
   { key: "adherents_actuels", label: "Adhérents actuels (saison en cours)" },
   { key: "tous", label: "Tous les adhérents" },
   { key: "non_reinscrits", label: "Adhérents non réinscrits (saison dernière)" },
+  { key: "adherents_tiedes", label: "Adhérents tièdes (absents 2-3 ans)" },
+  { key: "adherents_froids", label: "Adhérents froids (absents +3 ans)" },
+  { key: "arretees", label: "Adhésions arrêtées" },
   { key: "boxe", label: "Formule Boxe Française" },
   { key: "savate", label: "Formule Savate et Prépa" },
   { key: "adultes", label: "Adultes uniquement" },
@@ -184,23 +189,28 @@ export const SMART_LISTS: { key: SmartListKey; label: string }[] = [
   { key: "especes_attente", label: "Paiement espèces en attente" },
   { key: "echec_paiement", label: "À régulariser (échec de paiement)" },
   { key: "dossier_incomplet", label: "Dossier incomplet" },
-  { key: "nouveaux", label: "Nouveaux membres cette saison" },
 ];
 
 /** Prédicat d'une liste intelligente sur un adhérent. */
 function matchSmartList(a: Adherent, key: SmartListKey): boolean {
   switch (key) {
-    // EXCEPTION : "Tous" = toutes saisons, tous statuts (usage admin).
+    // "Tous" = toutes saisons, mais PAS les adhésions arrêtées (un dossier
+    // fermé n'est plus un adhérent → uniquement dans "Adhésions arrêtées").
     case "tous":
-      return true;
+      return !a.annule_at;
+    // "Adhésions arrêtées" : dossiers FERMÉS de la saison en cours.
+    case "arretees":
+      return !!a.annule_at && a.saison === saisonCourante(new Date());
     // Filtres de TYPE transversaux (jeune/adulte) : non gatés ici, ils affinent
     // une base ; la base "type seul" est déjà restreinte aux actifs courants.
     case "adultes":
       return a.type_adherent === "adulte";
     case "jeunes":
       return a.type_adherent === "jeune";
-    // EXCEPTION : segment cross-saison, géré dans filtrerAdherents.
+    // EXCEPTION : segments cross-saison, gérés dans filtrerAdherents.
     case "non_reinscrits":
+    case "adherents_tiedes":
+    case "adherents_froids":
       return false;
 
     // ---- Sous-segments de "Adhérents actuels" : ACTIFS + SAISON EN COURS ----
@@ -227,8 +237,6 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
       );
     case "dossier_incomplet":
       return estActifCourant(a) && !a.documents_valides;
-    case "nouveaux":
-      return estActifCourant(a) && !!a.nouveau_membre;
     // "À régulariser" : échec de paiement non fermé de la saison en cours
     // (inclut un 1er paiement échoué, qui n'est pas encore "actif").
     case "echec_paiement":
@@ -248,9 +256,8 @@ function matchSmartList(a: Adherent, key: SmartListKey): boolean {
 // devient inopérant).
 const TYPE_KEYS: SmartListKey[] = ["adultes", "jeunes"];
 
-// Actif = défini par le helper CENTRAL (non fermé + engagé/payé OU espèces en
-// attente). "Actif de la SAISON EN COURS" pour les sous-segments du bloc haut.
-const estActifAdherent = estActifCompte;
+// "Actif de la SAISON EN COURS" pour les sous-segments du bloc haut (helper
+// central estActifCompte : non fermé + engagé/payé OU espèces en attente).
 const estActifCourant = (a: Adherent): boolean =>
   estActifCompte(a) && a.saison === saisonCourante(new Date());
 // Identité d'une personne (pour le cross-saison) : clé de matching si dispo,
@@ -259,29 +266,53 @@ const identitePersonne = (a: Adherent): string =>
   a.match_key || (a.email ? a.email.toLowerCase() : a.id);
 
 /**
- * Ensemble des dossiers (ids) ACTIFS la saison DERNIÈRE mais dont la personne
- * n'a PAS de dossier actif la saison EN COURS → non réinscrits (relance).
+ * Classement des NATIFS de relance : personnes ayant eu un dossier actif une
+ * saison PASSÉE mais AUCUN dossier actif la saison EN COURS. Classées par
+ * ancienneté de leur dernière saison active (même règle que les anciens
+ * importés, via classerAncien) :
+ *  - saison_derniere (gap ≤ 1) → "non réinscrits"
+ *  - tiede (gap 2-3) → "tièdes"  ·  froid (gap ≥ 4) → "froids"
+ * On renvoie l'id du dossier de la DERNIÈRE saison active (pour le contact).
+ * Étanchéité : ne porte que sur les dossiers NATIFS ; les anciens importés
+ * migrés sont, eux, exclus des segments anciens côté route.
  */
-function idsNonReinscrits(adherents: Adherent[]): Set<string> {
+function classerNatifsRelance(adherents: Adherent[]): {
+  saison_derniere: Set<string>;
+  tiede: Set<string>;
+  froid: Set<string>;
+} {
   const courante = saisonCourante(new Date());
-  const y = parseInt(courante.slice(0, 4), 10);
-  const precedente = `${y - 1}-${y}`;
   const actifsCourante = new Set<string>();
+  const dernier = new Map<string, { saison: string; id: string }>();
   for (const a of adherents) {
-    if (a.saison === courante && estActifAdherent(a))
-      actifsCourante.add(identitePersonne(a));
+    if (!estActifCompte(a)) continue;
+    const k = identitePersonne(a);
+    if (a.saison === courante) actifsCourante.add(k);
+    const cur = dernier.get(k);
+    if (!cur || (a.saison ?? "") > cur.saison)
+      dernier.set(k, { saison: a.saison ?? "", id: a.id });
   }
-  const res = new Set<string>();
-  for (const a of adherents) {
-    if (
-      a.saison === precedente &&
-      estActifAdherent(a) &&
-      !actifsCourante.has(identitePersonne(a))
-    )
-      res.add(a.id);
+  const out = {
+    saison_derniere: new Set<string>(),
+    tiede: new Set<string>(),
+    froid: new Set<string>(),
+  };
+  for (const [k, d] of dernier) {
+    if (actifsCourante.has(k)) continue; // actif cette saison → pas une relance
+    if (!d.saison || d.saison >= courante) continue;
+    const cl = classerAncien(d.saison, courante);
+    if (cl === "saison_derniere") out.saison_derniere.add(d.id);
+    else if (cl === "tiede") out.tiede.add(d.id);
+    else if (cl === "froid") out.froid.add(d.id);
   }
-  return res;
+  return out;
 }
+
+const CROSS_ROW_KEYS: SmartListKey[] = [
+  "non_reinscrits",
+  "adherents_tiedes",
+  "adherents_froids",
+];
 
 export function filtrerAdherents(
   adherents: Adherent[],
@@ -291,13 +322,20 @@ export function filtrerAdherents(
   const typeKeys = keys.filter((k) => TYPE_KEYS.includes(k));
   const baseKeys = keys.filter((k) => !TYPE_KEYS.includes(k));
 
-  // Précalcul du segment CROSS-ROW "non réinscrits" (si demandé).
-  const nonReinscrits = baseKeys.includes("non_reinscrits")
-    ? idsNonReinscrits(adherents)
+  // Précalcul des segments CROSS-ROW (relance natifs) si l'un est demandé.
+  const relance = baseKeys.some((k) => CROSS_ROW_KEYS.includes(k))
+    ? classerNatifsRelance(adherents)
     : null;
+  const dansCrossRow = (a: Adherent, k: SmartListKey): boolean => {
+    if (!relance) return false;
+    if (k === "non_reinscrits") return relance.saison_derniere.has(a.id);
+    if (k === "adherents_tiedes") return relance.tiede.has(a.id);
+    if (k === "adherents_froids") return relance.froid.has(a.id);
+    return false;
+  };
   const matchBase = (a: Adherent) =>
     baseKeys.some((k) =>
-      k === "non_reinscrits" ? !!nonReinscrits?.has(a.id) : matchSmartList(a, k),
+      CROSS_ROW_KEYS.includes(k) ? dansCrossRow(a, k) : matchSmartList(a, k),
     );
 
   // Base = union des listes "non-type". Si aucune n'est cochée (ex. seulement

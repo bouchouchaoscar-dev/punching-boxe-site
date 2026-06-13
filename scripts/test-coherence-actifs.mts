@@ -61,10 +61,27 @@ const savate = filtrerAdherents(pool, ["savate"]).map((a) => a.id);
 check("« Savate » = D", JSON.stringify(savate) === JSON.stringify(["D"]), savate);
 
 const tous = filtrerAdherents(pool, ["tous"]).map((a) => a.id).sort();
-check("« Tous » = exception (inclut fermé + saison passée)", JSON.stringify(tous) === JSON.stringify(["A", "B", "C", "D"]), tous);
+check("« Tous » = non fermés toutes saisons (A, C, D — B fermé exclu)", JSON.stringify(tous) === JSON.stringify(["A", "C", "D"]), tous);
+check("→ adhésion arrêtée (B) exclue de « Tous »", !tous.includes("B"));
+
+const arretees = filtrerAdherents(pool, ["arretees"]).map((a) => a.id).sort();
+check("« Adhésions arrêtées » = le dossier fermé courant (B)", JSON.stringify(arretees) === JSON.stringify(["B"]), arretees);
+check("→ actif (A) PAS dans « Adhésions arrêtées »", !arretees.includes("A"));
 
 const adultesSeul = filtrerAdherents(pool, ["adultes"]).map((a) => a.id).sort();
 check("« Adultes » seul = actifs courants adultes (A, D)", JSON.stringify(adultesSeul) === JSON.stringify(["A", "D"]), adultesSeul);
+
+// ---- Relance natifs (cross-saison) : tièdes / froids / non réinscrits ----
+const cur = adh({ id: "CUR", saison: COURANTE }); // actif saison en cours
+const nre = adh({ id: "NRE", saison: PRECEDENTE }); // actif saison dernière (gap 1)
+const y2 = parseInt(COURANTE.slice(0, 4), 10);
+const tie = adh({ id: "TIE", saison: `${y2 - 2}-${y2 - 1}` }); // gap 2 → tiède
+const fro = adh({ id: "FRO", saison: `${y2 - 4}-${y2 - 3}` }); // gap 4 → froid
+const poolR = [cur, nre, tie, fro];
+check("« non réinscrits » = NRE (saison dernière)", JSON.stringify(filtrerAdherents(poolR, ["non_reinscrits"]).map((a) => a.id)) === JSON.stringify(["NRE"]));
+check("« tièdes » = TIE (absent 2-3 ans)", JSON.stringify(filtrerAdherents(poolR, ["adherents_tiedes"]).map((a) => a.id)) === JSON.stringify(["TIE"]));
+check("« froids » = FRO (absent +3 ans)", JSON.stringify(filtrerAdherents(poolR, ["adherents_froids"]).map((a) => a.id)) === JSON.stringify(["FRO"]));
+check("relance n'inclut jamais l'actif courant (CUR)", !filtrerAdherents(poolR, ["non_reinscrits", "adherents_tiedes", "adherents_froids"]).some((a) => a.id === "CUR"));
 
 console.log("\n3) KPI dashboard (même helper : fermés exclus du décompte)");
 const actifs = pool.filter(estActifCompte).map((a) => a.id).sort();
