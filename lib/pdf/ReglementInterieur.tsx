@@ -1,7 +1,8 @@
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 import { styles } from "./theme";
-import { PdfFooter, PdfHeader } from "./Shared";
+import { PdfFooter, PdfHeader, SignatureBlock } from "./Shared";
 import { CLUB } from "@/lib/constants";
+import type { ReglementData } from "./types";
 
 function Article({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
@@ -12,7 +13,8 @@ function Article({ titre, children }: { titre: string; children: React.ReactNode
   );
 }
 
-export function ReglementInterieurDoc() {
+export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
+  const filled = !!data;
   return (
     <Document title="Règlement intérieur" author={CLUB.nom}>
       <Page size="A4" style={styles.page}>
@@ -119,27 +121,40 @@ export function ReglementInterieurDoc() {
           </Text>
         </Article>
 
-        <View
-          style={{
-            marginTop: 24,
-            flexDirection: "row",
-            alignItems: "flex-start",
-            gap: 16,
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Date :</Text>
-            <View style={[styles.fieldLine, { marginTop: 4 }]} />
+        {filled ? (
+          <View style={{ marginTop: 18 }}>
+            <Text style={styles.p}>
+              Adhérent : <Text style={styles.bold}>{data?.prenom} {data?.nom}</Text>
+            </Text>
+            <SignatureBlock
+              sig={data?.signature}
+              date={data?.dateSignature}
+              mention="Lu et approuvé — j'accepte sans réserve le présent règlement intérieur."
+            />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Lu et approuvé :</Text>
-            <View style={[styles.fieldLine, { marginTop: 4 }]} />
+        ) : (
+          <View
+            style={{
+              marginTop: 24,
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 16,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Date :</Text>
+              <View style={[styles.fieldLine, { marginTop: 4 }]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Lu et approuvé :</Text>
+              <View style={[styles.fieldLine, { marginTop: 4 }]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Signature :</Text>
+              <View style={[styles.fieldLine, { marginTop: 4 }]} />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Signature :</Text>
-            <View style={[styles.fieldLine, { marginTop: 4 }]} />
-          </View>
-        </View>
+        )}
 
         <PdfFooter />
       </Page>
