@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDropzone, type Accept, type FileRejection } from "react-dropzone";
+import { PhotoCropModal } from "./PhotoCropModal";
 
 export type FileFieldKey =
   | "fiche_inscription"
@@ -31,6 +32,41 @@ export function FileDrop({
   const [status, setStatus] = useState<Status>("empty");
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
+  // Photo de profil : fichier en attente de recadrage (ouvre la modale).
+  const [cropFile, setCropFile] = useState<File | null>(null);
+
+  // Upload effectif (fichier OU blob recadré). `name` = nom de fichier envoyé.
+  const uploadFile = useCallback(
+    async (payload: Blob | File, name: string) => {
+      setFileName(name);
+      setStatus("uploading");
+      setError("");
+      const fd = new FormData();
+      fd.append("file", payload, name);
+      fd.append("adherentId", adherentId);
+      fd.append("field", field);
+      try {
+        const res = await fetch("/api/upload-document", { method: "POST", body: fd });
+        if (res.ok) {
+          const data = await res.json();
+          setStatus("done");
+          onChange(field, { url: data.url, name });
+        } else if (res.status === 503) {
+          // Stockage non configuré → on accepte localement pour la démo.
+          setStatus("local");
+          onChange(field, { url: null, name });
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setStatus("error");
+          setError(data.error || "Échec de l'envoi.");
+        }
+      } catch {
+        setStatus("error");
+        setError("Erreur réseau pendant l'envoi.");
+      }
+    },
+    [adherentId, field, onChange],
+  );
 
   const onDrop = useCallback(
     async (accepted: File[], rejected: FileRejection[]) => {
@@ -47,35 +83,15 @@ export function FileDrop({
       }
       const file = accepted[0];
       if (!file) return;
-      setFileName(file.name);
-      setStatus("uploading");
-
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("adherentId", adherentId);
-      fd.append("field", field);
-
-      try {
-        const res = await fetch("/api/upload-document", { method: "POST", body: fd });
-        if (res.ok) {
-          const data = await res.json();
-          setStatus("done");
-          onChange(field, { url: data.url, name: file.name });
-        } else if (res.status === 503) {
-          // Stockage non configuré → on accepte localement pour la démo.
-          setStatus("local");
-          onChange(field, { url: null, name: file.name });
-        } else {
-          const data = await res.json().catch(() => ({}));
-          setStatus("error");
-          setError(data.error || "Échec de l'envoi.");
-        }
-      } catch {
-        setStatus("error");
-        setError("Erreur réseau pendant l'envoi.");
+      // Photo de profil + image → recadrage AVANT upload.
+      if (field === "photo" && file.type.startsWith("image/")) {
+        setFileName(file.name);
+        setCropFile(file);
+        return;
       }
+      await uploadFile(file, file.name);
     },
-    [adherentId, field, maxSizeMb, onChange],
+    [field, maxSizeMb, uploadFile],
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -132,6 +148,20 @@ export function FileDrop({
         )}
       </div>
       {error && <p className="mt-1.5 text-xs font-semibold text-red-600">{error}</p>}
+
+      {cropFile && (
+        <PhotoCropModal
+          file={cropFile}
+          onCancel={() => {
+            setCropFile(null);
+            if (status !== "done" && status !== "local") setStatus("empty");
+          }}
+          onConfirm={async (blob) => {
+            setCropFile(null);
+            await uploadFile(blob, "photo.jpg");
+          }}
+        />
+      )}
     </div>
   );
 }

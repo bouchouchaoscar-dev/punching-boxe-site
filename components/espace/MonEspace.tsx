@@ -14,6 +14,7 @@ import {
 import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
+import { PhotoCropModal } from "@/components/inscription/PhotoCropModal";
 import { euro, formuleLabel, remiseFamillePct } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
@@ -65,6 +66,8 @@ export function MonEspace() {
   const [uploading, setUploading] = useState<string | null>(null); // `${id}:${field}`
   const [toast, setToast] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // adherentId
+  // Photo de profil à recadrer (re-dépôt depuis l'espace).
+  const [cropPhoto, setCropPhoto] = useState<{ file: File; adherentId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const token = session?.access_token;
@@ -113,6 +116,43 @@ export function MonEspace() {
     if (token) loadDossier();
   }, [token, loadDossier]);
 
+  // Upload effectif vers l'espace (fichier OU blob recadré).
+  async function uploadEspace(
+    payload: Blob | File,
+    name: string,
+    field: FileFieldKey,
+    adherentId: string,
+  ) {
+    if (!token) return;
+    setUploading(`${adherentId}:${field}`);
+    try {
+      const fd = new FormData();
+      fd.append("file", payload, name);
+      fd.append("field", field);
+      fd.append("adherentId", adherentId);
+      const res = await fetch("/api/mon-espace", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadDossier();
+        showToast(
+          field === "certificat_medical"
+            ? "Certificat déposé, votre dossier va être vérifié !"
+            : "Document déposé ✓",
+        );
+      } else {
+        showToast(data.error || "Échec de l'envoi.");
+      }
+    } catch {
+      showToast("Erreur réseau pendant l'envoi.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
   function deposer(field: FileFieldKey, accept: string, adherentId: string) {
     if (!token) return;
     const input = document.createElement("input");
@@ -121,33 +161,12 @@ export function MonEspace() {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      setUploading(`${adherentId}:${field}`);
-      try {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("field", field);
-        fd.append("adherentId", adherentId);
-        const res = await fetch("/api/mon-espace", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: fd,
-        });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          await loadDossier();
-          showToast(
-            field === "certificat_medical"
-              ? "Certificat déposé, votre dossier va être vérifié !"
-              : "Document déposé ✓",
-          );
-        } else {
-          showToast(data.error || "Échec de l'envoi.");
-        }
-      } catch {
-        showToast("Erreur réseau pendant l'envoi.");
-      } finally {
-        setUploading(null);
+      // Photo de profil + image → recadrage avant upload (même UX qu'à l'inscription).
+      if (field === "photo" && file.type.startsWith("image/")) {
+        setCropPhoto({ file, adherentId });
+        return;
       }
+      await uploadEspace(file, file.name, field, adherentId);
     };
     input.click();
   }
@@ -445,6 +464,19 @@ export function MonEspace() {
             );
           })}
         </div>
+      )}
+
+      {/* Recadrage de la photo de profil (re-dépôt) */}
+      {cropPhoto && (
+        <PhotoCropModal
+          file={cropPhoto.file}
+          onCancel={() => setCropPhoto(null)}
+          onConfirm={async (blob) => {
+            const { adherentId } = cropPhoto;
+            setCropPhoto(null);
+            await uploadEspace(blob, "photo.jpg", "photo", adherentId);
+          }}
+        />
       )}
 
       {/* Modal de confirmation de suppression */}
