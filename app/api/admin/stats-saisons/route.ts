@@ -3,6 +3,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { saisonCourante } from "@/lib/saison";
 import { statutAge } from "@/lib/anciennete";
+import { estActifCompte } from "@/lib/adherents-actifs";
 
 export const runtime = "nodejs";
 
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
   const adh = await paginate(
     supabase,
     "adherents",
-    "id, saison, statut_paiement, engage_at, package, type_adherent, annule_at",
+    "id, saison, statut_paiement, echeances_payees, mode_paiement, package, type_adherent, annule_at",
   );
   const saisonByAdh = new Map<string, string>();
   const natifBySaison = new Map<string, { ca: number; eff: number; disc: Disc; ages: Ages }>();
@@ -82,12 +83,8 @@ export async function GET(request: Request) {
     const s = a.saison as string;
     if (!s) continue;
     saisonByAdh.set(a.id as string, s);
-    const actif =
-      !a.annule_at &&
-      (a.statut_paiement === "paye" ||
-        a.statut_paiement === "confirme_especes" ||
-        !!a.engage_at);
-    if (!actif) continue;
+    // Définition CENTRALE des actifs (même que segments/dashboard/foyer).
+    if (!estActifCompte(a)) continue;
     let agg = natifBySaison.get(s);
     if (!agg) { agg = { ca: 0, eff: 0, disc: discVide(), ages: agesVide() }; natifBySaison.set(s, agg); }
     agg.eff += 1;
