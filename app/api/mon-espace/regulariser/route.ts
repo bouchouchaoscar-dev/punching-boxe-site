@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       amount: Math.round(montant * 100),
       currency: "eur",
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: ["card"],
       // La carte saisie encaisse CETTE échéance ET reste réutilisable off-session.
       setup_future_usage: "off_session",
       description: `Régularisation échéance ${echec.numero_echeance} — ${adherent.prenom} ${adherent.nom}`,

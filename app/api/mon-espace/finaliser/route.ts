@@ -129,7 +129,7 @@ export async function POST(request: Request) {
         amount: Math.round(total * 100),
         currency: "eur",
         customer: customerId,
-        automatic_payment_methods: { enabled: true },
+        payment_method_types: ["card"],
         description: `Inscription ${adherent.saison} — ${adherent.prenom} ${adherent.nom}`,
         metadata: { adherentId: adherent.id, numero: "1", type: "comptant" },
       });
@@ -172,7 +172,7 @@ export async function POST(request: Request) {
     const setupIntent = await stripe.setupIntents.create({
       customer: customerId,
       usage: "off_session",
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: ["card"],
       metadata: { adherentId: adherent.id, echeances: String(n) },
     });
     await supabase
