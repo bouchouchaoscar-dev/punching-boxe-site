@@ -13,12 +13,16 @@ import { AttestationModal } from "./AttestationModal";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
+  deduireType,
   euro,
+  formuleLabel,
   nbEcheances,
   prepaDuMois,
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
+import { SignaturePad } from "./SignaturePad";
+import type { SignatureVect } from "@/lib/pdf/types";
 import {
   devisPourAdherent,
   planEcheances,
@@ -105,6 +109,17 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     reglement: EMPTY_FILE,
     photo: EMPTY_FILE,
   });
+
+  // Étape Documents : fiche + règlement remplis/signés EN LIGNE.
+  const [contactNom1, setContactNom1] = useState("");
+  const [contactTel1, setContactTel1] = useState("");
+  const [contactNom2, setContactNom2] = useState("");
+  const [contactTel2, setContactTel2] = useState("");
+  const [responsable, setResponsable] = useState("");
+  const [autorisationMedicale, setAutorisationMedicale] = useState(false);
+  const [signature, setSignature] = useState<SignatureVect | null>(null);
+  const [certifFiche, setCertifFiche] = useState(false);
+  const [certifReglement, setCertifReglement] = useState(false);
 
   const [mode, setMode] = useState<ModePaiement | null>(null);
   const [accepteConditions, setAccepteConditions] = useState(false);
@@ -266,7 +281,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     };
   }, [token, nom, prenom, dateNaissance, saisonEnCoursChoisie]);
 
-  const payload = (): InscriptionPayload => ({
+  // fiche/règlement sont GÉNÉRÉS + signés en ligne → leurs URLs viennent de
+  // /api/documents/generer (docs), pas d'un upload manuel.
+  const payload = (docs?: {
+    ficheUrl: string | null;
+    reglementUrl: string | null;
+  }): InscriptionPayload => ({
     nom,
     prenom,
     date_naissance: dateNaissance,
@@ -284,9 +304,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     lien_parente: lienParente as LienParente,
     saison_en_cours: saisonEnCoursChoisie,
     photo_url: files.photo.url,
-    fiche_inscription_url: files.fiche_inscription.url,
+    fiche_inscription_url: docs?.ficheUrl ?? null,
     certificat_medical_url: files.certificat_medical.url,
-    reglement_url: files.reglement.url,
+    reglement_url: docs?.reglementUrl ?? null,
     rattachements: rattachOpen
       ? rattachements.filter(
           (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
@@ -294,6 +314,66 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       : [],
     attestation_foyer: attesteRef.current,
   });
+
+  // Mineur : déduit de l'âge (né après 2013-01-01) → autorisation parentale.
+  const estMineur = !!dateNaissance && deduireType(dateNaissance) === "jeune";
+
+  // Génère + dépose la fiche et le règlement remplis/signés (renvoie les URLs).
+  async function genererDocs(): Promise<{
+    ficheUrl: string | null;
+    reglementUrl: string | null;
+  }> {
+    const dateSignature = new Date().toISOString();
+    const contacts = [
+      { nom: contactNom1.trim(), tel: contactTel1.trim() },
+      ...(contactNom2.trim() || contactTel2.trim()
+        ? [{ nom: contactNom2.trim(), tel: contactTel2.trim() }]
+        : []),
+    ];
+    const ficheData = {
+      nom,
+      prenom,
+      dateNaissance,
+      telephone,
+      email,
+      adresse,
+      codePostal,
+      ville,
+      packageType,
+      optionPrepa: prepa,
+      typeAdherent: deduireType(dateNaissance),
+      montantTotal: tarif.total,
+      mineur: estMineur,
+      responsable: estMineur ? responsable.trim() : null,
+      autorisationMedicale: estMineur ? autorisationMedicale : undefined,
+      contacts,
+      signature,
+      dateSignature,
+    };
+    const reglementData = { nom, prenom, signature, dateSignature };
+    try {
+      const res = await fetch("/api/documents/generer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          adherentId,
+          fiche: ficheData,
+          reglement: reglementData,
+        }),
+      });
+      if (!res.ok) return { ficheUrl: null, reglementUrl: null };
+      const d = await res.json();
+      return {
+        ficheUrl: d.ficheUrl ?? null,
+        reglementUrl: d.reglementUrl ?? null,
+      };
+    } catch {
+      return { ficheUrl: null, reglementUrl: null };
+    }
+  }
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
   const step1Ok =
@@ -307,16 +387,20 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     adresse.trim() &&
     codePostal.trim() &&
     ville.trim();
-  // Documents OBLIGATOIRES au dépôt. Le certificat médical n'est PAS dans
-  // cette liste car il dépend d'un tiers (médecin) et ne doit pas bloquer
-  // l'inscription/le paiement ; il reste obligatoire et déposable plus tard
-  // depuis l'espace adhérent.
-  const REQUIRED_FILES: FileFieldKey[] = [
-    "fiche_inscription",
-    "reglement",
-    "photo",
-  ];
-  const requiredFilesOk = REQUIRED_FILES.every((k) => files[k].name);
+  // Étape Documents : pour passer à la suite il faut la photo, le contact
+  // d'urgence (Nom + Tél), l'autorisation parentale si mineur, la SIGNATURE,
+  // et les 2 cases de certification. Le certificat médical reste NON bloquant
+  // (dépend du médecin, déposable plus tard depuis l'espace).
+  const contactUrgenceOk = !!contactNom1.trim() && !!contactTel1.trim();
+  const autorisationOk =
+    !estMineur || (!!responsable.trim() && autorisationMedicale);
+  const documentsOk =
+    !!files.photo.name &&
+    contactUrgenceOk &&
+    autorisationOk &&
+    signature !== null &&
+    certifFiche &&
+    certifReglement;
 
   function onFile(field: FileFieldKey, v: { url: string | null; name: string }) {
     setFiles((f) => ({ ...f, [field]: v }));
@@ -354,13 +438,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setBusy(true);
     setError("");
     try {
+      const docs = await genererDocs();
       const res = await fetch("/api/adherents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ ...payload(), mode_paiement: "especes" }),
+        body: JSON.stringify({ ...payload(docs), mode_paiement: "especes" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l'inscription.");
@@ -376,13 +461,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setBusy(true);
     setError("");
     try {
+      const docs = await genererDocs();
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(payload()),
+        body: JSON.stringify(payload(docs)),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Paiement indisponible.");
@@ -782,46 +868,162 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
             )}
 
             {step === 2 && (
-              <div className="space-y-4">
-                <p className="text-sm text-smoke">
-                  Téléchargez les documents (section au-dessus), remplissez-les,
-                  signez-les puis déposez-les ici. Photo d&apos;identité requise.
-                </p>
-                <FileDrop
-                  field="fiche_inscription"
-                  adherentId={adherentId}
-                  label="Fiche d'inscription signée"
-                  hint="PDF, max 5 Mo — glissez ou cliquez"
-                  accept={{ "application/pdf": [".pdf"] }}
-                  maxSizeMb={5}
-                  onChange={onFile}
-                />
+              <div className="space-y-6">
+                {/* Récap pré-rempli : la fiche et le règlement sont générés à partir
+                    de ces infos, remplis et signés en ligne (plus d'impression). */}
+                <div className="rounded-2xl border border-line bg-paper-2 p-4">
+                  <p className="text-sm font-semibold text-ink">
+                    Vos informations (déjà saisies)
+                  </p>
+                  <div className="mt-2 grid gap-1.5 text-sm text-smoke sm:grid-cols-2">
+                    <span><strong className="text-ink">Nom :</strong> {nom} {prenom}</span>
+                    <span><strong className="text-ink">Né(e) le :</strong> {dateNaissance || "—"}</span>
+                    <span><strong className="text-ink">Email :</strong> {email}</span>
+                    <span><strong className="text-ink">Tél :</strong> {telephone ? formatPhone(telephone) : "—"}</span>
+                    <span className="sm:col-span-2"><strong className="text-ink">Adresse :</strong> {adresse}, {codePostal} {ville}</span>
+                    <span className="sm:col-span-2"><strong className="text-ink">Formule :</strong> {formuleLabel(packageType, prepa)}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-smoke">
+                    Votre fiche d&apos;inscription et le règlement intérieur seront
+                    <strong> remplis et signés en ligne</strong> à partir de ces
+                    informations, puis ajoutés automatiquement à votre dossier.
+                  </p>
+                </div>
+
+                {/* Contact d'urgence (obligatoire) */}
+                <div>
+                  <h3 className="text-sm font-semibold text-ink">
+                    Personne à prévenir en cas d&apos;accident{" "}
+                    <span className="text-orange">*</span>
+                  </h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Input label="Nom" value={contactNom1} onChange={setContactNom1} required />
+                    <Input
+                      label="Téléphone"
+                      type="tel"
+                      value={formatPhone(contactTel1)}
+                      onChange={(v) => setContactTel1(normalizePhone(v))}
+                      placeholder="06 12 34 56 78"
+                      required
+                    />
+                  </div>
+                  <p className="mt-3 text-xs font-semibold text-smoke">
+                    Contact secondaire (facultatif)
+                  </p>
+                  <div className="mt-1.5 grid gap-3 sm:grid-cols-2">
+                    <Input label="Nom" value={contactNom2} onChange={setContactNom2} />
+                    <Input
+                      label="Téléphone"
+                      type="tel"
+                      value={formatPhone(contactTel2)}
+                      onChange={(v) => setContactTel2(normalizePhone(v))}
+                    />
+                  </div>
+                </div>
+
+                {/* Autorisation parentale (mineur) */}
+                {estMineur && (
+                  <div className="rounded-2xl border border-orange/25 bg-orange-50 p-4">
+                    <h3 className="text-sm font-semibold text-ink">
+                      Adhérent mineur — autorisation parentale{" "}
+                      <span className="text-orange">*</span>
+                    </h3>
+                    <div className="mt-3">
+                      <Input
+                        label="Responsable légal (nom et prénom)"
+                        value={responsable}
+                        onChange={setResponsable}
+                        required
+                      />
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={autorisationMedicale}
+                        onChange={(e) => setAutorisationMedicale(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                      />
+                      <span className="text-sm leading-relaxed text-ink">
+                        J&apos;autorise le professeur à prendre toutes les
+                        dispositions médicales en cas d&apos;accident (transport à
+                        l&apos;hôpital le plus proche compris).{" "}
+                        <span className="text-orange">*</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {/* Signature unique (fiche + règlement) */}
+                <div>
+                  <h3 className="text-sm font-semibold text-ink">
+                    Votre signature <span className="text-orange">*</span>
+                  </h3>
+                  <p className="mt-1 text-xs text-smoke">
+                    Une seule signature, appliquée à la fiche d&apos;inscription et
+                    au règlement intérieur.
+                  </p>
+                  <div className="mt-3">
+                    <SignaturePad onChange={setSignature} />
+                  </div>
+                </div>
+
+                {/* Cases de certification (1 par document) */}
+                <div className="space-y-3">
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
+                    <input
+                      type="checkbox"
+                      checked={certifFiche}
+                      onChange={(e) => setCertifFiche(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                    />
+                    <span className="text-sm leading-relaxed text-ink">
+                      Je certifie sur l&apos;honneur l&apos;exactitude des
+                      informations de ma <strong>fiche d&apos;inscription</strong>.{" "}
+                      <span className="text-orange">*</span>
+                    </span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
+                    <input
+                      type="checkbox"
+                      checked={certifReglement}
+                      onChange={(e) => setCertifReglement(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
+                    />
+                    <span className="text-sm leading-relaxed text-ink">
+                      J&apos;ai lu et j&apos;accepte le{" "}
+                      <a
+                        href="/api/documents/reglement-interieur"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-semibold text-orange hover:underline"
+                      >
+                        règlement intérieur
+                      </a>
+                      . <span className="text-orange">*</span>
+                    </span>
+                  </label>
+                </div>
+
+                {/* Certificat médical : upload (non bloquant) */}
                 <div>
                   <FileDrop
                     field="certificat_medical"
                     adherentId={adherentId}
-                    label="Certificat médical signé"
+                    label="Certificat médical"
                     hint="PDF, max 5 Mo"
                     accept={{ "application/pdf": [".pdf"] }}
                     maxSizeMb={5}
                     onChange={onFile}
                   />
                   <p className="mt-1.5 text-xs leading-relaxed text-smoke">
-                    Le certificat médical n&apos;est pas bloquant pour finaliser
-                    votre inscription et payer. Il reste cependant obligatoire et
-                    doit être fourni dans les meilleurs délais. Vous pourrez le
-                    déposer depuis votre espace personnel une fois obtenu.
+                    À faire établir par votre médecin, puis à déposer ici. Non
+                    bloquant pour finaliser votre inscription, mais obligatoire et à
+                    fournir dans les meilleurs délais (déposable plus tard depuis
+                    votre espace).
                   </p>
                 </div>
-                <FileDrop
-                  field="reglement"
-                  adherentId={adherentId}
-                  label="Règlement intérieur signé"
-                  hint="PDF, max 5 Mo"
-                  accept={{ "application/pdf": [".pdf"] }}
-                  maxSizeMb={5}
-                  onChange={onFile}
-                />
+
+                {/* Photo d'identité : recadrage */}
                 <FileDrop
                   field="photo"
                   adherentId={adherentId}
@@ -1034,7 +1236,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 onClick={next}
                 size="lg"
                 disabled={
-                  (step === 0 && !step1Ok) || (step === 2 && !requiredFilesOk)
+                  (step === 0 && !step1Ok) || (step === 2 && !documentsOk)
                 }
               >
                 Continuer
