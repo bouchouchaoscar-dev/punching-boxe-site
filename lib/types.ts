@@ -75,6 +75,10 @@ export interface Adherent {
   // (comportement groupé historique). + trace de l'attestation sur l'honneur.
   foyer_id?: string | null;
   attestation_foyer_at?: string | null;
+  // Signature en ligne (fiche + règlement générés) : horodatage + IP (trace).
+  fiche_signee_at?: string | null;
+  reglement_signee_at?: string | null;
+  signature_ip?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

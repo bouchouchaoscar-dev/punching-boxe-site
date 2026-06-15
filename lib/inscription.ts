@@ -43,6 +43,13 @@ export interface InscriptionPayload {
   attestation_foyer?: boolean;
 }
 
+/** IP du client (derrière le proxy Vercel) pour la trace de signature. */
+export function clientIp(request: Request): string | null {
+  const fwd = request.headers.get("x-forwarded-for");
+  if (fwd) return fwd.split(",")[0].trim();
+  return request.headers.get("x-real-ip");
+}
+
 export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.nom?.trim()) return "Le nom est requis.";
   if (!p.prenom?.trim()) return "Le prénom est requis.";
@@ -180,4 +187,7 @@ export const OPTIONAL_DOC_COLUMNS = [
   "match_a_verifier",
   "foyer_id",
   "attestation_foyer_at",
+  "fiche_signee_at",
+  "reglement_signee_at",
+  "signature_ip",
 ] as const;

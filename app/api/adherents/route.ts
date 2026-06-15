@@ -3,6 +3,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import {
   buildAdherentInsert,
   validatePayload,
+  clientIp,
   OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
@@ -103,6 +104,13 @@ export async function POST(request: Request) {
     match_a_verifier: anc.ambigu,
     foyer_id: analyse.foyerFinal,
     attestation_foyer_at: attestationAt,
+    // Fiche + règlement générés/signés en ligne → AUTO-VALIDÉS + trace.
+    fiche_valide: !!payload.fiche_inscription_url,
+    reglement_valide: !!payload.reglement_url,
+    fiche_signee_at: payload.fiche_inscription_url ? new Date().toISOString() : null,
+    reglement_signee_at: payload.reglement_url ? new Date().toISOString() : null,
+    signature_ip:
+      payload.fiche_inscription_url || payload.reglement_url ? clientIp(request) : null,
   };
 
   let { data, error } = await supabase
