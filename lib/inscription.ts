@@ -2,6 +2,7 @@ import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
 import { matchKey } from "./anciennete";
 import type { NewAdherent } from "./types";
+import type { FicheData, ReglementData } from "./pdf/types";
 
 /** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
 export type LienParente = "moi" | "enfant" | "frere_soeur" | "conjoint" | "autre";
@@ -41,6 +42,14 @@ export interface InscriptionPayload {
   rattachements?: { nom?: string; prenom?: string; date_naissance?: string }[];
   // Attestation sur l'honneur du foyer (cochée côté client avant validation).
   attestation_foyer?: boolean;
+  // Génération serveur des documents signés (fiche + règlement) : le client
+  // envoie le dossier de stockage + les DONNÉES (avec signatures), le serveur
+  // rend + dépose + remplit fiche_inscription_url / reglement_url AVANT l'insert
+  // (génération garantie, parallélisée). Anciens clients (URLs directes) restent
+  // tolérés via fiche_inscription_url / reglement_url.
+  adherentId?: string;
+  doc_fiche?: FicheData;
+  doc_reglement?: ReglementData;
 }
 
 /** IP du client (derrière le proxy Vercel) pour la trace de signature. */

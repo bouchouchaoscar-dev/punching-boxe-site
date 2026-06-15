@@ -15,6 +15,7 @@ import {
   appliquerMerges,
   rattachementsRenseignes,
 } from "@/lib/foyer-server";
+import { resoudreDocs } from "@/lib/pdf/generer-server";
 import { getAuthUser } from "@/lib/auth-server";
 import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
 import { evaluerAnciennete } from "@/lib/anciennete";
@@ -84,9 +85,16 @@ export async function POST(request: Request) {
     (lienCree || remiseApplicable) && payload.attestation_foyer === true
       ? new Date().toISOString()
       : null;
+
+  // Documents signés générés + déposés CÔTÉ SERVEUR (synchrone, garantis avant
+  // l'insert, rendu+upload parallélisés). Repli compat sur les URLs client.
+  const docs = await resoudreDocs(supabase, payload);
+
   const payloadAuto = {
     ...payload,
     nb_membres_famille: analyse.nbMembres,
+    fiche_inscription_url: docs.ficheUrl,
+    reglement_url: docs.reglementUrl,
   };
 
   const now = new Date();
@@ -129,12 +137,11 @@ export async function POST(request: Request) {
     // Fiche + règlement générés/signés en ligne → AUTO-VALIDÉS (PDF système,
     // fiables) + trace (horodatage signature + IP). Certificat/photo restent
     // en validation manuelle.
-    fiche_valide: !!payload.fiche_inscription_url,
-    reglement_valide: !!payload.reglement_url,
-    fiche_signee_at: payload.fiche_inscription_url ? new Date().toISOString() : null,
-    reglement_signee_at: payload.reglement_url ? new Date().toISOString() : null,
-    signature_ip:
-      payload.fiche_inscription_url || payload.reglement_url ? clientIp(request) : null,
+    fiche_valide: !!docs.ficheUrl,
+    reglement_valide: !!docs.reglementUrl,
+    fiche_signee_at: docs.ficheUrl ? new Date().toISOString() : null,
+    reglement_signee_at: docs.reglementUrl ? new Date().toISOString() : null,
+    signature_ip: docs.ficheUrl || docs.reglementUrl ? clientIp(request) : null,
   };
   let { data: adherent, error: insErr } = await supabase
     .from("adherents")

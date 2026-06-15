@@ -297,38 +297,41 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   }, [token, nom, prenom, dateNaissance, saisonEnCoursChoisie]);
 
   // fiche/règlement sont GÉNÉRÉS + signés en ligne → leurs URLs viennent de
-  // /api/documents/generer (docs), pas d'un upload manuel.
-  const payload = (docs?: {
-    ficheUrl: string | null;
-    reglementUrl: string | null;
-  }): InscriptionPayload => ({
-    nom,
-    prenom,
-    date_naissance: dateNaissance,
-    email,
-    telephone,
-    adresse,
-    ville,
-    code_postal: codePostal,
-    package: packageType,
-    nouveau_membre: paieAdhesion,
-    option_prepa_physique: prepa,
-    nb_membres_famille: nbFoyerEffectif,
-    mode_paiement: mode ?? "especes",
-    // Choix explicite garanti par le gating step1Ok (jamais de défaut silencieux).
-    lien_parente: lienParente as LienParente,
-    saison_en_cours: saisonEnCoursChoisie,
-    photo_url: files.photo.url,
-    fiche_inscription_url: docs?.ficheUrl ?? null,
-    certificat_medical_url: files.certificat_medical.url,
-    reglement_url: docs?.reglementUrl ?? null,
-    rattachements: rattachOpen
-      ? rattachements.filter(
-          (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
-        )
-      : [],
-    attestation_foyer: attesteRef.current,
-  });
+  // les DONNÉES fiche/règlement (avec signatures) sont envoyées au serveur, qui
+  // génère + dépose les PDF AVANT l'insert (1 seul aller-retour, rendu garanti).
+  const payload = (): InscriptionPayload => {
+    const docs = buildDocsData();
+    return {
+      nom,
+      prenom,
+      date_naissance: dateNaissance,
+      email,
+      telephone,
+      adresse,
+      ville,
+      code_postal: codePostal,
+      package: packageType,
+      nouveau_membre: paieAdhesion,
+      option_prepa_physique: prepa,
+      nb_membres_famille: nbFoyerEffectif,
+      mode_paiement: mode ?? "especes",
+      // Choix explicite garanti par le gating step1Ok (jamais de défaut silencieux).
+      lien_parente: lienParente as LienParente,
+      saison_en_cours: saisonEnCoursChoisie,
+      photo_url: files.photo.url,
+      certificat_medical_url: files.certificat_medical.url,
+      // Génération serveur : dossier de stockage + données signées.
+      adherentId,
+      doc_fiche: docs.fiche,
+      doc_reglement: docs.reglement,
+      rattachements: rattachOpen
+        ? rattachements.filter(
+            (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
+          )
+        : [],
+      attestation_foyer: attesteRef.current,
+    };
+  };
 
   // Mineur : déduit de l'âge (né après 2013-01-01) → autorisation parentale.
   const estMineur = !!dateNaissance && deduireType(dateNaissance) === "jeune";
@@ -365,46 +368,24 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     return { nom, prenom };
   }
 
-  // Génère + dépose la fiche et le règlement remplis/signés (renvoie les URLs).
-  // Chaque document porte SA signature et SA date de signature (instant réel
-  // capturé dans la modale ; repli sur maintenant si absent).
-  async function genererDocs(): Promise<{
-    ficheUrl: string | null;
-    reglementUrl: string | null;
-  }> {
+  // Données fiche/règlement AVEC signatures, envoyées au serveur qui génère +
+  // dépose les PDF (rendu garanti avant l'insert, sur le serveur → 1 seul aller-
+  // retour). Chaque document porte SA signature et SA date (instant réel capturé
+  // dans la modale ; repli sur maintenant si absent).
+  function buildDocsData(): { fiche: FicheData; reglement: ReglementData } {
     const now = new Date().toISOString();
-    const ficheData: FicheData = {
-      ...buildFicheData(),
-      signature: signatureFiche,
-      dateSignature: signedAtFiche ?? now,
+    return {
+      fiche: {
+        ...buildFicheData(),
+        signature: signatureFiche,
+        dateSignature: signedAtFiche ?? now,
+      },
+      reglement: {
+        ...buildReglementData(),
+        signature: signatureReglement,
+        dateSignature: signedAtReglement ?? now,
+      },
     };
-    const reglementData: ReglementData = {
-      ...buildReglementData(),
-      signature: signatureReglement,
-      dateSignature: signedAtReglement ?? now,
-    };
-    try {
-      const res = await fetch("/api/documents/generer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          adherentId,
-          fiche: ficheData,
-          reglement: reglementData,
-        }),
-      });
-      if (!res.ok) return { ficheUrl: null, reglementUrl: null };
-      const d = await res.json();
-      return {
-        ficheUrl: d.ficheUrl ?? null,
-        reglementUrl: d.reglementUrl ?? null,
-      };
-    } catch {
-      return { ficheUrl: null, reglementUrl: null };
-    }
   }
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
@@ -471,14 +452,15 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setBusy(true);
     setError("");
     try {
-      const docs = await genererDocs();
+      // Le serveur génère + dépose la fiche et le règlement (synchrone, garanti)
+      // à partir des données envoyées dans le payload, puis crée le dossier.
       const res = await fetch("/api/adherents", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ ...payload(docs), mode_paiement: "especes" }),
+        body: JSON.stringify({ ...payload(), mode_paiement: "especes" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur lors de l'inscription.");
@@ -494,14 +476,15 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     setBusy(true);
     setError("");
     try {
-      const docs = await genererDocs();
+      // Génération serveur des documents incluse dans la création du PaymentIntent
+      // (1 seul aller-retour) → le formulaire de carte s'affiche plus vite.
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(payload(docs)),
+        body: JSON.stringify(payload()),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Paiement indisponible.");
@@ -1308,7 +1291,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 size="lg"
                 disabled={busy || !accepteConditions}
               >
-                {busy ? "Validation…" : "Valider mon inscription"}
+                {busy
+                  ? "Finalisation de votre inscription…"
+                  : "Valider mon inscription"}
               </ButtonAction>
             )}
             {step === 3 && mode && mode !== "especes" && (
@@ -1317,7 +1302,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 size="lg"
                 disabled={busy || !accepteConditions}
               >
-                {busy ? "Préparation…" : "Procéder au paiement"}
+                {busy
+                  ? "Préparation du paiement sécurisé…"
+                  : "Procéder au paiement"}
               </ButtonAction>
             )}
           </div>
