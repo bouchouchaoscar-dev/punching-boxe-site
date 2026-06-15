@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
 const MOIS = [
@@ -28,6 +36,11 @@ function parseISO(iso: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
+// Largeur cible du panneau ; rétrécie au besoin pour tenir dans le viewport.
+const PANEL_W = 320;
+const MARGIN = 8;
+const PANEL_H = 360; // hauteur estimée pour décider d'ouvrir vers le haut
+
 export function DatePicker({
   value,
   onChange,
@@ -43,6 +56,7 @@ export function DatePicker({
 }) {
   const selected = parseISO(value);
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<"days" | "years">("days");
   const [direction, setDirection] = useState(0);
   const [view, setView] = useState(() => {
@@ -50,13 +64,42 @@ export function DatePicker({
     return new Date(base.getFullYear(), base.getMonth(), 1);
   });
   const [yearPage, setYearPage] = useState(() => (selected ?? new Date(2010, 0, 1)).getFullYear());
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: PANEL_W });
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Fermeture au clic extérieur + Échap
+  // Portal monté uniquement côté client.
+  useEffect(() => setMounted(true), []);
+
+  // Calcule la position FIXE du panneau à partir du bouton déclencheur, en le
+  // contraignant au viewport (jamais coupé, même dans un conteneur overflow-hidden
+  // ou une colonne étroite). Ouvre vers le haut si pas de place en bas.
+  const updatePosition = useCallback(() => {
+    const btn = triggerRef.current;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.min(PANEL_W, vw - MARGIN * 2);
+    let left = r.left;
+    if (left + width > vw - MARGIN) left = vw - MARGIN - width;
+    if (left < MARGIN) left = MARGIN;
+    let top = r.bottom + 8;
+    if (top + PANEL_H > vh - MARGIN && r.top - 8 - PANEL_H > MARGIN) {
+      top = r.top - 8 - PANEL_H;
+    }
+    setCoords({ top, left, width });
+  }, []);
+
+  // Fermeture au clic extérieur (trigger + panneau) + Échap.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (ref.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("mousedown", onDown);
@@ -66,6 +109,18 @@ export function DatePicker({
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+
+  // Position au montage du panneau + repositionnement sur scroll / resize.
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
 
   const year = view.getFullYear();
   const month = view.getMonth();
@@ -96,6 +151,125 @@ export function DatePicker({
     return Array.from({ length: 12 }, (_, i) => start + i);
   }, [yearPage]);
 
+  const panel = (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={panelRef}
+          role="dialog"
+          initial={{ opacity: 0, y: 8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.98 }}
+          transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            position: "fixed",
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+          }}
+          className="z-[100] overflow-hidden rounded-xl border border-line bg-white p-3 shadow-[0_30px_60px_-25px_rgba(0,0,0,0.3)]"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-1 pb-2">
+            <Arrow
+              dir="left"
+              onClick={() => (mode === "days" ? changeMonth(-1) : setYearPage((y) => y - 12))}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setYearPage(year);
+                setMode((m) => (m === "days" ? "years" : "days"));
+              }}
+              className="rounded-lg px-3 py-1 font-display text-sm font-extrabold uppercase tracking-tight text-ink transition-colors hover:bg-paper-2"
+            >
+              {mode === "days" ? `${MOIS[month]} ${year}` : `${years[0]} – ${years[11]}`}
+            </button>
+            <Arrow
+              dir="right"
+              onClick={() => (mode === "days" ? changeMonth(1) : setYearPage((y) => y + 12))}
+            />
+          </div>
+
+          {mode === "days" ? (
+            <>
+              <div className="grid grid-cols-7 px-1 pb-1">
+                {JOURS.map((j, i) => (
+                  <span
+                    key={i}
+                    className="py-1 text-center text-xs font-bold uppercase text-smoke"
+                  >
+                    {j}
+                  </span>
+                ))}
+              </div>
+              <div className="relative overflow-hidden">
+                <AnimatePresence initial={false} custom={direction} mode="popLayout">
+                  <motion.div
+                    key={`${year}-${month}`}
+                    custom={direction}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="grid grid-cols-7 gap-0.5"
+                  >
+                    {cells.map((day, i) => {
+                      if (day === null) return <span key={i} />;
+                      const iso = toISO(new Date(year, month, day));
+                      const isSelected = iso === value;
+                      const isToday = iso === todayISO;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => pick(day)}
+                          className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors ${
+                            isSelected
+                              ? "bg-orange font-bold text-white"
+                              : isToday
+                                ? "font-bold text-orange hover:bg-paper-2"
+                                : "text-ink hover:bg-paper-2"
+                          }`}
+                        >
+                          {day}
+                        </button>
+                      );
+                    })}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5 p-1">
+              {years.map((y) => {
+                const isSel = selected?.getFullYear() === y;
+                return (
+                  <button
+                    key={y}
+                    type="button"
+                    onClick={() => {
+                      setView(new Date(y, month, 1));
+                      setMode("days");
+                    }}
+                    className={`rounded-lg py-2.5 text-sm font-semibold transition-colors ${
+                      isSel
+                        ? "bg-orange text-white"
+                        : "text-ink hover:bg-paper-2"
+                    }`}
+                  >
+                    {y}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
   return (
     <div className="relative" ref={ref}>
       {label && (
@@ -105,6 +279,7 @@ export function DatePicker({
       )}
 
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
@@ -122,115 +297,7 @@ export function DatePicker({
         </svg>
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            role="dialog"
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 z-50 mt-2 w-[320px] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-line bg-white p-3 shadow-[0_30px_60px_-25px_rgba(0,0,0,0.3)]"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-1 pb-2">
-              <Arrow
-                dir="left"
-                onClick={() => (mode === "days" ? changeMonth(-1) : setYearPage((y) => y - 12))}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setYearPage(year);
-                  setMode((m) => (m === "days" ? "years" : "days"));
-                }}
-                className="rounded-lg px-3 py-1 font-display text-sm font-extrabold uppercase tracking-tight text-ink transition-colors hover:bg-paper-2"
-              >
-                {mode === "days" ? `${MOIS[month]} ${year}` : `${years[0]} – ${years[11]}`}
-              </button>
-              <Arrow
-                dir="right"
-                onClick={() => (mode === "days" ? changeMonth(1) : setYearPage((y) => y + 12))}
-              />
-            </div>
-
-            {mode === "days" ? (
-              <>
-                <div className="grid grid-cols-7 px-1 pb-1">
-                  {JOURS.map((j, i) => (
-                    <span
-                      key={i}
-                      className="py-1 text-center text-xs font-bold uppercase text-smoke"
-                    >
-                      {j}
-                    </span>
-                  ))}
-                </div>
-                <div className="relative overflow-hidden">
-                  <AnimatePresence initial={false} custom={direction} mode="popLayout">
-                    <motion.div
-                      key={`${year}-${month}`}
-                      custom={direction}
-                      variants={slideVariants}
-                      initial="enter"
-                      animate="center"
-                      exit="exit"
-                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                      className="grid grid-cols-7 gap-0.5"
-                    >
-                      {cells.map((day, i) => {
-                        if (day === null) return <span key={i} />;
-                        const iso = toISO(new Date(year, month, day));
-                        const isSelected = iso === value;
-                        const isToday = iso === todayISO;
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => pick(day)}
-                            className={`mx-auto flex h-9 w-9 items-center justify-center rounded-full text-sm transition-colors ${
-                              isSelected
-                                ? "bg-orange font-bold text-white"
-                                : isToday
-                                  ? "font-bold text-orange hover:bg-paper-2"
-                                  : "text-ink hover:bg-paper-2"
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        );
-                      })}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-3 gap-1.5 p-1">
-                {years.map((y) => {
-                  const isSel = selected?.getFullYear() === y;
-                  return (
-                    <button
-                      key={y}
-                      type="button"
-                      onClick={() => {
-                        setView(new Date(y, month, 1));
-                        setMode("days");
-                      }}
-                      className={`rounded-lg py-2.5 text-sm font-semibold transition-colors ${
-                        isSel
-                          ? "bg-orange text-white"
-                          : "text-ink hover:bg-paper-2"
-                      }`}
-                    >
-                      {y}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {mounted ? createPortal(panel, document.body) : null}
     </div>
   );
 }
