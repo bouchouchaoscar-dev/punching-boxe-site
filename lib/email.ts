@@ -307,40 +307,78 @@ export async function sendPaiementEchec(d: {
   });
 }
 
-/** 6 — Email à l'adhérent : remboursement effectué (adaptatif carte/espèces,
- *  fin d'inscription ou non). Le montant est le montant RÉELLEMENT remboursé. */
-export async function sendRemboursement(d: {
-  prenom: string;
-  email: string;
+export type RemboursementContexte = {
   montant: number;
-  canal: "stripe" | "especes";
-  ferme: boolean;
-}) {
+  canal: "stripe" | "especes" | "virement";
+  total: boolean; // true = tout le remboursable a été remboursé
+  ferme: boolean; // true = fin d'inscription
+  echeancesFutures: number; // nb d'échéances futures qui existaient (0 si 1 fois)
+};
+
+/** Matrice ADAPTATIVE du mail de remboursement : ne mentionne QUE ce qui
+ *  s'applique réellement (canal réel, total/partiel, fermeture ou non,
+ *  prélèvements à venir uniquement s'il existait des échéances futures).
+ *  Fonction PURE (testable) → renvoie sujet + lignes du corps. */
+export function messageRemboursement(d: RemboursementContexte): {
+  subject: string;
+  ligneMontant: string;
+  ligneSituation: string;
+} {
+  const moyen =
+    d.canal === "especes"
+      ? "en espèces"
+      : d.canal === "virement"
+        ? "par virement"
+        : "sur votre carte bancaire";
+
+  // Ligne montant : total vs partiel.
+  const ligneMontant = d.total
+    ? `Vous avez été remboursé de l'intégralité de votre paiement, soit <strong>${euro(d.montant)}</strong>, ${moyen}.`
+    : `Vous avez été remboursé de <strong>${euro(d.montant)}</strong> ${moyen}.`;
+
+  // Ligne situation : combine fermeture × prélèvements futurs RÉELS.
+  const aDesEcheances = d.echeancesFutures > 0;
+  let ligneSituation = "";
+  if (d.ferme) {
+    ligneSituation = aDesEcheances
+      ? "Vos prélèvements à venir sont arrêtés et votre inscription prend fin."
+      : "Votre inscription prend fin.";
+  } else if (aDesEcheances) {
+    // Cas qui marche déjà : fractionné partiel sans fermeture.
+    ligneSituation =
+      "Vos prélèvements se poursuivent normalement aux dates prévues.";
+  }
+  // (!ferme && pas d'échéances → aucune ligne situation : rien à dire.)
+
+  return {
+    subject: d.ferme
+      ? "Remboursement et fin de votre inscription"
+      : "Confirmation de votre remboursement",
+    ligneMontant,
+    ligneSituation,
+  };
+}
+
+/** 6 — Email à l'adhérent : remboursement effectué. Le montant est le montant
+ *  RÉELLEMENT remboursé. Wording via la matrice pure messageRemboursement. */
+export async function sendRemboursement(
+  d: RemboursementContexte & { prenom: string; email: string },
+) {
   const client = getResend();
   if (!client) return { skipped: true };
 
-  const moyen = d.canal === "especes" ? "en espèces" : "par carte";
-  const suite = d.ferme
-    ? "Vos prélèvements sont arrêtés et votre inscription prend fin."
-    : "Vos prélèvements se poursuivent normalement aux dates prévues.";
+  const { subject, ligneMontant, ligneSituation } = messageRemboursement(d);
 
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Confirmation de remboursement</h1>
     <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
-    <p style="line-height:1.6;color:#444">Vous avez été remboursé de <strong>${euro(d.montant)}</strong> ${moyen}.</p>
-    <p style="line-height:1.6;color:#444">${suite}</p>
+    <p style="line-height:1.6;color:#444">${ligneMontant}</p>
+    ${ligneSituation ? `<p style="line-height:1.6;color:#444">${ligneSituation}</p>` : ""}
     <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon dossier")}</p>
     <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
   `);
 
-  return client.emails.send({
-    from: FROM,
-    to: d.email,
-    subject: d.ferme
-      ? "Remboursement et fin de votre inscription"
-      : "Confirmation de votre remboursement",
-    html,
-  });
+  return client.emails.send({ from: FROM, to: d.email, subject, html });
 }
 
 /** 7 — Email à l'adhérent : fin d'inscription SANS remboursement (clôture). */

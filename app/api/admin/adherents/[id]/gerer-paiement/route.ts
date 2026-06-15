@@ -140,6 +140,17 @@ export async function POST(request: Request, { params }: Ctx) {
       return await fail(503, "Paiement en ligne non configuré.");
     }
 
+    // Échéances FUTURES réellement existantes (fractionné non terminé) AVANT
+    // toute action → permet au mail de ne parler de prélèvements que s'il y en
+    // avait (jamais pour un paiement en 1 fois, espèces ou carte).
+    const { count: futuresAvant } = await supabase
+      .from("paiements")
+      .select("id", { count: "exact", head: true })
+      .eq("adherent_id", id)
+      .in("statut", ["en_attente", "en_cours", "echec"])
+      .not("numero_echeance", "is", null);
+    const echeancesFutures = futuresAvant ?? 0;
+
     // --- ORDRE : STOP d'abord (si fermeture), puis REFUND. ---
     let echeancesAnnulees = 0;
     if (fermer) {
@@ -218,7 +229,10 @@ export async function POST(request: Request, { params }: Ctx) {
             email: adherent.email,
             montant: montantEffectif,
             canal,
+            // Total = tout le remboursable du canal a été remboursé.
+            total: cents(montantEffectif) >= cents(remboursable),
             ferme: fermer,
+            echeancesFutures,
           });
         } else if (fermer) {
           await sendFinInscription({
