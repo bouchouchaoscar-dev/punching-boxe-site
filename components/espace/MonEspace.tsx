@@ -42,10 +42,12 @@ const DOCS: {
   field: FileFieldKey;
   label: string;
   accept: string;
+  // Généré + signé en ligne à l'inscription (pas de dépôt manuel ici).
+  enLigne?: boolean;
 }[] = [
-  { key: "fiche_inscription_url", base: "fiche", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf" },
+  { key: "fiche_inscription_url", base: "fiche", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf", enLigne: true },
   { key: "certificat_medical_url", base: "certificat", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
-  { key: "reglement_url", base: "reglement", field: "reglement", label: "Règlement intérieur", accept: "application/pdf" },
+  { key: "reglement_url", base: "reglement", field: "reglement", label: "Règlement intérieur", accept: "application/pdf", enLigne: true },
   { key: "photo_url", base: "photo", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
 ];
 
@@ -401,25 +403,32 @@ export function MonEspace() {
                                 <p className="text-sm font-semibold text-ink">{d.label}</p>
                                 <DocStatus statut={statut} url={url} motif={motifRefus} />
                               </div>
-                              {(statut === "manquant" || statut === "refus") && (
-                                <button
-                                  onClick={() => deposer(d.field, d.accept, a.id)}
-                                  disabled={isUp}
-                                  className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
-                                    statut === "refus"
-                                      ? "bg-red-600 text-white hover:bg-red-700"
-                                      : "border border-line bg-white text-ink hover:border-orange hover:text-orange"
-                                  }`}
-                                >
-                                  {isUp
-                                    ? "Envoi…"
-                                    : statut === "refus"
-                                      ? "Remplacer"
-                                      : d.field === "certificat_medical"
-                                        ? "Déposer le certificat médical"
-                                        : "Déposer"}
-                                </button>
+                              {/* Fiche & règlement : signés EN LIGNE → pas de dépôt manuel. */}
+                              {d.enLigne && statut === "manquant" && (
+                                <span className="shrink-0 text-right text-xs text-smoke">
+                                  Signé en ligne lors de l&apos;inscription
+                                </span>
                               )}
+                              {!d.enLigne &&
+                                (statut === "manquant" || statut === "refus") && (
+                                  <button
+                                    onClick={() => deposer(d.field, d.accept, a.id)}
+                                    disabled={isUp}
+                                    className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors disabled:opacity-50 ${
+                                      statut === "refus"
+                                        ? "bg-red-600 text-white hover:bg-red-700"
+                                        : "border border-line bg-white text-ink hover:border-orange hover:text-orange"
+                                    }`}
+                                  >
+                                    {isUp
+                                      ? "Envoi…"
+                                      : statut === "refus"
+                                        ? "Remplacer"
+                                        : d.field === "certificat_medical"
+                                          ? "Déposer le document du médecin"
+                                          : "Déposer"}
+                                  </button>
+                                )}
                             </div>
                           );
                         })}

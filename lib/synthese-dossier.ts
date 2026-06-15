@@ -141,8 +141,8 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
     // Une seule pièce obligatoire manquante → "Il ne reste que…" (encourageant).
     const corps =
       obligManquantes.length === 1
-        ? `Il ne reste que ${obligManquantes[0].label} à déposer`
-        : `Il vous manque ${obligManquantes.map((x) => x.label).join(", ")} à déposer`;
+        ? `Il ne reste que ${obligManquantes[0].label} à fournir`
+        : `Il vous manque ${obligManquantes.map((x) => x.label).join(", ")} à fournir`;
     // Le certificat (non bloquant mais obligatoire) est mentionné en note.
     const noteCertif = certifManquant
       ? " À fournir aussi dans les meilleurs délais : votre certificat médical (obligatoire pour la pratique)."

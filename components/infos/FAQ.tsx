@@ -19,7 +19,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: "Comment s'inscrire ?",
-    a: "L'inscription se fait 100 % en ligne : créez votre espace adhérent en quelques secondes, téléchargez et déposez vos documents (fiche d'inscription, règlement signé, photo d'identité), puis réglez en ligne ou en espèces.",
+    a: "L'inscription se fait 100 % en ligne : créez votre espace adhérent en quelques secondes, remplissez et signez en ligne votre fiche d'inscription et le règlement intérieur, déposez votre photo d'identité (et votre certificat médical établi par le médecin), puis réglez en ligne ou en espèces.",
   },
   {
     q: "Y a-t-il une séance d'essai gratuite ?",

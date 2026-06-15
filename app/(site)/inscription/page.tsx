@@ -19,7 +19,7 @@ export default function InscriptionPage() {
       <PageHero
         eyebrow="Inscription · Saison 2026-2027"
         title={<>Rejoignez le club</>}
-        intro="Inscription 100% en ligne depuis votre espace adhérent personnel. Téléchargez vos documents, remplissez le formulaire, déposez vos pièces et réglez en ligne ou en espèces. Tout se fait en quelques minutes."
+        intro="Inscription 100% en ligne depuis votre espace adhérent personnel. Remplissez le formulaire, signez votre fiche et le règlement en ligne, déposez votre photo (et votre certificat médical), puis réglez en ligne ou en espèces. Tout se fait en quelques minutes."
       />
 
       <DocumentsSection />
