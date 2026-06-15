@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { matchKey } from "./anciennete";
 import { estActifCompte } from "./adherents-actifs";
 import {
-  compterFoyer,
+  compteDansFoyer,
   resoudreFoyerCible,
   type FoyerSource,
   type ResolutionFoyer,
@@ -19,7 +19,13 @@ export type RattachementInput = {
   date_naissance?: string;
 };
 
-const COLS_FOYER = "id, statut_paiement, echeances_payees, mode_paiement, annule_at";
+const COLS_FOYER =
+  "id, prenom, nom, statut_paiement, echeances_payees, mode_paiement, annule_at";
+
+/** Prénom + nom (nom en capitales) d'une ligne foyer, pour l'affichage. */
+function nomComplet(r: { prenom?: string | null; nom?: string | null }): string {
+  return `${(r.prenom ?? "").trim()} ${(r.nom ?? "").trim()}`.trim();
+}
 
 /** Garde les rattachements réellement renseignés (au moins un champ). */
 export function rattachementsRenseignes(
@@ -76,25 +82,25 @@ async function foyerDuTitulaire(
   return (data?.[0]?.foyer_id as string | null) ?? null;
 }
 
-/** Décompte dans un scope simple : par foyer_id si fourni, sinon par titulaire. */
-async function compterScope(
+/** Lignes d'un scope simple : par foyer_id si fourni, sinon par titulaire. */
+async function lireScope(
   supabase: SupabaseClient,
   foyerId: string | null,
   titulaireId: string,
-): Promise<number> {
+): Promise<any[]> {
   const q = supabase.from("adherents").select(COLS_FOYER);
   const { data } = foyerId
     ? await q.eq("foyer_id", foyerId)
     : await q.eq("titulaire_id", titulaireId);
-  return compterFoyer(data ?? []);
+  return data ?? [];
 }
 
-/** Décompte de l'UNION (sans écrire) : foyers réels ∪ titulaires sans foyer. */
-async function compterUnion(
+/** Lignes de l'UNION (sans écrire) : foyers réels ∪ titulaires sans foyer. */
+async function lireUnion(
   supabase: SupabaseClient,
   foyers: string[],
   titulaires: string[],
-): Promise<number> {
+): Promise<any[]> {
   const byId = new Map<string, any>();
   if (foyers.length) {
     const { data } = await supabase
@@ -111,7 +117,16 @@ async function compterUnion(
       .is("foyer_id", null);
     for (const r of data ?? []) byId.set(r.id, r);
   }
-  return compterFoyer([...byId.values()]);
+  return [...byId.values()];
+}
+
+/** Décompte + noms des membres qui COMPTENT, parmi des lignes foyer. */
+function decompteEtNoms(rows: any[]): { nb: number; noms: string[] } {
+  const comptes = rows.filter(compteDansFoyer);
+  return {
+    nb: comptes.length,
+    noms: comptes.map(nomComplet).filter(Boolean),
+  };
 }
 
 export type AnalyseFoyer =
@@ -120,6 +135,7 @@ export type AnalyseFoyer =
       ok: true;
       foyerFinal: string | null; // foyer_id à poser sur le NOUVEAU dossier
       nbMembres: number; // membres déjà comptés (rang du nouveau = +1)
+      membresNoms: string[]; // noms des membres comptés (confirmation visuelle)
       merges: (ResolutionFoyer & { ok: true }) | null; // écritures à appliquer
     };
 
@@ -142,8 +158,15 @@ export async function analyserFoyer(
   const rats = rattachementsRenseignes(args.rattachements);
 
   if (rats.length === 0) {
-    const nb = await compterScope(supabase, foyerProprio, titulaireId);
-    return { ok: true, foyerFinal: foyerProprio, nbMembres: nb, merges: null };
+    const rows = await lireScope(supabase, foyerProprio, titulaireId);
+    const { nb, noms } = decompteEtNoms(rows);
+    return {
+      ok: true,
+      foyerFinal: foyerProprio,
+      nbMembres: nb,
+      membresNoms: noms,
+      merges: null,
+    };
   }
 
   const membres = await Promise.all(
@@ -156,12 +179,19 @@ export async function analyserFoyer(
   );
   if (!res.ok) return { ok: false, raison: res.raison };
 
-  const nb = await compterUnion(
+  const rows = await lireUnion(
     supabase,
     [res.cible, ...res.foyersAReecrire],
     res.titulairesAtagger,
   );
-  return { ok: true, foyerFinal: res.cible, nbMembres: nb, merges: res };
+  const { nb, noms } = decompteEtNoms(rows);
+  return {
+    ok: true,
+    foyerFinal: res.cible,
+    nbMembres: nb,
+    membresNoms: noms,
+    merges: res,
+  };
 }
 
 /** Applique les fusions/affectations de foyer_id (écritures). */

@@ -58,5 +58,8 @@ export async function POST(request: Request) {
     membres,
     // Membres déjà comptés dans le foyer (le nouveau sera le rang +1).
     nbMembresActuels: analyse.ok ? analyse.nbMembres : null,
+    // Noms des membres du foyer du titulaire CONNECTÉ (sa propre famille) →
+    // confirmation visuelle « c'est bien mon foyer ». Pas de PII de tiers.
+    membresNoms: analyse.ok ? analyse.membresNoms : [],
   });
 }

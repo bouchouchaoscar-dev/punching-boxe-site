@@ -153,6 +153,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     raison: string | null;
     membres: { trouve: boolean; ambigu: boolean; ferme: boolean }[];
     nbMembresActuels: number | null;
+    membresNoms?: string[];
   } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -800,11 +801,33 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                       </button>
                       {rattachInfo?.ok &&
                         rattachInfo.nbMembresActuels != null && (
-                          <p className="text-xs font-semibold text-ink">
-                            Foyer reconnu : {rattachInfo.nbMembresActuels}{" "}
-                            membre(s) déjà compté(s). Ce dossier sera le{" "}
-                            {rattachInfo.nbMembresActuels + 1}e du foyer.
-                          </p>
+                          <div className="rounded-xl border border-green-500/30 bg-green-50 p-3">
+                            <p className="text-xs font-semibold text-green-700">
+                              Foyer reconnu : {rattachInfo.nbMembresActuels}{" "}
+                              membre{rattachInfo.nbMembresActuels > 1 ? "s" : ""}{" "}
+                              déjà compté{rattachInfo.nbMembresActuels > 1 ? "s" : ""}.
+                              Ce dossier sera le {rattachInfo.nbMembresActuels + 1}e
+                              du foyer.
+                            </p>
+                            {rattachInfo.membresNoms &&
+                              rattachInfo.membresNoms.length > 0 && (
+                                <ul className="mt-2 flex flex-wrap gap-1.5">
+                                  {rattachInfo.membresNoms.map((n) => (
+                                    <li
+                                      key={n}
+                                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-ink"
+                                    >
+                                      <span className="text-green-600">✓</span>
+                                      {n}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            <p className="mt-2 text-xs text-smoke">
+                              Vérifiez qu&apos;il s&apos;agit bien des membres de
+                              votre foyer. Vous confirmerez avant le paiement.
+                            </p>
+                          </div>
                         )}
                     </div>
                   )}

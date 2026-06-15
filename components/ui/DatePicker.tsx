@@ -140,6 +140,10 @@ export function DatePicker({
     setDirection(delta);
     setView(new Date(year, month + delta, 1));
   }
+  function changeYear(delta: number) {
+    setDirection(delta);
+    setView(new Date(year + delta, month, 1));
+  }
 
   function pick(day: number) {
     onChange(toISO(new Date(year, month, day)));
@@ -169,26 +173,44 @@ export function DatePicker({
           }}
           className="z-[100] overflow-hidden rounded-xl border border-line bg-white p-3 shadow-[0_30px_60px_-25px_rgba(0,0,0,0.3)]"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-1 pb-2">
-            <Arrow
-              dir="left"
-              onClick={() => (mode === "days" ? changeMonth(-1) : setYearPage((y) => y - 12))}
-            />
+          {/* Header. Mode jours : « = année -1, ‹ = mois -1, › = mois +1,
+              » = année +1. Mode années : « / » paginent par 12 ans. Cliquer le
+              libellé central bascule vers la grille d'années (sélection rapide). */}
+          <div className="flex items-center justify-between gap-1 px-1 pb-2">
+            <div className="flex items-center gap-0.5">
+              <Nav
+                kind="double-left"
+                label={mode === "days" ? "Année précédente" : "12 ans avant"}
+                onClick={() =>
+                  mode === "days" ? changeYear(-1) : setYearPage((y) => y - 12)
+                }
+              />
+              {mode === "days" && (
+                <Nav kind="left" label="Mois précédent" onClick={() => changeMonth(-1)} />
+              )}
+            </div>
             <button
               type="button"
               onClick={() => {
                 setYearPage(year);
                 setMode((m) => (m === "days" ? "years" : "days"));
               }}
-              className="rounded-lg px-3 py-1 font-display text-sm font-extrabold uppercase tracking-tight text-ink transition-colors hover:bg-paper-2"
+              className="flex-1 rounded-lg px-2 py-1 font-display text-sm font-extrabold uppercase tracking-tight text-ink transition-colors hover:bg-paper-2"
             >
               {mode === "days" ? `${MOIS[month]} ${year}` : `${years[0]} – ${years[11]}`}
             </button>
-            <Arrow
-              dir="right"
-              onClick={() => (mode === "days" ? changeMonth(1) : setYearPage((y) => y + 12))}
-            />
+            <div className="flex items-center gap-0.5">
+              {mode === "days" && (
+                <Nav kind="right" label="Mois suivant" onClick={() => changeMonth(1)} />
+              )}
+              <Nav
+                kind="double-right"
+                label={mode === "days" ? "Année suivante" : "12 ans après"}
+                onClick={() =>
+                  mode === "days" ? changeYear(1) : setYearPage((y) => y + 12)
+                }
+              />
+            </div>
           </div>
 
           {mode === "days" ? (
@@ -302,17 +324,31 @@ export function DatePicker({
   );
 }
 
-function Arrow({ dir, onClick }: { dir: "left" | "right"; onClick: () => void }) {
+// Flèche de navigation : simple (mois) ou double (année, deux chevrons).
+function Nav({
+  kind,
+  label,
+  onClick,
+}: {
+  kind: "left" | "right" | "double-left" | "double-right";
+  label: string;
+  onClick: () => void;
+}) {
+  const isDouble = kind.startsWith("double");
+  const left = kind.endsWith("left");
+  const single = left ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6";
+  const dbl = left ? "M17 6l-6 6 6 6M11 6l-6 6 6 6" : "M7 6l6 6-6 6M13 6l6 6-6 6";
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label={dir === "left" ? "Précédent" : "Suivant"}
-      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink transition-colors hover:bg-paper-2"
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-7 items-center justify-center rounded-lg text-ink transition-colors hover:bg-paper-2"
     >
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
         <path
-          d={dir === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"}
+          d={isDouble ? dbl : single}
           stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
