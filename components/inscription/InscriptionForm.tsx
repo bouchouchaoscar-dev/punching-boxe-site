@@ -99,6 +99,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   // L'adhésion 30€ est décidée par le SERVEUR (ancienneté). true par défaut
   // (affichage prudent) jusqu'à la vérification à l'étape Paiement.
   const [paieAdhesion, setPaieAdhesion] = useState(true);
+  // Motif serveur : "ancien_eloigne" = ancien revenu après ≥ 3 ans d'absence
+  // (les 30€ sont à nouveau dus) → mention contextuelle dédiée.
+  const [ancienneteMotif, setAncienneteMotif] = useState<string | null>(null);
   const [ancienneteLoading, setAncienneteLoading] = useState(false);
   const [prepa, setPrepa] = useState(false);
   const [nbFamille, setNbFamille] = useState(0);
@@ -276,8 +279,10 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           }),
         });
         const d = await res.json();
-        if (!annule && typeof d?.paieAdhesion === "boolean")
+        if (!annule && typeof d?.paieAdhesion === "boolean") {
           setPaieAdhesion(d.paieAdhesion);
+          setAncienneteMotif(typeof d?.motif === "string" ? d.motif : null);
+        }
       } catch {
         /* échec → on garde le défaut prudent (adhésion affichée) */
       } finally {
@@ -889,6 +894,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                 <LivePrice
                   tarif={tarif}
                   paieAdhesion={paieAdhesion}
+                  adhesionMotif={ancienneteMotif}
                   loading={ancienneteLoading}
                 />
               </div>
@@ -924,7 +930,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     <span className="text-orange">*</span>
                   </h3>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <Input label="Nom" value={contactNom1} onChange={setContactNom1} required />
+                    <Input label="Prénom et nom" value={contactNom1} onChange={setContactNom1} required />
                     <Input
                       label="Téléphone"
                       type="tel"
@@ -938,7 +944,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     Contact secondaire (facultatif)
                   </p>
                   <div className="mt-1.5 grid gap-3 sm:grid-cols-2">
-                    <Input label="Nom" value={contactNom2} onChange={setContactNom2} />
+                    <Input label="Prénom et nom" value={contactNom2} onChange={setContactNom2} />
                     <Input
                       label="Téléphone"
                       type="tel"
@@ -971,10 +977,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                         className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
                       />
                       <span className="text-sm leading-relaxed text-ink">
-                        J&apos;autorise le professeur à prendre toutes les
-                        dispositions médicales en cas d&apos;accident (transport à
-                        l&apos;hôpital le plus proche compris).{" "}
-                        <span className="text-orange">*</span>
+                        Je soussigné(e){" "}
+                        <strong>{responsable.trim() || "[responsable légal]"}</strong>{" "}
+                        autorise mon enfant{" "}
+                        <strong>
+                          {`${prenom} ${nom}`.trim() || "[prénom et nom de l'enfant]"}
+                        </strong>{" "}
+                        à participer aux activités et entraînements du club
+                        Punching Boxe. <span className="text-orange">*</span>
                       </span>
                     </label>
                   </div>
@@ -1081,9 +1091,18 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   {ancienneteLoading ? (
                     <p className="mt-2 text-xs text-smoke">Calcul de votre tarif…</p>
                   ) : paieAdhesion ? (
-                    <p className="mt-2 text-xs text-smoke">
-                      Adhésion au club incluse&nbsp;: {euro(30)} (première inscription).
-                    </p>
+                    <>
+                      <p className="mt-2 text-xs text-smoke">
+                        Adhésion au club incluse&nbsp;: {euro(30)}.
+                      </p>
+                      {ancienneteMotif === "ancien_eloigne" && (
+                        <p className="mt-1 text-xs leading-relaxed text-smoke">
+                          Vous avez déjà été inscrit au club par le passé. Après 3
+                          années consécutives d&apos;absence ou plus, les frais
+                          d&apos;adhésion de {euro(30)} sont à nouveau dus.
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <p className="mt-2 text-xs text-smoke">
                       Membre déjà connu du club&nbsp;: pas d&apos;adhésion cette saison.
@@ -1311,8 +1330,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           payload={{ doc: "fiche", fiche: buildFicheData() }}
           certifLabel={
             <>
-              Je certifie sur l&apos;honneur l&apos;exactitude des informations de
-              ma <strong>fiche d&apos;inscription</strong>.
+              Je certifie l&apos;exactitude des informations de ma{" "}
+              <strong>fiche d&apos;inscription</strong>.
             </>
           }
           initialSignature={signatureFiche}
@@ -1454,11 +1473,13 @@ function LivePrice({
   tarif,
   big,
   paieAdhesion,
+  adhesionMotif,
   loading,
 }: {
   tarif: ReturnType<typeof calculerTarif>;
   big?: boolean;
   paieAdhesion?: boolean;
+  adhesionMotif?: string | null;
   loading?: boolean;
 }) {
   return (
@@ -1490,6 +1511,12 @@ function LivePrice({
             <span>Membre déjà connu du club</span>
             <span>adhésion non due</span>
           </div>
+        ) : adhesionMotif === "ancien_eloigne" ? (
+          <p className="text-xs leading-relaxed text-smoke">
+            Vous avez déjà été inscrit au club par le passé. Après 3 années
+            consécutives d&apos;absence ou plus, les frais d&apos;adhésion de{" "}
+            {euro(30)} sont à nouveau dus.
+          </p>
         ) : null}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
