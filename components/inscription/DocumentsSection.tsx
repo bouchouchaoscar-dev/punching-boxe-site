@@ -6,20 +6,51 @@ export function DocumentsSection() {
       <Reveal>
         <span className="eyebrow">Vos documents</span>
         <h2 className="font-display mt-3 text-3xl font-extrabold uppercase text-ink sm:text-4xl">
-          Tout se remplit et se signe en ligne
+          Vos documents, en ligne
         </h2>
         <p className="mt-3 max-w-2xl text-smoke">
-          Plus rien à télécharger ni imprimer pour la fiche d&apos;inscription et
-          le règlement intérieur : ils sont <strong>remplis et signés
-          directement en ligne</strong> pendant votre inscription. Seul le
-          certificat médical est à faire établir par votre médecin. Prévoyez aussi
-          une photo d&apos;identité (JPG/PNG).
+          Votre <strong>fiche d&apos;inscription est générée automatiquement</strong>{" "}
+          à partir de vos informations : vous la vérifiez et la signez en ligne,
+          tout comme le règlement intérieur. Rien à télécharger ni imprimer.
+          Prévoyez seulement une <strong>photo d&apos;identité</strong> (JPG) et un{" "}
+          <strong>certificat médical</strong>, le seul document à faire établir
+          par votre médecin : anticipez-le.
         </p>
       </Reveal>
 
       <div className="mt-10 grid gap-5 lg:grid-cols-2">
-        {/* Fiche + règlement : remplis et signés en ligne */}
+        {/* Certificat médical : seul document tiers → mis en avant */}
         <Reveal>
+          <div className="flex h-full flex-col rounded-[1.5rem] border-2 border-orange/30 bg-orange-50 p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange/15 text-orange">
+              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none">
+                <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M14 3v5h5M12 11v6M9 14h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+            </div>
+            <h3 className="font-display mt-5 text-xl font-extrabold uppercase text-ink">
+              Certificat médical
+            </h3>
+            <p className="mt-2 flex-1 text-sm leading-relaxed text-smoke">
+              Le seul document à faire établir par un tiers. Téléchargez le modèle
+              ci-dessous et remettez-le à votre médecin, puis déposez le certificat
+              pendant l&apos;inscription ou plus tard depuis votre espace.{" "}
+              <strong>Non bloquant</strong> pour vous inscrire et payer, mais
+              obligatoire à fournir dans les meilleurs délais.
+            </p>
+            <a
+              href="/api/documents/certificat-medical"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-orange hover:underline"
+            >
+              Télécharger le modèle pour le médecin →
+            </a>
+          </div>
+        </Reveal>
+
+        {/* Fiche + règlement : signés en ligne, rien à télécharger */}
+        <Reveal delay={0.08}>
           <div className="flex h-full flex-col rounded-[1.5rem] border border-line bg-white p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange/10 text-orange">
               <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none">
@@ -31,9 +62,10 @@ export function DocumentsSection() {
               Fiche d&apos;inscription &amp; règlement
             </h3>
             <p className="mt-2 flex-1 text-sm leading-relaxed text-smoke">
-              Pré-remplis avec vos informations, puis <strong>signés en ligne</strong>{" "}
-              (au doigt ou à la souris) à l&apos;étape « Documents » du formulaire.
-              Rien à imprimer.
+              Pré-remplis avec vos informations : à l&apos;étape « Documents », vous
+              ouvrez chaque document, le <strong>vérifiez</strong>, puis le{" "}
+              <strong>signez en ligne</strong> (au doigt ou à la souris). Aucune
+              impression. Vous pouvez consulter le règlement dès maintenant.
             </p>
             <a
               href="/api/documents/reglement-interieur"
@@ -42,35 +74,6 @@ export function DocumentsSection() {
               className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-orange hover:underline"
             >
               Consulter le règlement intérieur →
-            </a>
-          </div>
-        </Reveal>
-
-        {/* Certificat médical : tiers (médecin) + dépôt */}
-        <Reveal delay={0.08}>
-          <div className="flex h-full flex-col rounded-[1.5rem] border border-line bg-white p-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange/10 text-orange">
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none">
-                <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.6" />
-                <path d="M14 3v5h5M12 11v6M9 14h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h3 className="font-display mt-5 text-xl font-extrabold uppercase text-ink">
-              Certificat médical
-            </h3>
-            <p className="mt-2 flex-1 text-sm leading-relaxed text-smoke">
-              À faire établir par votre médecin (remettez-lui le modèle ci-dessous),
-              puis à déposer pendant l&apos;inscription ou plus tard depuis votre
-              espace. <strong>Non bloquant</strong> pour finaliser et payer, mais
-              obligatoire dans les meilleurs délais.
-            </p>
-            <a
-              href="/api/documents/certificat-medical"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-bold text-orange hover:underline"
-            >
-              Télécharger le modèle pour le médecin →
             </a>
           </div>
         </Reveal>

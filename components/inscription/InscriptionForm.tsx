@@ -21,8 +21,8 @@ import {
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
-import { SignaturePad } from "./SignaturePad";
-import type { SignatureVect } from "@/lib/pdf/types";
+import { SignDocumentModal } from "./SignDocumentModal";
+import type { SignatureVect, FicheData, ReglementData } from "@/lib/pdf/types";
 import {
   devisPourAdherent,
   planEcheances,
@@ -117,9 +117,18 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [contactTel2, setContactTel2] = useState("");
   const [responsable, setResponsable] = useState("");
   const [autorisationMedicale, setAutorisationMedicale] = useState(false);
-  const [signature, setSignature] = useState<SignatureVect | null>(null);
+  // DEUX signatures distinctes : chaque document est vu PUIS signé dans son
+  // contexte (modale d'aperçu + signature). On garde aussi l'instant de
+  // signature par document (date « Fait le » du PDF concerné).
+  const [signatureFiche, setSignatureFiche] = useState<SignatureVect | null>(null);
+  const [signatureReglement, setSignatureReglement] =
+    useState<SignatureVect | null>(null);
+  const [signedAtFiche, setSignedAtFiche] = useState<string | null>(null);
+  const [signedAtReglement, setSignedAtReglement] = useState<string | null>(null);
   const [certifFiche, setCertifFiche] = useState(false);
   const [certifReglement, setCertifReglement] = useState(false);
+  // Modale de signature ouverte (un document à la fois).
+  const [signModal, setSignModal] = useState<null | "fiche" | "reglement">(null);
 
   const [mode, setMode] = useState<ModePaiement | null>(null);
   const [accepteConditions, setAccepteConditions] = useState(false);
@@ -318,19 +327,16 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   // Mineur : déduit de l'âge (né après 2013-01-01) → autorisation parentale.
   const estMineur = !!dateNaissance && deduireType(dateNaissance) === "jeune";
 
-  // Génère + dépose la fiche et le règlement remplis/signés (renvoie les URLs).
-  async function genererDocs(): Promise<{
-    ficheUrl: string | null;
-    reglementUrl: string | null;
-  }> {
-    const dateSignature = new Date().toISOString();
+  // Données de la fiche SANS signature (réutilisées pour l'aperçu en modale ET
+  // pour la génération finale, où l'on ajoute la signature + la date).
+  function buildFicheData(): FicheData {
     const contacts = [
       { nom: contactNom1.trim(), tel: contactTel1.trim() },
       ...(contactNom2.trim() || contactTel2.trim()
         ? [{ nom: contactNom2.trim(), tel: contactTel2.trim() }]
         : []),
     ];
-    const ficheData = {
+    return {
       nom,
       prenom,
       dateNaissance,
@@ -347,10 +353,30 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       responsable: estMineur ? responsable.trim() : null,
       autorisationMedicale: estMineur ? autorisationMedicale : undefined,
       contacts,
-      signature,
-      dateSignature,
     };
-    const reglementData = { nom, prenom, signature, dateSignature };
+  }
+  function buildReglementData(): ReglementData {
+    return { nom, prenom };
+  }
+
+  // Génère + dépose la fiche et le règlement remplis/signés (renvoie les URLs).
+  // Chaque document porte SA signature et SA date de signature (instant réel
+  // capturé dans la modale ; repli sur maintenant si absent).
+  async function genererDocs(): Promise<{
+    ficheUrl: string | null;
+    reglementUrl: string | null;
+  }> {
+    const now = new Date().toISOString();
+    const ficheData: FicheData = {
+      ...buildFicheData(),
+      signature: signatureFiche,
+      dateSignature: signedAtFiche ?? now,
+    };
+    const reglementData: ReglementData = {
+      ...buildReglementData(),
+      signature: signatureReglement,
+      dateSignature: signedAtReglement ?? now,
+    };
     try {
       const res = await fetch("/api/documents/generer", {
         method: "POST",
@@ -388,19 +414,20 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     codePostal.trim() &&
     ville.trim();
   // Étape Documents : pour passer à la suite il faut la photo, le contact
-  // d'urgence (Nom + Tél), l'autorisation parentale si mineur, la SIGNATURE,
-  // et les 2 cases de certification. Le certificat médical reste NON bloquant
-  // (dépend du médecin, déposable plus tard depuis l'espace).
+  // d'urgence (Nom + Tél), l'autorisation parentale si mineur, les DEUX
+  // documents signés (fiche + règlement, chacun avec sa case cochée dans la
+  // modale). Le certificat médical reste NON bloquant (dépend du médecin,
+  // déposable plus tard depuis l'espace).
   const contactUrgenceOk = !!contactNom1.trim() && !!contactTel1.trim();
   const autorisationOk =
     !estMineur || (!!responsable.trim() && autorisationMedicale);
+  // Pré-requis pour ouvrir/signer la fiche : elle doit être complète à l'écran
+  // (contact d'urgence + autorisation parentale si mineur).
+  const infosFicheOk = contactUrgenceOk && autorisationOk;
+  const ficheSignee = signatureFiche !== null && certifFiche;
+  const reglementSigne = signatureReglement !== null && certifReglement;
   const documentsOk =
-    !!files.photo.name &&
-    contactUrgenceOk &&
-    autorisationOk &&
-    signature !== null &&
-    certifFiche &&
-    certifReglement;
+    !!files.photo.name && infosFicheOk && ficheSignee && reglementSigne;
 
   function onFile(field: FileFieldKey, v: { url: string | null; name: string }) {
     setFiles((f) => ({ ...f, [field]: v }));
@@ -953,86 +980,76 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </div>
                 )}
 
-                {/* Signature unique (fiche + règlement) */}
+                {/* Documents à signer : on VOIT le document rempli, on le
+                    vérifie, PUIS on le signe dans son contexte (modale). */}
                 <div>
                   <h3 className="text-sm font-semibold text-ink">
-                    Votre signature <span className="text-orange">*</span>
+                    Vos documents à signer <span className="text-orange">*</span>
                   </h3>
                   <p className="mt-1 text-xs text-smoke">
-                    Une seule signature, appliquée à la fiche d&apos;inscription et
-                    au règlement intérieur.
+                    Ouvrez chaque document : vérifiez vos informations, puis signez
+                    directement en bas (au doigt ou à la souris).
                   </p>
-                  <div className="mt-3">
-                    <SignaturePad onChange={setSignature} />
+                  <div className="mt-3 space-y-3">
+                    <DocCard
+                      label="Fiche d'inscription"
+                      desc="Pré-remplie avec vos informations. À vérifier puis signer."
+                      done={ficheSignee}
+                      disabled={!infosFicheOk}
+                      disabledHint="Renseignez d'abord le contact d'urgence ci-dessus."
+                      ctaSign="Voir et signer ma fiche"
+                      onClick={() => setSignModal("fiche")}
+                    />
+                    <DocCard
+                      label="Règlement intérieur"
+                      desc="À lire et accepter."
+                      done={reglementSigne}
+                      ctaSign="Lire et signer le règlement"
+                      onClick={() => setSignModal("reglement")}
+                    />
                   </div>
                 </div>
 
-                {/* Cases de certification (1 par document) */}
-                <div className="space-y-3">
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
-                    <input
-                      type="checkbox"
-                      checked={certifFiche}
-                      onChange={(e) => setCertifFiche(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
-                    />
-                    <span className="text-sm leading-relaxed text-ink">
-                      Je certifie sur l&apos;honneur l&apos;exactitude des
-                      informations de ma <strong>fiche d&apos;inscription</strong>.{" "}
-                      <span className="text-orange">*</span>
-                    </span>
-                  </label>
-                  <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-paper-2 p-4">
-                    <input
-                      type="checkbox"
-                      checked={certifReglement}
-                      onChange={(e) => setCertifReglement(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-orange"
-                    />
-                    <span className="text-sm leading-relaxed text-ink">
-                      J&apos;ai lu et j&apos;accepte le{" "}
-                      <a
-                        href="/api/documents/reglement-interieur"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-orange hover:underline"
-                      >
-                        règlement intérieur
-                      </a>
-                      . <span className="text-orange">*</span>
-                    </span>
-                  </label>
-                </div>
-
-                {/* Certificat médical : upload (non bloquant) */}
+                {/* Pièces à fournir */}
                 <div>
-                  <FileDrop
-                    field="certificat_medical"
-                    adherentId={adherentId}
-                    label="Certificat médical"
-                    hint="PDF, max 5 Mo"
-                    accept={{ "application/pdf": [".pdf"] }}
-                    maxSizeMb={5}
-                    onChange={onFile}
-                  />
-                  <p className="mt-1.5 text-xs leading-relaxed text-smoke">
-                    À faire établir par votre médecin, puis à déposer ici. Non
-                    bloquant pour finaliser votre inscription, mais obligatoire et à
-                    fournir dans les meilleurs délais (déposable plus tard depuis
-                    votre espace).
-                  </p>
-                </div>
+                  <h3 className="text-sm font-semibold text-ink">
+                    Vos pièces à fournir
+                  </h3>
+                  <div className="mt-3 space-y-5">
+                    {/* Photo d'identité : recadrage */}
+                    <FileDrop
+                      field="photo"
+                      adherentId={adherentId}
+                      label="Photo d'identité"
+                      hint="JPG ou PNG, max 5 Mo"
+                      accept={{
+                        "image/jpeg": [".jpg", ".jpeg"],
+                        "image/png": [".png"],
+                      }}
+                      maxSizeMb={5}
+                      onChange={onFile}
+                    />
 
-                {/* Photo d'identité : recadrage */}
-                <FileDrop
-                  field="photo"
-                  adherentId={adherentId}
-                  label="Photo d'identité"
-                  hint="JPG ou PNG, max 5 Mo"
-                  accept={{ "image/jpeg": [".jpg", ".jpeg"], "image/png": [".png"] }}
-                  maxSizeMb={5}
-                  onChange={onFile}
-                />
+                    {/* Certificat médical : upload (non bloquant) */}
+                    <div>
+                      <FileDrop
+                        field="certificat_medical"
+                        adherentId={adherentId}
+                        label="Certificat médical"
+                        hint="PDF, max 5 Mo"
+                        accept={{ "application/pdf": [".pdf"] }}
+                        maxSizeMb={5}
+                        onChange={onFile}
+                      />
+                      <p className="mt-1.5 text-xs leading-relaxed text-smoke">
+                        À faire établir par votre médecin, puis à déposer ici. Non
+                        bloquant pour finaliser votre inscription, mais obligatoire
+                        et à fournir dans les meilleurs délais (déposable plus tard
+                        depuis votre espace).
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1286,6 +1303,108 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           }}
         />
       )}
+
+      {/* Modales de signature : on voit le document rempli, puis on le signe. */}
+      {signModal === "fiche" && (
+        <SignDocumentModal
+          title="Fiche d'inscription"
+          payload={{ doc: "fiche", fiche: buildFicheData() }}
+          certifLabel={
+            <>
+              Je certifie sur l&apos;honneur l&apos;exactitude des informations de
+              ma <strong>fiche d&apos;inscription</strong>.
+            </>
+          }
+          initialSignature={signatureFiche}
+          initialChecked={certifFiche}
+          onClose={() => setSignModal(null)}
+          onConfirm={(sig, at) => {
+            setSignatureFiche(sig);
+            setSignedAtFiche(at);
+            setCertifFiche(true);
+            setSignModal(null);
+          }}
+        />
+      )}
+      {signModal === "reglement" && (
+        <SignDocumentModal
+          title="Règlement intérieur"
+          payload={{ doc: "reglement", reglement: buildReglementData() }}
+          certifLabel={
+            <>
+              Je soussigné(e){" "}
+              <strong>
+                {prenom} {nom}
+              </strong>{" "}
+              certifie avoir pris connaissance du règlement intérieur et
+              l&apos;accepter sans réserve.
+            </>
+          }
+          initialSignature={signatureReglement}
+          initialChecked={certifReglement}
+          onClose={() => setSignModal(null)}
+          onConfirm={(sig, at) => {
+            setSignatureReglement(sig);
+            setSignedAtReglement(at);
+            setCertifReglement(true);
+            setSignModal(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Carte d'un document à signer : état (à signer / signé ✓) + bouton qui ouvre
+// la modale d'aperçu + signature. Désactivable (ex. fiche tant que le contact
+// d'urgence n'est pas renseigné).
+function DocCard({
+  label,
+  desc,
+  done,
+  disabled,
+  disabledHint,
+  ctaSign,
+  onClick,
+}: {
+  label: string;
+  desc: string;
+  done: boolean;
+  disabled?: boolean;
+  disabledHint?: string;
+  ctaSign: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+        done ? "border-green-500/40 bg-green-50" : "border-line bg-paper-2"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+          {done && <span className="text-green-600">✓</span>}
+          {label}
+        </p>
+        <p className="mt-0.5 text-xs text-smoke">
+          {done ? "Signé ✓" : desc}
+        </p>
+        {disabled && disabledHint && (
+          <p className="mt-1 text-xs font-semibold text-orange">{disabledHint}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          done
+            ? "border border-line bg-white text-ink hover:bg-paper-2"
+            : "bg-orange text-white hover:bg-orange/90"
+        }`}
+      >
+        {done ? "Revoir / re-signer" : ctaSign}
+      </button>
     </div>
   );
 }

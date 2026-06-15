@@ -19,7 +19,7 @@ export default function InscriptionPage() {
       <PageHero
         eyebrow="Inscription · Saison 2026-2027"
         title={<>Rejoignez le club</>}
-        intro="Inscription 100% en ligne depuis votre espace adhérent personnel. Remplissez le formulaire, signez votre fiche et le règlement en ligne, déposez votre photo (et votre certificat médical), puis réglez en ligne ou en espèces. Tout se fait en quelques minutes."
+        intro="Inscription 100% en ligne depuis votre espace adhérent. Remplissez le formulaire, votre fiche d'inscription est générée automatiquement avec vos informations : vous n'avez plus qu'à la vérifier et la signer, ainsi que le règlement intérieur. Pensez à charger votre certificat médical (à faire établir par votre médecin) et une photo d'identité (JPG). Le certificat n'est pas bloquant pour vous inscrire, mais reste obligatoire à fournir dans les meilleurs délais."
       />
 
       <DocumentsSection />
