@@ -11,5 +11,5 @@ jobs:
       - name: Ping /api/health (réveille Supabase)
         run: |
           curl -s -o /dev/null -w "%{http_code}" \
-          https://punching-boxe-site.vercel.app/api/health
+          https://punching-boxe.com/api/health
           echo " - Supabase pinged via /api/health"
