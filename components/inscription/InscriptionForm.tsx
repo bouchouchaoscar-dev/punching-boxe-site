@@ -361,6 +361,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       optionPrepa: prepa,
       typeAdherent: deduireType(dateNaissance),
       montantTotal: tarif.total,
+      adhesionDue: paieAdhesion,
       mineur: estMineur,
       responsable: estMineur ? responsable.trim() : null,
       autorisationMedicale: estMineur ? autorisationMedicale : undefined,
@@ -834,8 +835,11 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   <p className="mb-1 font-display text-lg font-extrabold uppercase text-ink">
                     Votre formule
                   </p>
-                  <p className="mb-3 text-xs text-smoke">
+                  <p className="mb-1 text-xs text-smoke">
                     Deux orientations, deux tarifs. Choisissez la vôtre.
+                  </p>
+                  <p className="mb-3 text-xs font-semibold text-orange">
+                    Tarif jeune : moins de 13 ans.
                   </p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {PACKAGES.map((p) => {

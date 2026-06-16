@@ -22,6 +22,9 @@ export type FicheData = {
   optionPrepa: boolean;
   typeAdherent: "adulte" | "jeune";
   montantTotal: number;
+  // Adhésion-club (30€) réellement comptée dans le total (nouveau / ancien
+  // éloigné) → pilote le marquage rond/croix sur la fiche générée.
+  adhesionDue?: boolean;
   // Mineur : autorisation parentale (signée par le responsable légal).
   mineur: boolean;
   responsable?: string | null;

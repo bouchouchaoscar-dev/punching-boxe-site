@@ -36,6 +36,7 @@ const SAMPLE_FICHE = (mineur: boolean): FicheData => ({
   optionPrepa: true,
   typeAdherent: mineur ? "jeune" : "adulte",
   montantTotal: 530,
+  adhesionDue: true,
   mineur,
   responsable: mineur ? "Sophie DURAND" : null,
   autorisationMedicale: mineur ? true : undefined,

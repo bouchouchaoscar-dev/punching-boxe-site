@@ -1,5 +1,5 @@
-import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
-import { styles } from "./theme";
+import { Document, Page, StyleSheet, Svg, Line, Text, View } from "@react-pdf/renderer";
+import { styles, PDF_COLORS } from "./theme";
 import { PdfFooter, PdfHeader, SignatureBlock } from "./Shared";
 import { CLUB } from "@/lib/constants";
 import { TARIFS, PACKAGE_LABEL } from "@/lib/pricing";
@@ -57,6 +57,47 @@ function FieldRow({ items }: { items: Item[] }) {
   );
 }
 
+// Marquage d'un montant sur la grille : "rond" = compté dans le total (cerclé
+// orange), "croix" = NON compté (X orange par-dessus), "none" = grille vierge.
+type Marque = "rond" | "croix" | "none";
+function Montant({ marque, children }: { marque: Marque; children: string }) {
+  if (marque === "rond") {
+    return (
+      <View
+        style={{
+          borderWidth: 1.3,
+          borderColor: PDF_COLORS.orange,
+          borderRadius: 9,
+          paddingHorizontal: 5,
+          paddingVertical: 1,
+        }}
+      >
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11, color: PDF_COLORS.orange }}>
+          {children}
+        </Text>
+      </View>
+    );
+  }
+  if (marque === "croix") {
+    return (
+      <View style={{ position: "relative", paddingHorizontal: 3, paddingVertical: 1 }}>
+        <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11, color: "#9A9A9A" }}>
+          {children}
+        </Text>
+        <Svg
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          <Line x1="6" y1="14" x2="94" y2="86" stroke={PDF_COLORS.orange} strokeWidth="7" />
+          <Line x1="94" y1="14" x2="6" y2="86" stroke={PDF_COLORS.orange} strokeWidth="7" />
+        </Svg>
+      </View>
+    );
+  }
+  return <Text style={styles.price}>{children}</Text>;
+}
+
 function Check({ label, checked }: { label: string; checked?: boolean }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", marginRight: 16, marginBottom: 3 }}>
@@ -77,6 +118,23 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
   const filled = !!data;
   const v = (s?: string) => (filled ? s ?? "" : undefined);
   const contacts = data?.contacts ?? [];
+
+  // Marquage paramétré sur les VRAIES données du dossier (rien en dur).
+  // Vierge → "none" (grille neutre). Rempli → rond sur ce qui compte, croix sinon.
+  const markCot = (pkg: string, type: "adulte" | "jeune"): Marque =>
+    !filled
+      ? "none"
+      : data!.packageType === pkg && data!.typeAdherent === type
+        ? "rond"
+        : "croix";
+  const markAdhesion: Marque = !filled ? "none" : data!.adhesionDue ? "rond" : "croix";
+  // Prépa = supplément RÉEL uniquement en Boxe Française avec l'option choisie
+  // (en Savate & Prépa elle est incluse dans la cotisation, pas additionnée).
+  const markPrepa: Marque = !filled
+    ? "none"
+    : data!.packageType === "boxe_classique" && data!.optionPrepa
+      ? "rond"
+      : "croix";
 
   return (
     <Document title={`Fiche d'inscription ${saison}`} author={CLUB.nom}>
@@ -111,17 +169,23 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
           <Text>
             <Text style={styles.bold}>Boxe Française</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <Text style={styles.price}>
-            {TARIFS.cotisation.boxe_classique.adulte} / {TARIFS.cotisation.boxe_classique.jeune} €
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+            <Montant marque={markCot("boxe_classique", "adulte")}>{`${TARIFS.cotisation.boxe_classique.adulte}`}</Montant>
+            <Text style={styles.price}>/</Text>
+            <Montant marque={markCot("boxe_classique", "jeune")}>{`${TARIFS.cotisation.boxe_classique.jeune}`}</Montant>
+            <Text style={styles.price}>€</Text>
+          </View>
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
             <Text style={styles.bold}>Savate &amp; Prépa</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <Text style={styles.price}>
-            {TARIFS.cotisation.savate_prepa.adulte} / {TARIFS.cotisation.savate_prepa.jeune} €
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+            <Montant marque={markCot("savate_prepa", "adulte")}>{`${TARIFS.cotisation.savate_prepa.adulte}`}</Montant>
+            <Text style={styles.price}>/</Text>
+            <Montant marque={markCot("savate_prepa", "jeune")}>{`${TARIFS.cotisation.savate_prepa.jeune}`}</Montant>
+            <Text style={styles.price}>€</Text>
+          </View>
         </View>
         <Text style={[styles.small, f.small, { marginBottom: 4 }]}>
           Jeunes : moins de 13 ans.
@@ -130,18 +194,24 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
           <Text>
             <Text style={styles.bold}>Adhésion-club</Text> (1ère année)
           </Text>
-          <Text style={styles.price}>{TARIFS.adhesion} €</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+            <Montant marque={markAdhesion}>{`${TARIFS.adhesion} €`}</Montant>
+          </View>
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
             <Text style={styles.bold}>Préparation Physique</Text>{" "}
             {filled
-              ? data?.optionPrepa
-                ? "(incluse / choisie)"
-                : "(non prise)"
+              ? data?.packageType === "savate_prepa"
+                ? "(incluse dans la formule)"
+                : data?.optionPrepa
+                  ? "(option choisie)"
+                  : "(non prise)"
               : "(option Boxe Française · incluse en Savate et Prépa)"}
           </Text>
-          <Text style={styles.price}>+ {TARIFS.prepaPhysique} €</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+            <Montant marque={markPrepa}>{`+ ${TARIFS.prepaPhysique} €`}</Montant>
+          </View>
         </View>
         {filled && (
           <View style={[styles.priceRow, f.priceRow, { marginTop: 2 }]}>
