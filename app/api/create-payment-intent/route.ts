@@ -178,7 +178,7 @@ export async function POST(request: Request) {
         amount: Math.round(devis.total * 100),
         currency: "eur",
         customer: customer.id,
-        payment_method_types: ["card"],
+        automatic_payment_methods: { enabled: true, allow_redirects: "never" },
         description: `Inscription ${record.saison} — ${record.prenom} ${record.nom}`,
         metadata: { adherentId: adherent.id, numero: "1", type: "comptant" },
       });
@@ -219,7 +219,7 @@ export async function POST(request: Request) {
     const setupIntent = await stripe.setupIntents.create({
       customer: customer.id,
       usage: "off_session",
-      payment_method_types: ["card"],
+      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       metadata: { adherentId: adherent.id, echeances: String(n) },
     });
 
