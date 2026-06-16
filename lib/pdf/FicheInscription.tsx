@@ -160,19 +160,16 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
                 <Text style={styles.bold}>{data?.responsable || "—"}</Text>
               ) : (
                 "M/Mme ............................................"
-              )}
-              , responsable légal de l&apos;élève inscrit ci-dessus,{" "}
-              <Text style={styles.bold}>
-                {filled
-                  ? data?.autorisationMedicale
-                    ? "donne"
-                    : "ne donne pas"
-                  : "donne / ne donne pas"}
-              </Text>{" "}
-              {filled ? "" : "(rayer la mention inutile) "}l&apos;autorisation au
-              professeur de prendre toutes les dispositions médicales en cas
-              d&apos;accident, y compris faire transporter l&apos;élève à
-              l&apos;hôpital le plus proche.
+              )}{" "}
+              autorise mon enfant{" "}
+              {filled ? (
+                <Text style={styles.bold}>
+                  {data?.prenom} {data?.nom}
+                </Text>
+              ) : (
+                "............................................"
+              )}{" "}
+              à participer aux activités et entraînements du club Punching Boxe.
             </Text>
           </View>
         )}
@@ -201,7 +198,7 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
           <SignatureBlock
             sig={data?.signature}
             date={data?.dateSignature}
-            mention="Je certifie sur l'honneur l'exactitude des informations renseignées ci-dessus."
+            mention="Je certifie l'exactitude des informations renseignées ci-dessus."
           />
         ) : (
           <View style={[styles.box, f.box]}>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
+import { ScrollX } from "@/components/ui/ScrollX";
 import { euro } from "@/lib/pricing";
 import { evaluerDossier } from "@/lib/dossier";
 import { formatTelephone } from "@/lib/telephone";
@@ -176,8 +177,9 @@ export function AdherentsTable() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="mt-6 overflow-x-auto rounded-[1.5rem] border border-line bg-white">
+      {/* Table — défilement horizontal + flèches indicatrices sur mobile. */}
+      <div className="mt-6">
+        <ScrollX className="overflow-x-auto rounded-[1.5rem] border border-line bg-white">
         {loading ? (
           <div className="flex h-40 items-center justify-center">
             <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
@@ -222,6 +224,7 @@ export function AdherentsTable() {
             </tbody>
           </table>
         )}
+        </ScrollX>
       </div>
     </div>
   );

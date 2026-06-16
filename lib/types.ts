@@ -79,6 +79,8 @@ export interface Adherent {
   fiche_signee_at?: string | null;
   reglement_signee_at?: string | null;
   signature_ip?: string | null;
+  // Mail « dossier complet et validé » envoyé une seule fois (anti-doublon).
+  mail_dossier_complet_envoye?: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

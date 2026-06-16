@@ -7,6 +7,7 @@ import {
   sendAdminNotification,
   sendPaiementEchec,
 } from "./email";
+import { notifierSiDossierComplet } from "./dossier-complet";
 import type { Adherent, Paiement } from "./types";
 
 /**
@@ -55,6 +56,9 @@ export async function markAdherentPaid(
   } catch (e) {
     console.error("Email error (markAdherentPaid):", e);
   }
+
+  // Paiement engagé → le dossier est peut-être complet (docs déjà validés).
+  await notifierSiDossierComplet(supabase, adherentId);
 
   return { updated: true, adherent: updated as Adherent };
 }
@@ -135,6 +139,11 @@ export async function recalculerEtatPaiement(adherentId: string) {
     } catch (e) {
       console.error("Email error (recalculerEtatPaiement):", e);
     }
+  }
+
+  // 1re échéance / solde → le dossier est peut-être complet (docs déjà validés).
+  if (devientEngage || complet) {
+    await notifierSiDossierComplet(supabase, adherentId);
   }
 }
 

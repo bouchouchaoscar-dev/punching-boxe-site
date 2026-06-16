@@ -123,14 +123,39 @@ export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
 
         {filled ? (
           <View style={{ marginTop: 18 }}>
-            <Text style={styles.p}>
-              Adhérent : <Text style={styles.bold}>{data?.prenom} {data?.nom}</Text>
-            </Text>
-            <SignatureBlock
-              sig={data?.signature}
-              date={data?.dateSignature}
-              mention="Lu et approuvé — j'accepte sans réserve le présent règlement intérieur."
-            />
+            {data?.mineur ? (
+              <>
+                <Text style={styles.p}>
+                  Adhérent (mineur) :{" "}
+                  <Text style={styles.bold}>
+                    {data?.prenom} {data?.nom}
+                  </Text>
+                </Text>
+                <Text style={styles.p}>
+                  Représentant légal :{" "}
+                  <Text style={styles.bold}>{data?.responsable || "—"}</Text>
+                </Text>
+                <SignatureBlock
+                  sig={data?.signature}
+                  date={data?.dateSignature}
+                  mention={`Je soussigné(e) ${data?.responsable || "—"}, représentant légal de ${data?.prenom} ${data?.nom}, certifie avoir pris connaissance du règlement intérieur et m'engage à le faire respecter.`}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.p}>
+                  Adhérent :{" "}
+                  <Text style={styles.bold}>
+                    {data?.prenom} {data?.nom}
+                  </Text>
+                </Text>
+                <SignatureBlock
+                  sig={data?.signature}
+                  date={data?.dateSignature}
+                  mention="Lu et approuvé — j'accepte sans réserve le présent règlement intérieur."
+                />
+              </>
+            )}
           </View>
         ) : (
           <View

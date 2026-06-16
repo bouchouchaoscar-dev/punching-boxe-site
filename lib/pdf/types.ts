@@ -32,9 +32,13 @@ export type FicheData = {
 };
 
 // Données pour générer le RÈGLEMENT intérieur signé.
+// Mineur : c'est le RESPONSABLE LÉGAL qui s'engage et signe (un mineur ne peut
+// pas s'engager seul). La signature reste celle saisie (titulaire = responsable).
 export type ReglementData = {
   nom: string;
   prenom: string;
+  mineur?: boolean;
+  responsable?: string | null;
   signature?: SignatureVect | null;
   dateSignature?: string | null;
 };

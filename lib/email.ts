@@ -381,6 +381,29 @@ export async function sendRemboursement(
   return client.emails.send({ from: FROM, to: d.email, subject, html });
 }
 
+/** 6 bis — Email à l'adhérent : dossier ENTIÈREMENT validé (paiement engagé +
+ *  4 documents validés). Envoyé UNE SEULE FOIS (flag mail_dossier_complet_envoye
+ *  géré par l'appelant). Ton positif. */
+export async function sendDossierComplet(d: { prenom: string; email: string }) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Votre dossier est complet ✅</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Votre dossier d'inscription est complet et validé. Tout est en ordre, vous êtes prêt(e) pour la saison. À bientôt à la salle !</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon dossier")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    subject: "Votre dossier d'inscription est validé",
+    html,
+  });
+}
+
 /** 7 — Email à l'adhérent : fin d'inscription SANS remboursement (clôture). */
 export async function sendFinInscription(d: {
   prenom: string;

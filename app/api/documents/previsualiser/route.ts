@@ -32,6 +32,8 @@ export async function POST(request: Request) {
       const buf = await renderReglementPdf({
         nom: r.nom,
         prenom: r.prenom,
+        mineur: r.mineur,
+        responsable: r.responsable,
         signature: null,
         dateSignature: null,
       });

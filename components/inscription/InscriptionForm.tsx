@@ -365,7 +365,13 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     };
   }
   function buildReglementData(): ReglementData {
-    return { nom, prenom };
+    // Mineur : le responsable légal s'engage et signe (déjà le titulaire).
+    return {
+      nom,
+      prenom,
+      mineur: estMineur,
+      responsable: estMineur ? responsable.trim() : null,
+    };
   }
 
   // Données fiche/règlement AVEC signatures, envoyées au serveur qui génère +

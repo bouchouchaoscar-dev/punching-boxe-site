@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { sendDocumentActionRequired } from "@/lib/email";
 import { evaluerDossier } from "@/lib/dossier";
+import { notifierSiDossierComplet } from "@/lib/dossier-complet";
 
 export const runtime = "nodejs";
 
@@ -148,6 +149,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
       });
     }
   }
+
+  // Le dossier vient peut-être de basculer à COMPLET (dernière pièce validée ou
+  // espèces confirmées) → mail « dossier validé » (une seule fois, best-effort).
+  await notifierSiDossierComplet(supabase, id);
 
   // Notification email à l'adhérent (best-effort) lorsqu'un document est refusé.
   if (motifRefus && data?.email) {
