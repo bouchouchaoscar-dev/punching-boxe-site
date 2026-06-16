@@ -14,6 +14,7 @@
 import {
   calculerTarif,
   deduireType,
+  estMineur,
   remiseFamillePct,
   moisPalier,
   prepaDuMois,
@@ -180,10 +181,22 @@ ok1("adhésion NON incluse dans les mensualités", pe.montants[0] < dv.total);
 console.log("\n============================================================");
 console.log("8) HELPERS (deduireType, remise, moisPalier, prépa, tables)");
 console.log("============================================================");
-eqStr("deduireType 2012-12-31", deduireType("2012-12-31"), "adulte");
-eqStr("deduireType 2013-01-01 (borne)", deduireType("2013-01-01"), "adulte");
-eqStr("deduireType 2013-01-02", deduireType("2013-01-02"), "jeune");
-eqStr("deduireType undefined", deduireType(undefined), "adulte");
+// Seuil tarif DYNAMIQUE (< 13 ans à la date de référence). REF = 1er sept 2026.
+const REF = new Date(2026, 8, 1);
+eqStr("deduireType 12 ans → jeune", deduireType("2015-05-10", REF), "jeune");
+eqStr("deduireType 13 ans pile → adulte", deduireType("2013-09-01", REF), "adulte");
+eqStr("deduireType 13 ans révolus → adulte", deduireType("2012-01-01", REF), "adulte");
+eqStr("deduireType undefined → adulte", deduireType(undefined, REF), "adulte");
+// Le seuil SE DÉCALE avec la saison (jamais figé sur une année) : même date de
+// naissance, classée jeune en 2026 puis adulte en 2027.
+eqStr("seuil dynamique : né 2013-10 jeune en 2026", deduireType("2013-10-01", new Date(2026, 8, 1)), "jeune");
+eqStr("seuil dynamique : né 2013-10 adulte en 2027", deduireType("2013-10-01", new Date(2027, 8, 1)), "adulte");
+// Seuil MINEUR (< 18 ans), INDÉPENDANT du tarif.
+eqStr("estMineur 12 ans → true", String(estMineur("2015-05-10", REF)), "true");
+eqStr("13-17 ans → tarif adulte MAIS mineur", `${deduireType("2010-05-10", REF)}/${estMineur("2010-05-10", REF)}`, "adulte/true");
+eqStr("estMineur 18 ans pile → false", String(estMineur("2008-09-01", REF)), "false");
+eqStr("estMineur adulte → false", String(estMineur("1990-01-01", REF)), "false");
+eqStr("estMineur undefined → false", String(estMineur(undefined, REF)), "false");
 eq("remise nb0", remiseFamillePct(0), 0);
 eq("remise nb1", remiseFamillePct(1), 0);
 eq("remise nb2 (3e)", remiseFamillePct(2), 10);

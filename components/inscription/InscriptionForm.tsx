@@ -14,6 +14,7 @@ import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
   deduireType,
+  estMineur as calcEstMineur,
   euro,
   formuleLabel,
   nbEcheances,
@@ -334,7 +335,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   };
 
   // Mineur : déduit de l'âge (né après 2013-01-01) → autorisation parentale.
-  const estMineur = !!dateNaissance && deduireType(dateNaissance) === "jeune";
+  // Mineur (< 18 ans) = autorisation parentale requise. INDÉPENDANT du seuil
+  // tarif (< 13 ans) : un 13-17 ans paie le tarif adulte mais reste mineur.
+  const estMineur = calcEstMineur(dateNaissance);
 
   // Données de la fiche SANS signature (réutilisées pour l'aperçu en modale ET
   // pour la génération finale, où l'on ajoute la signature + la date).

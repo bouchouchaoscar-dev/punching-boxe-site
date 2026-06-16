@@ -135,16 +135,50 @@ export function prepaDuMois(date: Date, saisonEnCours = false): number {
   return PREPA_PALIERS[moisPalier(date, saisonEnCours)];
 }
 
-/**
- * Un « jeune » est né après le 01/01/2013 (moins de 13 ans à la création
- * de la grille). On déduit le type depuis la date de naissance si fournie.
- */
-export function deduireType(dateNaissance?: string): TypeAdherent {
-  if (!dateNaissance) return "adulte";
+// Seuils d'âge (révolus). DYNAMIQUES : calculés par rapport à une date de
+// référence, jamais figés sur une année → se décalent automatiquement chaque
+// saison. Les deux seuils sont INDÉPENDANTS : un 13-17 ans = tarif adulte MAIS
+// mineur (autorisation parentale requise).
+export const SEUIL_JEUNE_ANS = 13; // < 13 ans = tarif « jeune »
+export const SEUIL_MAJORITE_ANS = 18; // < 18 ans = mineur (autorisation parentale)
+
+/** Âge révolu à une date de référence (anniversaire de l'année pris en compte). */
+function ageRevolu(dateNaissance: string, ref: Date): number | null {
   const d = new Date(dateNaissance);
-  if (Number.isNaN(d.getTime())) return "adulte";
-  const seuil = new Date("2013-01-01");
-  return d > seuil ? "jeune" : "adulte";
+  if (Number.isNaN(d.getTime())) return null;
+  let age = ref.getFullYear() - d.getFullYear();
+  const m = ref.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < d.getDate())) age--;
+  return age;
+}
+
+/**
+ * Type tarifaire : « jeune » = moins de 13 ans à la date de référence (la date
+ * d'inscription par défaut). DYNAMIQUE : le seuil suit la saison, rien n'est
+ * figé sur une année.
+ */
+export function deduireType(
+  dateNaissance?: string,
+  ref: Date = new Date(),
+): TypeAdherent {
+  if (!dateNaissance) return "adulte";
+  const age = ageRevolu(dateNaissance, ref);
+  if (age == null) return "adulte";
+  return age < SEUIL_JEUNE_ANS ? "jeune" : "adulte";
+}
+
+/**
+ * Mineur = moins de 18 ans à la date de référence. INDÉPENDANT du seuil tarif :
+ * un adhérent de 13 à 17 ans paie le tarif adulte mais reste mineur (et requiert
+ * donc l'autorisation parentale). DYNAMIQUE.
+ */
+export function estMineur(
+  dateNaissance?: string,
+  ref: Date = new Date(),
+): boolean {
+  if (!dateNaissance) return false;
+  const age = ageRevolu(dateNaissance, ref);
+  return age != null && age < SEUIL_MAJORITE_ANS;
 }
 
 /**
@@ -167,7 +201,7 @@ export function calculerTarif(
   saisonEnCours = false,
 ): PricingResult {
   const typeAdherent: TypeAdherent =
-    input.typeAdherent ?? deduireType(input.dateNaissance);
+    input.typeAdherent ?? deduireType(input.dateNaissance, date);
 
   const cotisationBase = TARIFS.cotisation[input.packageType][typeAdherent];
 

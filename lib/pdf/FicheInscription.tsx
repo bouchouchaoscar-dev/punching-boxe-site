@@ -124,7 +124,7 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
           </Text>
         </View>
         <Text style={[styles.small, f.small, { marginBottom: 4 }]}>
-          Jeunes : né·e après le 01/01/2013.
+          Jeunes : moins de 13 ans.
         </Text>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
