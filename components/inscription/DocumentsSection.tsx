@@ -78,6 +78,26 @@ export function DocumentsSection() {
           </div>
         </Reveal>
       </div>
+
+      {/* Encart parents : process d'inscription d'un enfant mineur */}
+      <Reveal delay={0.12}>
+        <div className="mt-6 rounded-[1.5rem] border border-line bg-paper-2 p-6">
+          <h3 className="font-display text-lg font-extrabold uppercase text-ink">
+            Vous inscrivez votre enfant&nbsp;?
+          </h3>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-smoke">
+            Créez d&apos;abord <strong>votre espace adhérent en votre nom</strong>{" "}
+            (le parent), puis ouvrez depuis cet espace un{" "}
+            <strong>dossier au nom de votre enfant</strong>. Vous signez en ligne
+            une <strong>autorisation parentale</strong> ; la fiche
+            d&apos;inscription et le règlement intérieur sont générés et signés
+            automatiquement. Le <strong>certificat médical</strong> est à
+            télécharger, faire signer par votre médecin, puis à déposer (non
+            bloquant pour valider l&apos;inscription). Un même espace permet
+            d&apos;inscrire plusieurs enfants.
+          </p>
+        </div>
+      </Reveal>
     </section>
   );
 }
