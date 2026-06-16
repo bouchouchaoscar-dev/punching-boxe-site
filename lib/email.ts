@@ -22,6 +22,9 @@ function getResend(): Resend | null {
 const FROM =
   process.env.RESEND_FROM || "Punching Boxe <onboarding@resend.dev>";
 const ADMIN_TO = process.env.ADMIN_NOTIFY_EMAIL || CLUB.email;
+// Reply-To des mails ADHÉRENTS : une réponse de l'adhérent arrive dans la boîte
+// du club (consultée par Pascal). From = club, Reply-To = même adresse club.
+const REPLY_TO = CLUB.email;
 
 // Orange EXACT du logo (échantillonné sur public/logo/logo.png), pour que le
 // "BOXE" du bandeau et les CTA matchent parfaitement le logo rond. Une seule
@@ -124,6 +127,7 @@ export async function sendAccountWelcome(d: { email: string }) {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Bienvenue sur votre espace adhérent 🥊",
     html,
   });
@@ -161,6 +165,7 @@ export async function sendAdherentConfirmation(d: MailData) {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Bienvenue au Punching Boxe 🥊",
     html,
   });
@@ -220,6 +225,7 @@ export async function sendDocumentActionRequired(d: {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Action requise — Un document nécessite votre attention",
     html,
   });
@@ -302,6 +308,7 @@ export async function sendPaiementEchec(d: {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "⚠️ Problème avec votre paiement",
     html,
   });
@@ -378,7 +385,7 @@ export async function sendRemboursement(
     <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
   `);
 
-  return client.emails.send({ from: FROM, to: d.email, subject, html });
+  return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject, html });
 }
 
 /** 6 bis — Email à l'adhérent : dossier ENTIÈREMENT validé (paiement engagé +
@@ -399,6 +406,7 @@ export async function sendDossierComplet(d: { prenom: string; email: string }) {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Votre dossier d'inscription est validé",
     html,
   });
@@ -428,6 +436,7 @@ export async function sendFinInscription(d: {
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Clôture de votre inscription",
     html,
   });
@@ -516,6 +525,7 @@ export async function sendContactConfirmation(d: { nom: string; email: string })
   return client.emails.send({
     from: FROM,
     to: d.email,
+    replyTo: REPLY_TO,
     subject: "Nous avons bien reçu votre message",
     html,
   });
