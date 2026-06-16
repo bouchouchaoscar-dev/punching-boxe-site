@@ -25,6 +25,9 @@ export type FicheData = {
   // Adhésion-club (30€) réellement comptée dans le total (nouveau / ancien
   // éloigné) → pilote le marquage rond/croix sur la fiche générée.
   adhesionDue?: boolean;
+  // Remise familiale appliquée (%) → quand > 0, la ligne cotisation barre les
+  // montants bruts et affiche le montant remisé.
+  remisePct?: number;
   // Mineur : autorisation parentale (signée par le responsable légal).
   mineur: boolean;
   responsable?: string | null;

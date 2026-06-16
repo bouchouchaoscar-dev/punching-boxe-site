@@ -345,6 +345,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       typeAdherent: deduireType(dateNaissance),
       montantTotal: tarif.total,
       adhesionDue: paieAdhesion,
+      remisePct: tarif.remisePct,
       mineur: estMineur,
       responsable: estMineur ? responsable.trim() : null,
       autorisationMedicale: estMineur ? autorisationMedicale : undefined,

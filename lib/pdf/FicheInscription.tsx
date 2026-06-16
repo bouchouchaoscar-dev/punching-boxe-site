@@ -57,10 +57,25 @@ function FieldRow({ items }: { items: Item[] }) {
   );
 }
 
-// Marquage d'un montant sur la grille : "rond" = compté dans le total (cerclé
-// orange), "croix" = NON compté (X orange par-dessus), "none" = grille vierge.
-type Marque = "rond" | "croix" | "none";
+// Marquage d'un montant sur la grille : "rond" = compté (cerclé orange),
+// "croix" = NON compté (X orange), "barre" = remplacé par le montant remisé
+// (barré gris), "none" = grille vierge.
+type Marque = "rond" | "croix" | "barre" | "none";
 function Montant({ marque, children }: { marque: Marque; children: string }) {
+  if (marque === "barre") {
+    return (
+      <Text
+        style={{
+          fontFamily: "Helvetica-Bold",
+          fontSize: 11,
+          color: "#9A9A9A",
+          textDecoration: "line-through",
+        }}
+      >
+        {children}
+      </Text>
+    );
+  }
   if (marque === "rond") {
     return (
       <View
@@ -136,6 +151,44 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
       ? "rond"
       : "croix";
 
+  // Format FR d'un montant (entier sans décimales, sinon 2 décimales virgule).
+  const fmtMontant = (n: number) => {
+    const r = Math.round(n * 100) / 100;
+    return Number.isInteger(r) ? `${r}` : r.toFixed(2).replace(".", ",");
+  };
+
+  // Cellule "cotisation" d'une formule. Si la formule est CHOISIE et qu'une
+  // remise familiale s'applique : montants bruts BARRÉS + montant remisé (du type
+  // retenu) affiché à gauche avec le %. Sinon : rond/croix par type (ou neutre).
+  const celluleCotisation = (pkg: "boxe_classique" | "savate_prepa") => {
+    const adulte = TARIFS.cotisation[pkg].adulte;
+    const jeune = TARIFS.cotisation[pkg].jeune;
+    const choisie = filled && data!.packageType === pkg;
+    const remisePct = data?.remisePct ?? 0;
+    if (choisie && remisePct > 0) {
+      const base = data!.typeAdherent === "jeune" ? jeune : adulte;
+      const remise = base * (1 - remisePct / 100);
+      return (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11, color: PDF_COLORS.orange }}>
+            {fmtMontant(remise)} € (−{remisePct}% remise familiale)
+          </Text>
+          <Montant marque="barre">{`${adulte}`}</Montant>
+          <Text style={{ fontSize: 11, color: "#9A9A9A" }}>/</Text>
+          <Montant marque="barre">{`${jeune}`}</Montant>
+        </View>
+      );
+    }
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+        <Montant marque={markCot(pkg, "adulte")}>{`${adulte}`}</Montant>
+        <Text style={styles.price}>/</Text>
+        <Montant marque={markCot(pkg, "jeune")}>{`${jeune}`}</Montant>
+        <Text style={styles.price}>€</Text>
+      </View>
+    );
+  };
+
   return (
     <Document title={`Fiche d'inscription ${saison}`} author={CLUB.nom}>
       <Page size="A4" style={[styles.page, f.page]}>
@@ -169,23 +222,13 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
           <Text>
             <Text style={styles.bold}>Boxe Française</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <Montant marque={markCot("boxe_classique", "adulte")}>{`${TARIFS.cotisation.boxe_classique.adulte}`}</Montant>
-            <Text style={styles.price}>/</Text>
-            <Montant marque={markCot("boxe_classique", "jeune")}>{`${TARIFS.cotisation.boxe_classique.jeune}`}</Montant>
-            <Text style={styles.price}>€</Text>
-          </View>
+          {celluleCotisation("boxe_classique")}
         </View>
         <View style={[styles.priceRow, f.priceRow]}>
           <Text>
             <Text style={styles.bold}>Savate &amp; Prépa</Text> — Cotisation / Licence (Adultes / Jeunes)
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-            <Montant marque={markCot("savate_prepa", "adulte")}>{`${TARIFS.cotisation.savate_prepa.adulte}`}</Montant>
-            <Text style={styles.price}>/</Text>
-            <Montant marque={markCot("savate_prepa", "jeune")}>{`${TARIFS.cotisation.savate_prepa.jeune}`}</Montant>
-            <Text style={styles.price}>€</Text>
-          </View>
+          {celluleCotisation("savate_prepa")}
         </View>
         <Text style={[styles.small, f.small, { marginBottom: 4 }]}>
           Jeunes : moins de 13 ans.
