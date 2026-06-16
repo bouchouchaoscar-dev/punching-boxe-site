@@ -105,7 +105,6 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   const [ancienneteMotif, setAncienneteMotif] = useState<string | null>(null);
   const [ancienneteLoading, setAncienneteLoading] = useState(false);
   const [prepa, setPrepa] = useState(false);
-  const [nbFamille, setNbFamille] = useState(0);
 
   const [files, setFiles] = useState<FileState>({
     fiche_inscription: EMPTY_FILE,
@@ -162,23 +161,6 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   // Stripe
   const [plan, setPlan] = useState<StripePlan | null>(null);
 
-  // Remise famille AUTO : on récupère le nombre de dossiers déjà rattachés au
-  // compte → aperçu de prix juste (le serveur recompte et fait foi à la création).
-  useEffect(() => {
-    if (!token) return;
-    fetch("/api/mon-espace/count", {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (typeof d?.count === "number") setNbFamille(d.count);
-      })
-      .catch(() => {
-        /* fallback : nbFamille reste 0 (aucune remise affichée) */
-      });
-  }, [token]);
-
   // Rattachement famille : aperçu serveur (sans PII) quand des membres sont
   // cités → statut par membre + nombre de membres comptés dans le foyer projeté.
   useEffect(() => {
@@ -211,13 +193,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     };
   }, [token, rattachOpen, rattachements]);
 
-  // Décompte effectif du foyer pour l'aperçu de prix : si un rattachement valide
-  // est confirmé par le serveur, on prend son décompte (groupés ∪ rattachés),
-  // sinon le décompte groupé du compte. Le serveur reste autoritaire à la création.
+  // Décompte effectif du foyer pour l'aperçu de prix : UNIQUEMENT si la case
+  // « membre de ma famille déjà inscrit » est cochée ET le rattachement validé
+  // par le serveur. Sinon 0 → dossier indépendant, AUCUNE remise (partager un
+  // compte ne crée pas de lien familial). Le serveur reste autoritaire.
   const nbFoyerEffectif =
     rattachOpen && rattachInfo?.ok && rattachInfo.nbMembresActuels != null
       ? rattachInfo.nbMembresActuels
-      : nbFamille;
+      : 0;
 
   const tarif = useMemo(
     () =>
@@ -906,8 +889,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
                 {tarif.remisePct > 0 && (
                   <p className="text-sm font-semibold text-orange">
-                    Ce dossier est le {nbFamille + 1}e membre de votre foyer :
-                    −{tarif.remisePct}% appliqués automatiquement sur la cotisation.
+                    Ce dossier est le {nbFoyerEffectif + 1}e membre du foyer
+                    rattaché : −{tarif.remisePct}% sur la cotisation.
                   </p>
                 )}
                 <LivePrice
@@ -1373,14 +1356,27 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           title="Règlement intérieur"
           payload={{ doc: "reglement", reglement: buildReglementData() }}
           certifLabel={
-            <>
-              Je soussigné(e){" "}
-              <strong>
-                {prenom} {nom}
-              </strong>{" "}
-              certifie avoir pris connaissance du règlement intérieur et
-              l&apos;accepter sans réserve.
-            </>
+            estMineur ? (
+              <>
+                Je soussigné(e){" "}
+                <strong>{responsable.trim() || "[responsable légal]"}</strong>,
+                représentant légal de{" "}
+                <strong>
+                  {prenom} {nom}
+                </strong>
+                , certifie avoir pris connaissance du règlement intérieur et
+                m&apos;engage à le faire respecter.
+              </>
+            ) : (
+              <>
+                Je soussigné(e){" "}
+                <strong>
+                  {prenom} {nom}
+                </strong>{" "}
+                certifie avoir pris connaissance du règlement intérieur et
+                l&apos;accepter sans réserve.
+              </>
+            )
           }
           initialSignature={signatureReglement}
           initialChecked={certifReglement}

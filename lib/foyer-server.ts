@@ -82,19 +82,6 @@ async function foyerDuTitulaire(
   return (data?.[0]?.foyer_id as string | null) ?? null;
 }
 
-/** Lignes d'un scope simple : par foyer_id si fourni, sinon par titulaire. */
-async function lireScope(
-  supabase: SupabaseClient,
-  foyerId: string | null,
-  titulaireId: string,
-): Promise<any[]> {
-  const q = supabase.from("adherents").select(COLS_FOYER);
-  const { data } = foyerId
-    ? await q.eq("foyer_id", foyerId)
-    : await q.eq("titulaire_id", titulaireId);
-  return data ?? [];
-}
-
 /** Lignes de l'UNION (sans écrire) : foyers réels ∪ titulaires sans foyer. */
 async function lireUnion(
   supabase: SupabaseClient,
@@ -141,9 +128,12 @@ export type AnalyseFoyer =
 
 /**
  * Analyse le foyer pour une nouvelle inscription (LECTURE SEULE).
- * - sans rattachement : décompte du scope hérité (foyer_id ou titulaire) →
- *   comportement groupé préservé (aucune écriture, foyer_id reste NULL).
- * - avec rattachement(s) : résout + calcule la cible/fusion + décompte l'union.
+ * - SANS rattachement explicite : dossier INDÉPENDANT (foyer_id NULL, aucune
+ *   remise, aucun comptage), MÊME si le compte a déjà des dossiers en foyer.
+ *   Le simple fait de partager un compte ne crée PAS de lien familial : seule
+ *   la déclaration explicite « membre de ma famille déjà inscrit » + attestation
+ *   le fait. (Un compte peut servir à inscrire un ami, pas forcément la famille.)
+ * - AVEC rattachement(s) : résout + calcule la cible/fusion + décompte l'union.
  */
 export async function analyserFoyer(
   supabase: SupabaseClient,
@@ -154,21 +144,22 @@ export async function analyserFoyer(
   },
 ): Promise<AnalyseFoyer> {
   const { titulaireId, newId } = args;
-  const foyerProprio = await foyerDuTitulaire(supabase, titulaireId);
   const rats = rattachementsRenseignes(args.rattachements);
 
   if (rats.length === 0) {
-    const rows = await lireScope(supabase, foyerProprio, titulaireId);
-    const { nb, noms } = decompteEtNoms(rows);
+    // Dossier indépendant : aucun foyer hérité, rang 1, pas de remise.
     return {
       ok: true,
-      foyerFinal: foyerProprio,
-      nbMembres: nb,
-      membresNoms: noms,
+      foyerFinal: null,
+      nbMembres: 0,
+      membresNoms: [],
       merges: null,
     };
   }
 
+  // Rattachement explicite : on part du foyer éventuel du titulaire (créé par un
+  // rattachement PRÉCÉDENT) pour fusionner/réutiliser le bon foyer_id.
+  const foyerProprio = await foyerDuTitulaire(supabase, titulaireId);
   const membres = await Promise.all(
     rats.map((r) => resoudreMembre(supabase, r)),
   );
