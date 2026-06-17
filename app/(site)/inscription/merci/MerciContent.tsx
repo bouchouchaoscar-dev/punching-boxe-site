@@ -67,7 +67,7 @@ export function MerciContent() {
           <Button href="/mon-espace" variant="primary" size="lg">
             Voir mon dossier
           </Button>
-          <Button href="/infos" variant="ghost" size="lg">
+          <Button href="/infos#planning" variant="ghost" size="lg">
             Voir les horaires
           </Button>
         </div>

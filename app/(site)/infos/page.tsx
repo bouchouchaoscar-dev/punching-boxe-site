@@ -169,7 +169,7 @@ export default function InfosPage() {
       </section>
 
       {/* ---------- Horaires ---------- */}
-      <section className="bg-paper-2 py-16">
+      <section id="planning" className="scroll-mt-24 bg-paper-2 py-16">
         <div className="container-px mx-auto max-w-7xl">
           <Reveal>
             <span className="eyebrow">Planning</span>

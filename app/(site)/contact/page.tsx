@@ -59,7 +59,7 @@ export default function ContactPage() {
                 <Button href="/inscription" size="md">
                   S&apos;inscrire en ligne
                 </Button>
-                <Button href="/infos" variant="dark" size="md">
+                <Button href="/infos#planning" variant="dark" size="md">
                   Voir les horaires
                 </Button>
               </div>
