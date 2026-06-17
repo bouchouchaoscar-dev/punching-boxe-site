@@ -2,6 +2,7 @@ import type { Adherent } from "./types";
 import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
 import { estActifCompte } from "./adherents-actifs";
+import { euro } from "./pricing";
 
 export type StatutCampagne =
   | "brouillon"
@@ -97,6 +98,30 @@ export function regrouperParEmail(
       ...new Set(membres.map((m) => (m.nom ?? "").trim()).filter(Boolean)),
     ];
     const nomGroupe = noms.length === 1 ? noms[0] : rep.nom ?? "";
+    // Récap des règlements en attente, ADAPTATIF (montant réel par personne) :
+    // - 1 personne avec montant → phrase simple,
+    // - plusieurs (famille) → liste "- Prénom Nom : X € (Formule)".
+    const avecMontant = membres.filter(
+      (m) => m.montant != null && String(m.montant).trim() !== "",
+    );
+    const fmt = (m: PersonneEnvoi) => euro(Number(m.montant));
+    const formuleSuffixe = (m: PersonneEnvoi) =>
+      m.formule ? ` (${m.formule})` : "";
+    let recap_reglement = "";
+    if (avecMontant.length === 1) {
+      const m = avecMontant[0];
+      recap_reglement = `Nous n'avons pas encore reçu votre règlement de ${fmt(m)} pour la saison ${rep.saison || saisonRef}${formuleSuffixe(m)}.`;
+    } else if (avecMontant.length > 1) {
+      recap_reglement =
+        "Nous n'avons pas encore reçu les règlements suivants :\n" +
+        avecMontant
+          .map(
+            (m) =>
+              `- ${[m.prenom, m.nom].map((s) => (s ?? "").trim()).filter(Boolean).join(" ")} : ${fmt(m)}${formuleSuffixe(m)}`,
+          )
+          .join("\n");
+    }
+
     const vars: DestinataireVars = {
       prenom,
       nom: multi ? nomGroupe : rep.nom ?? "",
@@ -105,6 +130,7 @@ export function regrouperParEmail(
       montant: multi ? "" : rep.montant ?? "",
       derniere_saison: multi ? "" : rep.derniere_saison ?? "",
       disciplines: multi ? "" : rep.disciplines ?? "",
+      recap_reglement,
     };
     envois.push({ email, personnes: membres, vars });
   }
@@ -422,6 +448,10 @@ export const VARIABLES: { token: string; label: string }[] = [
   { token: "{{saison}}", label: "Saison en cours" },
   { token: "{{derniere_saison}}", label: "Dernière saison (ancien)" },
   { token: "{{disciplines}}", label: "Disciplines (ancien)" },
+  {
+    token: "{{recap_reglement}}",
+    label: "Récap règlement(s) en attente — montant(s) (adaptatif famille)",
+  },
 ];
 
 // ---- Boutons (rendus en CTA orange cliquable par renderCampagne) ----
@@ -438,6 +468,9 @@ export type DestinataireVars = {
   saison?: string | null;
   derniere_saison?: string | null;
   disciplines?: string | null;
+  // Récap adaptatif des règlements en attente (montant par personne, liste si
+  // famille). Construit par regrouperParEmail à partir des montants réels.
+  recap_reglement?: string | null;
 };
 
 export function remplacerVariables(texte: string, v: DestinataireVars): string {
@@ -448,7 +481,8 @@ export function remplacerVariables(texte: string, v: DestinataireVars): string {
     .replace(/\{\{montant\}\}/g, v.montant != null ? String(v.montant) : "")
     .replace(/\{\{saison\}\}/g, v.saison ?? "")
     .replace(/\{\{derniere_saison\}\}/g, v.derniere_saison ?? "")
-    .replace(/\{\{disciplines\}\}/g, v.disciplines ?? "");
+    .replace(/\{\{disciplines\}\}/g, v.disciplines ?? "")
+    .replace(/\{\{recap_reglement\}\}/g, v.recap_reglement ?? "");
 }
 
 // ---- Catégories de templates (4 familles) ----
