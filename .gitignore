@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Données personnelles importées (ne jamais committer)
 /data/
+
+# Config client réelle (données + secrets) — ne pas committer
+config-client.json

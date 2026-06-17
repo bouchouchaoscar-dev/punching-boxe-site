@@ -1,0 +1,65 @@
+{
+  "_doc": "Copier en config-client.json, remplir, puis: npx tsx scripts/init-nouveau-client.mts. Une seule source de vérité pour dupliquer le projet sur un nouveau client.",
+  "club": {
+    "nom": "Punching Boxe de Nogent-Le Perreux",
+    "nomCourt": "Punching Boxe",
+    "sigle": "PBNP",
+    "sport": "Savate · Boxe Française",
+    "email": "contact@punching-boxe.com",
+    "telephone": "07 60 83 98 30",
+    "telephoneHref": "+33760839830",
+    "adresse": "19 bis rue Paul Bert",
+    "ville": "Nogent-sur-Marne",
+    "code_postal": "94130",
+    "directeur": "Pascal BOUCHOUCHA",
+    "directeurTitre": "Professeur fédéral · B.E.E.S 1er degré",
+    "site_url": "https://www.punching-boxe.com",
+    "couleur_principale": "#FF6B00",
+    "couleur_principale_600": "#EA5F00",
+    "couleur_principale_50": "#FFF4EC",
+    "facebook": "https://www.facebook.com/",
+    "instagram": "https://www.instagram.com/"
+  },
+  "saison": "2026-2027",
+  "tarifs": {
+    "adhesion": 30,
+    "option_prepa": 70,
+    "formules": [
+      { "id": "boxe_classique", "nom": "Boxe Française", "adulte": 430, "jeune": 410 },
+      { "id": "savate_prepa", "nom": "Savate et Prépa", "adulte": 350, "jeune": 330 }
+    ],
+    "degressive": true,
+    "remise_famille": true,
+    "remise_famille_paliers": { "3": 10, "4": 15, "5": 20 }
+  },
+  "seuils_age": {
+    "jeune_adulte": 13,
+    "majorite": 18
+  },
+  "paiements": {
+    "carte": true,
+    "especes": true,
+    "fractionne": true,
+    "max_echeances": 4,
+    "wallets": ["apple_pay", "google_pay"]
+  },
+  "documents": {
+    "certificat_medical": true,
+    "certificat_medical_bloquant": false,
+    "reglement_interieur": true,
+    "fiche_inscription": true,
+    "photo": true
+  },
+  "admin": {
+    "username": "Pascal",
+    "password": "REMPLACER_PAR_UN_MOT_DE_PASSE_FORT",
+    "notify_email": "contact@punching-boxe.com"
+  },
+  "_manuel": [
+    "Logo : remplacer public/logo/*.png",
+    "Photos du site : public/images/*.jpg",
+    "Textes club (histoire, équipe) : lib/constants.ts (POURQUOI, SALLES, HORAIRES, EQUIPEMENT, ACTIVITES)",
+    "Règlement intérieur : lib/pdf/ReglementInterieur.tsx (contenu des articles)",
+    "Clés API (.env / Vercel) : Supabase, Stripe live, Resend, CRON_SECRET"
+  ]
+}
