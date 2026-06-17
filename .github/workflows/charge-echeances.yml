@@ -10,6 +10,18 @@ jobs:
     steps:
       - name: Déclencher le cron (échéances + campagnes planifiées)
         run: |
-          curl -X GET \
+          # Le run GitHub doit passer en ROUGE si l'endpoint ne répond pas 200
+          # (fini les faux "success"). On affiche le code HTTP + le corps, puis on
+          # ÉCHOUE sur tout code != 200 — y compris une redirection 3xx (308
+          # apex->www), que --fail-with-body NE capte PAS (il ne voit que >= 400).
+          # PAS de -L volontairement : une redirection cross-host supprimerait
+          # l'en-tete Authorization -> viser l'URL canonique (https://www...)
+          # directement via le secret NEXT_PUBLIC_SITE_URL.
+          url="${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/charge-echeances"
+          code=$(curl -sS -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.NEXT_PUBLIC_SITE_URL }}/api/cron/charge-echeances"
+            -o /tmp/cron_body -w "%{http_code}" "$url")
+          echo "HTTP $code"
+          cat /tmp/cron_body || true
+          echo
+          test "$code" = "200"
