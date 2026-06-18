@@ -82,14 +82,17 @@ export default function EquipePage() {
       <section className="container-px mx-auto max-w-7xl pt-12 pb-8">
         {/* Coach principal */}
         <Reveal className="card-lift overflow-hidden rounded-[2rem] border border-line bg-white">
-          <div className="grid lg:grid-cols-[0.9fr_1.4fr]">
-            <div className="relative min-h-[18rem] overflow-hidden bg-ink">
+          <div className="grid lg:grid-cols-[0.6fr_1.4fr] lg:items-center">
+            {/* Photo en format PORTRAIT (4/5, type Instagram) : selfie non
+                écrasé sur desktop + tête visible sur mobile. object-position
+                légèrement vers le haut (mobile) pour garantir la tête. */}
+            <div className="relative aspect-[4/5] w-full overflow-hidden bg-ink lg:max-h-[34rem]">
               <Image
                 src={pascal.photo}
                 alt={`${pascal.nom}, Directeur Sportif du Punching Boxe`}
                 fill
-                sizes="(max-width: 1024px) 100vw, 40vw"
-                className="object-cover object-[center_70%]"
+                sizes="(max-width: 1024px) 100vw, 30vw"
+                className="object-cover object-[center_20%] lg:object-[center_35%]"
               />
             </div>
             <div className="p-8 sm:p-12">
