@@ -98,7 +98,7 @@ function InfoCard({
         <p className="text-xs font-bold uppercase tracking-wide text-smoke">
           {title}
         </p>
-        <p className="mt-1 font-display text-xl font-extrabold text-ink">
+        <p className="mt-1 text-xl font-normal text-ink">
           {value}
         </p>
       </div>
