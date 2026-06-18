@@ -15,7 +15,7 @@ export const metadata = pageMeta({
   description:
     "Tarifs et horaires saison 2026-2027 : Boxe Française, Savate, fitness et préparation physique. Cours sur 4 salles à Nogent-sur-Marne et Le Perreux (94). Inscription 100% en ligne.",
   path: "/infos",
-  image: "/images/IMG_0544.jpg",
+  image: "/images/IMG_0574.jpg",
 });
 
 const FAMILLE = [

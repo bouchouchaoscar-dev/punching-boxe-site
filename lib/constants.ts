@@ -137,7 +137,7 @@ export const ACTIVITES = [
     slug: "savate-fitness",
     titre: "Savate Fitness",
     sousTitre: "La boxe en musique, cardio et tonus",
-    image: "/images/IMG_0544.jpg",
+    image: "/images/IMG_0574.jpg",
     inclus: true,
     tag: "Formule Savate et Prépa",
     resume:
