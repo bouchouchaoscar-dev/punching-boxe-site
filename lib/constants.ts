@@ -102,6 +102,7 @@ export const HORAIRES: Creneau[] = [
 export const EQUIPEMENT = [
   { item: "Gants de boxe", detail: "12 à 16 oz selon le gabarit — prêtés lors de la séance d'essai" },
   { item: "Protège-dents", detail: "Indispensable dès l'assaut, moulable de préférence" },
+  { item: "Protège-tibias", detail: "Recommandés pour les assauts et le travail aux jambes" },
   { item: "Bandes de maintien", detail: "Pour protéger les poignets et les articulations" },
   { item: "Chaussures de savate", detail: "Semelle plate et souple, propres et réservées à la salle" },
   { item: "Tenue de sport", detail: "Près du corps, permettant l'aisance des mouvements" },

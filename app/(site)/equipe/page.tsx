@@ -31,7 +31,7 @@ const EQUIPE: Coach[] = [
     role: "Professeur fédéral · Directeur Sportif · B.E.E.S 1er degré",
     phrase:
       "Professeur fédéral, B.E.E.S 1er degré. Fondateur et âme du club, Pascal transmet la Boxe Française avec exigence et bienveillance depuis plus de 25 ans.",
-    photo: "/images/IMG_0574.jpg",
+    photo: "/images/equipe/pascal.jpg",
     lead: true,
   },
   {
