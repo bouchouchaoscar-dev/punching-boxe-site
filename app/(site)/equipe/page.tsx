@@ -89,7 +89,7 @@ export default function EquipePage() {
                 alt={`${pascal.nom}, Directeur Sportif du Punching Boxe`}
                 fill
                 sizes="(max-width: 1024px) 100vw, 40vw"
-                className="object-cover object-[center_30%]"
+                className="object-cover object-[center_70%]"
               />
             </div>
             <div className="p-8 sm:p-12">
