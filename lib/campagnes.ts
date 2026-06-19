@@ -7,6 +7,7 @@ import { euro } from "./pricing";
 export type StatutCampagne =
   | "brouillon"
   | "envoye"
+  | "partiel"
   | "erreur"
   | "planifiee"
   | "en_cours";

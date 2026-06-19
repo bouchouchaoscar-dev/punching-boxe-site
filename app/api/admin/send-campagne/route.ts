@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { envoyerCampagne } from "@/lib/envoi-campagne";
+import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
 import type {
   SmartListKey,
   SegmentAncienKey,
@@ -72,7 +72,8 @@ export async function POST(request: Request) {
     nb_destinataires: res.personnesCiblees,
     nb_envoyes: res.emailsEnvoyes,
     nb_exclus: res.exclus + res.exclusSansEmail,
-    statut: res.emailsEnvoyes > 0 ? "envoye" : "erreur",
+    // Statut RÉEL : partiel si des emails ont échoué, erreur si 0 envoyé.
+    statut: statutCampagne(res),
     envoye_at: new Date().toISOString(),
     destinataires_liste: res.destinatairesListe,
   };
@@ -84,14 +85,23 @@ export async function POST(request: Request) {
     "nb_exclus",
   ];
   let insErr: { message: string } | null = null;
+  let campagneId: string | null = null;
   for (;;) {
-    ({ error: insErr } = await supabase.from("campagnes").insert(insertPayload));
-    if (!insErr) break;
+    const { data, error } = await supabase
+      .from("campagnes")
+      .insert(insertPayload)
+      .select("id")
+      .single();
+    insErr = error;
+    if (!insErr) { campagneId = data?.id ?? null; break; }
     const offending = colonnesOptionnelles.find((k) => insErr!.message.includes(k));
     if (!offending) break;
     delete insertPayload[offending];
   }
   if (insErr) console.error("Insert campagne:", insErr);
+
+  // Suivi par destinataire (best-effort).
+  await enregistrerEnvois(supabase, campagneId, res.resultats);
 
   return NextResponse.json({
     success: res.emailsEnvoyes > 0,

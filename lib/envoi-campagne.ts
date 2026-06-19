@@ -31,10 +31,19 @@ export type RecetteCampagne = {
   manualEmails?: string[];
 };
 
+export type EnvoiResultat = {
+  email: string;
+  prenom: string | null;
+  nom: string | null;
+  statut: "envoye" | "echec";
+  erreur?: string;
+};
+
 export type ResultatEnvoi = {
   ok: boolean;
   error?: string;
   emailsEnvoyes: number;
+  emailsEchoues: number; // emails en échec (après retry)
   personnesCiblees: number;
   doublons: number;
   exclus: number; // désinscrits (personnes)
@@ -43,13 +52,37 @@ export type ResultatEnvoi = {
     email: string;
     personnes: { prenom: string | null; nom: string | null }[];
   }[];
+  resultats: EnvoiResultat[]; // suivi par destinataire (pour envois_mailing)
   cible: string;
 };
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
+/** Statut de campagne dérivé du résultat d'envoi (réalité, pas faux positif). */
+export function statutCampagne(r: ResultatEnvoi): "envoye" | "partiel" | "erreur" {
+  if (r.emailsEnvoyes === 0) return "erreur";
+  return r.emailsEchoues > 0 ? "partiel" : "envoye";
+}
+
+/** Persiste le suivi par destinataire (best-effort : n'échoue jamais l'envoi). */
+export async function enregistrerEnvois(
+  supabase: SupabaseClient,
+  campagneId: string | null | undefined,
+  resultats: EnvoiResultat[],
+): Promise<void> {
+  if (!campagneId || !resultats?.length) return;
+  try {
+    const rows = resultats.map((r) => ({
+      campagne_id: campagneId,
+      email: r.email,
+      prenom: r.prenom,
+      nom: r.nom,
+      statut: r.statut,
+      erreur: r.erreur ?? null,
+    }));
+    const { error } = await supabase.from("envois_mailing").insert(rows);
+    if (error) console.error("envois_mailing insert (ignoré):", error.message);
+  } catch (e) {
+    console.error("envois_mailing insert (exception, ignoré):", e);
+  }
 }
 
 /** Résumé lisible de la cible (segments/listes) pour l'historique. */
@@ -87,11 +120,13 @@ export async function envoyerCampagne(
   const vide: ResultatEnvoi = {
     ok: false,
     emailsEnvoyes: 0,
+    emailsEchoues: 0,
     personnesCiblees: 0,
     doublons: 0,
     exclus: 0,
     exclusSansEmail: 0,
     destinatairesListe: [],
+    resultats: [],
     cible,
   };
 
@@ -218,17 +253,45 @@ export async function envoyerCampagne(
 
   const personnesCiblees = envois.reduce((s, e) => s + e.personnes.length, 0);
 
+  // Envoi UN PAR UN, avec pacing (rate-limit Resend = 5 req/s) et retry (1×) sur
+  // 429. Les erreurs ne sont PLUS avalées : chaque destinataire a un résultat.
+  const PACING_MS = 300; // ~3 req/s, marge sous le 5/s Resend
   let emailsEnvoyes = 0;
-  for (const lot of chunk(envois, 50)) {
-    const emails = lot.map((e) => ({
+  let emailsEchoues = 0;
+  const resultats: EnvoiResultat[] = [];
+
+  for (let i = 0; i < envois.length; i++) {
+    const e = envois[i];
+    const payload = {
       from: MAIL_FROM,
       to: e.email,
       subject: remplacerVariables(objet, e.vars),
       html: renderCampagne(remplacerVariables(contenu, e.vars), e.email),
-    }));
-    const { error } = await resend.batch.send(emails);
-    if (!error) emailsEnvoyes += lot.length;
-    else console.error("Resend batch error:", error);
+    };
+    const prenom = e.vars.prenom ?? null;
+    const nom = e.vars.nom ?? null;
+
+    let envoye = false;
+    let erreur: string | undefined;
+    for (let tentative = 0; tentative < 2; tentative++) {
+      const { error } = await resend.emails.send(payload);
+      if (!error) { envoye = true; break; }
+      const msg = (error as { message?: string }).message ?? String(error);
+      const is429 =
+        (error as { statusCode?: number }).statusCode === 429 ||
+        /rate.?limit|too many|429/i.test(msg);
+      if (is429 && tentative === 0) { await sleep(1000); continue; } // retry une fois
+      erreur = msg;
+      break;
+    }
+
+    if (envoye) { emailsEnvoyes++; resultats.push({ email: e.email, prenom, nom, statut: "envoye" }); }
+    else {
+      emailsEchoues++;
+      resultats.push({ email: e.email, prenom, nom, statut: "echec", erreur });
+      console.error("Envoi campagne — échec:", e.email, erreur);
+    }
+    if (i < envois.length - 1) await sleep(PACING_MS);
   }
 
   const destinatairesListe = envois.map((e) => ({
@@ -242,11 +305,15 @@ export async function envoyerCampagne(
   return {
     ok: emailsEnvoyes > 0,
     emailsEnvoyes,
+    emailsEchoues,
     personnesCiblees,
     doublons,
     exclus: personnesExclues,
     exclusSansEmail,
     destinatairesListe,
+    resultats,
     cible,
   };
 }
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

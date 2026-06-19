@@ -8,6 +8,7 @@ import type { Campagne } from "@/lib/campagnes";
 
 const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
+  partiel: { label: "⚠️ Partiel", cls: "bg-amber-50 text-amber-700" },
   brouillon: { label: "📝 Brouillon", cls: "bg-orange-50 text-orange-600" },
   erreur: { label: "❌ Erreur", cls: "bg-red-50 text-red-700" },
   planifiee: { label: "🕓 Planifiée", cls: "bg-blue-50 text-blue-700" },

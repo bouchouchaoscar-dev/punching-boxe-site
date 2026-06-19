@@ -225,6 +225,19 @@ create table if not exists public.desinscriptions_mailing (
   created_at  timestamptz not null default now()
 );
 
+-- Suivi PAR DESTINATAIRE d'une campagne (1 ligne = 1 email envoyé/échoué).
+create table if not exists public.envois_mailing (
+  id          uuid primary key default gen_random_uuid(),
+  campagne_id uuid references public.campagnes(id) on delete cascade,
+  email       text not null,
+  prenom      text,
+  nom         text,
+  statut      text not null default 'envoye',          -- envoye | echec
+  erreur      text,
+  created_at  timestamptz not null default now()
+);
+create index if not exists envois_mailing_campagne_idx on public.envois_mailing (campagne_id);
+
 -- ---------------------------------------------------------------------------
 -- 7) ADMIN_USERS — optionnel (auth admin gérée en dur côté app par défaut)
 -- ---------------------------------------------------------------------------
@@ -249,6 +262,7 @@ alter table public.campagnes              enable row level security;
 alter table public.templates_mail         enable row level security;
 alter table public.contacts_mailing       enable row level security;
 alter table public.desinscriptions_mailing enable row level security;
+alter table public.envois_mailing         enable row level security;
 alter table public.admin_users            enable row level security;
 
 -- ---------------------------------------------------------------------------

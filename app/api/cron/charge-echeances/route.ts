@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
-import { envoyerCampagne, type RecetteCampagne } from "@/lib/envoi-campagne";
+import {
+  envoyerCampagne,
+  statutCampagne,
+  enregistrerEnvois,
+  type RecetteCampagne,
+} from "@/lib/envoi-campagne";
 
 export const runtime = "nodejs";
 
@@ -57,10 +62,11 @@ async function envoyerCampagnesPlanifiees() {
       continue;
     }
 
+    const statut = statutCampagne(res);
     await supabase
       .from("campagnes")
       .update({
-        statut: res.emailsEnvoyes > 0 ? "envoye" : "erreur",
+        statut,
         envoye_at: new Date().toISOString(),
         cible: res.cible,
         nb_destinataires: res.personnesCiblees,
@@ -69,11 +75,9 @@ async function envoyerCampagnesPlanifiees() {
         destinataires_liste: res.destinatairesListe,
       })
       .eq("id", c.id);
-    results.push({
-      id: c.id,
-      statut: res.emailsEnvoyes > 0 ? "envoye" : "erreur",
-      envoyes: res.emailsEnvoyes,
-    });
+    // Suivi par destinataire (best-effort).
+    await enregistrerEnvois(supabase, c.id, res.resultats);
+    results.push({ id: c.id, statut, envoyes: res.emailsEnvoyes });
   }
   return results;
 }
