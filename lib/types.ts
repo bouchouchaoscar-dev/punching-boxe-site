@@ -81,6 +81,8 @@ export interface Adherent {
   signature_ip?: string | null;
   // Mail « dossier complet et validé » envoyé une seule fois (anti-doublon).
   mail_dossier_complet_envoye?: boolean;
+  // Relance « panier abandonné » envoyée une seule fois (horodatage = flag).
+  relance_panier_envoyee_at?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

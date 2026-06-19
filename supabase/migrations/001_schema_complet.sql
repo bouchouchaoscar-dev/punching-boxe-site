@@ -84,7 +84,8 @@ create table if not exists public.adherents (
   litige_statut             text,
   -- Admin
   vu_par_admin              boolean not null default false,   -- badge "Nouveau"
-  mail_dossier_complet_envoye boolean not null default false  -- anti-doublon mail
+  mail_dossier_complet_envoye boolean not null default false, -- anti-doublon mail
+  relance_panier_envoyee_at timestamptz                       -- relance panier abandonné (unique)
 );
 
 create index if not exists adherents_saison_idx     on public.adherents (saison);

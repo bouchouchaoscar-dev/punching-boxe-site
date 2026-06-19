@@ -133,6 +133,35 @@ export async function sendAccountWelcome(d: { email: string }) {
   });
 }
 
+/** 0 bis — Relance « panier abandonné » : dossier carte créé mais paiement
+ *  jamais finalisé (24h+). Lien direct vers la reprise du paiement. Envoyé une
+ *  seule fois (flag relance_panier_envoyee_at géré par l'appelant). */
+export async function sendRelancePanier(d: {
+  prenom: string;
+  email: string;
+  adherentId: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Finalisez votre inscription 🥊</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> a bien été commencée, mais votre paiement n'a pas été finalisé. Votre place n'est donc pas encore confirmée.</p>
+    <p style="line-height:1.6;color:#444">Il ne reste qu'une étape : régler en ligne en quelques secondes (carte ou paiement en plusieurs fois).</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/inscription/finaliser/${d.adherentId}`, "Finaliser mon paiement")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Vous pouvez aussi régler en espèces auprès du professeur lors de votre prochain cours. Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: "Finalisez votre inscription au Punching Boxe 🥊",
+    html,
+  });
+}
+
 /** 1 — Email de confirmation à l'adhérent (espèces ou carte). */
 export async function sendAdherentConfirmation(d: MailData) {
   const client = getResend();

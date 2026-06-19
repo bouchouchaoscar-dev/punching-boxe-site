@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
+import { sendRelancePanier } from "@/lib/email";
 import {
   envoyerCampagne,
   statutCampagne,
@@ -126,5 +127,48 @@ export async function GET(request: Request) {
   // Campagnes planifiées dont l'heure est atteinte.
   const campagnes = await envoyerCampagnesPlanifiees();
 
-  return NextResponse.json({ traitees: results.length, results, campagnes });
+  // Relances « panier abandonné » (dossiers carte non finalisés depuis 24h+).
+  const relances = await relancerPaniersAbandonnes();
+
+  return NextResponse.json({ traitees: results.length, results, campagnes, relances });
+}
+
+/**
+ * Relance « panier abandonné » : dossiers carte/fractionné créés mais dont le
+ * paiement n'a jamais été finalisé (non engagés), depuis plus de 24h, non
+ * clôturés, jamais relancés. Envoi UNIQUE (pose relance_panier_envoyee_at).
+ */
+async function relancerPaniersAbandonnes() {
+  const supabase = getSupabaseAdmin();
+  const seuil = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: dossiers } = await supabase
+    .from("adherents")
+    .select("id, prenom, email, created_at")
+    .like("mode_paiement", "stripe%")
+    .eq("statut_paiement", "en_attente")
+    .is("engage_at", null)
+    .is("annule_at", null)
+    .is("relance_panier_envoyee_at", null)
+    .lt("created_at", seuil);
+
+  let envoyes = 0;
+  for (const a of dossiers ?? []) {
+    // Flag posé AVANT l'envoi (idempotence : un seul mail, même si re-run).
+    const { data: claimed } = await supabase
+      .from("adherents")
+      .update({ relance_panier_envoyee_at: new Date().toISOString() })
+      .eq("id", a.id)
+      .is("relance_panier_envoyee_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed || !a.email) continue;
+    try {
+      await sendRelancePanier({ prenom: a.prenom ?? "", email: a.email, adherentId: a.id });
+      envoyes++;
+    } catch (e) {
+      console.error("Relance panier:", a.id, e);
+    }
+    await new Promise((r) => setTimeout(r, 300)); // pacing rate-limit Resend
+  }
+  return { candidats: dossiers?.length ?? 0, envoyes };
 }
