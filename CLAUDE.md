@@ -6,7 +6,7 @@
 > Détail complet : `PROJECT.md`. Repo MASTER dupliquable (cf. `SETUP-NOUVEAU-CLIENT.md` côté agence).
 
 ## État actuel
-**LIVE** sur `https://www.punching-boxe.com` — plusieurs inscriptions en 24 h sans mailing (1ʳᵉ vraie inscription carte encaissée). PMF validé.
+**LIVE** sur `https://www.punching-boxe.com` — 3+ inscriptions en prod (dont un **fractionné 3× validé**), 1ʳᵉ campagne de relance envoyée (**186 destinataires, 100 % délivrabilité**). PMF validé. **Resend Pro** activé. **Tunnel de conversion complet et automatisé** (voir ci‑dessous).
 
 ## Stack & repo
 Next.js 15 (App Router, TS) · Supabase (DB/Auth/Storage) · Stripe · Resend · @react-pdf · Tailwind v4 · Vercel · cron-job.org.
@@ -15,7 +15,15 @@ Repo : `github.com/bouchouchaoscar-dev/punching-boxe-site` · **local de travail
 ## Fonctionnalités livrées (résumé)
 Vitrine + SEO (301 de l'ancien WP) · inscription 100 % en ligne (1 compte = N dossiers) · tarifs dégressifs par paliers + adhésion + option prépa + remise famille (rattachement explicite) · seuils d'âge dynamiques (tarif <13, autorisation <18) · documents générés + **signés en ligne** (auto‑validés, certificat non bloquant, photo recadrée) · paiement Stripe carte/fractionné/espèces + **Apple/Google Pay** · espace adhérent (messages adaptatifs) · dashboard admin (validation pièces, paiement, **remboursement/clôture découplés, CA net réel**) · anciens (réinscription, 858+1245 importés) · **mailing** (segments, templates, planification, familles) · crons (échéances + campagnes).
 
+## Automatisations conversion & mailing (récent ✅)
+- **Relance panier abandonné** : dossier carte/fractionné créé mais non finalisé (engage_at null) depuis > 24 h → mail auto unique (cron), flag `adherents.relance_panier_envoyee_at`.
+- **Relance compte orphelin** : compte Auth sans aucun dossier depuis > 24 h → mail auto unique (cron), anti‑doublon via table `relances_compte` (profiles vide au signup → table dédiée).
+- **Mail dossier complet** : engagé + 4 docs validés → une seule fois, flag `mail_dossier_complet_envoye`.
+- **Envoi campagnes durci** : envoi un‑par‑un + **pacing 300 ms** (rate‑limit Resend 5 req/s), **retry 1× sur 429**, erreurs **non avalées** → statut **`partiel`** si échecs, **suivi par destinataire** dans table `envois_mailing`, `nb_envoyes` réel.
+- **UI admin** : « Template » → « **Modèle** ». Nouveau modèle **« Relance — Paiement non finalisé »** + jeton `{{bouton_finaliser}}`.
+
 ## Backlog post‑lancement
+- [ ] Marquer en base les **5 adresses bounce** identifiées (Resend Logs) — pas de webhook bounce encore (envois_mailing ne capte que les échecs d'envoi, pas les bounces async).
 - [ ] Google Search Console (soumettre `sitemap.xml`) + indexation.
 - [ ] Google Business Profile (fiche club) + avis.
 - [ ] Réseaux : remplacer les URLs Facebook/Instagram placeholder dans `lib/constants.ts` (`CLUB.facebook/instagram`) + `sameAs` JSON‑LD.
