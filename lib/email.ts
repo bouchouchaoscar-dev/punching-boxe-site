@@ -498,6 +498,10 @@ export function renderCampagne(contenu: string, email?: string): string {
     .replace(
       /\{\{bouton_espace\}\}/g,
       button(`${SITE_URL}/mon-espace`, "Accéder à mon espace"),
+    )
+    .replace(
+      /\{\{bouton_finaliser\}\}/g,
+      button(`${SITE_URL}/mon-espace`, "Finaliser mon inscription"),
     );
   const corps = `<div style="line-height:1.6;color:#222;white-space:pre-wrap">${corpsTexte}</div>`;
   const pied = email

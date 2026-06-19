@@ -293,7 +293,7 @@ export default function NouvelleCampagnePage() {
   }
 
   async function saveAsTemplate() {
-    const nom = prompt("Nom du nouveau template :");
+    const nom = prompt("Nom du nouveau modèle :");
     if (!nom?.trim()) return;
     await fetch("/api/admin/templates", {
       method: "POST",
@@ -304,7 +304,7 @@ export default function NouvelleCampagnePage() {
       await fetch("/api/admin/templates", { headers: adminAuthHeaders() })
     ).json();
     setTemplates(d.templates ?? []);
-    setToast("Template sauvegardé ✓");
+    setToast("Modèle sauvegardé ✓");
     window.setTimeout(() => setToast(null), 2500);
   }
 
@@ -725,7 +725,7 @@ export default function NouvelleCampagnePage() {
 
             <label className="block">
               <span className="mb-1.5 block text-sm font-semibold text-ink">
-                Template
+                Modèle
               </span>
               <select
                 onChange={(e) => {
@@ -777,7 +777,7 @@ export default function NouvelleCampagnePage() {
                 disabled={!objet || !contenu}
                 className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-40"
               >
-                Sauvegarder comme template
+                Sauvegarder comme modèle
               </button>
             </div>
           </div>

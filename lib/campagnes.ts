@@ -459,6 +459,7 @@ export const VARIABLES: { token: string; label: string }[] = [
 export const BOUTONS: { token: string; label: string }[] = [
   { token: "{{bouton_inscription}}", label: "Bouton « S'inscrire »" },
   { token: "{{bouton_espace}}", label: "Bouton « Mon espace »" },
+  { token: "{{bouton_finaliser}}", label: "Bouton « Finaliser mon inscription »" },
 ];
 
 export type DestinataireVars = {

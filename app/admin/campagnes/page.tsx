@@ -85,7 +85,7 @@ export default function CampagnesPage() {
           </p>
           <p className="mt-2 max-w-2xl text-sm text-smoke">
             Envoyez une campagne en quelques clics grâce aux listes
-            intelligentes, écrivez librement ou partez d&apos;un template,
+            intelligentes, écrivez librement ou partez d&apos;un modèle,
             planifiez pour plus tard. Tout l&apos;historique des envois est
             conservé ici.
           </p>
@@ -95,7 +95,7 @@ export default function CampagnesPage() {
             href="/admin/campagnes/templates"
             className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink"
           >
-            Templates
+            Modèles
           </Link>
           <Link
             href="/admin/campagnes/nouvelle?planifier=1"

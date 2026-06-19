@@ -103,7 +103,7 @@ export default function TemplatesPage() {
 
   async function remove(t: TemplateMail) {
     if (t.est_defaut) return;
-    if (!confirm(`Supprimer le template « ${t.nom} » ?`)) return;
+    if (!confirm(`Supprimer le modèle « ${t.nom} » ?`)) return;
     await fetch(`/api/admin/templates/${t.id}`, {
       method: "DELETE",
       headers: adminAuthHeaders(),
@@ -122,7 +122,7 @@ export default function TemplatesPage() {
       <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-4xl font-black uppercase text-ink">
-            Templates d&apos;email
+            Modèles d&apos;email
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-smoke">
             La bibliothèque de modèles, classés par famille. Réutilisez-les dans
@@ -133,7 +133,7 @@ export default function TemplatesPage() {
           onClick={() => setEdit({ ...empty })}
           className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange/90"
         >
-          + Nouveau template
+          + Nouveau modèle
         </button>
       </div>
 
@@ -200,7 +200,7 @@ export default function TemplatesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] bg-white p-6">
             <h2 className="font-display text-xl font-extrabold uppercase text-ink">
-              {edit.id ? "Modifier le template" : "Nouveau template"}
+              {edit.id ? "Modifier le modèle" : "Nouveau modèle"}
             </h2>
             <div className="mt-4 space-y-3">
               <Field

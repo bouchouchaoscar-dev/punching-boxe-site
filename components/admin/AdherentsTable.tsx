@@ -145,7 +145,7 @@ export function AdherentsTable() {
           <p className="mt-2 max-w-2xl text-sm text-smoke">
             Suivez l&apos;avancée des dossiers, validez ou refusez les pièces,
             contrôlez les paiements. Depuis une fiche, envoyez un mail (message
-            libre ou template), gérez un remboursement ou mettez fin à une
+            libre ou modèle), gérez un remboursement ou mettez fin à une
             inscription.
           </p>
         </div>
