@@ -162,6 +162,33 @@ export async function sendRelancePanier(d: {
   });
 }
 
+/** 0 ter — Relance « compte sans inscription » : espace créé mais aucun dossier
+ *  démarré (24h+). Envoyé une seule fois (table relances_compte gère le flag). */
+export async function sendCommencerInscription(d: {
+  prenom: string;
+  email: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Votre espace est prêt 🥊</h1>
+    <p style="line-height:1.6;color:#444">${salut}</p>
+    <p style="line-height:1.6;color:#444">Votre espace adhérent est créé, il ne reste plus qu'à démarrer votre inscription ! Cela prend moins de 5 minutes, tout se fait en ligne.</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/inscription`, "Commencer mon inscription")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: "🥊 Votre espace est prêt — plus qu'une étape !",
+    html,
+  });
+}
+
 /** 1 — Email de confirmation à l'adhérent (espèces ou carte). */
 export async function sendAdherentConfirmation(d: MailData) {
   const client = getResend();

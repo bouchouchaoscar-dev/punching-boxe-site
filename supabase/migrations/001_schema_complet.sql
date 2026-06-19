@@ -239,6 +239,13 @@ create table if not exists public.envois_mailing (
 );
 create index if not exists envois_mailing_campagne_idx on public.envois_mailing (campagne_id);
 
+-- Anti-doublon de la relance « compte sans inscription » (présence = relancé).
+create table if not exists public.relances_compte (
+  user_id  uuid primary key references auth.users(id) on delete cascade,
+  email    text,
+  sent_at  timestamptz not null default now()
+);
+
 -- ---------------------------------------------------------------------------
 -- 7) ADMIN_USERS — optionnel (auth admin gérée en dur côté app par défaut)
 -- ---------------------------------------------------------------------------
@@ -264,6 +271,7 @@ alter table public.templates_mail         enable row level security;
 alter table public.contacts_mailing       enable row level security;
 alter table public.desinscriptions_mailing enable row level security;
 alter table public.envois_mailing         enable row level security;
+alter table public.relances_compte        enable row level security;
 alter table public.admin_users            enable row level security;
 
 -- ---------------------------------------------------------------------------

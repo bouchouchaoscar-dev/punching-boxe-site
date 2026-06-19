@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
-import { sendRelancePanier } from "@/lib/email";
+import { sendRelancePanier, sendCommencerInscription } from "@/lib/email";
 import {
   envoyerCampagne,
   statutCampagne,
@@ -130,7 +130,68 @@ export async function GET(request: Request) {
   // Relances « panier abandonné » (dossiers carte non finalisés depuis 24h+).
   const relances = await relancerPaniersAbandonnes();
 
-  return NextResponse.json({ traitees: results.length, results, campagnes, relances });
+  // Relances « compte sans inscription » (espace créé, aucun dossier, 24h+).
+  const relancesComptes = await relancerComptesSansInscription();
+
+  return NextResponse.json({ traitees: results.length, results, campagnes, relances, relancesComptes });
+}
+
+/**
+ * Relance « compte sans inscription » : comptes Auth créés depuis plus de 24h
+ * qui n'ont AUCUN dossier (aucun adherents.titulaire_id), jamais relancés.
+ * Anti-doublon via la table relances_compte (l'insert = le claim). Envoi unique.
+ */
+async function relancerComptesSansInscription() {
+  const supabase = getSupabaseAdmin();
+  const seuilMs = Date.now() - 24 * 60 * 60 * 1000;
+
+  // Titulaires ayant au moins un dossier (à exclure).
+  const { data: adh } = await supabase
+    .from("adherents")
+    .select("titulaire_id")
+    .not("titulaire_id", "is", null);
+  const avecDossier = new Set((adh ?? []).map((a) => a.titulaire_id as string));
+
+  // Comptes Auth (pagination).
+  const users: { id: string; email: string; created_at: string; prenom: string }[] = [];
+  let page = 1;
+  for (;;) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) { console.error("auth list (relance compte):", error.message); break; }
+    for (const u of data.users) {
+      const meta = (u.user_metadata ?? {}) as Record<string, string>;
+      users.push({
+        id: u.id,
+        email: u.email ?? "",
+        created_at: u.created_at,
+        prenom: meta.prenom || meta.first_name || (meta.full_name ?? "").split(" ")[0] || "",
+      });
+    }
+    if (data.users.length < 1000) break;
+    page++;
+  }
+
+  let envoyes = 0;
+  let candidats = 0;
+  for (const u of users) {
+    if (!u.email) continue;
+    if (avecDossier.has(u.id)) continue; // a un dossier → pas orphelin
+    if (new Date(u.created_at).getTime() > seuilMs) continue; // < 24h
+    candidats++;
+    // Claim atomique : insert ne réussit que s'il n'y a pas déjà une ligne.
+    const { error: claimErr } = await supabase
+      .from("relances_compte")
+      .insert({ user_id: u.id, email: u.email });
+    if (claimErr) continue; // déjà relancé (conflit PK) ou erreur → on saute
+    try {
+      await sendCommencerInscription({ prenom: u.prenom, email: u.email });
+      envoyes++;
+    } catch (e) {
+      console.error("Relance compte:", u.email, e);
+    }
+    await new Promise((r) => setTimeout(r, 300)); // pacing rate-limit Resend
+  }
+  return { candidats, envoyes };
 }
 
 /**
