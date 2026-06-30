@@ -1,40 +1,45 @@
 /**
- * Audit READ-ONLY : réconciliation DB (Supabase) <-> Stripe pour la fenêtre
- * où le webhook Stripe était KO (apex sans www -> 308 non suivi).
+ * Audit READ-ONLY : réconciliation DB (Supabase) <-> Stripe.
+ *
+ * Outil de diagnostic permanent. À utiliser quand on soupçonne un décalage
+ * entre la base et Stripe (ex. webhook KO : apex sans www -> 308 non suivi).
  * Ne modifie RIEN. Aucune écriture en base.
  *
- * Usage : npx tsx scripts/audit-webhook-gap.mts
- * Sortie : fichier texte dans le dossier temp de l'OS (chemin affiché en fin
- *          d'exécution), ou chemin imposé via la variable d'env AUDIT_OUT.
+ * Usage :
+ *   npx tsx scripts/audit-webhook-gap.mts                 # fenêtre = 30 derniers jours
+ *   npx tsx scripts/audit-webhook-gap.mts 2026-06-17T15:21:00Z   # depuis une date ISO
+ *
+ * Nécessite SUPABASE_SERVICE_ROLE_KEY + STRIPE_SECRET_KEY dans .env.local.
  */
-import { readFileSync, writeFileSync, appendFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 
-// Charge .env.local manuellement (pas de dotenv installé).
+// Charge .env.local manuellement (pas de dotenv dans le projet).
 for (const line of readFileSync(new URL("../.env.local", import.meta.url), "utf8").split("\n")) {
   const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2].trim().replace(/^["']|["']$/g, "");
 }
 
-const OUT = process.env.AUDIT_OUT || join(tmpdir(), "audit-webhook-gap-report.txt");
-writeFileSync(OUT, "");
-const log = (s = "") => { appendFileSync(OUT, s + "\n"); };
+const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const STRIPE_KEY = process.env.STRIPE_SECRET_KEY;
+if (!SUPA_URL || !SUPA_KEY || !STRIPE_KEY) {
+  console.error(
+    "Clés manquantes : il faut NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY + STRIPE_SECRET_KEY dans .env.local.",
+  );
+  process.exit(1);
+}
 
-const CUTOFF_ISO = "2026-06-17T15:21:00Z";
+// Fenêtre : 1er argument ISO, sinon 30 derniers jours.
+const CUTOFF_ISO =
+  process.argv[2] || new Date(Date.now() - 30 * 86400_000).toISOString();
 const CUTOFF = Math.floor(new Date(CUTOFF_ISO).getTime() / 1000);
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  timeout: 12000,
-  maxNetworkRetries: 1,
-});
+const supabase = createClient(SUPA_URL, SUPA_KEY);
+const stripe = new Stripe(STRIPE_KEY, { timeout: 12000, maxNetworkRetries: 1 });
 
+const log = (s = "") => console.log(s);
 const E = (n: number | null | undefined) =>
   n == null ? "—" : `${Number(n).toFixed(2)}€`;
 const D = (s: string | null | undefined) =>
@@ -56,7 +61,7 @@ async function siStatus(id: string | null | undefined) {
 
 async function main() {
   log("==================================================================");
-  log(" AUDIT WEBHOOK GAP — DB vs STRIPE");
+  log(" AUDIT — RÉCONCILIATION DB (Supabase) <-> STRIPE  [READ-ONLY]");
   log(` Fenêtre : adhérents créés depuis ${CUTOFF_ISO}`);
   log("==================================================================\n");
 
@@ -67,7 +72,7 @@ async function main() {
     .order("created_at", { ascending: true });
   if (error) throw error;
 
-  log(`Adhérents créés depuis le 17/06 15:21 UTC : ${adherents?.length ?? 0}\n`);
+  log(`Adhérents dans la fenêtre : ${adherents?.length ?? 0}\n`);
 
   for (const a of adherents ?? []) {
     const who = `${a.prenom} ${a.nom}`.trim();
@@ -92,14 +97,14 @@ async function main() {
     if (paiements?.length) {
       for (const p of paiements) {
         const real = await piStatus(p.stripe_payment_intent_id);
-        const flagMismatch =
+        const mismatch =
           (p.statut === "paye" && real && real !== "succeeded") ||
           (p.statut !== "paye" && real === "succeeded");
         log(
           `   éch#${p.numero_echeance ?? "?"} ${E(p.montant)} db=${p.statut}` +
             ` prévu=${D(p.date_prevue)} payé=${D(p.date_paiement)}` +
             (p.stripe_payment_intent_id ? ` stripe=${real}` : ` (pas de PI)`) +
-            (flagMismatch ? "  <<< MISMATCH" : ""),
+            (mismatch ? "  <<< MISMATCH" : ""),
         );
         if (p.statut !== "paye" && real === "succeeded")
           flags.push({ sev: "🔴", who, msg: `éch#${p.numero_echeance} encaissée chez Stripe mais db='${p.statut}'` });
@@ -110,8 +115,7 @@ async function main() {
       log("   (aucune ligne paiements)");
     }
 
-    const isStripe = String(a.mode_paiement).startsWith("stripe");
-    if (isStripe) {
+    if (String(a.mode_paiement).startsWith("stripe")) {
       const comptant = (a.nb_echeances || 1) <= 1;
       if (comptant) {
         const real = await piStatus(a.stripe_payment_intent_id);
@@ -132,7 +136,7 @@ async function main() {
   }
 
   log("\n==================================================================");
-  log(" SCAN DIRECT STRIPE — charges depuis le 17/06 15:21 UTC");
+  log(` SCAN DIRECT STRIPE — charges depuis ${CUTOFF_ISO}`);
   log("==================================================================");
   let totalCharges = 0, totalEncaisse = 0, totalRefunded = 0, disputed = 0;
   const charges = await stripe.charges.list({ created: { gte: CUTOFF }, limit: 100 });
@@ -163,10 +167,15 @@ async function main() {
     log(" ✅ Aucune incohérence DB<->Stripe détectée sur la fenêtre.");
   } else {
     for (const f of flags) log(` ${f.sev} ${f.who} — ${f.msg}`);
-    log(`\n 🔴 critiques=${flags.filter((f) => f.sev === "🔴").length} | 🟠 à vérifier=${flags.filter((f) => f.sev === "🟠").length} | 🟢 info=${flags.filter((f) => f.sev === "🟢").length}`);
+    log(
+      `\n 🔴 critiques=${flags.filter((f) => f.sev === "🔴").length}` +
+        ` | 🟠 à vérifier=${flags.filter((f) => f.sev === "🟠").length}` +
+        ` | 🟢 info=${flags.filter((f) => f.sev === "🟢").length}`,
+    );
   }
-  log("\n[FIN]");
-  console.log("Audit terminé. Rapport écrit dans : " + OUT);
 }
 
-main().catch((e) => { log("ERREUR: " + (e?.message || e)); console.error("ERREUR: " + (e?.message || e)); process.exit(1); });
+main().catch((e) => {
+  console.error("ERREUR:", e instanceof Error ? e.message : e);
+  process.exit(1);
+});
