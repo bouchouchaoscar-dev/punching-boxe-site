@@ -26,6 +26,14 @@ export async function GET(request: Request) {
     .not("ancien_id", "is", null);
   const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
 
+  // Adresses bouncées : reflet du filtre d'envoi dans le compteur. Un ancien
+  // dont l'email est bouncé est compté comme "sans email" (non ciblable), pour
+  // que "X affichés" = "X réellement envoyés".
+  const { data: bounces } = await supabase.from("emails_bounced").select("email");
+  const bounced = new Set(
+    (bounces ?? []).map((b) => String(b.email).toLowerCase()),
+  );
+
   const lite = (a: { id: unknown; derniere_saison: unknown; disciplines: unknown }) => ({
     id: a.id,
     derniere_saison: a.derniere_saison,
@@ -36,10 +44,14 @@ export async function GET(request: Request) {
   // mention "X réinscrits exclus" dans le constructeur de campagne).
   const anciens = (data ?? [])
     .filter((a) => !migres.has(a.id as string))
-    .map((a) => ({
-      ...lite(a),
-      has_email: !!(a.email && String(a.email).trim()),
-    }));
+    .map((a) => {
+      const email = a.email ? String(a.email).trim() : "";
+      return {
+        ...lite(a),
+        // Bouncé => traité comme sans email (non ciblable) pour le compteur.
+        has_email: !!email && !bounced.has(email.toLowerCase()),
+      };
+    });
   const migresAnciens = (data ?? [])
     .filter((a) => migres.has(a.id as string))
     .map(lite);

@@ -226,13 +226,20 @@ export async function envoyerCampagne(
 
   const doublons = totalAvant - personnes.size;
 
-  // Exclusion RGPD au niveau email.
+  // Exclusion au niveau email — PORTE D'ENVOI UNIQUE. Réunit deux motifs :
+  // désinscrits RGPD + adresses bouncées (rejetées). Couvre TOUTES les sources
+  // (adhérents, anciens, contacts, emails manuels) : aucune campagne ne peut
+  // partir vers une adresse marquée. Point unique, comme desinscriptions_mailing.
   const { data: optouts } = await supabase
     .from("desinscriptions_mailing")
     .select("email");
-  const desinscrits = new Set(
-    (optouts ?? []).map((o) => String(o.email).toLowerCase()),
-  );
+  const { data: bounces } = await supabase
+    .from("emails_bounced")
+    .select("email");
+  const desinscrits = new Set([
+    ...(optouts ?? []).map((o) => String(o.email).toLowerCase()),
+    ...(bounces ?? []).map((b) => String(b.email).toLowerCase()),
+  ]);
 
   // ---- Étage 2 : regroupement par EMAIL (familles préservées) ----
   const { envois, personnesExclues } = regrouperParEmail(
