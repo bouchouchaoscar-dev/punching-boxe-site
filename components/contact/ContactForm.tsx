@@ -8,6 +8,10 @@ type Status = "idle" | "sending" | "error";
 export function ContactForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [toast, setToast] = useState<string | null>(null);
+  // Anti-bot : honeypot (champ piège) + horodatage de montage du formulaire.
+  // La décision finale se prend CÔTÉ SERVEUR ; ces valeurs sont juste transmises.
+  const [honeypot, setHoneypot] = useState("");
+  const [formLoadedAt] = useState(() => Date.now());
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -18,6 +22,8 @@ export function ContactForm() {
       email: String(data.get("email") || ""),
       telephone: String(data.get("telephone") || ""),
       message: String(data.get("message") || ""),
+      website: honeypot,
+      formLoadedAt,
     };
 
     setStatus("sending");
@@ -45,6 +51,33 @@ export function ContactForm() {
       onSubmit={handleSubmit}
       className="rounded-[1.5rem] border border-line bg-white p-6 sm:p-8"
     >
+      {/* Piège anti-bot : invisible et inatteignable au clavier pour un humain,
+          rempli uniquement par les bots. Ne jamais retirer. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          width: "1px",
+          height: "1px",
+          opacity: 0,
+          overflow: "hidden",
+        }}
+      >
+        <label>
+          Ne remplissez pas ce champ
+          <input
+            type="text"
+            name="website"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </label>
+      </div>
+
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Nom complet" name="nom" required />
         <Field label="Téléphone" name="telephone" type="tel" />
