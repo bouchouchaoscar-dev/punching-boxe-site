@@ -1049,8 +1049,12 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                         field="certificat_medical"
                         adherentId={adherentId}
                         label="Certificat médical"
-                        hint="PDF, max 5 Mo"
-                        accept={{ "application/pdf": [".pdf"] }}
+                        hint="PDF ou photo (JPG/PNG), max 5 Mo"
+                        accept={{
+                          "application/pdf": [".pdf"],
+                          "image/jpeg": [".jpg", ".jpeg"],
+                          "image/png": [".png"],
+                        }}
                         maxSizeMb={5}
                         onChange={onFile}
                       />
