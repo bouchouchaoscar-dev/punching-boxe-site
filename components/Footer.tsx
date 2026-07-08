@@ -123,6 +123,19 @@ export function Footer() {
             <span>Savate · Boxe Française</span>
           </p>
         </div>
+
+        <p className="mt-6 text-center text-[11px] text-[#AAAAAA]">
+          Propulsé par{" "}
+          <a
+            href="https://www.drive-asso.fr"
+            target="_blank"
+            rel="noopener"
+            aria-label="DriveAsso - Création de sites web pour clubs et associations"
+            className="font-medium text-[#888888] underline-offset-2 transition-colors hover:text-orange hover:underline"
+          >
+            DriveAsso
+          </a>
+        </p>
       </div>
     </footer>
   );
