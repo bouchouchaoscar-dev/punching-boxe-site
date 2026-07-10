@@ -1057,6 +1057,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                         }}
                         maxSizeMb={5}
                         onChange={onFile}
+                        optional
                       />
                       <p className="mt-1.5 text-xs leading-relaxed text-smoke">
                         À faire établir par votre médecin, puis à déposer ici. Non

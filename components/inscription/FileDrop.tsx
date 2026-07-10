@@ -20,6 +20,7 @@ export function FileDrop({
   accept,
   maxSizeMb,
   onChange,
+  optional = false,
 }: {
   field: FileFieldKey;
   adherentId: string;
@@ -28,6 +29,10 @@ export function FileDrop({
   accept: Accept;
   maxSizeMb: number;
   onChange: (field: FileFieldKey, value: { url: string | null; name: string }) => void;
+  // Document facultatif (ex. certificat médical) : un échec d'upload ne doit
+  // JAMAIS être un cul-de-sac. On offre une échappatoire claire + on rappelle
+  // qu'on peut continuer sans.
+  optional?: boolean;
 }) {
   const [status, setStatus] = useState<Status>("empty");
   const [fileName, setFileName] = useState("");
@@ -67,6 +72,15 @@ export function FileDrop({
     },
     [adherentId, field, onChange],
   );
+
+  // Efface un échec (ou un fichier déposé) et revient à l'état vide : indispensable
+  // pour qu'une pièce facultative rejetée ne piège jamais l'utilisateur.
+  const reset = useCallback(() => {
+    setStatus("empty");
+    setFileName("");
+    setError("");
+    onChange(field, { url: null, name: "" });
+  }, [field, onChange]);
 
   const onDrop = useCallback(
     async (accepted: File[], rejected: FileRejection[]) => {
@@ -136,7 +150,14 @@ export function FileDrop({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-ink">{label}</p>
+          <p className="font-semibold text-ink">
+            {label}
+            {optional && (
+              <span className="ml-2 text-xs font-normal text-smoke">
+                · facultatif
+              </span>
+            )}
+          </p>
           <p className="truncate text-xs text-smoke">
             {ok || status === "uploading" ? fileName : hint}
           </p>
@@ -147,7 +168,25 @@ export function FileDrop({
           </span>
         )}
       </div>
-      {error && <p className="mt-1.5 text-xs font-semibold text-red-600">{error}</p>}
+      {status === "error" && (
+        <div className="mt-1.5 space-y-1">
+          <p className="text-xs font-semibold text-red-600">{error}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            <button
+              type="button"
+              onClick={reset}
+              className="font-semibold text-smoke underline underline-offset-2 transition-colors hover:text-ink"
+            >
+              Réessayer
+            </button>
+            {optional && (
+              <span className="text-smoke">
+                Ce document est facultatif — vous pouvez continuer sans.
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {cropFile && (
         <PhotoCropModal
