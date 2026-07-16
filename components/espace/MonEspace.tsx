@@ -15,7 +15,14 @@ import { estEngage } from "@/lib/engagement";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { PhotoCropModal } from "@/components/inscription/PhotoCropModal";
-import { euro, formuleLabel, remiseFamillePct } from "@/lib/pricing";
+import {
+  euro,
+  formuleLabel,
+  REMISE_FAMILLE,
+  remiseFamilleActive,
+  remiseFamilleBadge,
+  remiseFamillePct,
+} from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
@@ -446,10 +453,14 @@ export function MonEspace() {
                           label="Catégorie"
                           value={a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
                         />
-                        {remiseFamillePct(a.nb_membres_famille) > 0 && (
+                        {remiseFamilleActive(a.nb_membres_famille) && (
                           <Line
                             label="Réduction famille"
-                            value={`-${remiseFamillePct(a.nb_membres_famille)}%`}
+                            value={
+                              REMISE_FAMILLE.type === "pourcentage"
+                                ? `-${remiseFamillePct(a.nb_membres_famille)}%`
+                                : (remiseFamilleBadge(a.nb_membres_famille) ?? "")
+                            }
                           />
                         )}
                         <Line label="Montant total" value={euro(a.montant_total)} />

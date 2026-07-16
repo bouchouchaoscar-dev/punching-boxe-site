@@ -8,7 +8,7 @@ import { sendDossierComplet } from "./email";
 // espèces confirmées) ET les 4 documents validés (fiche + règlement + photo +
 // certificat). Idempotent : le flag mail_dossier_complet_envoye est posé de
 // façon ATOMIQUE (update conditionnel) → un seul appel « gagne » et envoie,
-// même si Pascal re-touche une pièce ensuite. Best-effort : toute erreur est
+// même si l'admin re-touche une pièce ensuite. Best-effort : toute erreur est
 // journalisée et n'interrompt jamais la validation.
 export async function notifierSiDossierComplet(
   supabase: SupabaseClient,

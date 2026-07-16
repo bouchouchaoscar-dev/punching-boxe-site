@@ -181,18 +181,73 @@ export function estMineur(
   return age != null && age < SEUIL_MAJORITE_ANS;
 }
 
+// ── CONFIG CLUB — Remise famille ────────────────────────────────────────
+// Deux modèles au choix (DÉFAUT = Punching Boxe : pourcentage) :
+//   • "pourcentage" : réduction en % de la cotisation, à partir d'un rang donné.
+//   • "montant"     : réduction en euros fixes appliquée à l'inscrit de ce rang.
+// `paliers[rang]` = valeur pour le NOUVEL inscrit dont le rang = nbMembresFamille+1.
+// Le palier le plus élevé s'applique aussi à tous les rangs supérieurs.
+// Pour dupliquer un club au barème en euros (ex. tennis : 2e −40, 3e −60, 4e −90,
+// 5e −120 en cumul foyer ⇒ marge par rang { 2:40, 3:20, 4:30, 5:30 }), passer
+// simplement type:"montant" + les paliers voulus. Le reste du moteur suit.
+export type RemiseFamilleConfig =
+  | { type: "pourcentage"; paliers: Record<number, number> }
+  | { type: "montant"; paliers: Record<number, number> };
+
+export const REMISE_FAMILLE: RemiseFamilleConfig = {
+  type: "pourcentage",
+  paliers: { 3: 10, 4: 15, 5: 20 },
+};
+
+/** Valeur brute du palier atteint pour un rang donné (0 si aucun). */
+function paliersValeur(rang: number): number {
+  let val = 0;
+  for (const r of Object.keys(REMISE_FAMILLE.paliers).map(Number).sort((a, b) => a - b)) {
+    if (rang >= r) val = REMISE_FAMILLE.paliers[r];
+  }
+  return val;
+}
+
 /**
- * Réduction famille : s'applique UNIQUEMENT sur la cotisation, et
- * uniquement à partir du 3ème membre de la famille.
- * nbMembresFamille = nombre de membres déjà inscrits.
- * → nouvel inscrit = rang (nbMembresFamille + 1).
+ * Réduction famille : s'applique UNIQUEMENT sur la cotisation.
+ * nbMembresFamille = nombre de membres déjà inscrits → nouvel inscrit = rang
+ * (nbMembresFamille + 1). Renvoie 0 hors modèle pourcentage.
+ * Conservé pour la compat (affichage %, gating foyer) : DÉFAUT boxe inchangé
+ * (3e −10 %, 4e −15 %, 5e et + −20 %).
  */
 export function remiseFamillePct(nbMembresFamille: number): number {
-  const rang = nbMembresFamille + 1;
-  if (rang >= 5) return 20;
-  if (rang === 4) return 15;
-  if (rang === 3) return 10;
-  return 0;
+  if (REMISE_FAMILLE.type !== "pourcentage") return 0;
+  return paliersValeur(nbMembresFamille + 1);
+}
+
+/** Remise famille appliquée à la cotisation, quel que soit le modèle (% ou €). */
+export function remiseFamille(
+  nbMembresFamille: number,
+  cotisation: number,
+): { pct: number; montant: number } {
+  const val = paliersValeur(nbMembresFamille + 1);
+  if (REMISE_FAMILLE.type === "pourcentage") {
+    return { pct: val, montant: Math.round((cotisation * val) / 100) };
+  }
+  return { pct: 0, montant: Math.min(val, cotisation) };
+}
+
+/** Une remise famille s'applique-t-elle à ce rang ? (gating foyer, tous modèles) */
+export function remiseFamilleActive(nbMembresFamille: number): boolean {
+  return paliersValeur(nbMembresFamille + 1) > 0;
+}
+
+/** Badge d'affichage court (« −10 % » ou « −40 € »). null si pas de remise. */
+export function remiseFamilleBadge(nbMembresFamille: number): string | null {
+  const val = paliersValeur(nbMembresFamille + 1);
+  if (val <= 0) return null;
+  return REMISE_FAMILLE.type === "pourcentage" ? `−${val} %` : `−${val} €`;
+}
+
+/** Rang du 1er membre remisé (3 en boxe, 2 en tennis…) — pour les textes. */
+export function remiseFamillePremierRang(): number {
+  const rangs = Object.keys(REMISE_FAMILLE.paliers).map(Number);
+  return rangs.length ? Math.min(...rangs) : 0;
 }
 
 export function calculerTarif(
@@ -210,9 +265,12 @@ export function calculerTarif(
   const cotisationProratisee =
     COTISATION_PALIERS[mois][input.packageType][typeAdherent];
 
-  // 2) Remise famille sur la cotisation du mois (inchangé : 3e -10%, etc.).
-  const remisePct = remiseFamillePct(input.nbMembresFamille || 0);
-  const remiseMontant = Math.round((cotisationProratisee * remisePct) / 100);
+  // 2) Remise famille sur la cotisation du mois (config club : % ou € fixe ;
+  //    défaut boxe = 3e -10%, 4e -15%, 5e+ -20%).
+  const { pct: remisePct, montant: remiseMontant } = remiseFamille(
+    input.nbMembresFamille || 0,
+    cotisationProratisee,
+  );
   const cotisationNette = cotisationProratisee - remiseMontant;
 
   const adhesion = input.nouveauMembre ? TARIFS.adhesion : 0;
@@ -234,7 +292,10 @@ export function calculerTarif(
   ];
   if (remiseMontant > 0) {
     lines.push({
-      label: `Réduction famille -${remisePct}% (sur cotisation)`,
+      label:
+        REMISE_FAMILLE.type === "pourcentage"
+          ? `Réduction famille -${remisePct}% (sur cotisation)`
+          : `Réduction famille (${(input.nbMembresFamille || 0) + 1}e membre du foyer)`,
       amount: -remiseMontant,
     });
   }

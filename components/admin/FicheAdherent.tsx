@@ -9,6 +9,7 @@ import { HistoriqueSaisons, type HistLigne } from "./HistoriqueSaisons";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
+import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
@@ -444,7 +445,12 @@ export function FicheAdherent({ id }: { id: string }) {
               <EditableInfo label="Code postal" editing={editing} value={form.code_postal ?? ""} onChange={(v) => setForm({ ...form, code_postal: v })} display={a.code_postal ?? "—"} />
               <EditableInfo label="Ville" editing={editing} value={form.ville ?? ""} onChange={(v) => setForm({ ...form, ville: v })} display={a.ville ?? "—"} />
               <Info label="Nouveau membre" value={a.nouveau_membre ? "Oui" : "Non"} />
-              <Info label="Préparation physique" value={a.option_prepa_physique ? "Oui" : "Non"} />
+              {OPTION_SUPPLEMENTAIRE.actif && (
+                <Info
+                  label={OPTION_SUPPLEMENTAIRE.label}
+                  value={a.option_prepa_physique ? "Oui" : "Non"}
+                />
+              )}
             </dl>
           </div>
 

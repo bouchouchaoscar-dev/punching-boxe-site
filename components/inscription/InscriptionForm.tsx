@@ -19,6 +19,8 @@ import {
   formuleLabel,
   nbEcheances,
   prepaDuMois,
+  REMISE_FAMILLE,
+  remiseFamillePremierRang,
   type ModePaiement,
   type PackageType,
 } from "@/lib/pricing";
@@ -433,7 +435,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       (r) => r.nom.trim() && r.prenom.trim() && r.date_naissance,
     );
   function avecAttestation(action: () => void) {
-    if ((tarif.remisePct > 0 || lienRattachement) && !attesteFoyer) {
+    if ((tarif.remiseMontant > 0 || lienRattachement) && !attesteFoyer) {
       pendingAction.current = action;
       setAttestOpen(true);
       return;
@@ -888,10 +890,14 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   </div>
                 )}
 
-                {tarif.remisePct > 0 && (
+                {tarif.remiseMontant > 0 && (
                   <p className="text-sm font-semibold text-orange">
                     Ce dossier est le {nbFoyerEffectif + 1}e membre du foyer
-                    rattaché : −{tarif.remisePct}% sur la cotisation.
+                    rattaché : −
+                    {REMISE_FAMILLE.type === "pourcentage"
+                      ? `${tarif.remisePct}%`
+                      : `${tarif.remiseMontant} €`}{" "}
+                    sur la cotisation.
                   </p>
                 )}
                 <LivePrice
@@ -1316,9 +1322,13 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
       {attestOpen && (
         <AttestationModal
           message={
-            tarif.remisePct > 0
-              ? `Ce dossier bénéficie d'une remise familiale de −${tarif.remisePct} % (${nbFoyerEffectif + 1}e membre${nbFoyerEffectif + 1 >= 5 ? " et plus" : ""} du foyer). En continuant, vous attestez que cette personne appartient à votre foyer familial.`
-              : `Vous ajoutez un membre de votre foyer. Ce lien sera pris en compte pour vos prochaines inscriptions : la remise familiale s'applique à partir du 3e membre. En continuant, vous attestez que cette personne appartient à votre foyer familial.`
+            tarif.remiseMontant > 0
+              ? `Ce dossier bénéficie d'une remise familiale de −${
+                  REMISE_FAMILLE.type === "pourcentage"
+                    ? `${tarif.remisePct} %`
+                    : `${tarif.remiseMontant} €`
+                } (${nbFoyerEffectif + 1}e membre${nbFoyerEffectif + 1 >= 5 ? " et plus" : ""} du foyer). En continuant, vous attestez que cette personne appartient à votre foyer familial.`
+              : `Vous ajoutez un membre de votre foyer. Ce lien sera pris en compte pour vos prochaines inscriptions : la remise familiale s'applique à partir du ${remiseFamillePremierRang()}e membre. En continuant, vous attestez que cette personne appartient à votre foyer familial.`
           }
           onConfirm={() => {
             attesteRef.current = true;

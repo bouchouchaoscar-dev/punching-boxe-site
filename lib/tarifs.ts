@@ -95,15 +95,16 @@ export function repartirCotisation(montant: number, n: number): number[] {
 export type PlanEcheances = {
   n: number;
   dates: string[]; // ISO yyyy-mm-dd, une par échéance
-  montants: number[]; // (cotisation proratisée + prépa) répartie en n parts
-  adhesion: number; // adhésion, payée EN ENTIER sur le 1er prélèvement (non fractionnée)
+  montants: number[]; // cotisation proratisée (+ option) répartie en n parts
+  adhesion: number; // part non fractionnée (adhésion/licence), payée EN ENTIER sur le 1er prélèvement
   premierPrelevement: number; // montants[0] + adhesion
 };
 
 /**
  * Plan complet d'échéances.
- * On fractionne TOUT sauf l'adhésion : `fractionnable` = cotisation proratisée
- * + prépa physique. L'adhésion (30€) est ajoutée en entier au 1er prélèvement.
+ * On fractionne TOUT sauf la part non fractionnable (adhésion/licence) :
+ * `fractionnable` = cotisation proratisée (+ option). L'adhésion est ajoutée en
+ * entier au 1er prélèvement.
  */
 export function planEcheances(
   fractionnable: number,
@@ -124,10 +125,10 @@ export function planEcheances(
 
 export type DevisInscription = {
   cotisation: number; // cotisation proratisée nette (après remise famille)
-  adhesion: number; // adhésion (30€ 1ère année, sinon 0) — NON fractionnée
-  prepa: number; // option prépa physique (dégressive selon le mois, ou 0) — fractionnée
-  supplements: number; // adhésion + prépa (récap prix)
-  fractionnable: number; // cotisation + prépa = montant réparti sur les échéances
+  adhesion: number; // adhésion 1ère année (ou 0) — NON fractionnée
+  prepa: number; // option supplémentaire du club (0 si aucune) — fractionnée
+  supplements: number; // adhésion + option (récap prix)
+  fractionnable: number; // cotisation + option = montant réparti sur les échéances
   total: number;
   proratise: boolean;
   moisSaison: number;
@@ -166,7 +167,7 @@ export function devisPourAdherent(
   const adhesion = t.adhesion;
   const prepa = t.prepa;
   const supplements = adhesion + prepa;
-  // Tout est fractionné SAUF l'adhésion : cotisation (proratisée + remise) + prépa.
+  // Tout est fractionné SAUF l'adhésion : cotisation (proratisée + remise) + option.
   const fractionnable = t.cotisationNette + prepa;
   return {
     cotisation: t.cotisationNette,

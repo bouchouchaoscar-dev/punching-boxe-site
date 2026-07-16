@@ -8,7 +8,7 @@ import {
   type InscriptionPayload,
 } from "@/lib/inscription";
 import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
-import { remiseFamillePct } from "@/lib/pricing";
+import { remiseFamilleActive } from "@/lib/pricing";
 import {
   analyserFoyer,
   appliquerMerges,
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msgFoyer }, { status: 400 });
   }
   const lienCree = rattachementsRenseignes(payload.rattachements).length > 0;
-  const remiseApplicable = remiseFamillePct(analyse.nbMembres) > 0;
+  const remiseApplicable = remiseFamilleActive(analyse.nbMembres);
   if ((lienCree || remiseApplicable) && payload.attestation_foyer !== true) {
     return NextResponse.json(
       { error: "Attestation du foyer familial requise pour la remise." },

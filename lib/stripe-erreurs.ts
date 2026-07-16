@@ -32,7 +32,7 @@ export function familleEchec(code: string | null | undefined): FamilleEchec {
   return "autre";
 }
 
-// Libellés FR courts pour l'admin (Pascal voit la cause, pas juste "échec").
+// Libellés FR courts pour l'admin (le club voit la cause, pas juste "échec").
 const LIBELLES: Record<string, string> = {
   insufficient_funds: "fonds insuffisants",
   expired_card: "carte expirée",

@@ -6,6 +6,7 @@ import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
 import { ScrollX } from "@/components/ui/ScrollX";
 import { euro } from "@/lib/pricing";
+import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { evaluerDossier } from "@/lib/dossier";
 import { formatTelephone } from "@/lib/telephone";
 import type { Adherent } from "@/lib/types";
@@ -103,7 +104,7 @@ export function AdherentsTable() {
       "Statut",
       "Mode",
       "Montant",
-      "Prépa",
+      ...(OPTION_SUPPLEMENTAIRE.actif ? [OPTION_SUPPLEMENTAIRE.labelCourt] : []),
       "Date",
     ];
     const rows = filtered.map((a) => [
@@ -116,7 +117,9 @@ export function AdherentsTable() {
       a.statut_paiement,
       a.mode_paiement,
       String(a.montant_total),
-      a.option_prepa_physique ? "oui" : "non",
+      ...(OPTION_SUPPLEMENTAIRE.actif
+        ? [a.option_prepa_physique ? "oui" : "non"]
+        : []),
       new Date(a.created_at).toLocaleDateString("fr-FR"),
     ]);
     const csv = [headers, ...rows]
@@ -168,7 +171,9 @@ export function AdherentsTable() {
         />
         <Select value={type} onChange={setType} options={[["all", "Tous types"], ["adulte", "Adultes"], ["jeune", "Jeunes"]]} />
         <Select value={statut} onChange={setStatut} options={[["all", "Tous statuts"], ["paye", "Payé en ligne"], ["confirme_especes", "Espèces confirmé"], ["en_attente", "En attente"]]} />
-        <Select value={prepa} onChange={setPrepa} options={[["all", "Prépa : tous"], ["oui", "Avec prépa"], ["non", "Sans prépa"]]} />
+        {OPTION_SUPPLEMENTAIRE.actif && (
+          <Select value={prepa} onChange={setPrepa} options={[["all", `${OPTION_SUPPLEMENTAIRE.labelCourt} : tous`], ["oui", `Avec ${OPTION_SUPPLEMENTAIRE.labelCourt.toLowerCase()}`], ["non", `Sans ${OPTION_SUPPLEMENTAIRE.labelCourt.toLowerCase()}`]]} />
+        )}
       </div>
 
       {error && (
@@ -292,7 +297,9 @@ function Row({
       </td>
       <td className="truncate px-2 py-3 text-center text-xs text-smoke">
         {a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française"}
-        {a.option_prepa_physique ? " · Prépa" : ""}
+        {OPTION_SUPPLEMENTAIRE.actif && a.option_prepa_physique
+          ? ` · ${OPTION_SUPPLEMENTAIRE.labelCourt}`
+          : ""}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>
       <td className="whitespace-nowrap px-2 py-3 text-center text-xs text-smoke">

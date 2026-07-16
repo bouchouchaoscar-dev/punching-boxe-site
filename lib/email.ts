@@ -18,12 +18,12 @@ function getResend(): Resend | null {
 
 // Expéditeur. Par défaut le domaine de TEST Resend (fonctionne avec n'importe
 // quelle clé API, sans vérification de domaine). En production avec un domaine
-// vérifié, définir RESEND_FROM="Punching Boxe <contact@punching-boxe.com>".
+// vérifié, définir RESEND_FROM="<Nom du club> <contact@domaine>".
 const FROM =
-  process.env.RESEND_FROM || "Punching Boxe <onboarding@resend.dev>";
+  process.env.RESEND_FROM || `${CLUB.nomCourt} <onboarding@resend.dev>`;
 const ADMIN_TO = process.env.ADMIN_NOTIFY_EMAIL || CLUB.email;
 // Reply-To des mails ADHÉRENTS : une réponse de l'adhérent arrive dans la boîte
-// du club (consultée par Pascal). From = club, Reply-To = même adresse club.
+// du club (consultée par l'admin). From = club, Reply-To = même adresse club.
 const REPLY_TO = CLUB.email;
 
 // Orange EXACT du logo (échantillonné sur public/logo/logo.png), pour que le
@@ -57,8 +57,8 @@ type MailData = {
 function wrap(inner: string) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0a0a0a">
     <div style="background:#0a0a0a;padding:22px 24px;text-align:center">
-      <img src="${SITE_URL}/logo/logo.png" alt="Punching Boxe" width="56" height="56" style="display:block;margin:0 auto 10px;width:56px;height:56px;border-radius:9999px;object-fit:cover" />
-      <span style="color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:18px">Punching <span style="color:${ORANGE}">Boxe</span></span>
+      <img src="${SITE_URL}/logo/logo.png" alt="${CLUB.nomCourt}" width="56" height="56" style="display:block;margin:0 auto 10px;width:56px;height:56px;border-radius:9999px;object-fit:cover" />
+      <span style="color:#fff;font-weight:800;text-transform:uppercase;letter-spacing:1px;font-size:18px">${CLUB.wordmark.avant} <span style="color:${ORANGE}">${CLUB.wordmark.accent}</span></span>
     </div>
     <div style="padding:28px 24px">${inner}</div>
     <div style="background:#fafafa;padding:18px 24px;font-size:12px;color:#666;text-align:center">

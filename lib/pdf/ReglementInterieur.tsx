@@ -1,3 +1,7 @@
+// ⚠️ CONTENU JURIDIQUE À RÉÉCRIRE PAR CLIENT.
+// Le nom du club vient de `CLUB` (constants.ts), mais les ARTICLES ci-dessous
+// sont propres à la boxe (disciplines, certificat médical, matériel…). À chaque
+// duplication : réécrire le règlement intérieur selon le sport/statuts du club.
 import { Document, Page, Text, View } from "@react-pdf/renderer";
 import { styles } from "./theme";
 import { PdfFooter, PdfHeader, SignatureBlock } from "./Shared";

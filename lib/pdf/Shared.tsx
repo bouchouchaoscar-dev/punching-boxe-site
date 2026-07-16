@@ -1,6 +1,7 @@
 import { Image, Polyline, Svg, Text, View } from "@react-pdf/renderer";
 import { getLogoDataUri, styles } from "./theme";
 import { formatDateFr } from "@/lib/tarifs";
+import { CLUB } from "@/lib/constants";
 import type { SignatureVect } from "./types";
 
 export function PdfHeader({
@@ -16,9 +17,9 @@ export function PdfHeader({
       <View style={styles.headerLeft}>
         {logo ? <Image src={logo} style={styles.logo} /> : null}
         <View>
-          <Text style={styles.clubName}>Punching Boxe</Text>
-          <Text style={styles.clubSub}>Nogent · Le Perreux</Text>
-          <Text style={styles.clubSub}>Savate · Boxe Française</Text>
+          <Text style={styles.clubName}>{CLUB.nomCourt}</Text>
+          <Text style={styles.clubSub}>{CLUB.localite}</Text>
+          <Text style={styles.clubSub}>{CLUB.baseline}</Text>
         </View>
       </View>
       <View style={styles.docTitleWrap}>
@@ -89,8 +90,8 @@ export function SignatureBlock({
 export function PdfFooter() {
   return (
     <View style={styles.footer} fixed>
-      <Text>Punching Boxe de Nogent-Le Perreux · Association loi 1901</Text>
-      <Text>07 60 83 98 30 · contact@punching-boxe.com</Text>
+      <Text>{CLUB.nom} · {CLUB.formeJuridique}</Text>
+      <Text>{CLUB.telephone} · {CLUB.email}</Text>
     </View>
   );
 }

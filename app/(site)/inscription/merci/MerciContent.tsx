@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
+import { CLUB } from "@/lib/constants";
 
 export function MerciContent() {
   const params = useSearchParams();
@@ -60,7 +61,7 @@ export function MerciContent() {
         </p>
 
         <p className="mt-6 font-display text-xl font-extrabold uppercase text-orange">
-          À bientôt à la salle 🥊
+          {CLUB.messageBienvenue}
         </p>
 
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
