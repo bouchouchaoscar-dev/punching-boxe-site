@@ -5,6 +5,8 @@
 -- Idempotent (create ... if not exists). RLS activé sans policy publique :
 -- tout passe par le serveur via SUPABASE_SERVICE_ROLE_KEY (contourne RLS).
 -- La clé anon publique ne peut donc PAS lire les données personnelles.
+-- Inclut les GRANTS (section 8bis) → aucun correctif de permissions à exécuter
+-- après coup : ce fichier seul suffit au déploiement.
 -- ============================================================================
 
 create extension if not exists "pgcrypto";
@@ -273,6 +275,27 @@ alter table public.desinscriptions_mailing enable row level security;
 alter table public.envois_mailing         enable row level security;
 alter table public.relances_compte        enable row level security;
 alter table public.admin_users            enable row level security;
+
+-- ---------------------------------------------------------------------------
+-- 8bis) GRANTS — privilèges standard Supabase sur le schéma public.
+--   INDISPENSABLE : le serveur passe TOUJOURS par service_role. La RLS reste
+--   active et sans policy publique (section 8) → anon/authenticated restent
+--   bloqués sur les DONNÉES ; seul service_role (qui bypass la RLS) y accède
+--   réellement. Sans ces GRANT, les tables existent mais l'API renvoie
+--   « permission denied for table … » (42501) et inscription / admin /
+--   /api/health / cron échouent tous. On rétablit ici les droits que Supabase
+--   pose par défaut → plus aucun correctif post-déploiement nécessaire.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to anon, authenticated, service_role;
+
+grant all on all tables    in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all functions in schema public to anon, authenticated, service_role;
+
+-- Objets créés à l'avenir dans public (tables/séquences/fonctions ultérieures).
+alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 9) STORAGE — bucket public des documents adhérents (lecture publique,
