@@ -3,6 +3,7 @@ import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
 import { estActifCompte } from "./adherents-actifs";
 import { euro } from "./pricing";
+import { CLUB } from "./constants";
 
 export type StatutCampagne =
   | "brouillon"
@@ -527,21 +528,21 @@ export const DEFAULT_TEMPLATES: {
   {
     nom: "Mail de rentrée septembre",
     categorie: "informatif",
-    objet: "C'est la rentrée au Punching Boxe ! 🥊",
+    objet: `C'est la rentrée au ${CLUB.nomCourt} ! ${CLUB.emoji}`,
     contenu: `Bonjour {{prenom}},
 
-La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver sur le ring !
+La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver au club !
 
-Les cours reprennent en septembre.
-Retrouvez tous les horaires sur notre site : punching-boxe.com
+Les activités reprennent en septembre.
+Retrouvez tous les horaires sur notre site.
 
 À très bientôt,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Mail de fin de saison juin",
     categorie: "informatif",
-    objet: "Fin de saison — Merci et à l'année prochaine ! 🥊",
+    objet: `Fin de saison — Merci et à l'année prochaine ! ${CLUB.emoji}`,
     contenu: `Bonjour {{prenom}},
 
 La saison se termine bientôt et nous tenions à vous remercier pour votre fidélité cette année.
@@ -549,7 +550,7 @@ La saison se termine bientôt et nous tenions à vous remercier pour votre fidé
 Les inscriptions pour la saison prochaine ouvriront en juin. Restez connectés !
 
 À l'année prochaine,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Annonce modification horaires",
@@ -557,14 +558,14 @@ Pascal et l'équipe du Punching Boxe`,
     objet: "📅 Modification des horaires",
     contenu: `Bonjour {{prenom}},
 
-Nous vous informons d'une modification des horaires de cours.
+Nous vous informons d'une modification des horaires.
 
 [Détaillez ici les changements.]
 
 Pour toute question, répondez simplement à cet email.
 
 Cordialement,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Fermeture pendant les vacances scolaires",
@@ -572,17 +573,17 @@ Pascal et l'équipe du Punching Boxe`,
     objet: "🗓️ Pas de cours pendant les vacances",
     contenu: `Bonjour {{prenom}},
 
-Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas de cours sur cette période.
+Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas d'activité sur cette période.
 
-Les cours reprendront normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme sur le ring !
+Tout reprendra normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme au club !
 
 Sportivement,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Événement / stage / compétition à venir",
     categorie: "informatif",
-    objet: "🥊 Un événement à ne pas manquer",
+    objet: `${CLUB.emoji} Un événement à ne pas manquer`,
     contenu: `Bonjour {{prenom}},
 
 Un événement se prépare au club et on aimerait vous y voir !
@@ -592,7 +593,7 @@ Un événement se prépare au club et on aimerait vous y voir !
 Que vous veniez participer ou encourager, votre présence compte. Pour toute question, répondez simplement à cet email.
 
 À très vite,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
 
   // ===== RELANCE ADMINISTRATIVE =====
@@ -609,20 +610,20 @@ Connectez-vous à votre espace adhérent pour le déposer en quelques clics.
 {{bouton_espace}}
 
 Merci et à bientôt,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Relance paiement espèces en attente",
     categorie: "relance_admin",
-    objet: "💰 Règlement en attente — Punching Boxe",
+    objet: `💰 Règlement en attente — ${CLUB.nomCourt}`,
     contenu: `Bonjour {{prenom}},
 
 Nous n'avons pas encore reçu votre règlement de {{montant}}€ pour la saison {{saison}}.
 
-Pensez à régler en espèces auprès du professeur lors de votre prochain cours.
+Pensez à régler en espèces à l'accueil du club lors de votre prochaine venue.
 
 À bientôt,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Relance dossier incomplet (pièce manquante)",
@@ -637,17 +638,17 @@ Connectez-vous à votre espace adhérent pour voir les documents manquants et le
 {{bouton_espace}}
 
 Merci d'avance,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
 
   // ===== RÉINSCRIPTION =====
   {
     nom: "Mail de lancement des inscriptions",
     categorie: "reinscription",
-    objet: "Les inscriptions {{saison}} sont ouvertes ! 🥊",
+    objet: `Les inscriptions {{saison}} sont ouvertes ! ${CLUB.emoji}`,
     contenu: `Bonjour {{prenom}},
 
-La nouvelle saison approche, et on a une bonne nouvelle : le Punching Boxe passe au tout numérique pour vous simplifier la vie.
+La nouvelle saison approche, et on a une bonne nouvelle : le ${CLUB.nomCourt} passe au tout numérique pour vous simplifier la vie.
 
 Fini les papiers à remplir sur place : votre inscription se fait désormais 100% en ligne, en quelques minutes, depuis votre canapé.
 
@@ -656,72 +657,69 @@ Vous réalisez votre inscription depuis votre espace adhérent personnel, où vo
 Vous pouvez régler comme vous le souhaitez :
 - Par carte en une fois
 - Par carte en plusieurs fois (paiement échelonné)
-- En espèces auprès du professeur, comme avant
+- En espèces à l'accueil du club, comme avant
 
 Vous souhaitez inscrire plusieurs personnes ? Depuis ce même espace, vous gérez les inscriptions de toute la famille : vos enfants, vos proches, plusieurs dossiers réunis au même endroit. Pas besoin de créer un compte par personne, vous suivez tout depuis le vôtre.
 
-🥊 Et cette saison, deux formules pour trouver votre rythme :
-- Boxe Française : 5 cours adultes / 4 cours enfants par semaine, la pratique et la technique du sport de combat.
-- Savate & Prépa : 3 cours par semaine (un cours de Savate + deux cours de préparation physique) pour se dépenser et se renforcer.
-On vous explique tout en détail sur le site.
+[Présentez ici vos formules et vos offres de la saison.]
 
 {{bouton_inscription}}
 
-On a hâte de vous retrouver sur le ring cette saison !
+On a hâte de vous retrouver cette saison !
 
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Réinscription — saison dernière",
     categorie: "reinscription",
-    objet: "🥊 On vous attend pour la saison {{saison}} !",
+    objet: `${CLUB.emoji} On vous attend pour la saison {{saison}} !`,
     contenu: `Bonjour {{prenom}},
 
-Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver sur le ring cette année !
+Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver au club cette année !
 
-Les inscriptions pour la saison {{saison}} sont ouvertes. La réinscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement en une ou plusieurs fois, ou en espèces auprès du professeur, comme vous préférez.
+Les inscriptions pour la saison {{saison}} sont ouvertes. La réinscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement en une ou plusieurs fois, ou en espèces à l'accueil du club, comme vous préférez.
 
 {{bouton_inscription}}
 
 Au plaisir de vous revoir,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
   {
     nom: "Réinscription — tièdes",
     categorie: "reinscription",
-    objet: "🥊 Votre place vous attend pour la saison {{saison}}",
+    objet: `${CLUB.emoji} Votre place vous attend pour la saison {{saison}}`,
     contenu: `Bonjour {{prenom}},
 
 Cela fait quelque temps qu'on ne vous a pas vu au club, et on aimerait beaucoup vous retrouver pour la saison {{saison}}.
 
-L'inscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement par carte (en une ou plusieurs fois) ou en espèces auprès du professeur.
+L'inscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement par carte (en une ou plusieurs fois) ou en espèces à l'accueil du club.
 
 Bon à savoir : votre absence étant récente, vous n'avez pas de frais d'adhésion à repayer cette saison, seulement votre cotisation.
 
-Et si vous préférez reprendre tranquillement, venez quand vous voulez faire une séance d'essai à l'un de nos cours, le temps de retrouver vos sensations avant de vous réinscrire. Les horaires sont sur notre site.
+Et si vous préférez reprendre tranquillement, venez quand vous voulez faire une séance d'essai, le temps de retrouver vos sensations avant de vous réinscrire. Les horaires sont sur notre site.
 
 {{bouton_inscription}}
 
 On garde votre place au chaud,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
 
   // ===== RÉACTIVATION =====
   {
     nom: "Réactivation — anciens (revenez au club)",
     categorie: "reactivation",
-    objet: "🥊 Et si vous repreniez la boxe ?",
+    objet: `${CLUB.emoji} Et si vous repreniez le chemin du club ?`,
     contenu: `Bonjour {{prenom}},
 
-Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le Punching Boxe a évolué depuis, et on serait ravis de vous revoir sur le ring.
+Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le ${CLUB.nomCourt} a évolué depuis, et on serait ravis de vous revoir parmi nous.
 
-Tout est désormais en ligne : vous pouvez vous réinscrire en quelques minutes depuis votre espace adhérent, régler par carte (en une ou plusieurs fois) ou en espèces auprès du professeur.
+Tout est désormais en ligne : vous pouvez vous réinscrire en quelques minutes depuis votre espace adhérent, régler par carte (en une ou plusieurs fois) ou en espèces à l'accueil du club.
 
-Et pas de pression : vous pouvez passer quand vous voulez faire une séance d'essai à l'un de nos cours pour vous remettre en jambes, avant de décider. Retrouvez tous les horaires sur notre site.
+Et pas de pression : vous pouvez passer quand vous voulez faire une séance d'essai pour vous remettre en jambes, avant de décider. Retrouvez tous les horaires sur notre site.
 
 {{bouton_inscription}}
 
 À très bientôt, on l'espère,
-Pascal et l'équipe du Punching Boxe`,
+L'équipe du ${CLUB.nomCourt}`,
   },
 ];

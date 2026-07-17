@@ -209,6 +209,10 @@ create table if not exists public.templates_mail (
   contenu     text not null,
   categorie   text check (categorie in ('informatif','relance_admin','reinscription','reactivation')),
   est_defaut  boolean default false,
+  -- true dès que l'admin édite un modèle par défaut → la synchro des défauts
+  -- depuis le code (route templates) ne l'écrasera JAMAIS. Un nouveau club part
+  -- à false et bénéficie des mises à jour des modèles neutres du socle.
+  personnalise boolean not null default false,
   created_at  timestamptz default now()
 );
 
@@ -318,6 +322,7 @@ begin
 end$$;
 
 -- ============================================================================
--- FIN. Étapes suivantes : scripts/seed-nouveau-client.mts (templates + admin),
--- puis import éventuel des anciens (scripts/import-anciens.mts).
+-- FIN. Modèles d'emails : seedés automatiquement au 1er chargement de l'espace
+-- admin (route /api/admin/templates). Étape suivante : import éventuel des
+-- anciens (scripts/import-anciens.mts).
 -- ============================================================================

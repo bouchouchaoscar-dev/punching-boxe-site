@@ -18,6 +18,8 @@ export const CLUB = {
   wordmark: { avant: "Punching", accent: "Boxe" },
   // Signature de fin de parcours (page « merci », espace adhérent).
   messageBienvenue: "À bientôt à la salle 🥊",
+  // Emoji du club, injecté dans les modèles d'emails/campagnes (objets/signatures).
+  emoji: "🥊",
   creeEn: 2000,
   telephone: "07 60 83 98 30",
   telephoneHref: "+33760839830",

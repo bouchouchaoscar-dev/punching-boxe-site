@@ -14,34 +14,85 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
 
-  // Seed des templates par défaut absents (par nom).
-  const { data: existing } = await supabase
-    .from("templates_mail")
-    .select("nom, categorie");
-  const noms = new Set((existing ?? []).map((t) => t.nom));
-  const manquants = DEFAULT_TEMPLATES.filter((t) => !noms.has(t.nom)).map((t) => ({
+  // Seed + synchro des modèles par défaut (par nom).
+  // Select résilient : la colonne `personnalise` peut manquer sur une base
+  // antérieure à la migration 004. Dans ce cas → comportement historique
+  // (insertion des manquants seulement), AUCUNE synchro ni écrasement.
+  let existing: {
+    id: string;
+    nom: string;
+    objet: string;
+    contenu: string;
+    categorie: string | null;
+    est_defaut: boolean | null;
+    personnalise?: boolean | null;
+  }[] = [];
+  let colPersonnalise = true;
+  {
+    const r = await supabase
+      .from("templates_mail")
+      .select("id, nom, objet, contenu, categorie, est_defaut, personnalise");
+    if (r.error && /personnalise/.test(r.error.message)) {
+      colPersonnalise = false;
+      const r2 = await supabase
+        .from("templates_mail")
+        .select("id, nom, objet, contenu, categorie, est_defaut");
+      existing = (r2.data ?? []) as typeof existing;
+    } else {
+      existing = (r.data ?? []) as typeof existing;
+    }
+  }
+  const parNom = new Map(existing.map((t) => [t.nom, t]));
+
+  // 1) Insérer les défauts absents.
+  const manquants = DEFAULT_TEMPLATES.filter((t) => !parNom.has(t.nom)).map((t) => ({
     ...t,
     est_defaut: true,
+    ...(colPersonnalise ? { personnalise: false } : {}),
   }));
   if (manquants.length > 0) {
     const { error: insErr } = await supabase.from("templates_mail").insert(manquants);
-    // Tolérance : colonne categorie pas encore créée → insert sans elle.
-    if (insErr && /categorie/.test(insErr.message)) {
+    // Tolérance : colonnes categorie/personnalise absentes → insert minimal.
+    if (insErr && /(categorie|personnalise)/.test(insErr.message)) {
       await supabase.from("templates_mail").insert(
-        manquants.map(({ categorie: _c, ...rest }) => rest),
+        manquants.map(({ categorie: _c, personnalise: _p, ...rest }) => rest),
       );
     }
   }
 
-  // Backfill catégorie des défauts existants (par nom) si manquante.
-  for (const t of DEFAULT_TEMPLATES) {
-    const ex = (existing ?? []).find((e) => e.nom === t.nom);
-    if (ex && !ex.categorie) {
+  // 2) Synchroniser les défauts NON personnalisés dont le contenu a changé
+  //    (propage les corrections du socle). Jamais les modèles édités par
+  //    l'admin (personnalise=true). Ignoré si la colonne n'existe pas encore.
+  if (colPersonnalise) {
+    for (const t of DEFAULT_TEMPLATES) {
+      const ex = parNom.get(t.nom);
+      if (!ex || ex.personnalise) continue;
+      const differe =
+        ex.objet !== t.objet ||
+        ex.contenu !== t.contenu ||
+        ex.categorie !== t.categorie;
+      if (!differe) continue;
       await supabase
         .from("templates_mail")
-        .update({ categorie: t.categorie })
-        .eq("nom", t.nom)
-        .then(undefined, () => {}); // ignore si colonne absente
+        .update({
+          objet: t.objet,
+          contenu: t.contenu,
+          categorie: t.categorie,
+          est_defaut: true,
+        })
+        .eq("id", ex.id);
+    }
+  } else {
+    // Base pré-004 : au moins backfiller la catégorie manquante (legacy).
+    for (const t of DEFAULT_TEMPLATES) {
+      const ex = parNom.get(t.nom);
+      if (ex && !ex.categorie) {
+        await supabase
+          .from("templates_mail")
+          .update({ categorie: t.categorie })
+          .eq("id", ex.id)
+          .then(undefined, () => {});
+      }
     }
   }
 

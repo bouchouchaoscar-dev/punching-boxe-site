@@ -96,7 +96,7 @@ log.todo("Titre/description/keywords SEO : à adapter manuellement dans app/layo
 
 console.log("\n================ RESTE MANUEL ================");
 for (const m of cfg._manuel ?? []) log.todo(m);
-log.todo("Templates mail + admin : npx tsx scripts/seed-nouveau-client.mts");
-log.todo("Schéma base : exécuter supabase/migrations/001_schema_complet.sql dans Supabase");
+log.todo("Modèles d'emails : seedés automatiquement au 1er chargement de l'espace admin (aucune action). Admin : via NEXT_PUBLIC_ADMIN_USERNAME + ADMIN_PASSWORD.");
+log.todo("Schéma base : exécuter supabase/migrations/001_schema_complet.sql (puis 004) dans Supabase");
 log.todo("Vérif finale : npx tsx scripts/check-deployment.mts");
 console.log("\n✔ Initialisation terminée. Lance `npm run build` pour valider.");

@@ -27,14 +27,27 @@ export async function PUT(request: Request, { params }: Ctx) {
   if (body.objet !== undefined) update.objet = String(body.objet);
   if (body.contenu !== undefined) update.contenu = String(body.contenu);
   if (body.categorie !== undefined) update.categorie = body.categorie || null;
+  // Toute édition marque le modèle comme personnalisé → la synchro des défauts
+  // (route templates GET) ne l'écrasera plus jamais.
+  update.personnalise = true;
 
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("templates_mail")
     .update(update)
     .eq("id", id)
     .select()
     .single();
+  // Tolérance : colonne personnalise absente (base pré-004) → réessayer sans.
+  if (error && /personnalise/.test(error.message)) {
+    const { personnalise: _p, ...rest } = update;
+    ({ data, error } = await supabase
+      .from("templates_mail")
+      .update(rest)
+      .eq("id", id)
+      .select()
+      .single());
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ template: data });
 }
