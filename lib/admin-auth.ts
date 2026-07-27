@@ -1,13 +1,10 @@
-// Auth admin minimaliste — un seul compte (Pascal), codé en dur,
-// surchargabe par variables d'environnement. Session en localStorage.
-// (Modèle validé sur Beach Paddle : outil interne, pas de RLS.)
+// Auth admin minimaliste — un seul compte, piloté UNIQUEMENT par variables
+// d'environnement. AUCUN identifiant ni mot de passe EN DUR : si les variables
+// ne sont pas posées, l'accès est REFUSÉ (fail closed). Session en localStorage.
+// (Outil interne, pas de RLS.)
 
-// Identifiant (username, PAS un email) — surchargé par env.
-export const ADMIN_USERNAME =
-  process.env.NEXT_PUBLIC_ADMIN_USERNAME || "Pascal";
-
-// Mot de passe par défaut — À CHANGER via env ADMIN_PASSWORD en prod.
-export const ADMIN_PASSWORD_FALLBACK = "Punchingboxe94";
+// Identifiant (username, PAS un email). Vide si non configuré → login impossible.
+export const ADMIN_USERNAME = process.env.NEXT_PUBLIC_ADMIN_USERNAME ?? "";
 
 export const ADMIN_SESSION_KEY = "pbnp_admin_session";
 export const ADMIN_TOKEN_KEY = "pbnp_admin_token";
