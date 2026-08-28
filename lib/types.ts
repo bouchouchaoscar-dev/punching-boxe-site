@@ -81,6 +81,9 @@ export interface Adherent {
   signature_ip?: string | null;
   // Mail « dossier complet et validé » envoyé une seule fois (anti-doublon).
   mail_dossier_complet_envoye?: boolean;
+  // Mails d'inscription (confirmation adhérent + notif club) envoyés une seule
+  // fois : claim atomique exactly-once (confirm-payment ET webhook Stripe).
+  mail_inscription_envoye?: boolean;
   // Relance « panier abandonné » envoyée une seule fois (horodatage = flag).
   relance_panier_envoyee_at?: string | null;
 }

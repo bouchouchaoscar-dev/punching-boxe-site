@@ -11,6 +11,42 @@ import { notifierSiDossierComplet } from "./dossier-complet";
 import type { Adherent, Paiement } from "./types";
 
 /**
+ * Envoie les mails d'inscription (confirmation adhérent + notification club)
+ * EXACTEMENT UNE FOIS par dossier, quel que soit le nombre de chemins qui
+ * déclenchent la finalisation.
+ *
+ * Claim atomique sur `mail_inscription_envoye` (update conditionnel false->true) :
+ * une inscription carte est finalisée par DEUX chemins quasi simultanés —
+ * /api/confirm-payment (client) ET le webhook Stripe (payment_intent.succeeded) —
+ * et une double soumission est aussi possible. Postgres ne laisse qu'un seul
+ * UPDATE gagner le passage false->true ; les autres matchent 0 ligne et sont
+ * ignorés. Le flag est posé AVANT l'envoi (au plus une fois), comme les autres
+ * relances idempotentes du projet.
+ */
+export async function envoyerMailsInscription(
+  adherentId: string,
+  mailData: Parameters<typeof sendAdherentConfirmation>[0],
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  const { data: claimed } = await supabase
+    .from("adherents")
+    .update({ mail_inscription_envoye: true })
+    .eq("id", adherentId)
+    .eq("mail_inscription_envoye", false)
+    .select("id")
+    .maybeSingle();
+  if (!claimed) return; // mails déjà envoyés pour cette inscription
+  try {
+    await Promise.all([
+      sendAdherentConfirmation(mailData),
+      sendAdminNotification(mailData),
+    ]);
+  } catch (e) {
+    console.error("Email error (envoyerMailsInscription):", e);
+  }
+}
+
+/**
  * Marque un adhérent comme payé (idempotent) et déclenche les emails
  * uniquement lors de la transition réelle vers « payé ».
  * Conservé pour le flux 1x simple (filet de sécurité).
@@ -48,14 +84,7 @@ export async function markAdherentPaid(
 
   if (updErr) return { updated: false, adherent };
 
-  try {
-    await Promise.all([
-      sendAdherentConfirmation({ ...adherent, adherentId }),
-      sendAdminNotification({ ...adherent, adherentId }),
-    ]);
-  } catch (e) {
-    console.error("Email error (markAdherentPaid):", e);
-  }
+  await envoyerMailsInscription(adherentId, { ...adherent, adherentId });
 
   // Paiement engagé → le dossier est peut-être complet (docs déjà validés).
   await notifierSiDossierComplet(supabase, adherentId);
@@ -131,14 +160,7 @@ export async function recalculerEtatPaiement(adherentId: string) {
         date: r.date_prevue as string,
         montant: Number(r.montant || 0),
       }));
-    try {
-      await Promise.all([
-        sendAdherentConfirmation({ ...adherent, adherentId, echeances }),
-        sendAdminNotification({ ...adherent, adherentId }),
-      ]);
-    } catch (e) {
-      console.error("Email error (recalculerEtatPaiement):", e);
-    }
+    await envoyerMailsInscription(adherentId, { ...adherent, adherentId, echeances });
   }
 
   // 1re échéance / solde → le dossier est peut-être complet (docs déjà validés).

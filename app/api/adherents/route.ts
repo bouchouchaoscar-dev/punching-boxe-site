@@ -7,7 +7,7 @@ import {
   OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
-import { sendAdherentConfirmation, sendAdminNotification } from "@/lib/email";
+import { envoyerMailsInscription } from "@/lib/payments";
 import { remiseFamilleActive } from "@/lib/pricing";
 import {
   analyserFoyer,
@@ -143,15 +143,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Emails (best-effort, n'interrompent pas la réponse).
-  try {
-    await Promise.all([
-      sendAdherentConfirmation({ ...record, adherentId: data.id }),
-      sendAdminNotification({ ...record, adherentId: data.id }),
-    ]);
-  } catch (e) {
-    console.error("Email error:", e);
-  }
+  // Emails d'inscription (best-effort, n'interrompent pas la réponse).
+  // Exactly-once via claim atomique (protège aussi d'une double soumission).
+  await envoyerMailsInscription(data.id, { ...record, adherentId: data.id });
 
   return NextResponse.json({ adherent: data }, { status: 201 });
 }
