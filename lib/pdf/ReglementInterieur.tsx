@@ -65,6 +65,14 @@ export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
             échelonné en ligne).
           </Text>
           <Text style={styles.p}>
+            L&apos;adhésion au club est due lors de la première inscription. En
+            cas de réinscription sans interruption, l&apos;adhésion n&apos;est
+            pas à régler de nouveau. En revanche, après une interruption de deux
+            saisons sportives consécutives ou plus, toute nouvelle inscription
+            sera considérée comme une nouvelle adhésion et entraînera le paiement
+            de l&apos;adhésion en vigueur.
+          </Text>
+          <Text style={styles.p}>
             Pour les familles inscrivant plusieurs personnes, une remise est
             consentie sur la cotisation : -10 % pour la 3ème personne, -15 % pour la
             4ème, -20 % pour la 5ème. Le remboursement des cotisations n&apos;est
