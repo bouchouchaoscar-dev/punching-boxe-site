@@ -32,6 +32,8 @@ export function SignDocumentModal({
   certifLabel,
   initialSignature,
   initialChecked,
+  askResponsable = false,
+  responsableInitial,
   onConfirm,
   onClose,
 }: {
@@ -40,13 +42,22 @@ export function SignDocumentModal({
   certifLabel: ReactNode;
   initialSignature?: SignatureVect | null;
   initialChecked?: boolean;
-  onConfirm: (sig: SignatureVect, signedAt: string) => void;
+  // Re-signature d'un mineur : demande le nom du représentant légal DANS le
+  // modal. Props optionnelles → l'usage inscription est inchangé (absentes).
+  askResponsable?: boolean;
+  responsableInitial?: string | null;
+  onConfirm: (
+    sig: SignatureVect,
+    signedAt: string,
+    responsable?: string,
+  ) => void;
   onClose: () => void;
 }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [sig, setSig] = useState<SignatureVect | null>(initialSignature ?? null);
   const [checked, setChecked] = useState(!!initialChecked);
+  const [responsable, setResponsable] = useState(responsableInitial ?? "");
   const isIOS = useMemo(detectIOS, []);
 
   // Sérialise le corps une fois : tant que la modale est ouverte, les données ne
@@ -98,7 +109,8 @@ export function SignDocumentModal({
     if (blobUrl) window.open(blobUrl, "_blank", "noopener,noreferrer");
   }
 
-  const canConfirm = sig !== null && checked;
+  const canConfirm =
+    sig !== null && checked && (!askResponsable || responsable.trim().length > 0);
 
   return (
     <div className="fixed inset-0 z-[80] flex items-stretch justify-center bg-ink/50 p-0 sm:items-center sm:p-4">
@@ -214,6 +226,23 @@ export function SignDocumentModal({
             </span>
           </label>
 
+          {/* Nom du représentant légal (mineur, re-signature) — non stocké à
+              l'inscription, redemandé ici. */}
+          {askResponsable && (
+            <label className="mt-4 block">
+              <span className="text-sm font-semibold text-ink">
+                Nom du représentant légal <span className="text-orange">*</span>
+              </span>
+              <input
+                type="text"
+                value={responsable}
+                onChange={(e) => setResponsable(e.target.value)}
+                placeholder="Prénom et nom du parent signataire"
+                className="focus-ring mt-1.5 w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+              />
+            </label>
+          )}
+
           {/* Signature dans le contexte du document */}
           <div className="mt-4">
             <p className="text-sm font-semibold text-ink">
@@ -242,7 +271,14 @@ export function SignDocumentModal({
           <button
             type="button"
             disabled={!canConfirm}
-            onClick={() => sig && onConfirm(sig, new Date().toISOString())}
+            onClick={() =>
+              sig &&
+              onConfirm(
+                sig,
+                new Date().toISOString(),
+                askResponsable ? responsable.trim() : undefined,
+              )
+            }
             className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"
           >
             Confirmer ma signature
