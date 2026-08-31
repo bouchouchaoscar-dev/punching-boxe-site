@@ -121,6 +121,28 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (cur && !cur.engage_at) update.engage_at = new Date().toISOString();
   }
 
+  // Garde-fou re-signature : si un champ figurant sur les documents SIGNÉS
+  // (nom, prénom, date de naissance) change RÉELLEMENT, on lève les deux flags
+  // « à re-signer » (les deux docs portent ces infos). PAS de mail ici :
+  // l'admin déclenchera l'envoi via le bouton (il garde la main sur le moment).
+  const CHAMPS_DOCS = ["nom", "prenom", "date_naissance"] as const;
+  if (CHAMPS_DOCS.some((k) => k in update)) {
+    const { data: avant } = await supabase
+      .from("adherents")
+      .select("nom, prenom, date_naissance")
+      .eq("id", id)
+      .maybeSingle();
+    const change =
+      !!avant &&
+      CHAMPS_DOCS.some(
+        (k) => k in update && String(update[k] ?? "") !== String(avant[k] ?? ""),
+      );
+    if (change) {
+      update.fiche_a_resigner = true;
+      update.reglement_a_resigner = true;
+    }
+  }
+
   let { data, error } = await supabase
     .from("adherents")
     .update(update)

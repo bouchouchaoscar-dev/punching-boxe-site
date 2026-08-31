@@ -99,11 +99,7 @@ export function FicheAdherent({ id }: { id: string }) {
     window.setTimeout(() => setToast(null), 3000);
   }
 
-  async function demanderResignature() {
-    const docs = [
-      resignDocs.fiche ? "fiche" : null,
-      resignDocs.reglement ? "reglement" : null,
-    ].filter(Boolean) as ("fiche" | "reglement")[];
+  async function envoyerResignature(docs: ("fiche" | "reglement")[]) {
     if (docs.length === 0) return;
     setResignBusy(true);
     try {
@@ -124,6 +120,7 @@ export function FicheAdherent({ id }: { id: string }) {
         );
         setResignOpen(false);
         setResignDocs({ fiche: false, reglement: false });
+        await load(); // rafraîchit les flags (bandeau + bloc Documents)
       } else {
         showToast(data.error || "Échec de la demande.");
       }
@@ -132,6 +129,14 @@ export function FicheAdherent({ id }: { id: string }) {
     } finally {
       setResignBusy(false);
     }
+  }
+
+  function demanderResignature() {
+    const docs = [
+      resignDocs.fiche ? "fiche" : null,
+      resignDocs.reglement ? "reglement" : null,
+    ].filter(Boolean) as ("fiche" | "reglement")[];
+    return envoyerResignature(docs);
   }
 
   const load = useCallback(async () => {
@@ -317,6 +322,28 @@ export function FicheAdherent({ id }: { id: string }) {
       >
         ← Tous les adhérents
       </Link>
+
+      {(a.fiche_a_resigner || a.reglement_a_resigner) && (
+        <div className="mt-4 flex flex-col gap-3 rounded-[1.25rem] border border-red-200 bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-red-700">
+            ⚠️ Une information figurant sur les documents signés a été modifiée.
+            Les documents signés ne sont plus à jour. Une re-signature est
+            nécessaire.
+          </p>
+          <button
+            onClick={() =>
+              envoyerResignature([
+                ...(a.fiche_a_resigner ? (["fiche"] as const) : []),
+                ...(a.reglement_a_resigner ? (["reglement"] as const) : []),
+              ])
+            }
+            disabled={resignBusy}
+            className="shrink-0 whitespace-nowrap rounded-full bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+          >
+            {resignBusy ? "Envoi…" : "Demander une re-signature"}
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 grid gap-6 lg:grid-cols-[300px_1fr]">
         {/* Colonne gauche : photo + statut */}
