@@ -171,6 +171,67 @@ export async function sendDemandeResignature(d: {
   });
 }
 
+/** 0 quater — Confirmation à l'adhérent/parent qu'UN document a bien été
+ *  re-signé et mis à jour. Message spécifique au document (pas « tout est à
+ *  jour ») pour rester juste quand plusieurs docs sont demandés. */
+export async function sendReSignatureConfirmationAdherent(d: {
+  prenom: string;
+  email: string;
+  docLabel: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Document mis à jour ✅</h1>
+    <p style="line-height:1.6;color:#444">${salut}</p>
+    <p style="line-height:1.6;color:#444">Merci : <strong>${d.docLabel}</strong> a bien été mis à jour et signé. La version à jour est disponible dans votre espace adhérent.</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/mon-espace`, "Accéder à mon espace")}</p>
+    <p style="line-height:1.6;color:#444">À bientôt à la salle !<br/>Pascal et l'équipe du ${CLUB.nomCourt}<br/>${CLUB.telephone} · ${CLUB.email}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: `${d.docLabel} mis à jour — ${CLUB.nomCourt}`,
+    html,
+  });
+}
+
+/** 0 quinquies — Notifie l'admin qu'une re-signature demandée a été effectuée. */
+export async function sendReSignatureConfirmationAdmin(d: {
+  prenom: string;
+  nom: string;
+  docLabel: string;
+  date: string;
+  adherentId?: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const lien = d.adherentId
+    ? `${SITE_URL}/admin/adherents/${d.adherentId}`
+    : `${SITE_URL}/admin/adherents`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Re-signature effectuée ✅</h1>
+    <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
+      <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
+      <p style="margin:4px 0"><strong>Document :</strong> ${d.docLabel}</p>
+      <p style="margin:4px 0"><strong>Re-signé le :</strong> ${d.date}</p>
+    </div>
+    ${button(lien, "Voir la fiche adhérent")}
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    subject: `Re-signature ${d.docLabel} — ${d.prenom} ${d.nom}`,
+    html,
+  });
+}
+
 /** 0 bis — Relance « panier abandonné » : dossier carte créé mais paiement
  *  jamais finalisé (24h+). Lien direct vers la reprise du paiement. Envoyé une
  *  seule fois (flag relance_panier_envoyee_at géré par l'appelant). */
