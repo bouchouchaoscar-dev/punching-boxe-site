@@ -456,6 +456,8 @@ export function FicheAdherent({ id }: { id: string }) {
                   <button
                     onClick={() =>
                       patch({
+                        prenom: form.prenom,
+                        nom: form.nom,
                         email: form.email,
                         telephone: form.telephone,
                         adresse: form.adresse,
@@ -473,6 +475,8 @@ export function FicheAdherent({ id }: { id: string }) {
             </div>
 
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+              <EditableInfo label="Prénom" editing={editing} value={form.prenom ?? ""} onChange={(v) => setForm({ ...form, prenom: v })} display={a.prenom} />
+              <EditableInfo label="Nom" editing={editing} value={form.nom ?? ""} onChange={(v) => setForm({ ...form, nom: v })} display={a.nom} />
               <Info
                 label="Formule"
                 value={formuleLabel(a.package, a.option_prepa_physique)}

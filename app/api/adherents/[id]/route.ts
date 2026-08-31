@@ -69,6 +69,21 @@ export async function PATCH(request: Request, { params }: Ctx) {
     if (k in body) update[k] = body[k];
   }
 
+  // Nom / prénom : obligatoires non vides (ils figurent sur les documents
+  // signés). Trim conservé (accents/trémas UTF-8 préservés, ex. « ö »).
+  for (const k of ["nom", "prenom"] as const) {
+    if (k in update) {
+      const v = typeof update[k] === "string" ? (update[k] as string).trim() : "";
+      if (!v) {
+        return NextResponse.json(
+          { error: `Le ${k === "nom" ? "nom" : "prénom"} ne peut pas être vide.` },
+          { status: 400 },
+        );
+      }
+      update[k] = v;
+    }
+  }
+
   if (body.action === "confirmer_especes") {
     update.statut_paiement = "confirme_especes";
   }
