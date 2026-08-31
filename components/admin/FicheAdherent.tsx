@@ -88,10 +88,49 @@ export function FicheAdherent({ id }: { id: string }) {
   const [finOpen, setFinOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [remboursements, setRemboursements] = useState<RemboursementLigne[]>([]);
+  // Demande de re-signature (fiche / règlement).
+  const [resignOpen, setResignOpen] = useState(false);
+  const [resignDocs, setResignDocs] = useState({ fiche: false, reglement: false });
+  const [resignBusy, setResignBusy] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3000);
+  }
+
+  async function demanderResignature() {
+    const docs = [
+      resignDocs.fiche ? "fiche" : null,
+      resignDocs.reglement ? "reglement" : null,
+    ].filter(Boolean) as ("fiche" | "reglement")[];
+    if (docs.length === 0) return;
+    setResignBusy(true);
+    try {
+      const res = await fetch(
+        `/api/admin/adherents/${id}/demander-resignature`,
+        {
+          method: "POST",
+          headers: { ...adminAuthHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ docs }),
+        },
+      );
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(
+          data.mailEnvoye === false
+            ? "Demande enregistrée (email non envoyé)."
+            : "Demande de re-signature envoyée.",
+        );
+        setResignOpen(false);
+        setResignDocs({ fiche: false, reglement: false });
+      } else {
+        showToast(data.error || "Échec de la demande.");
+      }
+    } catch {
+      showToast("Erreur réseau.");
+    } finally {
+      setResignBusy(false);
+    }
   }
 
   const load = useCallback(async () => {
@@ -592,6 +631,75 @@ export function FicheAdherent({ id }: { id: string }) {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Demander une re-signature (fiche / règlement) */}
+            <div className="mt-5 border-t border-line pt-4">
+              {!resignOpen ? (
+                <button
+                  onClick={() => setResignOpen(true)}
+                  className="text-xs font-bold text-orange transition-colors hover:underline"
+                >
+                  Demander une re-signature
+                </button>
+              ) : (
+                <div className="rounded-xl border border-line bg-paper-2 p-4">
+                  <p className="text-sm font-semibold text-ink">
+                    Demander une re-signature
+                  </p>
+                  <p className="mt-1 text-xs text-smoke">
+                    L&apos;adhérent recevra un lien par email pour re-signer les
+                    documents cochés (PDF régénérés au nom actuel du dossier).
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={resignDocs.fiche}
+                        onChange={(e) =>
+                          setResignDocs((s) => ({ ...s, fiche: e.target.checked }))
+                        }
+                        className="h-4 w-4 accent-orange"
+                      />
+                      Fiche d&apos;inscription
+                    </label>
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={resignDocs.reglement}
+                        onChange={(e) =>
+                          setResignDocs((s) => ({
+                            ...s,
+                            reglement: e.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 accent-orange"
+                      />
+                      Règlement intérieur
+                    </label>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      onClick={demanderResignature}
+                      disabled={
+                        resignBusy || (!resignDocs.fiche && !resignDocs.reglement)
+                      }
+                      className="rounded-full bg-orange px-4 py-1.5 text-xs font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50"
+                    >
+                      {resignBusy ? "Envoi…" : "Envoyer la demande"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setResignOpen(false);
+                        setResignDocs({ fiche: false, reglement: false });
+                      }}
+                      className="text-xs font-semibold text-smoke transition-colors hover:text-ink"
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -133,6 +133,44 @@ export async function sendAccountWelcome(d: { email: string }) {
   });
 }
 
+/** 0 ter — Demande de re-signature d'un ou des documents (fiche / règlement)
+ *  suite à une correction du dossier. Le lien est un token HMAC scopé + expirable
+ *  (cf. lib/resignature-link.ts). Envoyé à l'email du compte titulaire. */
+export async function sendDemandeResignature(d: {
+  prenom: string;
+  email: string;
+  docs: ("fiche" | "reglement")[];
+  lien: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const libelle = d.docs
+    .map((doc) =>
+      doc === "fiche" ? "la fiche d'inscription" : "le règlement intérieur",
+    )
+    .join(" et ");
+
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Une re-signature vous est demandée 🖊️</h1>
+    <p style="line-height:1.6;color:#444">${salut}</p>
+    <p style="line-height:1.6;color:#444">Une correction a été apportée à votre dossier au <strong>${CLUB.nom}</strong>. Pour que vos documents restent à jour, nous vous invitons à re-signer <strong>${libelle}</strong>.</p>
+    <p style="line-height:1.6;color:#444">C'est rapide : cliquez ci-dessous, vérifiez le document corrigé, puis signez directement à l'écran.</p>
+    <p style="margin:6px 0 18px">${button(d.lien, "Re-signer mes documents")}</p>
+    <p style="line-height:1.6;color:#888;font-size:13px">Ce lien est personnel et valable 7 jours. Si vous pensez recevoir cet email par erreur, ignorez-le simplement.</p>
+    <p style="line-height:1.6;color:#444">Merci,<br/>Pascal et l'équipe du ${CLUB.nomCourt}<br/>${CLUB.telephone} · ${CLUB.email}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: `Re-signature de vos documents — ${CLUB.nomCourt}`,
+    html,
+  });
+}
+
 /** 0 bis — Relance « panier abandonné » : dossier carte créé mais paiement
  *  jamais finalisé (24h+). Lien direct vers la reprise du paiement. Envoyé une
  *  seule fois (flag relance_panier_envoyee_at géré par l'appelant). */
