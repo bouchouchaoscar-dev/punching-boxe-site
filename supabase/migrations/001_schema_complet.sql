@@ -88,7 +88,12 @@ create table if not exists public.adherents (
   vu_par_admin              boolean not null default false,   -- badge "Nouveau"
   mail_dossier_complet_envoye boolean not null default false, -- anti-doublon mail
   relance_panier_envoyee_at timestamptz,                      -- relance panier abandonné (unique)
-  mail_inscription_envoye   boolean not null default false    -- anti-doublon mails d'inscription (claim atomique)
+  mail_inscription_envoye   boolean not null default false,   -- anti-doublon mails d'inscription (claim atomique)
+  -- Re-signature de documents (fiche / règlement) demandée par l'admin
+  fiche_a_resigner          boolean not null default false,   -- doc à re-signer par l'adhérent
+  reglement_a_resigner      boolean not null default false,   -- doc à re-signer par l'adhérent
+  resignature_demandee_at   timestamptz,                      -- quand l'admin a demandé la re-signature
+  responsable               text                              -- représentant légal (persisté à la re-signature)
 );
 
 create index if not exists adherents_saison_idx     on public.adherents (saison);

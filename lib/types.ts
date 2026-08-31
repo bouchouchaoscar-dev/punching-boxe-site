@@ -86,6 +86,12 @@ export interface Adherent {
   mail_inscription_envoye?: boolean;
   // Relance « panier abandonné » envoyée une seule fois (horodatage = flag).
   relance_panier_envoyee_at?: string | null;
+  // Re-signature de documents (demande admin) : flags par document + trace +
+  // nom du représentant légal persisté au moment de la re-signature (mineur).
+  fiche_a_resigner?: boolean;
+  reglement_a_resigner?: boolean;
+  resignature_demandee_at?: string | null;
+  responsable?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
