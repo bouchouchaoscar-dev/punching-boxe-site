@@ -331,12 +331,20 @@ export function FicheAdherent({ id }: { id: string }) {
             nécessaire.
           </p>
           <button
-            onClick={() =>
+            onClick={() => {
+              // Modif d'identité => les DEUX docs sont concernés : confirmation
+              // simple, sans cases à cocher (redondant ici).
+              if (
+                !window.confirm(
+                  "Envoyer une demande de re-signature à la famille pour les documents à jour (fiche d'inscription + règlement intérieur) ?",
+                )
+              )
+                return;
               envoyerResignature([
                 ...(a.fiche_a_resigner ? (["fiche"] as const) : []),
                 ...(a.reglement_a_resigner ? (["reglement"] as const) : []),
-              ])
-            }
+              ]);
+            }}
             disabled={resignBusy}
             className="shrink-0 whitespace-nowrap rounded-full bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
           >
