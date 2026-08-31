@@ -12,6 +12,7 @@ import {
   type DossierTon,
 } from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
+import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
 import { PhotoCropModal } from "@/components/inscription/PhotoCropModal";
@@ -387,6 +388,15 @@ export function MonEspace() {
                       <div className="mt-3 space-y-3">
                         {DOCS.map((d) => {
                           const url = a[d.key] as string | null;
+                          // Anti-cache : URL versionnée par le timestamp de
+                          // signature (fiche / règlement).
+                          const signeeAt =
+                            d.base === "fiche"
+                              ? a.fiche_signee_at ?? null
+                              : d.base === "reglement"
+                                ? a.reglement_signee_at ?? null
+                                : null;
+                          const urlVersion = urlAvecVersion(url, signeeAt);
                           const motifRefus = a[
                             `${d.base}_motif_refus` as keyof Adherent
                           ] as string | null;
@@ -408,7 +418,7 @@ export function MonEspace() {
                             >
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-ink">{d.label}</p>
-                                <DocStatus statut={statut} url={url} motif={motifRefus} />
+                                <DocStatus statut={statut} url={urlVersion} motif={motifRefus} />
                               </div>
                               {/* Fiche & règlement : signés EN LIGNE → pas de dépôt manuel. */}
                               {d.enLigne && statut === "manquant" && (

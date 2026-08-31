@@ -12,6 +12,7 @@ import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
+import { urlAvecVersion } from "@/lib/doc-version";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
@@ -520,6 +521,15 @@ export function FicheAdherent({ id }: { id: string }) {
             <div className="mt-5 space-y-3">
               {DOCS.map((d) => {
                 const url = a[d.key] as string | null;
+                // Anti-cache : URL versionnée par le timestamp de signature
+                // (fiche / règlement). Change à chaque re-signature.
+                const signeeAt =
+                  d.base === "fiche"
+                    ? a.fiche_signee_at ?? null
+                    : d.base === "reglement"
+                      ? a.reglement_signee_at ?? null
+                      : null;
+                const hrefUrl = urlAvecVersion(url, signeeAt);
                 const valide = !!a[`${d.base}_valide` as keyof Adherent];
                 const motifRefus = a[
                   `${d.base}_motif_refus` as keyof Adherent
@@ -544,7 +554,7 @@ export function FicheAdherent({ id }: { id: string }) {
                         </p>
                         {url ? (
                           <a
-                            href={url}
+                            href={hrefUrl ?? url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="mt-1 inline-block text-xs font-bold text-orange hover:underline"
