@@ -10,6 +10,7 @@ import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
+  { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "grid" },
   { href: "/admin/anciens", label: "Anciens", icon: "history" },
   { href: "/admin/campagnes", label: "Envois", icon: "mail" },
 ];
