@@ -34,6 +34,7 @@ export function SignDocumentModal({
   initialChecked,
   askResponsable = false,
   responsableInitial,
+  askContacts = false,
   onConfirm,
   onClose,
 }: {
@@ -42,14 +43,16 @@ export function SignDocumentModal({
   certifLabel: ReactNode;
   initialSignature?: SignatureVect | null;
   initialChecked?: boolean;
-  // Re-signature d'un mineur : demande le nom du représentant légal DANS le
+  // Re-signature : champs NON persistés à l'inscription, redemandés DANS le
   // modal. Props optionnelles → l'usage inscription est inchangé (absentes).
-  askResponsable?: boolean;
+  askResponsable?: boolean; // mineur : nom du représentant légal
   responsableInitial?: string | null;
+  askContacts?: boolean; // fiche : personnes à prévenir en cas d'accident
   onConfirm: (
     sig: SignatureVect,
     signedAt: string,
     responsable?: string,
+    contacts?: { nom: string; tel: string }[],
   ) => void;
   onClose: () => void;
 }) {
@@ -58,6 +61,10 @@ export function SignDocumentModal({
   const [sig, setSig] = useState<SignatureVect | null>(initialSignature ?? null);
   const [checked, setChecked] = useState(!!initialChecked);
   const [responsable, setResponsable] = useState(responsableInitial ?? "");
+  const [c1n, setC1n] = useState("");
+  const [c1t, setC1t] = useState("");
+  const [c2n, setC2n] = useState("");
+  const [c2t, setC2t] = useState("");
   const isIOS = useMemo(detectIOS, []);
 
   // Sérialise le corps une fois : tant que la modale est ouverte, les données ne
@@ -109,8 +116,12 @@ export function SignDocumentModal({
     if (blobUrl) window.open(blobUrl, "_blank", "noopener,noreferrer");
   }
 
+  const contactsOk = !askContacts || (c1n.trim().length > 0 && c1t.trim().length > 0);
   const canConfirm =
-    sig !== null && checked && (!askResponsable || responsable.trim().length > 0);
+    sig !== null &&
+    checked &&
+    (!askResponsable || responsable.trim().length > 0) &&
+    contactsOk;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-stretch justify-center bg-ink/50 p-0 sm:items-center sm:p-4">
@@ -243,6 +254,47 @@ export function SignDocumentModal({
             </label>
           )}
 
+          {/* Personnes à prévenir en cas d'accident (fiche, re-signature) —
+              non stockées à l'inscription, redemandées ici. */}
+          {askContacts && (
+            <div className="mt-4">
+              <p className="text-sm font-semibold text-ink">
+                Personnes à prévenir en cas d&apos;accident{" "}
+                <span className="text-orange">*</span>
+              </p>
+              <div className="mt-1.5 grid gap-2 sm:grid-cols-2">
+                <input
+                  type="text"
+                  value={c1n}
+                  onChange={(e) => setC1n(e.target.value)}
+                  placeholder="Nom (obligatoire)"
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                />
+                <input
+                  type="tel"
+                  value={c1t}
+                  onChange={(e) => setC1t(e.target.value)}
+                  placeholder="Téléphone (obligatoire)"
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                />
+                <input
+                  type="text"
+                  value={c2n}
+                  onChange={(e) => setC2n(e.target.value)}
+                  placeholder="Nom (facultatif)"
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                />
+                <input
+                  type="tel"
+                  value={c2t}
+                  onChange={(e) => setC2t(e.target.value)}
+                  placeholder="Téléphone (facultatif)"
+                  className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-ink outline-none transition-colors focus:border-orange"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Signature dans le contexte du document */}
           <div className="mt-4">
             <p className="text-sm font-semibold text-ink">
@@ -277,6 +329,14 @@ export function SignDocumentModal({
                 sig,
                 new Date().toISOString(),
                 askResponsable ? responsable.trim() : undefined,
+                askContacts
+                  ? [
+                      { nom: c1n.trim(), tel: c1t.trim() },
+                      ...(c2n.trim() || c2t.trim()
+                        ? [{ nom: c2n.trim(), tel: c2t.trim() }]
+                        : []),
+                    ]
+                  : undefined,
               )
             }
             className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 disabled:opacity-50"

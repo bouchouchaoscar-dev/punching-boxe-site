@@ -54,6 +54,7 @@ export function ResignerClient({
     sig: SignatureVect,
     signedAt: string,
     responsable?: string,
+    contacts?: { nom: string; tel: string }[],
   ) {
     setBusy(true);
     setError("");
@@ -67,6 +68,7 @@ export function ResignerClient({
           signature: sig,
           signedAt,
           responsable,
+          contacts,
         }),
       });
       const data = await res.json();
@@ -158,8 +160,9 @@ export function ResignerClient({
           certifLabel={meta[open].certif}
           askResponsable={mineur}
           responsableInitial={responsableInitial}
-          onConfirm={(sig, signedAt, responsable) =>
-            !busy && handleConfirm(open, sig, signedAt, responsable)
+          askContacts={open === "fiche"}
+          onConfirm={(sig, signedAt, responsable, contacts) =>
+            !busy && handleConfirm(open, sig, signedAt, responsable, contacts)
           }
           onClose={() => !busy && setOpen(null)}
         />
