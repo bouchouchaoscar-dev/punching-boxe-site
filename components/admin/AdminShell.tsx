@@ -12,7 +12,7 @@ const NAV = [
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
   { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "camera" },
   { href: "/admin/anciens", label: "Anciens", icon: "history" },
-  { href: "/admin/campagnes", label: "Envois", icon: "mail" },
+  { href: "/admin/campagnes", label: "Mailing", icon: "mail" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -30,7 +30,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-paper-2 lg:flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-line bg-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-line bg-white transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
