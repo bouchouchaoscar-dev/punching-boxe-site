@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSaisonAdmin } from "./SaisonContext";
 import { adminAuthHeaders } from "@/lib/admin-auth";
@@ -174,17 +175,18 @@ export function Trombinoscope() {
           {filtres.map((a) => {
             const st = statutTrombi(a);
             return (
-              <div
+              <Link
                 key={a.id}
-                className="overflow-hidden rounded-2xl border border-line bg-white"
+                href={`/admin/adherents/${a.id}`}
+                className="focus-ring group block overflow-hidden rounded-2xl border border-line bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-orange/40 hover:shadow-lg"
               >
-                <div className="relative aspect-square bg-paper-2">
+                <div className="relative aspect-square overflow-hidden bg-paper-2">
                   {a.photo_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={a.photo_url}
                       alt={`${a.prenom} ${a.nom}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center font-display text-4xl font-black text-line">
@@ -210,7 +212,7 @@ export function Trombinoscope() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>
