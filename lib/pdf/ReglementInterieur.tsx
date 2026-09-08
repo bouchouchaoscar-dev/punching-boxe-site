@@ -7,6 +7,7 @@ import { styles } from "./theme";
 import { PdfFooter, PdfHeader, SignatureBlock } from "./Shared";
 import { CLUB } from "@/lib/constants";
 import type { ReglementData } from "./types";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 
 function Article({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
@@ -140,7 +141,7 @@ export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
                 <Text style={styles.p}>
                   Adhérent (mineur) :{" "}
                   <Text style={styles.bold}>
-                    {data?.prenom} {data?.nom}
+                    {formaterPrenom(data?.prenom)} {formaterNom(data?.nom)}
                   </Text>
                 </Text>
                 <Text style={styles.p}>
@@ -150,7 +151,7 @@ export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
                 <SignatureBlock
                   sig={data?.signature}
                   date={data?.dateSignature}
-                  mention={`Je soussigné(e) ${data?.responsable || "—"}, représentant légal de ${data?.prenom} ${data?.nom}, certifie avoir pris connaissance du règlement intérieur et m'engage à le faire respecter.`}
+                  mention={`Je soussigné(e) ${data?.responsable || "—"}, représentant légal de ${formaterPrenom(data?.prenom)} ${formaterNom(data?.nom)}, certifie avoir pris connaissance du règlement intérieur et m'engage à le faire respecter.`}
                 />
               </>
             ) : (
@@ -158,7 +159,7 @@ export function ReglementInterieurDoc({ data }: { data?: ReglementData } = {}) {
                 <Text style={styles.p}>
                   Adhérent :{" "}
                   <Text style={styles.bold}>
-                    {data?.prenom} {data?.nom}
+                    {formaterPrenom(data?.prenom)} {formaterNom(data?.nom)}
                   </Text>
                 </Text>
                 <SignatureBlock

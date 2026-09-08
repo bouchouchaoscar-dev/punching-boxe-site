@@ -606,8 +606,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     compte.
                   </p>
                 </div>
-                <Input label="Nom" value={nom} onChange={setNom} required />
-                <Input label="Prénom" value={prenom} onChange={setPrenom} required />
+                <Input label="Nom" value={nom} onChange={setNom} required hint="En majuscules" />
+                <Input label="Prénom" value={prenom} onChange={setPrenom} required hint="Ex : Jean-Marc" />
                 <DatePicker
                   label="Date de naissance"
                   value={dateNaissance}
@@ -1472,6 +1472,7 @@ function Input({
   error,
   placeholder,
   disabled,
+  hint,
 }: {
   label: string;
   value: string;
@@ -1481,6 +1482,7 @@ function Input({
   error?: string;
   placeholder?: string;
   disabled?: boolean;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -1500,6 +1502,9 @@ function Input({
         }`}
       />
       {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
+      {hint && !error && (
+        <span className="mt-1 block text-xs text-smoke">{hint}</span>
+      )}
     </label>
   );
 }

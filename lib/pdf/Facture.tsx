@@ -3,6 +3,7 @@ import { styles, PDF_COLORS } from "./theme";
 import { PdfHeader, PdfFooter } from "./Shared";
 import { CLUB } from "@/lib/constants";
 import { euro } from "@/lib/pricing";
+import { formaterNomComplet } from "@/lib/noms";
 
 // Facture acquittée / Attestation de paiement, générée par l'adhérent depuis son
 // espace. Titre + contenu ADAPTATIFS selon l'état réel du paiement. Montants
@@ -87,7 +88,7 @@ const s = StyleSheet.create({
 
 export function FactureDoc({ data }: { data: FactureData }) {
   const titre = data.solde ? "Facture acquittée" : "Attestation de paiement";
-  const nomComplet = `${data.prenom} ${data.nom}`.trim();
+  const nomComplet = formaterNomComplet(data.prenom, data.nom);
 
   return (
     <Document title={`${titre} — ${nomComplet}`} author={CLUB.nom}>

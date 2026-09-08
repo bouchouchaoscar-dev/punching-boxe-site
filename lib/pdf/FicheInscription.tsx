@@ -5,6 +5,7 @@ import { CLUB } from "@/lib/constants";
 import { TARIFS, PACKAGE_LABEL } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { FicheData } from "./types";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 
 // Surcharges locales à la FICHE uniquement (pour tenir sur 1 page A4).
 const f = StyleSheet.create({
@@ -206,7 +207,7 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
             { label: "Saison :", value: v(saison), flex: 1.2 },
           ]}
         />
-        <FieldRow items={[{ label: "Nom :", value: v(data?.nom) }, { label: "Prénom :", value: v(data?.prenom) }]} />
+        <FieldRow items={[{ label: "Nom :", value: v(formaterNom(data?.nom)) }, { label: "Prénom :", value: v(formaterPrenom(data?.prenom)) }]} />
         <FieldRow items={[{ label: "Né(e) le :", value: v(frDate(data?.dateNaissance)) }, { label: "Tél :", value: v(data?.telephone) }]} />
         <FieldRow items={[{ label: "Email :", value: v(data?.email) }]} />
         <FieldRow items={[{ label: "Adresse :", value: v(data?.adresse) }]} />
@@ -277,7 +278,7 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
               autorise mon enfant{" "}
               {filled ? (
                 <Text style={styles.bold}>
-                  {data?.prenom} {data?.nom}
+                  {formaterPrenom(data?.prenom)} {formaterNom(data?.nom)}
                 </Text>
               ) : (
                 "............................................"

@@ -14,6 +14,7 @@ import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { estPaiementSolde } from "@/lib/paiement";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
@@ -395,7 +396,7 @@ export function FicheAdherent({ id }: { id: string }) {
             </div>
             <div className="p-5">
               <h1 className="font-display text-2xl font-extrabold uppercase text-ink">
-                {a.prenom} {a.nom}
+                {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
               </h1>
               <p className="mt-1 text-sm capitalize text-smoke">
                 {a.type_adherent} · Saison {a.saison}
@@ -536,8 +537,8 @@ export function FicheAdherent({ id }: { id: string }) {
             </div>
 
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-              <EditableInfo label="Prénom" editing={editing} value={form.prenom ?? ""} onChange={(v) => setForm({ ...form, prenom: v })} display={a.prenom} />
-              <EditableInfo label="Nom" editing={editing} value={form.nom ?? ""} onChange={(v) => setForm({ ...form, nom: v })} display={a.nom} />
+              <EditableInfo label="Prénom" editing={editing} value={form.prenom ?? ""} onChange={(v) => setForm({ ...form, prenom: v })} display={formaterPrenom(a.prenom)} hint="Ex : Jean-Marc" />
+              <EditableInfo label="Nom" editing={editing} value={form.nom ?? ""} onChange={(v) => setForm({ ...form, nom: v })} display={formaterNom(a.nom)} hint="En majuscules" />
               <Info
                 label="Formule"
                 value={formuleLabel(a.package, a.option_prepa_physique)}
@@ -857,7 +858,7 @@ export function FicheAdherent({ id }: { id: string }) {
               Fin d&apos;inscription ?
             </h2>
             <p className="mt-3 text-sm text-smoke">
-              Le dossier de <strong>{a.prenom} {a.nom}</strong> sera fermé : il
+              Le dossier de <strong>{formaterPrenom(a.prenom)} {formaterNom(a.nom)}</strong> sera fermé : il
               sort des effectifs actifs et des relances, et les échéances à venir
               sont stoppées. <strong>Aucun remboursement</strong> n&apos;est
               déclenché (pour rembourser, utilise « Gérer le paiement »).
@@ -1166,7 +1167,7 @@ function FamilleCard({
               >
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
                   <span className="truncate">
-                    {m.prenom} {m.nom}
+                    {formaterPrenom(m.prenom)} {formaterNom(m.nom)}
                   </span>
                   {current && (
                     <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.5rem] font-bold uppercase tracking-wide text-white">
@@ -1233,12 +1234,14 @@ function EditableInfo({
   value,
   display,
   onChange,
+  hint,
 }: {
   label: string;
   editing: boolean;
   value: string;
   display: string;
   onChange: (v: string) => void;
+  hint?: string;
 }) {
   return (
     <div>
@@ -1246,11 +1249,14 @@ function EditableInfo({
         {label}
       </dt>
       {editing ? (
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="focus-ring mt-1 w-full rounded-lg border border-line bg-paper-2 px-3 py-1.5 text-sm outline-none focus:border-orange"
-        />
+        <>
+          <input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="focus-ring mt-1 w-full rounded-lg border border-line bg-paper-2 px-3 py-1.5 text-sm outline-none focus:border-orange"
+          />
+          {hint && <span className="mt-1 block text-xs text-smoke">{hint}</span>}
+        </>
       ) : (
         <dd className="mt-1 font-medium text-ink">{display}</dd>
       )}

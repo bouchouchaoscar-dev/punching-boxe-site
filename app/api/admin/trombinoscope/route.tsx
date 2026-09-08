@@ -4,6 +4,7 @@ import { isAdminRequest } from "@/lib/admin-guard";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { statutTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { TrombinoscopeDoc, type TrombiMembre } from "@/lib/pdf/Trombinoscope";
 import type { Adherent } from "@/lib/types";
 
@@ -96,8 +97,8 @@ export async function POST(request: Request) {
   const membres: TrombiMembre[] = actifs.map((a, i) => {
     const st = statutTrombi(a);
     return {
-      nom: a.nom,
-      prenom: a.prenom,
+      nom: formaterNom(a.nom),
+      prenom: formaterPrenom(a.prenom),
       formule: formuleLabel(a.package, a.option_prepa_physique),
       statutLabel: st.label,
       statutCouleur: st.couleur,

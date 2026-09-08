@@ -1,4 +1,5 @@
 "use client";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 
 import { useEffect, useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
@@ -192,7 +193,7 @@ export function AnciensTable() {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-semibold text-ink">
-                        {a.nom} {a.prenom}
+                        {formaterNom(a.nom)} {formaterPrenom(a.prenom)}
                       </span>
                       {a.reinscrit && (
                         <span

@@ -1,4 +1,5 @@
 "use client";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -268,7 +269,7 @@ function Row({
           <span className="block min-w-0 flex-1">
             <span className="flex items-center gap-1.5 font-semibold text-ink">
               <span className="truncate">
-                {a.prenom} {a.nom}
+                {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
               </span>
               {isNew && (
                 <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white">

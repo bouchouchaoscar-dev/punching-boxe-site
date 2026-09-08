@@ -4,11 +4,12 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import { CLUB } from "@/lib/constants";
+import { formaterPrenom } from "@/lib/noms";
 
 export function MerciContent() {
   const params = useSearchParams();
   const especes = params.get("mode") === "especes";
-  const prenom = (params.get("prenom") ?? "").trim();
+  const prenom = formaterPrenom(params.get("prenom") ?? "");
 
   return (
     <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ink px-6 py-16 text-center text-white">

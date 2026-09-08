@@ -6,6 +6,7 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { statutTrombi } from "@/lib/paiement";
 import { formuleLabel, PACKAGE_LABEL } from "@/lib/pricing";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 import type { Adherent } from "@/lib/types";
 
 const initiales = (a: Adherent) =>
@@ -193,7 +194,7 @@ export function Trombinoscope() {
                 </div>
                 <div className="p-3">
                   <p className="truncate text-sm font-bold text-ink">
-                    {a.prenom} {a.nom}
+                    {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-smoke">
                     {formuleLabel(a.package, a.option_prepa_physique)}

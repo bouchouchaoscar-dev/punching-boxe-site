@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { CLUB, SITE_URL, HORAIRES, SALLES } from "./constants";
 import { unsubscribeUrl } from "./unsubscribe";
+import { formaterPrenom, formaterNom } from "./noms";
 import { euro, formuleLabel, type ModePaiement, type PackageType } from "./pricing";
 import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
@@ -145,7 +146,7 @@ export async function sendDemandeResignature(d: {
   const client = getResend();
   if (!client) return { skipped: true };
 
-  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const salut = d.prenom?.trim() ? `Bonjour ${formaterPrenom(d.prenom)},` : "Bonjour,";
   const libelle = d.docs
     .map((doc) =>
       doc === "fiche" ? "la fiche d'inscription" : "le règlement intérieur",
@@ -182,7 +183,7 @@ export async function sendReSignatureConfirmationAdherent(d: {
   const client = getResend();
   if (!client) return { skipped: true };
 
-  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const salut = d.prenom?.trim() ? `Bonjour ${formaterPrenom(d.prenom)},` : "Bonjour,";
   const html = wrap(`
     <h1 style="font-size:22px;margin:0 0 8px">Document mis à jour ✅</h1>
     <p style="line-height:1.6;color:#444">${salut}</p>
@@ -217,7 +218,7 @@ export async function sendReSignatureConfirmationAdmin(d: {
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Re-signature effectuée ✅</h1>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
-      <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
+      <p style="margin:4px 0"><strong>${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}</strong></p>
       <p style="margin:4px 0"><strong>Document :</strong> ${d.docLabel}</p>
       <p style="margin:4px 0"><strong>Re-signé le :</strong> ${d.date}</p>
     </div>
@@ -227,7 +228,7 @@ export async function sendReSignatureConfirmationAdmin(d: {
   return client.emails.send({
     from: FROM,
     to: ADMIN_TO,
-    subject: `Re-signature ${d.docLabel} — ${d.prenom} ${d.nom}`,
+    subject: `Re-signature ${d.docLabel} — ${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`,
     html,
   });
 }
@@ -245,7 +246,7 @@ export async function sendRelancePanier(d: {
 
   const html = wrap(`
     <h1 style="font-size:22px;margin:0 0 8px">Finalisez votre inscription 🥊</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> a bien été commencée, mais votre paiement n'a pas été finalisé. Votre place n'est donc pas encore confirmée.</p>
     <p style="line-height:1.6;color:#444">Il ne reste qu'une étape : régler en ligne en quelques secondes (carte ou paiement en plusieurs fois).</p>
     <p style="margin:6px 0 18px">${button(`${SITE_URL}/inscription/finaliser/${d.adherentId}`, "Finaliser mon paiement")}</p>
@@ -270,7 +271,7 @@ export async function sendCommencerInscription(d: {
   const client = getResend();
   if (!client) return { skipped: true };
 
-  const salut = d.prenom?.trim() ? `Bonjour ${d.prenom.trim()},` : "Bonjour,";
+  const salut = d.prenom?.trim() ? `Bonjour ${formaterPrenom(d.prenom)},` : "Bonjour,";
   const html = wrap(`
     <h1 style="font-size:22px;margin:0 0 8px">Votre espace est prêt 🥊</h1>
     <p style="line-height:1.6;color:#444">${salut}</p>
@@ -297,7 +298,7 @@ export async function sendAdherentConfirmation(d: MailData) {
   const fractionne = (d.echeances?.length ?? 0) > 1;
 
   const html = wrap(`
-    <h1 style="font-size:22px;margin:0 0 8px">Bonjour ${d.prenom},</h1>
+    <h1 style="font-size:22px;margin:0 0 8px">Bonjour ${formaterPrenom(d.prenom)},</h1>
     <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> est confirmée.</p>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:18px 0">
       <p style="margin:4px 0"><strong>Formule :</strong> ${formuleLabel(d.package, d.option_prepa_physique)}</p>
@@ -338,7 +339,7 @@ export async function sendAdminNotification(d: MailData) {
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Nouvelle inscription 🥊</h1>
     <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
-      <p style="margin:4px 0"><strong>${d.prenom} ${d.nom}</strong></p>
+      <p style="margin:4px 0"><strong>${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}</strong></p>
       <p style="margin:4px 0">${d.email}</p>
       <p style="margin:4px 0"><strong>Formule :</strong> ${formuleLabel(d.package, d.option_prepa_physique)}</p>
       <p style="margin:4px 0"><strong>Montant total :</strong> ${euro(d.montant_total)}</p>
@@ -350,7 +351,7 @@ export async function sendAdminNotification(d: MailData) {
   return client.emails.send({
     from: FROM,
     to: ADMIN_TO,
-    subject: `Nouvelle inscription — ${d.prenom} ${d.nom}`,
+    subject: `Nouvelle inscription — ${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`,
     html,
   });
 }
@@ -367,7 +368,7 @@ export async function sendDocumentActionRequired(d: {
 
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Un document nécessite votre attention</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     <p style="line-height:1.6;color:#444">Un document de votre dossier d'inscription a été refusé.</p>
     <div style="border:1px solid #f0d4c4;background:#fff5ee;border-radius:12px;padding:14px;margin:14px 0;color:#b1480f">
       ${d.docLabel ? `<p style="margin:2px 0"><strong>Document :</strong> ${d.docLabel}</p>` : ""}
@@ -399,7 +400,7 @@ export async function sendAdminDocReplaced(d: {
   const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Document mis à jour 📎</h1>
-    <p style="line-height:1.6;color:#444"><strong>${d.prenom} ${d.nom}</strong> vient de déposer un document : <strong>${d.docLabel}</strong>.</p>
+    <p style="line-height:1.6;color:#444"><strong>${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}</strong> vient de déposer un document : <strong>${d.docLabel}</strong>.</p>
     <p style="line-height:1.6;color:#444">Connectez-vous au dashboard pour le vérifier et valider le dossier.</p>
     ${button(lien, "Voir la fiche adhérent")}
   `);
@@ -407,7 +408,7 @@ export async function sendAdminDocReplaced(d: {
   return client.emails.send({
     from: FROM,
     to: ADMIN_TO,
-    subject: `Document mis à jour — ${d.prenom} ${d.nom}`,
+    subject: `Document mis à jour — ${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`,
     html,
   });
 }
@@ -455,7 +456,7 @@ export async function sendPaiementEchec(d: {
 
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Problème avec votre paiement</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     ${corps}
     <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
   `);
@@ -533,7 +534,7 @@ export async function sendRemboursement(
 
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Confirmation de remboursement</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     <p style="line-height:1.6;color:#444">${ligneMontant}</p>
     ${ligneSituation ? `<p style="line-height:1.6;color:#444">${ligneSituation}</p>` : ""}
     <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon dossier")}</p>
@@ -552,7 +553,7 @@ export async function sendDossierComplet(d: { prenom: string; email: string }) {
 
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Votre dossier est complet ✅</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     <p style="line-height:1.6;color:#444">Votre dossier d'inscription est complet et validé. Tout est en ordre, vous êtes prêt(e) pour la saison. À bientôt à la salle !</p>
     <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon dossier")}</p>
     <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
@@ -581,7 +582,7 @@ export async function sendFinInscription(d: {
     : "";
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Votre inscription a pris fin</h1>
-    <p style="line-height:1.6;color:#444">Bonjour ${d.prenom},</p>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
     <p style="line-height:1.6;color:#444">Votre adhésion au <strong>${CLUB.nom}</strong> a été clôturée${quand}. Vos éventuels prélèvements à venir sont arrêtés.</p>
     <p style="line-height:1.6;color:#444">Vous restez le bienvenu si vous souhaitez revenir : il suffira de vous réinscrire en ligne.</p>
     <p style="margin:6px 0">${button(`${SITE_URL}/inscription`, "Me réinscrire")}</p>

@@ -13,6 +13,7 @@ import {
 } from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
 import { estPaiementSolde } from "@/lib/paiement";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
@@ -372,7 +373,7 @@ export function MonEspace() {
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
                       <span className="font-display text-base font-extrabold uppercase text-ink">
-                        {a.prenom} {a.nom}
+                        {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
                       </span>
                       <LienBadge lien={a.lien_parente} />
                     </span>
