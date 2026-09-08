@@ -90,7 +90,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Main */}
       <div className="flex-1">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-line bg-white/80 pl-4 pr-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-2 border-b border-line bg-white pl-4 pr-4 lg:hidden">
           <div className="min-w-0 shrink">
             <Logo size="sm" />
           </div>
