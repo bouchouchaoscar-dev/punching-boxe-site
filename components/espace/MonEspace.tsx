@@ -12,6 +12,7 @@ import {
   type DossierTon,
 } from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
+import { estPaiementSolde } from "@/lib/paiement";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
@@ -79,12 +80,38 @@ export function MonEspace() {
   // Photo de profil à recadrer (re-dépôt depuis l'espace).
   const [cropPhoto, setCropPhoto] = useState<{ file: File; adherentId: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [factureBusy, setFactureBusy] = useState<string | null>(null);
 
   const token = session?.access_token;
 
   function showToast(msg: string) {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
+  }
+
+  async function telechargerFacture(adherentId: string) {
+    if (!token) return;
+    setFactureBusy(adherentId);
+    try {
+      const res = await fetch(
+        `/api/mon-espace/facture?adherentId=${encodeURIComponent(adherentId)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "facture-punching-boxe.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast("Le téléchargement a échoué. Réessayez.");
+    } finally {
+      setFactureBusy(null);
+    }
   }
 
   const loadDossier = useCallback(async () => {
@@ -482,6 +509,22 @@ export function MonEspace() {
                           </dd>
                         </div>
                       </dl>
+
+                      {/* Facture / attestation : seulement si un paiement est
+                          validé (soldé, ou ≥ 1 échéance réellement encaissée). */}
+                      {(estPaiementSolde(a) || (paidMap[a.id] ?? 0) >= 1) && (
+                        <button
+                          onClick={() => telechargerFacture(a.id)}
+                          disabled={factureBusy === a.id}
+                          className="mt-4 w-full rounded-full border border-line bg-white px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                        >
+                          {factureBusy === a.id
+                            ? "Génération…"
+                            : estPaiementSolde(a)
+                              ? "Télécharger ma facture acquittée"
+                              : "Télécharger mon attestation de paiement"}
+                        </button>
+                      )}
                     </div>
                     </div>
                     <DossierActions
