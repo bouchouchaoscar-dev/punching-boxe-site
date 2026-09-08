@@ -13,6 +13,7 @@ import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { urlAvecVersion } from "@/lib/doc-version";
+import { estPaiementSolde } from "@/lib/paiement";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
 import type { Adherent, Paiement, StatutPaiement } from "@/lib/types";
@@ -93,6 +94,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [resignOpen, setResignOpen] = useState(false);
   const [resignDocs, setResignDocs] = useState({ fiche: false, reglement: false });
   const [resignBusy, setResignBusy] = useState(false);
+  const [factureBusy, setFactureBusy] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -128,6 +130,29 @@ export function FicheAdherent({ id }: { id: string }) {
       showToast("Erreur réseau.");
     } finally {
       setResignBusy(false);
+    }
+  }
+
+  async function telechargerFacture() {
+    setFactureBusy(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/facture`, {
+        headers: adminAuthHeaders(),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "facture-punching-boxe.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast("Génération de la facture impossible.");
+    } finally {
+      setFactureBusy(false);
     }
   }
 
@@ -763,6 +788,27 @@ export function FicheAdherent({ id }: { id: string }) {
           {/* Historique des remboursements */}
           {remboursements.length > 0 && (
             <RemboursementsCard remboursements={remboursements} />
+          )}
+
+          {/* Outil secondaire : facture / attestation (seulement si un paiement
+              est validé — soldé ou ≥ 1 échéance encaissée). */}
+          {(estPaiementSolde(a) || paidEcheances >= 1) && (
+            <div className="rounded-[1.5rem] border border-line bg-white p-5">
+              <button
+                onClick={telechargerFacture}
+                disabled={factureBusy}
+                className="text-sm font-bold text-orange transition-colors hover:underline disabled:opacity-50"
+              >
+                {factureBusy
+                  ? "Génération…"
+                  : "Télécharger la facture / attestation"}
+              </button>
+              <p className="mt-1 text-xs text-smoke">
+                {estPaiementSolde(a)
+                  ? "Facture acquittée (paiement soldé)."
+                  : "Attestation de paiement (fractionné en cours)."}
+              </p>
+            </div>
           )}
         </div>
       </div>
