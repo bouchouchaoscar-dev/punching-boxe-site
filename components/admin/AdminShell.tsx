@@ -10,7 +10,7 @@ import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
-  { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "grid" },
+  { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "camera" },
   { href: "/admin/anciens", label: "Anciens", icon: "history" },
   { href: "/admin/campagnes", label: "Envois", icon: "mail" },
 ];
@@ -30,7 +30,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-paper-2 lg:flex">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform border-r border-line bg-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col border-r border-line bg-white transition-transform lg:static lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -41,7 +41,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="border-b border-line px-4 py-4">
           <SaisonSelect className="w-full" />
         </div>
-        <nav className="space-y-1 p-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
           {NAV.map((n) => {
             const active =
               n.href === "/admin"
@@ -64,7 +64,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div className="absolute inset-x-0 bottom-0 border-t border-line p-3">
+        <div className="border-t border-line p-3">
           <button
             onClick={logout}
             className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-ink/70 transition-colors hover:bg-paper-2"
@@ -138,6 +138,13 @@ function Icon({ name }: { name: string }) {
       <svg {...common}>
         <path d="M3 3v5h5M3.05 13a9 9 0 1 0 2.6-6.36L3 8" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (name === "camera")
+    return (
+      <svg {...common}>
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.7" />
       </svg>
     );
   return (

@@ -185,37 +185,32 @@ export function FicheAdherent({ id }: { id: string }) {
         const df = await resF.json();
         setFamille(df.membres ?? []);
       }
-      // Historique d'ancien (si ce dossier est un réinscrit lié par ancien_id).
-      try {
-        const resH = await fetch(
-          `/api/admin/adherents/${id}/historique-ancien`,
-          { headers: adminAuthHeaders(), cache: "no-store" },
-        );
-        if (resH.ok) {
-          const dh = await resH.json();
-          setHistAncien(dh.historique ?? []);
-        }
-      } catch {
-        /* best-effort */
-      }
-      // Historique des remboursements du dossier.
-      try {
-        const resR = await fetch(
-          `/api/admin/adherents/${id}/remboursements`,
-          { headers: adminAuthHeaders(), cache: "no-store" },
-        );
-        if (resR.ok) {
-          const dr = await resR.json();
-          setRemboursements(dr.remboursements ?? []);
-        }
-      } catch {
-        /* best-effort */
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
     } finally {
+      // Fiche affichée dès que le CŒUR (adhérent + paiements + foyer) est prêt.
       setLoading(false);
     }
+
+    // Données SECONDAIRES (historique ancien + remboursements) : chargées en
+    // parallèle et SANS bloquer l'affichage ; elles remplissent leur section
+    // dès qu'elles arrivent. Best-effort.
+    void Promise.all([
+      fetch(`/api/admin/adherents/${id}/historique-ancien`, {
+        headers: adminAuthHeaders(),
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setHistAncien(d.historique ?? []))
+        .catch(() => {}),
+      fetch(`/api/admin/adherents/${id}/remboursements`, {
+        headers: adminAuthHeaders(),
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => d && setRemboursements(d.remboursements ?? []))
+        .catch(() => {}),
+    ]);
   }, [id]);
 
   async function relancerPaiement() {
