@@ -16,13 +16,20 @@ export type TrombiMembre = {
   nom: string;
   prenom: string;
   formule: string;
-  paye: boolean;
+  statutLabel: string;
+  statutCouleur: "vert" | "orange" | "rouge";
   photo: string | null; // data-URI ou null
   initiales: string;
 };
 
 const GREEN = "#16a34a";
 const ORANGE = "#F84800";
+const RED = "#dc2626";
+const DOT: Record<"vert" | "orange" | "rouge", string> = {
+  vert: GREEN,
+  orange: ORANGE,
+  rouge: RED,
+};
 const INK = "#0a0a0a";
 const SMOKE = "#6b6b6b";
 const LINE = "#e5e5e5";
@@ -141,10 +148,10 @@ export function TrombinoscopeDoc({
               <Text style={s.formule}>{m.formule}</Text>
               <View style={s.statutRow}>
                 <View
-                  style={[s.dot, { backgroundColor: m.paye ? GREEN : ORANGE }]}
+                  style={[s.dot, { backgroundColor: DOT[m.statutCouleur] }]}
                 />
-                <Text style={[s.statutTxt, { color: m.paye ? GREEN : ORANGE }]}>
-                  {m.paye ? "Payé" : "En cours"}
+                <Text style={[s.statutTxt, { color: DOT[m.statutCouleur] }]}>
+                  {m.statutLabel}
                 </Text>
               </View>
             </View>

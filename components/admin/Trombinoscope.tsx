@@ -4,20 +4,36 @@ import { useMemo, useState } from "react";
 import { useSaisonAdmin } from "./SaisonContext";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { estActifCompte } from "@/lib/adherents-actifs";
-import { estPaiementSolde } from "@/lib/paiement";
-import { formuleLabel } from "@/lib/pricing";
+import { statutTrombi } from "@/lib/paiement";
+import { formuleLabel, PACKAGE_LABEL } from "@/lib/pricing";
 import type { Adherent } from "@/lib/types";
 
 const initiales = (a: Adherent) =>
   `${(a.prenom || "").trim()[0] ?? ""}${(a.nom || "").trim()[0] ?? ""}`.toUpperCase() ||
   "?";
 
+const DOT_BG: Record<"vert" | "orange" | "rouge", string> = {
+  vert: "bg-green-500",
+  orange: "bg-orange",
+  rouge: "bg-red-500",
+};
+const DOT_TX: Record<"vert" | "orange" | "rouge", string> = {
+  vert: "text-green-600",
+  orange: "text-orange",
+  rouge: "text-red-600",
+};
+
 export function Trombinoscope() {
   const { adherents, loading, selectedSaison } = useSaisonAdmin();
   const [exporting, setExporting] = useState(false);
 
-  // Actifs (source unique) de la saison sélectionnée (déjà filtrée par le
-  // contexte), triés par NOM A→Z.
+  // Filtres combinables.
+  const [q, setQ] = useState("");
+  const [type, setType] = useState("all"); // all | jeune | adulte
+  const [statut, setStatut] = useState("all"); // all | paye | fractionne | attente_especes | echec
+  const [formule, setFormule] = useState("all"); // all | <package>
+
+  // Actifs (source unique) triés par NOM A→Z.
   const actifs = useMemo(
     () =>
       adherents
@@ -34,13 +50,45 @@ export function Trombinoscope() {
     [adherents],
   );
 
+  const packages = useMemo(
+    () => [...new Set(actifs.map((a) => a.package))],
+    [actifs],
+  );
+
+  // Filtrage multi-critères, réactif (côté client).
+  const filtres = useMemo(
+    () =>
+      actifs.filter((a) => {
+        if (type !== "all" && a.type_adherent !== type) return false;
+        if (formule !== "all" && a.package !== formule) return false;
+        if (statut !== "all") {
+          const c = statutTrombi(a).code;
+          if (statut === "paye") {
+            if (c !== "paye_carte" && c !== "paye_especes") return false;
+          } else if (c !== statut) {
+            return false;
+          }
+        }
+        if (q.trim()) {
+          const s = `${a.prenom} ${a.nom}`.toLowerCase();
+          if (!s.includes(q.trim().toLowerCase())) return false;
+        }
+        return true;
+      }),
+    [actifs, type, formule, statut, q],
+  );
+
   async function exportPdf() {
     setExporting(true);
     try {
-      const res = await fetch(
-        `/api/admin/trombinoscope?saison=${encodeURIComponent(selectedSaison)}`,
-        { headers: adminAuthHeaders() },
-      );
+      const res = await fetch(`/api/admin/trombinoscope`, {
+        method: "POST",
+        headers: { ...adminAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: filtres.map((a) => a.id),
+          saison: selectedSaison,
+        }),
+      });
       if (!res.ok) throw new Error();
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -58,6 +106,9 @@ export function Trombinoscope() {
     }
   }
 
+  const selCls =
+    "rounded-full border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-orange";
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -66,31 +117,61 @@ export function Trombinoscope() {
             Trombinoscope
           </h1>
           <p className="mt-1 text-sm text-smoke">
-            {actifs.length} adhérent{actifs.length > 1 ? "s" : ""} actif
-            {actifs.length > 1 ? "s" : ""}
+            {filtres.length} adhérent{filtres.length > 1 ? "s" : ""}
+            {filtres.length !== actifs.length ? ` / ${actifs.length}` : ""}
           </p>
         </div>
         <button
           onClick={exportPdf}
-          disabled={exporting || actifs.length === 0}
+          disabled={exporting || filtres.length === 0}
           className="rounded-full bg-orange px-4 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50"
         >
           {exporting ? "Génération…" : "Exporter en PDF"}
         </button>
       </div>
 
+      {/* Filtres combinables */}
+      <div className="mt-5 flex flex-wrap gap-2">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Rechercher un nom…"
+          className={`${selCls} min-w-[180px] flex-1`}
+        />
+        <select value={type} onChange={(e) => setType(e.target.value)} className={selCls}>
+          <option value="all">Tous âges</option>
+          <option value="jeune">Jeunes</option>
+          <option value="adulte">Adultes</option>
+        </select>
+        <select value={statut} onChange={(e) => setStatut(e.target.value)} className={selCls}>
+          <option value="all">Tous statuts</option>
+          <option value="paye">Payé</option>
+          <option value="fractionne">Fractionné en cours</option>
+          <option value="attente_especes">Attente espèces</option>
+          <option value="echec">Prélèvement échoué</option>
+        </select>
+        <select value={formule} onChange={(e) => setFormule(e.target.value)} className={selCls}>
+          <option value="all">Toutes formules</option>
+          {packages.map((p) => (
+            <option key={p} value={p}>
+              {PACKAGE_LABEL[p] ?? p}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {loading ? (
         <div className="mt-10 flex justify-center">
           <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
         </div>
-      ) : actifs.length === 0 ? (
+      ) : filtres.length === 0 ? (
         <p className="mt-10 text-center text-sm text-smoke">
-          Aucun adhérent actif pour cette sélection.
+          Aucun adhérent ne correspond à ces filtres.
         </p>
       ) : (
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {actifs.map((a) => {
-            const paye = estPaiementSolde(a);
+          {filtres.map((a) => {
+            const st = statutTrombi(a);
             return (
               <div
                 key={a.id}
@@ -119,16 +200,12 @@ export function Trombinoscope() {
                   </p>
                   <div className="mt-1.5 flex items-center gap-1.5">
                     <span
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        paye ? "bg-green-500" : "bg-orange"
-                      }`}
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_BG[st.couleur]}`}
                     />
                     <span
-                      className={`text-xs font-semibold ${
-                        paye ? "text-green-600" : "text-orange"
-                      }`}
+                      className={`truncate text-xs font-semibold ${DOT_TX[st.couleur]}`}
                     >
-                      {paye ? "Payé" : "En cours"}
+                      {st.label}
                     </span>
                   </div>
                 </div>

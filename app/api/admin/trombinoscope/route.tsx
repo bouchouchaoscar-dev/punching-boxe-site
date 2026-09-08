@@ -2,7 +2,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { estActifCompte } from "@/lib/adherents-actifs";
-import { estPaiementSolde } from "@/lib/paiement";
+import { statutTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
 import { TrombinoscopeDoc, type TrombiMembre } from "@/lib/pdf/Trombinoscope";
 import type { Adherent } from "@/lib/types";
@@ -13,8 +13,6 @@ const initiales = (prenom: string, nom: string) =>
   `${(prenom || "").trim()[0] ?? ""}${(nom || "").trim()[0] ?? ""}`.toUpperCase() ||
   "?";
 
-// Récupère une photo et la renvoie en data-URI (embarquable dans le PDF).
-// Timeout + tolérance : toute erreur → null (placeholder initiales).
 async function photoDataUri(url: string | null): Promise<string | null> {
   if (!url) return null;
   try {
@@ -32,8 +30,6 @@ async function photoDataUri(url: string | null): Promise<string | null> {
   }
 }
 
-// Traite `items` avec au plus `n` tâches en parallèle (évite un timeout et une
-// surcharge mémoire avec beaucoup de photos).
 async function pool<T, R>(
   items: T[],
   n: number,
@@ -52,7 +48,10 @@ async function pool<T, R>(
   return out;
 }
 
-export async function GET(request: Request) {
+// POST — génère le trombinoscope PDF pour la liste d'adhérents EXACTEMENT
+// affichée par la vue (filtres appliqués côté client → liste d'ids transmise).
+// À défaut d'ids, retombe sur tous les actifs (de la saison éventuelle).
+export async function POST(request: Request) {
   if (!isAdminRequest(request)) {
     return new Response(JSON.stringify({ error: "Non autorisé." }), {
       status: 401,
@@ -64,15 +63,26 @@ export async function GET(request: Request) {
     });
   }
 
-  const saison = new URL(request.url).searchParams.get("saison") || "";
+  let body: { ids?: string[]; saison?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    /* corps optionnel */
+  }
+  const ids = Array.isArray(body.ids) ? body.ids : null;
+  const saison = body.saison || "";
 
   const supabase = getSupabaseAdmin();
   const { data } = await supabase.from("adherents").select("*");
   let actifs = ((data ?? []) as Adherent[]).filter(estActifCompte);
-  if (saison && saison !== "all") {
+
+  if (ids) {
+    const set = new Set(ids);
+    actifs = actifs.filter((a) => set.has(a.id)); // ∩ actifs (sécurité serveur)
+  } else if (saison && saison !== "all") {
     actifs = actifs.filter((a) => a.saison === saison);
   }
-  // Tri par NOM de famille A→Z (puis prénom), insensible casse/accents.
+
   actifs.sort(
     (a, b) =>
       (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }) ||
@@ -81,17 +91,20 @@ export async function GET(request: Request) {
       }),
   );
 
-  // Photos embarquées (concurrence limitée à 8).
   const photos = await pool(actifs, 8, (a) => photoDataUri(a.photo_url));
 
-  const membres: TrombiMembre[] = actifs.map((a, i) => ({
-    nom: a.nom,
-    prenom: a.prenom,
-    formule: formuleLabel(a.package, a.option_prepa_physique),
-    paye: estPaiementSolde(a),
-    photo: photos[i],
-    initiales: initiales(a.prenom, a.nom),
-  }));
+  const membres: TrombiMembre[] = actifs.map((a, i) => {
+    const st = statutTrombi(a);
+    return {
+      nom: a.nom,
+      prenom: a.prenom,
+      formule: formuleLabel(a.package, a.option_prepa_physique),
+      statutLabel: st.label,
+      statutCouleur: st.couleur,
+      photo: photos[i],
+      initiales: initiales(a.prenom, a.nom),
+    };
+  });
 
   const dateFr = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
     new Date(),
@@ -102,11 +115,10 @@ export async function GET(request: Request) {
     <TrombinoscopeDoc saison={libSaison} date={dateFr} membres={membres} />,
   );
 
-  const nomFichier = `trombinoscope-${(saison && saison !== "all" ? saison : "actifs").replace(/[^\w-]/g, "-")}.pdf`;
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${nomFichier}"`,
+      "Content-Disposition": `attachment; filename="trombinoscope-punching-boxe.pdf"`,
       "Cache-Control": "no-store",
     },
   });
