@@ -80,6 +80,11 @@ export function AnciensTable() {
   const [segments, setSegments] = useState<string[]>([]);
   const [disciplines, setDisciplines] = useState<string[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
+  // Rendu progressif : on ne rend qu'un lot au départ (le filtrage/recherche
+  // porte toujours sur TOUS les anciens chargés, pas sur les lignes visibles).
+  const PAGE = 50;
+  const [visible, setVisible] = useState(PAGE);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/anciens", { headers: adminAuthHeaders(), cache: "no-store" })
@@ -108,6 +113,16 @@ export function AnciensTable() {
       return true;
     });
   }, [anciens, q, segments, disciplines]);
+
+  // Recherche/filtre changé → on repart du 1er lot sur le nouveau résultat.
+  useEffect(() => {
+    setVisible(PAGE);
+    setShowAll(false);
+  }, [q, segments, disciplines]);
+
+  // Sous-ensemble RÉELLEMENT rendu (le "Afficher plus" ne limite que le rendu).
+  const shown = showAll ? filtered : filtered.slice(0, visible);
+  const reste = filtered.length - shown.length;
 
   const toggle = (arr: string[], set: (v: string[]) => void, k: string) =>
     set(arr.includes(k) ? arr.filter((x) => x !== k) : [...arr, k]);
@@ -184,7 +199,7 @@ export function AnciensTable() {
           <div className="p-12 text-center text-smoke">Aucun ancien trouvé.</div>
         ) : (
           <ul className="divide-y divide-line">
-            {filtered.map((a) => (
+            {shown.map((a) => (
               <li key={a.id}>
                 <button
                   onClick={() => setOpenId(openId === a.id ? null : a.id)}
@@ -235,6 +250,23 @@ export function AnciensTable() {
               </li>
             ))}
           </ul>
+        )}
+
+        {reste > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-3 border-t border-line p-4">
+            <button
+              onClick={() => setVisible((v) => v + PAGE)}
+              className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-ink/90"
+            >
+              Afficher plus ({reste} restant{reste > 1 ? "s" : ""})
+            </button>
+            <button
+              onClick={() => setShowAll(true)}
+              className="text-sm font-semibold text-smoke transition-colors hover:text-ink"
+            >
+              Tout afficher
+            </button>
+          </div>
         )}
       </div>
     </div>

@@ -21,7 +21,7 @@ type Ctx = {
   adherents: Adherent[]; // déjà filtré par la saison sélectionnée
   loading: boolean;
   error: string;
-  refresh: () => Promise<void>;
+  refresh: (opts?: { silent?: boolean }) => Promise<void>;
   saisons: string[]; // saisons réelles présentes (sans le sentinel)
   selectedSaison: string; // saison réelle OU ALL_SAISONS
   setSelectedSaison: (s: string) => void;
@@ -54,8 +54,11 @@ export function SaisonProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  // `silent` : revalidation en arrière-plan (pas de spinner) quand les données
+  // du contexte sont déjà affichées (ex. retour sur l'onglet Adhérents).
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/adherents", { cache: "no-store" });
@@ -63,9 +66,9 @@ export function SaisonProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) throw new Error(data.error || "Erreur de chargement.");
       setAllAdherents(data.adherents || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inconnue.");
+      if (!silent) setError(e instanceof Error ? e.message : "Erreur inconnue.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 

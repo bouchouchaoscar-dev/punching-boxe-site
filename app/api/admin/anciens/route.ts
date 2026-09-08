@@ -34,23 +34,27 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdmin();
   const courante = saisonCourante(new Date());
 
-  const personnes = await paginate(
-    supabase,
-    "anciens_adherents",
-    "id, nom, prenom, email, telephone, adresse, code_postal, ville, date_naissance, a_verifier",
-  );
-  const hist = await paginate(
-    supabase,
-    "historique_saisons",
-    "ancien_id, saison, disciplines, montant",
-  );
-
-  // Anciens RÉINSCRITS : dossiers natifs liés (ancien_id). On garde la saison la
-  // plus récente du/des dossier(s) lié(s) pour l'afficher ("Revenu en …").
-  const { data: migr } = await supabase
-    .from("adherents")
-    .select("ancien_id, saison")
-    .not("ancien_id", "is", null);
+  // Les 3 lectures sont indépendantes → EN PARALLÈLE (au lieu de 3 allers-retours
+  // en série) : c'est le principal gain de latence de cette page.
+  const [personnes, hist, migrRes] = await Promise.all([
+    paginate(
+      supabase,
+      "anciens_adherents",
+      "id, nom, prenom, email, telephone, adresse, code_postal, ville, date_naissance, a_verifier",
+    ),
+    paginate(
+      supabase,
+      "historique_saisons",
+      "ancien_id, saison, disciplines, montant",
+    ),
+    // Anciens RÉINSCRITS : dossiers natifs liés (ancien_id). On garde la saison
+    // la plus récente du/des dossier(s) lié(s) pour l'afficher ("Revenu en …").
+    supabase
+      .from("adherents")
+      .select("ancien_id, saison")
+      .not("ancien_id", "is", null),
+  ]);
+  const migr = migrRes.data;
   const reinscritSaison = new Map<string, string>();
   for (const m of migr ?? []) {
     const id = m.ancien_id as string;

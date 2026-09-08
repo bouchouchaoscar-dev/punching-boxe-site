@@ -16,8 +16,10 @@ export function AdherentsTable() {
   const { adherents, loading, error, refresh } = useSaisonAdmin();
   // Re-synchronise à l'affichage de la liste : en revenant d'une fiche, le badge
   // "New" (vu_par_admin posé à la 1re consultation) doit refléter l'état à jour.
+  // Revalidation en arrière-plan (données du contexte affichées immédiatement) :
+  // au retour d'une fiche, statut/badge se re-synchronisent sans re-spinner.
   useEffect(() => {
-    refresh();
+    refresh({ silent: true });
   }, [refresh]);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
