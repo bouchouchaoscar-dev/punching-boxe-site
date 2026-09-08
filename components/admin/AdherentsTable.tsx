@@ -185,16 +185,20 @@ export function AdherentsTable() {
         </div>
       )}
 
-      {/* Table — défilement horizontal + flèches indicatrices sur mobile. */}
       <div className="mt-6">
-        <ScrollX className="overflow-x-auto rounded-[1.5rem] border border-line bg-white">
         {loading ? (
-          <div className="flex h-40 items-center justify-center">
+          <div className="flex h-40 items-center justify-center rounded-[1.5rem] border border-line bg-white">
             <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-smoke">Aucun adhérent trouvé.</div>
+          <div className="rounded-[1.5rem] border border-line bg-white p-12 text-center text-smoke">
+            Aucun adhérent trouvé.
+          </div>
         ) : (
+          <>
+            {/* Desktop (lg+) : tableau inchangé, défilement horizontal si besoin. */}
+            <div className="hidden lg:block">
+              <ScrollX className="overflow-x-auto rounded-[1.5rem] border border-line bg-white">
           <table className="w-full min-w-[58rem] table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[192px]" />
@@ -231,8 +235,21 @@ export function AdherentsTable() {
               ))}
             </tbody>
           </table>
+              </ScrollX>
+            </div>
+
+            {/* Mobile (< lg) : cartes empilées, aucun scroll horizontal. */}
+            <ul className="space-y-3 lg:hidden">
+              {filtered.map((a) => (
+                <MobileCard
+                  key={a.id}
+                  a={a}
+                  paidEcheances={paidEcheancesMap[a.id] ?? 0}
+                />
+              ))}
+            </ul>
+          </>
         )}
-        </ScrollX>
       </div>
     </div>
   );
@@ -251,11 +268,7 @@ function Row({
   confirming: boolean;
   onConfirm: () => void;
 }) {
-  // Badge "Nouveau" : inscrit depuis moins de 48h ET jamais consulté par l'admin.
-  // Dès que la fiche est ouverte (vu_par_admin = true), le badge disparaît définitivement.
-  const isNew =
-    !a.vu_par_admin &&
-    Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000;
+  const isNew = isNewAdherent(a);
   return (
     <tr className="border-b border-line align-middle last:border-0 hover:bg-paper-2">
       <td className="px-3 py-3">
@@ -327,6 +340,66 @@ function Row({
         )}
       </td>
     </tr>
+  );
+}
+
+// Badge "Nouveau" : inscrit depuis moins de 48h ET jamais consulté par l'admin.
+// Dès que la fiche est ouverte (vu_par_admin = true), le badge disparaît.
+function isNewAdherent(a: Adherent): boolean {
+  return (
+    !a.vu_par_admin &&
+    Date.now() - new Date(a.created_at).getTime() < 48 * 60 * 60 * 1000
+  );
+}
+
+// Carte adhérent — affichage MOBILE (< lg). Même navigation, mêmes sources de
+// statut que le tableau (PaiementStatut + evaluerDossier), zéro divergence.
+function MobileCard({
+  a,
+  paidEcheances,
+}: {
+  a: Adherent;
+  paidEcheances: number;
+}) {
+  const isNew = isNewAdherent(a);
+  return (
+    <li>
+      <Link
+        href={`/admin/adherents/${a.id}`}
+        className="block rounded-2xl border border-line bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-orange/40 hover:shadow-md active:scale-[0.99]"
+      >
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-paper-2 text-sm font-bold text-smoke">
+            {a.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={a.photo_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              `${a.prenom[0] ?? ""}${a.nom[0] ?? ""}`
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <p className="truncate font-bold text-ink">
+                {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
+              </p>
+              {isNew && (
+                <span className="shrink-0 rounded-full bg-orange px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white">
+                  New
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs text-smoke">{a.email}</p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-paper-2 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-smoke">
+            {a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
+          </span>
+          <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
+          <DocsBadge statut={evaluerDossier(a).statut} />
+        </div>
+      </Link>
+    </li>
   );
 }
 
