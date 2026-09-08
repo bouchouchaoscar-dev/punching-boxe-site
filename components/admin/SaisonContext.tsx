@@ -125,14 +125,25 @@ export function useSaisonAdmin() {
 }
 
 // Sélecteur global de saison (mobile-first). Rendu dans AdminShell.
-export function SaisonSelect({ className = "" }: { className?: string }) {
+export function SaisonSelect({
+  className = "",
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const { saisons, selectedSaison, setSelectedSaison } = useSaisonAdmin();
+  // Variante compacte (en-tête mobile) : plus petit, largeur bornée pour laisser
+  // la place au bouton menu à droite.
+  const taille = compact
+    ? "max-w-[8.5rem] px-2 py-1.5 text-xs"
+    : "px-3 py-2 text-sm";
   return (
     <select
       value={selectedSaison}
       onChange={(e) => setSelectedSaison(e.target.value)}
       aria-label="Filtrer par saison"
-      className={`rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink outline-none focus:border-orange ${className}`}
+      className={`rounded-full border border-line bg-white font-semibold text-ink outline-none focus:border-orange ${taille} ${className}`}
     >
       {saisons.map((s) => (
         <option key={s} value={s}>

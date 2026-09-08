@@ -26,8 +26,24 @@ export function ScrollX({
 
   useEffect(() => {
     updateArrows();
+    const el = scrollRef.current;
+    if (!el) return;
+    // Recalcule aussi quand le CONTENU change de taille (données chargées en
+    // async, filtres) — sinon la flèche droite n'apparaît pas après le fetch.
+    const ro = new ResizeObserver(updateArrows);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    const mo = new MutationObserver(() => {
+      updateArrows();
+      if (el.firstElementChild) ro.observe(el.firstElementChild);
+    });
+    mo.observe(el, { childList: true, subtree: true });
     window.addEventListener("resize", updateArrows);
-    return () => window.removeEventListener("resize", updateArrows);
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      window.removeEventListener("resize", updateArrows);
+    };
   }, [updateArrows]);
 
   const scrollByDir = (dir: 1 | -1) =>
