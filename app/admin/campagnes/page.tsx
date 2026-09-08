@@ -114,9 +114,31 @@ export default function CampagnesPage() {
 
       <div className="mt-8 overflow-x-auto rounded-[1.5rem] border border-line bg-white">
         {loading ? (
-          <div className="flex h-40 items-center justify-center">
-            <span className="h-7 w-7 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
-          </div>
+          // Skeleton calqué sur le tableau (mêmes colonnes) → pas de layout
+          // shift, attente perçue courte. Le reste de la page est déjà affiché.
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
+                <th className="p-4 font-bold">Date</th>
+                <th className="p-4 font-bold">Type</th>
+                <th className="p-4 font-bold">Objet</th>
+                <th className="p-4 font-bold">Destinataires</th>
+                <th className="p-4 font-bold">Statut</th>
+                <th className="p-4 font-bold"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i} className="border-b border-line">
+                  {["w-20", "w-16", "w-48", "w-10", "w-24", "w-6"].map((w, j) => (
+                    <td key={j} className="p-4">
+                      <div className={`h-3 ${w} max-w-full animate-pulse rounded bg-line`} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : campagnes.length === 0 ? (
           <div className="p-12 text-center text-smoke">
             Aucun envoi pour le moment.
