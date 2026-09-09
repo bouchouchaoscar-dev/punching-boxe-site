@@ -65,7 +65,16 @@ export async function construireFacturePdf(
       date: p.date_prevue ?? null,
     }));
 
-  const solde = estPaiementSolde(a);
+  // « Soldé » = état RÉEL des échéances (pas le seul statut_paiement, qui peut
+  // être faussé sur certains fractionnés) :
+  //   - comptant / espèces payé → estPaiementSolde (statut paye/confirme_especes)
+  //   - fractionné → soldé UNIQUEMENT si toutes les échéances sont réglées
+  //     (echeances_payees >= nb_echeances). Sinon → attestation (détail restant).
+  const nbEch = a.nb_echeances || 1;
+  const fractionne = nbEch > 1;
+  const solde = fractionne
+    ? (a.echeances_payees ?? 0) >= nbEch
+    : estPaiementSolde(a);
 
   // Disponibilité : soldé OU au moins une échéance réellement encaissée.
   if (!solde && echeancesReglees.length === 0) {
@@ -81,7 +90,6 @@ export async function construireFacturePdf(
   const montantTotal = Number(a.montant_total || 0);
   const adhesion = a.nouveau_membre ? TARIFS.adhesion : 0;
   const cotisation = Math.round((montantTotal - adhesion) * 100) / 100;
-  const fractionne = (a.nb_echeances || 1) > 1;
   const regleAJour = solde
     ? montantTotal
     : Math.round(

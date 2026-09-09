@@ -70,6 +70,32 @@ export async function markAdherentPaid(
     return { updated: false, adherent };
   }
 
+  // Ne marquer "paye" QUE si le dossier est RÉELLEMENT soldé : comptant (≤ 1
+  // échéance) OU fractionné dont TOUTES les échéances sont réglées. Un fractionné
+  // partiel ne doit PAS être écrasé en "paye" (le statut doit refléter l'état
+  // réel « en cours ») — sinon corruption (facture/ badges faussés). Le
+  // prélèvement des échéances restantes n'est pas affecté (cron piloté par la
+  // table paiements). Fixe la cause racine du filet webhook non matché.
+  const nb = adherent.nb_echeances || 1;
+  const reellementSolde = nb <= 1 || (adherent.echeances_payees ?? 0) >= nb;
+  if (!reellementSolde) {
+    // Paiement reçu hors table paiements sur un fractionné EN COURS : on trace
+    // l'engagement + le PaymentIntent, SANS corrompre le statut ni envoyer les
+    // mails d'inscription (ils partiront au bon moment via le flux échéances).
+    if (paymentIntentId || !adherent.engage_at) {
+      await supabase
+        .from("adherents")
+        .update({
+          ...(paymentIntentId
+            ? { stripe_payment_intent_id: paymentIntentId }
+            : {}),
+          ...(adherent.engage_at ? {} : { engage_at: new Date().toISOString() }),
+        })
+        .eq("id", adherentId);
+    }
+    return { updated: false, adherent };
+  }
+
   const { data: updated, error: updErr } = await supabase
     .from("adherents")
     .update({
