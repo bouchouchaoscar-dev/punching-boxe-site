@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
-import { setAdminSession, setAdminToken } from "@/lib/admin-auth";
+import { setAdminSession, setAdminToken, setAdminRole } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -29,7 +29,11 @@ export default function AdminLoginPage() {
       if (!res.ok) throw new Error(data.error || "Connexion impossible.");
       setAdminSession(true);
       setAdminToken(password);
-      router.replace("/admin");
+      setAdminRole(data.role === "coach" ? "coach" : "admin");
+      // Un coach n'a accès qu'au trombinoscope (gating serveur + middleware).
+      router.replace(
+        data.role === "coach" ? "/admin/trombinoscope" : "/admin",
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue.");
       setBusy(false);

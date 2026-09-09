@@ -61,7 +61,10 @@ export function SaisonProvider({ children }: { children: React.ReactNode }) {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/adherents", { cache: "no-store" });
+      const res = await fetch("/api/adherents", {
+        headers: adminAuthHeaders(),
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur de chargement.");
       setAllAdherents(data.adherents || []);

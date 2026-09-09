@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Adherent } from "@/lib/types";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 export function useAdherents() {
   const [adherents, setAdherents] = useState<Adherent[]>([]);
@@ -12,7 +13,10 @@ export function useAdherents() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/adherents", { cache: "no-store" });
+      const res = await fetch("/api/adherents", {
+        headers: adminAuthHeaders(),
+        cache: "no-store",
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erreur de chargement.");
       setAdherents(data.adherents || []);

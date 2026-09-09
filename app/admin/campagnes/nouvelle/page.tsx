@@ -104,7 +104,7 @@ export default function NouvelleCampagnePage() {
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/adherents", { cache: "no-store" })
+    fetch("/api/adherents", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setAdherents(d.adherents ?? []))
       .catch(() => {});

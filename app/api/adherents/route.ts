@@ -16,6 +16,7 @@ import {
 } from "@/lib/foyer-server";
 import { resoudreDocs } from "@/lib/pdf/generer-server";
 import { getAuthUser } from "@/lib/auth-server";
+import { isAdminRequest } from "@/lib/admin-guard";
 import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
 import { evaluerAnciennete } from "@/lib/anciennete";
 
@@ -152,6 +153,12 @@ export async function POST(request: Request) {
 
 // GET — liste des adhérents (dashboard admin).
 export async function GET(request: Request) {
+  // Lecture réservée à l'admin : renvoie TOUTES les données adhérents (PII +
+  // montants). FAIL CLOSED — un token non-admin (coach, public) est refusé.
+  // Le trombinoscope coach passe par /api/coach/* (données minimales).
+  if (!isAdminRequest(request)) {
+    return NextResponse.json({ error: "Accès refusé." }, { status: 401 });
+  }
   if (!isSupabaseConfigured()) {
     return NextResponse.json({ adherents: [] });
   }
