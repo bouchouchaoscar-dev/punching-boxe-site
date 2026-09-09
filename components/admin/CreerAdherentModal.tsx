@@ -15,8 +15,11 @@ const FORMULES = [
 type FormuleId = (typeof FORMULES)[number]["id"];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Hauteur EXPLICITE (h-11) : un <select> natif rend plus court qu'un <input>
+// avec un simple padding vertical → une hauteur fixe garantit des champs
+// identiques (input + select) et alignés, cohérents avec les DatePicker.
 const champCls =
-  "focus-ring mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange";
+  "focus-ring mt-1 h-11 w-full rounded-xl border border-line bg-white px-3 text-sm outline-none focus:border-orange";
 
 // Dates par défaut : début = aujourd'hui, fin = +1 mois.
 const pad = (n: number) => String(n).padStart(2, "0");
