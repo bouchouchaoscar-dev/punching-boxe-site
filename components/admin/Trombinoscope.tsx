@@ -132,13 +132,14 @@ export function Trombinoscope() {
         </button>
       </div>
 
-      {/* Filtres combinables */}
-      <div className="mt-5 flex flex-wrap gap-2">
+      {/* Filtres combinables — mobile : recherche pleine largeur puis selects
+          2 par ligne (grid-cols-2). Desktop (lg) inchangé : flex sur une ligne. */}
+      <div className="mt-5 grid grid-cols-2 gap-2 lg:flex lg:flex-wrap">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Rechercher un nom…"
-          className={`${selCls} min-w-[180px] flex-1`}
+          className={`${selCls} col-span-2 min-w-[180px] lg:col-auto lg:flex-1`}
         />
         <select value={type} onChange={(e) => setType(e.target.value)} className={selCls}>
           <option value="all">Tous âges</option>

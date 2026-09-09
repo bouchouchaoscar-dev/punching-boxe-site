@@ -164,13 +164,14 @@ export function AdherentsTable() {
         </button>
       </div>
 
-      {/* Filtres */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Filtres — mobile : recherche pleine largeur puis selects 2 par ligne
+          (grid-cols-2). Desktop (lg) inchangé : tout sur une ligne de 4. */}
+      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Rechercher un nom, email…"
-          className="focus-ring rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
+          className="focus-ring col-span-2 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange lg:col-span-1"
         />
         <Select value={type} onChange={setType} options={[["all", "Tous types"], ["adulte", "Adultes"], ["jeune", "Jeunes"]]} />
         <Select value={statut} onChange={setStatut} options={[["all", "Tous statuts"], ["paye", "Payé en ligne"], ["confirme_especes", "Espèces confirmé"], ["en_attente", "En attente"]]} />
