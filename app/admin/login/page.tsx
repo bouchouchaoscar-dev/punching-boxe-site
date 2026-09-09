@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
@@ -9,7 +8,6 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { setAdminSession, setAdminToken, setAdminRole } from "@/lib/admin-auth";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -30,8 +28,13 @@ export default function AdminLoginPage() {
       setAdminSession(true);
       setAdminToken(password);
       setAdminRole(data.role === "coach" ? "coach" : "admin");
-      // Un coach n'a accès qu'au trombinoscope (gating serveur + middleware).
-      router.replace(
+      // Navigation DURE (pas router.replace) : garantit que le cookie de rôle
+      // fraîchement écrit est envoyé au middleware et que tout l'état client est
+      // relu à neuf. Évite qu'une reconnexion admin après une session coach
+      // hérite de l'ancien rôle via le cache de navigation SPA (le middleware
+      // servait alors /admin depuis le cache et redirigeait vers le
+      // trombinoscope). Un coach n'a accès qu'au trombinoscope.
+      window.location.replace(
         data.role === "coach" ? "/admin/trombinoscope" : "/admin",
       );
     } catch (e) {

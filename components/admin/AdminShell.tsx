@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
@@ -17,7 +17,6 @@ const NAV = [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
@@ -31,7 +30,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   function logout() {
     setAdminSession(false);
-    router.replace("/admin/login");
+    // Navigation DURE : garantit que le cookie de rôle expiré et le localStorage
+    // purgé sont bien pris en compte avant toute reconnexion (sinon une
+    // reconnexion admin après un coach pouvait hériter de l'ancien rôle).
+    window.location.replace("/admin/login");
   }
 
   return (
