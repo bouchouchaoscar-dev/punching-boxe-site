@@ -112,10 +112,11 @@ export default function CampagnesPage() {
         </div>
       </div>
 
-      <div className="mt-8 overflow-x-auto rounded-[1.5rem] border border-line bg-white">
+      <div className="mt-8">
         {loading ? (
           // Skeleton calqué sur le tableau (mêmes colonnes) → pas de layout
           // shift, attente perçue courte. Le reste de la page est déjà affiché.
+          <div className="overflow-x-auto rounded-[1.5rem] border border-line bg-white">
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
@@ -139,11 +140,15 @@ export default function CampagnesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : campagnes.length === 0 ? (
-          <div className="p-12 text-center text-smoke">
+          <div className="rounded-[1.5rem] border border-line bg-white p-12 text-center text-smoke">
             Aucun envoi pour le moment.
           </div>
         ) : (
+          <>
+            {/* Desktop (lg+) : tableau historique inchangé. */}
+            <div className="hidden overflow-x-auto rounded-[1.5rem] border border-line bg-white lg:block">
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead>
               <tr className="border-b border-line text-xs uppercase tracking-wide text-smoke">
@@ -251,6 +256,105 @@ export default function CampagnesPage() {
               })}
             </tbody>
           </table>
+            </div>
+
+            {/* Mobile (< lg) : cartes empilées, mêmes données/badges que le
+                tableau, lisibles sans scroll horizontal. */}
+            <ul className="space-y-3 lg:hidden">
+              {campagnes.map((c) => {
+                const planifiee =
+                  c.statut === "planifiee" || c.statut === "en_cours";
+                const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
+                const t = TYPE_BADGE[c.type ?? "campagne"] ?? TYPE_BADGE.campagne;
+                const individuel = c.type === "individuel";
+                return (
+                  <li key={c.id}>
+                    <div
+                      onClick={() => router.push(`/admin/campagnes/${c.id}`)}
+                      className="cursor-pointer rounded-2xl border border-line bg-white p-4 transition-all hover:border-orange/40 hover:shadow-md active:scale-[0.99]"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-xs text-smoke">
+                          {planifiee && c.scheduled_at ? (
+                            <>
+                              <span className="block uppercase tracking-wide text-blue-600">
+                                Prévu
+                              </span>
+                              {dateHeure(c.scheduled_at)}
+                            </>
+                          ) : (
+                            dateHeure(c.envoye_at ?? c.created_at)
+                          )}
+                        </div>
+                        <span
+                          className={`inline-flex shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${t.cls}`}
+                        >
+                          {t.label}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 font-semibold text-ink [overflow-wrap:anywhere]">
+                        {c.objet}
+                      </p>
+                      {c.cible && (
+                        <p className="mt-0.5 text-xs text-smoke">{c.cible}</p>
+                      )}
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ${b.cls}`}
+                        >
+                          {b.label}
+                        </span>
+                        {planifiee && c.etat === "pause" && (
+                          <span className="text-xs font-semibold text-amber-600">
+                            ⏸ en pause
+                          </span>
+                        )}
+                        <span className="text-xs text-smoke">
+                          {planifiee
+                            ? "—"
+                            : individuel
+                              ? "1 destinataire"
+                              : `${c.nb_destinataires ?? 0} destinataire${
+                                  (c.nb_destinataires ?? 0) > 1 ? "s" : ""
+                                }`}
+                          {!planifiee &&
+                            !individuel &&
+                            c.nb_envoyes != null &&
+                            ` · ${c.nb_envoyes} email${
+                              c.nb_envoyes > 1 ? "s" : ""
+                            }`}
+                        </span>
+                      </div>
+
+                      {c.statut === "planifiee" && (
+                        <div
+                          className="mt-3 flex gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => togglePause(c)}
+                            disabled={busy === c.id}
+                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                          >
+                            {c.etat === "pause" ? "Reprendre" : "Pause"}
+                          </button>
+                          <button
+                            onClick={() => supprimer(c)}
+                            disabled={busy === c.id}
+                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </div>
     </div>
