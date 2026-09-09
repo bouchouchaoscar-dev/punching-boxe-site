@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { EnvoiMailModal } from "./EnvoiMailModal";
 import { GererPaiementModal } from "./GererPaiementModal";
 import { HistoriqueSaisons, type HistLigne } from "./HistoriqueSaisons";
-import { adminAuthHeaders } from "@/lib/admin-auth";
+import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
@@ -73,6 +74,10 @@ const DOCS: {
 ];
 
 export function FicheAdherent({ id }: { id: string }) {
+  const router = useRouter();
+  // Rôle client : la suppression est réservée à l'admin (jamais coach).
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => setRole(getAdminRole()), []);
   const [a, setA] = useState<Adherent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -90,6 +95,8 @@ export function FicheAdherent({ id }: { id: string }) {
   const [gererOpen, setGererOpen] = useState(false);
   const [finOpen, setFinOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [remboursements, setRemboursements] = useState<RemboursementLigne[]>([]);
   // Demande de re-signature (fiche / règlement).
   const [resignOpen, setResignOpen] = useState(false);
@@ -250,6 +257,30 @@ export function FicheAdherent({ id }: { id: string }) {
     }
   }
 
+  // Suppression DÉFINITIVE du dossier (doublon). Le serveur refuse (409) si des
+  // paiements sont encaissés → garde-fou franc. Succès → retour à la liste.
+  async function supprimerDossier() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/supprimer`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        router.replace("/admin/adherents");
+      } else {
+        setDeleteOpen(false);
+        showToast(data.error || "Suppression impossible.");
+      }
+    } catch {
+      setDeleteOpen(false);
+      showToast("Erreur réseau.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   useEffect(() => {
     load();
   }, [load]);
@@ -334,6 +365,16 @@ export function FicheAdherent({ id }: { id: string }) {
       p.numero_echeance != null &&
       (p.statut === "paye" || p.statut === "rembourse"),
   ).length;
+
+  // Un dossier avec de l'argent encaissé ne peut PAS être supprimé (le serveur
+  // refuse aussi, autoritairement). Même règle que côté serveur.
+  const aArgentEncaisse =
+    estPaiementSolde(a) ||
+    (a.echeances_payees ?? 0) >= 1 ||
+    Number(a.montant_rembourse ?? 0) > 0 ||
+    paiements.some((p) => p.statut === "paye" || p.statut === "rembourse");
+
+  const isAdmin = role === "admin";
 
   return (
     <div>
@@ -808,6 +849,78 @@ export function FicheAdherent({ id }: { id: string }) {
           )}
         </div>
       </div>
+
+      {/* Zone de danger — suppression définitive du dossier (doublon). ADMIN
+          uniquement, volontairement séparée des actions courantes. À ne PAS
+          confondre avec « Fin d'inscription » (qui, elle, ferme sans supprimer). */}
+      {isAdmin && (
+        <div className="mt-10 rounded-[1.5rem] border-2 border-red-200 bg-red-50/40 p-5">
+          <h3 className="font-display text-base font-extrabold uppercase text-red-700">
+            Zone de danger
+          </h3>
+          {aArgentEncaisse ? (
+            <p className="mt-2 max-w-2xl text-sm text-smoke">
+              Ce dossier a des <strong>paiements encaissés</strong> : il ne peut
+              pas être supprimé. Pour le retirer, effectuez d&apos;abord un
+              remboursement via <strong>« Gérer le paiement »</strong>.
+            </p>
+          ) : (
+            <p className="mt-2 max-w-2xl text-sm text-smoke">
+              Supprime <strong>définitivement</strong> ce dossier (identité,
+              documents, historique). Action <strong>irréversible</strong>.
+              À utiliser pour un <strong>doublon</strong> — pas pour clôturer une
+              inscription (utilise « Fin d&apos;inscription »).
+            </p>
+          )}
+          <button
+            onClick={() => setDeleteOpen(true)}
+            disabled={aArgentEncaisse}
+            title={
+              aArgentEncaisse
+                ? "Dossier avec paiements encaissés : remboursez d'abord."
+                : undefined
+            }
+            className="mt-4 rounded-full border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-red-600"
+          >
+            Supprimer le dossier
+          </button>
+        </div>
+      )}
+
+      {/* Confirmation de suppression définitive */}
+      {deleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-xl font-extrabold uppercase text-red-700">
+              Supprimer le dossier ?
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              Supprimer définitivement le dossier de{" "}
+              <strong>
+                {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
+              </strong>{" "}
+              ? Cette action est <strong>irréversible</strong> (dossier,
+              documents et historique de paiement seront effacés).
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                onClick={() => setDeleteOpen(false)}
+                disabled={deleting}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Non, annuler
+              </button>
+              <button
+                onClick={supprimerDossier}
+                disabled={deleting}
+                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Suppression…" : "Oui, supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Envoi d'un mail individuel */}
       {mailOpen && (
