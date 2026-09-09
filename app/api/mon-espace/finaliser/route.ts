@@ -17,6 +17,14 @@ const MODES: ModePaiement[] = [
   "especes",
 ];
 
+// Date + 1 mois, au format ISO (yyyy-mm-dd). Sert à la 2e échéance d'un dossier
+// à tarif/durée libres (indépendant de la borne 30 juin de la saison).
+function isoPlusUnMois(d: Date): string {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + 1);
+  return x.toISOString().slice(0, 10);
+}
+
 // POST — finaliser le paiement d'un dossier EXISTANT (non payé), sans créer de
 // doublon. L'adhérent peut re-choisir librement son mode. Échéancier calculé à
 // partir d'aujourd'hui ; total figé conservé.
@@ -98,7 +106,17 @@ export async function POST(request: Request) {
   }
   const n = nbEcheances(mode);
   const now = new Date();
-  if (!echeancesAutorisees(now).includes(n)) {
+  // Dossier à tarif/durée libres : paiement borné à 1x/2x (jamais 3x/4x), et
+  // échéancier indépendant de la borne 30 juin. Serveur AUTORITAIRE.
+  const capLibre = adherent.tarif_libre === true;
+  if (capLibre) {
+    if (n > 2) {
+      return NextResponse.json(
+        { error: "Ce dossier autorise le paiement en 1 ou 2 fois uniquement." },
+        { status: 400 },
+      );
+    }
+  } else if (!echeancesAutorisees(now).includes(n)) {
     return NextResponse.json(
       { error: "Échéancier non disponible à cette période de la saison." },
       { status: 400 },
@@ -110,6 +128,14 @@ export async function POST(request: Request) {
   const adhesion = adherent.nouveau_membre ? TARIFS.adhesion : 0;
   const fractionnable = Math.round((total - adhesion) * 100) / 100;
   const plan = planEcheances(fractionnable, adhesion, now, n);
+  // Tarif libre en 2x : 2e échéance ~1 mois après, SANS dépasser la fin de la
+  // période (au lieu de la borne 30 juin des dossiers standard).
+  let dates = plan.dates;
+  if (capLibre && n === 2 && adherent.date_fin) {
+    let d2 = isoPlusUnMois(now);
+    if (d2 > adherent.date_fin) d2 = adherent.date_fin;
+    dates = [plan.dates[0], d2];
+  }
 
   const stripe = getStripe();
   try {
@@ -153,7 +179,7 @@ export async function POST(request: Request) {
         montant: total,
         statut: "en_attente",
         numero_echeance: 1,
-        date_prevue: plan.dates[0],
+        date_prevue: dates[0],
       });
       return NextResponse.json({
         intentType: "payment",
@@ -163,7 +189,7 @@ export async function POST(request: Request) {
         total,
         adhesion,
         premierPrelevement: total,
-        dates: plan.dates,
+        dates,
         montants: plan.montants,
       });
     }
@@ -180,7 +206,7 @@ export async function POST(request: Request) {
       .update({
         mode_paiement: mode,
         nb_echeances: n,
-        prochaine_echeance: plan.dates[1],
+        prochaine_echeance: dates[1],
         statut_paiement: "en_attente",
         stripe_customer_id: customerId,
         stripe_setup_intent_id: setupIntent.id,
@@ -197,7 +223,7 @@ export async function POST(request: Request) {
       total,
       adhesion,
       premierPrelevement: plan.premierPrelevement,
-      dates: plan.dates,
+      dates,
       montants: plan.montants,
     });
   } catch (e) {

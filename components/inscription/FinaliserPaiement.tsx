@@ -121,11 +121,16 @@ export function FinaliserPaiement({ id }: { id: string }) {
   }
   if (!adherent) return null;
 
-  const modesDispo = PAYMENTS.filter(
-    (p) =>
-      p.mode === "especes" ||
-      echeancesAutorisees(new Date()).includes(nbEcheances(p.mode)),
-  );
+  // Dossier à tarif/durée libres : uniquement espèces, carte 1x, carte 2x
+  // (jamais 3x/4x). Sinon, échéanciers selon la période de la saison. Le
+  // serveur reste autoritaire (refus 3x/4x si tarif_libre).
+  const capLibre = adherent.tarif_libre === true;
+  const modesDispo = PAYMENTS.filter((p) => {
+    if (p.mode === "especes") return true;
+    const n = nbEcheances(p.mode);
+    if (capLibre) return n <= 2;
+    return echeancesAutorisees(new Date()).includes(n);
+  });
 
   return (
     <div>
