@@ -81,7 +81,6 @@ export async function POST(request: Request) {
   // Elle ne recalcule pas le montant (libre, fixé par l'admin).
   const option_prepa_physique =
     body.option_prepa_physique === true && pkg === "boxe_classique";
-  const type_adherent = body.type_adherent;
   const nouveau_membre = body.nouveau_membre === true;
   const cotisation = Number(body.cotisation_libre);
   const date_debut = (body.date_debut || "").trim();
@@ -96,9 +95,8 @@ export async function POST(request: Request) {
   if (!PACKAGES.includes(pkg)) {
     return NextResponse.json({ error: "Formule invalide." }, { status: 400 });
   }
-  if (type_adherent !== "adulte" && type_adherent !== "jeune") {
-    return NextResponse.json({ error: "Type d'adhérent invalide." }, { status: 400 });
-  }
+  // type_adherent (adulte/jeune) N'EST PAS saisi par l'admin : il est dérivé de
+  // la date de naissance renseignée par l'adhérent à la complétion (Lot 4a).
   if (!Number.isFinite(cotisation) || cotisation <= 0) {
     return NextResponse.json({ error: "Montant invalide." }, { status: 400 });
   }
@@ -150,7 +148,8 @@ export async function POST(request: Request) {
       nom,
       prenom,
       email,
-      type_adherent,
+      // type_adherent posé à la complétion (dérivé de la date de naissance).
+      type_adherent: null,
       package: pkg,
       option_prepa_physique,
       nouveau_membre,

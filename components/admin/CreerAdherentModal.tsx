@@ -32,7 +32,6 @@ export function CreerAdherentModal({
   const [prenom, setPrenom] = useState("");
   const [email, setEmail] = useState("");
   const [formuleId, setFormuleId] = useState<FormuleId>("boxe");
-  const [type, setType] = useState<"adulte" | "jeune">("adulte");
   const [nouveauMembre, setNouveauMembre] = useState(false);
   const [cotisation, setCotisation] = useState("");
   const [dateDebut, setDateDebut] = useState("");
@@ -72,7 +71,6 @@ export function CreerAdherentModal({
           email: email.trim(),
           package: formule.package,
           option_prepa_physique: formule.prepa,
-          type_adherent: type,
           nouveau_membre: nouveauMembre,
           cotisation_libre: cotisationNum,
           date_debut: dateDebut,
@@ -137,15 +135,6 @@ export function CreerAdherentModal({
                   {formuleLabel(f.package, f.prepa)}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wide text-smoke">
-              Type
-            </span>
-            <select value={type} onChange={(e) => setType(e.target.value as "adulte" | "jeune")} className={champCls}>
-              <option value="adulte">Adulte</option>
-              <option value="jeune">Jeune</option>
             </select>
           </label>
           <label className="block">

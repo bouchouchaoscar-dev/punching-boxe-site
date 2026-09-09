@@ -334,7 +334,7 @@ function Row({
         </Link>
       </td>
       <td className="px-2 py-3 text-center capitalize text-smoke">
-        {a.type_adherent}
+        {a.type_adherent ?? "—"}
       </td>
       <td className="px-2 py-3">
         <div className="flex flex-col items-center gap-1.5">
@@ -430,7 +430,11 @@ function MobileCard({
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <span className="rounded-full bg-paper-2 px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-smoke">
-            {a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
+            {a.type_adherent === "jeune"
+              ? "Jeune"
+              : a.type_adherent === "adulte"
+                ? "Adulte"
+                : "À compléter"}
           </span>
           <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
           <DocsBadge statut={evaluerDossier(a).statut} />

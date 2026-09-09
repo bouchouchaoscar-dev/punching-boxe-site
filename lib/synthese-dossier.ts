@@ -72,7 +72,7 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
   const solde = a.statut_paiement === "paye";
   const especesOk = a.statut_paiement === "confirme_especes";
   const fracEnCours =
-    a.mode_paiement.startsWith("stripe") &&
+    (a.mode_paiement ?? "").startsWith("stripe") &&
     (a.nb_echeances ?? 1) > 1 &&
     paidEcheances >= 1 &&
     !solde;
@@ -115,7 +115,7 @@ export function syntheseDossier(a: Adherent, paidEcheances: number): Synthese {
 
   // Paiement non finalisé : carte/fractionné, rien encaissé (abandon ou échec
   // du 1er paiement). Prioritaire sur la validation des documents.
-  if (!engage && a.mode_paiement.startsWith("stripe"))
+  if (!engage && (a.mode_paiement ?? "").startsWith("stripe"))
     return {
       tone: "action",
       text: "Votre paiement n'a pas été finalisé. Cliquez sur « Finaliser le paiement » ci-dessous pour le régler et valider votre inscription.",
