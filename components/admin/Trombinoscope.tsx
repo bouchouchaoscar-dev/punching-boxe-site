@@ -277,6 +277,8 @@ export function Trombinoscope() {
                     <img
                       src={a.photo}
                       alt={`${a.prenom} ${a.nom}`}
+                      loading="lazy"
+                      decoding="async"
                       className={`h-full w-full object-cover ${
                         a.href
                           ? "transition-transform duration-300 group-hover:scale-105"

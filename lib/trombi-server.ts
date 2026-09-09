@@ -1,7 +1,7 @@
 // Logique SERVEUR partagée du trombinoscope (export PDF admin + endpoint coach).
 // Source unique : mêmes actifs, même tri A→Z, même mapping vers une forme
 // PUBLIQUE sans aucune donnée sensible.
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, STORAGE_BUCKET } from "@/lib/supabase";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { statutTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
@@ -48,9 +48,48 @@ async function pool<T, R>(
   return out;
 }
 
-/** Photos (data-URI) des actifs, téléchargées avec un pool de concurrence. */
+/** Photos (data-URI) des actifs, téléchargées avec un pool de concurrence.
+ *  Réservé au PDF (qui DOIT embarquer les images). */
 export const chargerPhotos = (actifs: Adherent[]) =>
   pool(actifs, 8, (a) => photoDataUri(a.photo_url));
+
+// Extrait le chemin objet (`<uuid>/photo.jpg`) depuis l'URL stockée (publique).
+function cheminStorage(url: string | null): string | null {
+  if (!url) return null;
+  const marqueur = `/${STORAGE_BUCKET}/`;
+  const i = url.indexOf(marqueur);
+  if (i === -1) return null;
+  const chemin = url.slice(i + marqueur.length).split("?")[0];
+  return chemin || null;
+}
+
+// Durée de validité des URLs signées des photos (1 h). La page coach est
+// rechargée régulièrement → régénération à chaque chargement.
+const SIGNED_URL_TTL = 3600;
+
+/**
+ * URLs de photos SIGNÉES (temporaires) alignées sur `actifs`. Un seul appel
+ * batch (createSignedUrls) : rapide (génération de tokens, AUCUN téléchargement
+ * ni encodage d'image). L'URL ne contient qu'un UUID + un token — aucune PII.
+ * Le navigateur charge ensuite les images en parallèle (qualité d'origine).
+ */
+export async function chargerPhotosSignees(
+  actifs: Adherent[],
+): Promise<(string | null)[]> {
+  const chemins = actifs.map((a) => cheminStorage(a.photo_url));
+  const valides = chemins.filter((c): c is string => !!c);
+  if (!valides.length) return chemins.map(() => null);
+
+  const supabase = getSupabaseAdmin();
+  const { data } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrls(valides, SIGNED_URL_TTL);
+
+  // Réponse alignée sur l'ordre des chemins demandés → zip par index.
+  const map = new Map<string, string | null>();
+  valides.forEach((p, i) => map.set(p, data?.[i]?.signedUrl ?? null));
+  return chemins.map((c) => (c ? (map.get(c) ?? null) : null));
+}
 
 // Membre PUBLIC : AUCUNE donnée sensible (ni email, ni téléphone, ni adresse,
 // ni montant, ni date de naissance, ni id). Superset structurel de TrombiMembre
