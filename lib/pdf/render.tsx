@@ -25,6 +25,13 @@ export async function renderDocument(key: DocKey): Promise<{
 // Rendu des documents REMPLIS + signés (inscription en ligne). Renvoie un
 // Buffer prêt à uploader dans le bucket.
 export async function renderFichePdf(data: FicheData): Promise<Buffer> {
+  // [TARIF_LIBRE] LOG TEMPORAIRE #3 — valeur reçue par le renderer.
+  console.log("[TARIF_LIBRE] #3 renderFichePdf", {
+    tarifLibre: data.tarifLibre,
+    type: typeof data.tarifLibre,
+    dateDebut: data.dateDebut,
+    montantTotal: data.montantTotal,
+  });
   return renderToBuffer(<FicheInscriptionDoc data={data} />);
 }
 export async function renderReglementPdf(data: ReglementData): Promise<Buffer> {
