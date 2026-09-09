@@ -1,5 +1,6 @@
 import type { Adherent, StatutPaiement } from "@/lib/types";
 import { nbEcheances } from "@/lib/pricing";
+import { statutTrombi } from "@/lib/paiement";
 
 const MAP: Record<StatutPaiement, { label: string; cls: string }> = {
   paye: { label: "✅ Payé en ligne", cls: "bg-green-50 text-green-700" },
@@ -28,6 +29,7 @@ type PaiementInfo = Pick<
   | "mode_paiement"
   | "statut_paiement"
   | "nb_echeances"
+  | "echeances_payees"
   | "annule_at"
   | "montant_rembourse"
 >;
@@ -52,35 +54,47 @@ const SLATE = "bg-ink/10 text-ink"; // annulé / remboursé (distinct de "en att
  * - carte fractionnée non payée → « En attente » (gris)           [X = 0]
  * `paidEcheances` = nombre d'échéances NUMÉROTÉES déjà payées.
  */
+// Couleur : SOURCE UNIQUE partagée avec le trombinoscope. `statutTrombi`
+// (lib/paiement.ts) décide vert / orange / rouge selon la même logique 3 états
+// (soldé OU fractionné en cours = vert ; espèces en attente = orange ; échec de
+// prélèvement = rouge). On mappe cette couleur vers les classes Tailwind. La
+// seule nuance propre à la section Adhérents est le GRIS « rien payé encore »
+// (carte non entamée), traité au cas par cas ci-dessous.
+const COULEUR_CLS = { vert: GREEN, orange: ORANGE, rouge: RED } as const;
+
 // Statut « de base » (mode + avancement), sans tenir compte du remboursement.
 function baseStatut(
   a: PaiementInfo,
   paidEcheances: number,
 ): { label: string; cls: string } {
+  const cls = COULEUR_CLS[statutTrombi(a).couleur];
+
   if (a.statut_paiement === "echec_paiement")
-    return { label: "❌ Échec · à régulariser", cls: RED };
+    return { label: "❌ Échec · à régulariser", cls }; // rouge
 
   if (a.mode_paiement === "especes")
     return a.statut_paiement === "confirme_especes"
-      ? { label: "✅ Espèces confirmé", cls: GREEN }
-      : { label: "⏳ Espèces en attente", cls: GRAY };
+      ? { label: "✅ Espèces confirmé", cls } // vert
+      : { label: "⏳ Espèces en attente", cls }; // orange (aligné trombi)
 
   // Carte fractionnée (stripe_2x/3x/4x) → engagement + avancement X/N.
   if (a.mode_paiement !== "stripe_1x") {
     const n = a.nb_echeances || nbEcheances(a.mode_paiement);
     if (n > 1) {
       if (paidEcheances >= n)
-        return { label: `✅ Payé en ligne ${n}/${n}`, cls: GREEN };
+        return { label: `✅ Payé en ligne ${n}/${n}`, cls }; // vert
       if (paidEcheances >= 1)
-        return { label: `🟠 Engagé · ${paidEcheances}/${n} payé`, cls: ORANGE };
+        // Fractionné qui avance normalement = VERT (comme le trombinoscope).
+        return { label: `🟢 Engagé · ${paidEcheances}/${n} payé`, cls };
+      // Rien encore payé (carte non entamée) → nuance admin : gris « en attente ».
       return { label: "⏳ En attente", cls: GRAY };
     }
   }
 
   // Carte 1x.
   return a.statut_paiement === "paye"
-    ? { label: "✅ Payé en ligne", cls: GREEN }
-    : { label: "⏳ En attente", cls: GRAY };
+    ? { label: "✅ Payé en ligne", cls } // vert
+    : { label: "⏳ En attente", cls: GRAY }; // pas encore payée : gris
 }
 
 export function paiementStatut(
