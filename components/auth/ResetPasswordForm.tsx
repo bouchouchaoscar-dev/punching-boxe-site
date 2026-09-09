@@ -32,6 +32,34 @@ export function ResetPasswordForm() {
         );
         return;
       }
+      // Raccourci : si l'utilisateur a EXACTEMENT UN dossier à tarif libre
+      // encore à compléter (date de naissance non renseignée), on l'envoie
+      // directement sur sa complétion. Sinon (reset de mot de passe classique,
+      // aucun ou plusieurs dossiers) → espace adhérent. Fallback sûr.
+      try {
+        const { data } = await getAuthClient().auth.getSession();
+        const token = data.session?.access_token;
+        if (token) {
+          const res = await fetch("/api/mon-espace", {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: "no-store",
+          });
+          const d = await res.json();
+          const aCompleter = (
+            (d.adherents ?? []) as {
+              id: string;
+              tarif_libre?: boolean | null;
+              date_naissance?: string | null;
+            }[]
+          ).filter((a) => a?.tarif_libre === true && !a?.date_naissance);
+          if (aCompleter.length === 1) {
+            router.push(`/inscription/completer/${aCompleter[0].id}`);
+            return;
+          }
+        }
+      } catch {
+        /* réseau/parse : on retombe proprement sur l'espace adhérent */
+      }
       router.push("/mon-espace");
     } finally {
       setBusy(false);
