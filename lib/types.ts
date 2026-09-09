@@ -92,6 +92,11 @@ export interface Adherent {
   reglement_a_resigner?: boolean;
   resignature_demandee_at?: string | null;
   responsable?: string | null;
+  // Dossier à TARIF LIBRE + DURÉE LIBRE (créé par l'admin). Inertes pour les
+  // dossiers standard (période null, tarif_libre false).
+  date_debut?: string | null;
+  date_fin?: string | null;
+  tarif_libre?: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
