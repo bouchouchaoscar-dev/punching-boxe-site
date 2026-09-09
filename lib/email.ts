@@ -134,6 +134,39 @@ export async function sendAccountWelcome(d: { email: string }) {
   });
 }
 
+/** 0 bis — Dossier ouvert par l'admin : invitation à activer son espace pour le
+ *  consulter et le finaliser. Le lien mène à l'écran « définir mon mot de passe »
+ *  (flux reset-password). JAMAIS de mot de passe en clair. */
+export async function sendActivationDossier(d: {
+  prenom: string;
+  email: string;
+  lien: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const salut = d.prenom?.trim()
+    ? `Bonjour ${formaterPrenom(d.prenom)},`
+    : "Bonjour,";
+
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Votre dossier d'inscription est ouvert 🥊</h1>
+    <p style="line-height:1.6;color:#444">${salut}</p>
+    <p style="line-height:1.6;color:#444">Un dossier d'inscription a été ouvert à votre nom au <strong>${CLUB.nom}</strong>. Activez votre espace adhérent pour le consulter, le compléter et le finaliser.</p>
+    <p style="margin:6px 0 18px">${button(d.lien, "Activer mon espace")}</p>
+    <p style="line-height:1.6;color:#888;font-size:13px">Ce lien vous permet de définir votre mot de passe. Il est personnel ; si vous pensez recevoir cet email par erreur, ignorez-le simplement.</p>
+    <p style="line-height:1.6;color:#444">À bientôt à la salle !<br/>Pascal et l'équipe du ${CLUB.nomCourt}<br/>${CLUB.telephone} · ${CLUB.email}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: `Activez votre espace adhérent — ${CLUB.nomCourt}`,
+    html,
+  });
+}
+
 /** 0 ter — Demande de re-signature d'un ou des documents (fiche / règlement)
  *  suite à une correction du dossier. Le lien est un token HMAC scopé + expirable
  *  (cf. lib/resignature-link.ts). Envoyé à l'email du compte titulaire. */
