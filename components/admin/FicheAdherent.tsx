@@ -374,6 +374,16 @@ export function FicheAdherent({ id }: { id: string }) {
     Number(a.montant_rembourse ?? 0) > 0 ||
     paiements.some((p) => p.statut === "paye" || p.statut === "rembourse");
 
+  // Montant net encaissé (pour la pop-up de blocage). À défaut de lignes
+  // paiements (ex. espèces confirmées), on retombe sur le montant total.
+  const collectees = paiements.filter(
+    (p) => p.statut === "paye" || p.statut === "rembourse",
+  );
+  const encaisseNet =
+    collectees.reduce((s, p) => s + Number(p.montant || 0), 0) -
+    collectees.reduce((s, p) => s + Number(p.montant_rembourse || 0), 0);
+  const montantEncaisse = encaisseNet > 0 ? encaisseNet : a.montant_total;
+
   const isAdmin = role === "admin";
 
   return (
@@ -468,9 +478,9 @@ export function FicheAdherent({ id }: { id: string }) {
               )}
               <button
                 onClick={() => setMailOpen(true)}
-                className="mt-4 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-bold text-ink transition-colors hover:border-orange hover:text-orange"
+                className="mt-4 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange"
               >
-                ✉ Envoyer un mail
+                Envoyer un mail
               </button>
               <button
                 onClick={() => setGererOpen(true)}
@@ -524,6 +534,18 @@ export function FicheAdherent({ id }: { id: string }) {
 
           {/* Foyer — sous le bloc Paiement, dans la colonne de gauche. */}
           <FamilleCard membres={famille} currentId={a.id} />
+
+          {/* Suppression du dossier (doublon) — ADMIN uniquement. Le clic ouvre
+              une pop-up (confirmation si vide, blocage si paiements encaissés).
+              Le serveur reste autoritaire (refus 409 si payé). */}
+          {isAdmin && (
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+            >
+              Supprimer le dossier
+            </button>
+          )}
         </div>
 
         {/* Colonne droite : infos + documents */}
@@ -850,77 +872,74 @@ export function FicheAdherent({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Zone de danger — suppression définitive du dossier (doublon). ADMIN
-          uniquement, volontairement séparée des actions courantes. À ne PAS
-          confondre avec « Fin d'inscription » (qui, elle, ferme sans supprimer). */}
-      {isAdmin && (
-        <div className="mt-10 rounded-[1.5rem] border-2 border-red-200 bg-red-50/40 p-5">
-          <h3 className="font-display text-base font-extrabold uppercase text-red-700">
-            Zone de danger
-          </h3>
-          {aArgentEncaisse ? (
-            <p className="mt-2 max-w-2xl text-sm text-smoke">
-              Ce dossier a des <strong>paiements encaissés</strong> : il ne peut
-              pas être supprimé. Pour le retirer, effectuez d&apos;abord un
-              remboursement via <strong>« Gérer le paiement »</strong>.
-            </p>
-          ) : (
-            <p className="mt-2 max-w-2xl text-sm text-smoke">
-              Supprime <strong>définitivement</strong> ce dossier (identité,
-              documents, historique). Action <strong>irréversible</strong>.
-              À utiliser pour un <strong>doublon</strong> — pas pour clôturer une
-              inscription (utilise « Fin d&apos;inscription »).
-            </p>
-          )}
-          <button
-            onClick={() => setDeleteOpen(true)}
-            disabled={aArgentEncaisse}
-            title={
-              aArgentEncaisse
-                ? "Dossier avec paiements encaissés : remboursez d'abord."
-                : undefined
-            }
-            className="mt-4 rounded-full border border-red-300 bg-white px-4 py-2 text-sm font-bold text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-red-600"
-          >
-            Supprimer le dossier
-          </button>
-        </div>
-      )}
-
-      {/* Confirmation de suppression définitive */}
-      {deleteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
-            <h2 className="font-display text-xl font-extrabold uppercase text-red-700">
-              Supprimer le dossier ?
-            </h2>
-            <p className="mt-3 text-sm text-smoke">
-              Supprimer définitivement le dossier de{" "}
-              <strong>
-                {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
-              </strong>{" "}
-              ? Cette action est <strong>irréversible</strong> (dossier,
-              documents et historique de paiement seront effacés).
-            </p>
-            <div className="mt-5 flex justify-center gap-3">
-              <button
-                onClick={() => setDeleteOpen(false)}
-                disabled={deleting}
-                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-              >
-                Non, annuler
-              </button>
-              <button
-                onClick={supprimerDossier}
-                disabled={deleting}
-                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? "Suppression…" : "Oui, supprimer"}
-              </button>
+      {/* Suppression du dossier — pop-up conditionnelle : BLOCAGE si paiements
+          encaissés (aligné sur le refus serveur 409), sinon confirmation. */}
+      {deleteOpen &&
+        (aArgentEncaisse ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+            <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+              <h2 className="font-display text-xl font-extrabold uppercase text-red-700">
+                Suppression impossible
+              </h2>
+              <p className="mt-3 text-sm text-smoke">
+                ⚠️ Ce dossier a des <strong>paiements encaissés</strong>{" "}
+                ({euro(montantEncaisse)}). La suppression n&apos;est pas
+                possible. Pour supprimer ce dossier, effectuez d&apos;abord un{" "}
+                <strong>remboursement</strong>, ou utilisez{" "}
+                <strong>« Fin d&apos;inscription »</strong> — ces actions ne
+                seront plus disponibles après suppression.
+              </p>
+              <div className="mt-5 flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => setDeleteOpen(false)}
+                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteOpen(false);
+                    setGererOpen(true);
+                  }}
+                  className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95"
+                >
+                  Aller au remboursement
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+            <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+              <h2 className="font-display text-xl font-extrabold uppercase text-red-700">
+                Supprimer le dossier ?
+              </h2>
+              <p className="mt-3 text-sm text-smoke">
+                Supprimer définitivement le dossier de{" "}
+                <strong>
+                  {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
+                </strong>{" "}
+                ? Cette action est <strong>irréversible</strong>.
+              </p>
+              <div className="mt-5 flex justify-center gap-3">
+                <button
+                  onClick={() => setDeleteOpen(false)}
+                  disabled={deleting}
+                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                >
+                  Non
+                </button>
+                <button
+                  onClick={supprimerDossier}
+                  disabled={deleting}
+                  className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? "Suppression…" : "Oui, supprimer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
 
       {/* Envoi d'un mail individuel */}
       {mailOpen && (
