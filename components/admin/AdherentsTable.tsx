@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
+import { CreerAdherentModal } from "./CreerAdherentModal";
 import { ScrollX } from "@/components/ui/ScrollX";
+import { getAdminRole } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { evaluerDossier } from "@/lib/dossier";
@@ -26,6 +28,11 @@ export function AdherentsTable() {
   const [statut, setStatut] = useState("all");
   const [prepa, setPrepa] = useState("all");
   const [confirming, setConfirming] = useState<string | null>(null);
+  // Création admin (tarif/durée libres) — bouton réservé à l'admin.
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => setRole(getAdminRole()), []);
+  const [creerOpen, setCreerOpen] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
   const [encaisseMap, setEncaisseMap] = useState<Record<string, number>>({});
   const [paidEcheancesMap, setPaidEcheancesMap] = useState<
     Record<string, number>
@@ -155,14 +162,43 @@ export function AdherentsTable() {
             inscription.
           </p>
         </div>
-        <button
-          onClick={exportCsv}
-          disabled={!filtered.length}
-          className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-40"
-        >
-          Exporter CSV
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {role === "admin" && (
+            <button
+              onClick={() => setCreerOpen(true)}
+              className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95"
+            >
+              + Créer un adhérent
+            </button>
+          )}
+          <button
+            onClick={exportCsv}
+            disabled={!filtered.length}
+            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-40"
+          >
+            Exporter CSV
+          </button>
+        </div>
       </div>
+
+      {flash && (
+        <div className="mt-4 rounded-xl bg-green-50 p-4 text-sm font-semibold text-green-700">
+          {flash}
+        </div>
+      )}
+
+      {creerOpen && (
+        <CreerAdherentModal
+          onClose={() => setCreerOpen(false)}
+          onCreated={(email) => {
+            setFlash(
+              `Dossier créé — un mail d'activation a été envoyé à ${email}.`,
+            );
+            refresh({ silent: true });
+            window.setTimeout(() => setFlash(null), 6000);
+          }}
+        />
+      )}
 
       {/* Filtres — mobile : recherche pleine largeur puis selects 2 par ligne
           (grid-cols-2). Desktop (lg) inchangé : tout sur une ligne de 4. */}
