@@ -130,13 +130,6 @@ function Check({ label, checked }: { label: string; checked?: boolean }) {
 // Fiche d'inscription. Sans `data` → formulaire VIERGE (téléchargeable).
 // Avec `data` → fiche REMPLIE + signée (générée à l'inscription en ligne).
 export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
-  // [TARIF_LIBRE] LOG TEMPORAIRE #4 — valeur au moment du rendu du composant.
-  console.log("[TARIF_LIBRE] #4 FicheInscriptionDoc", {
-    tarifLibre: data?.tarifLibre,
-    type: typeof data?.tarifLibre,
-    dateDebut: data?.dateDebut,
-    montantTotal: data?.montantTotal,
-  });
   const saison = saisonCourante(new Date());
   const filled = !!data;
   const v = (s?: string) => (filled ? s ?? "" : undefined);

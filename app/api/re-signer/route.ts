@@ -8,7 +8,7 @@ import {
 import { clientIp } from "@/lib/inscription";
 import { estMineurISO } from "@/lib/resignature-data";
 import { renderReglementPdf, renderFichePdf } from "@/lib/pdf/render";
-import { remiseFamillePct } from "@/lib/pricing";
+import { ficheBaseDepuisAdherent } from "@/lib/pdf/fiche-data";
 import {
   sendReSignatureConfirmationAdherent,
   sendReSignatureConfirmationAdmin,
@@ -349,24 +349,14 @@ async function regenererFiche(
   const nowIso = new Date().toISOString();
   try {
     const buf = await renderFichePdf({
-      nom: adherent.nom,
-      prenom: adherent.prenom,
+      // Base dossier (montant serveur + tarifLibre + période) : SOURCE UNIQUE.
+      ...ficheBaseDepuisAdherent(adherent),
       dateNaissance: adherent.date_naissance,
       telephone: adherent.telephone ?? "",
-      email: adherent.email,
       adresse: adherent.adresse ?? "",
       codePostal: adherent.code_postal ?? "",
       ville: adherent.ville ?? "",
-      packageType: adherent.package,
-      optionPrepa: adherent.option_prepa_physique,
       typeAdherent: adherent.type_adherent,
-      montantTotal: adherent.montant_total,
-      adhesionDue: adherent.nouveau_membre,
-      remisePct: remiseFamillePct(adherent.nb_membres_famille),
-      // Rendu alternatif tarif libre (formule + période + montant serveur).
-      tarifLibre: adherent.tarif_libre === true,
-      dateDebut: adherent.date_debut,
-      dateFin: adherent.date_fin,
       mineur,
       responsable: mineur ? responsable : null,
       contacts,

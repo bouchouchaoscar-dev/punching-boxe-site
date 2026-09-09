@@ -40,6 +40,7 @@ import {
 import { useAdherentSession } from "@/components/auth/useSession";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
+import { ficheBaseDepuisAdherent } from "@/lib/pdf/fiche-data";
 
 const STEPS = ["Informations", "Options", "Documents", "Paiement"];
 // Mode COMPLÉTION : parcours sans paiement (Lot 4b à part).
@@ -376,21 +377,31 @@ export function InscriptionForm({
         ? [{ nom: contactNom2.trim(), tel: contactTel2.trim() }]
         : []),
     ];
+    // Base « dossier » : en COMPLÉTION, source unique depuis le dossier
+    // (montant SERVEUR + tarifLibre + période) → l'aperçu de signature
+    // (previsualiser) rend le MÊME document que la fiche générée. En création,
+    // on garde le calcul de grille (tarif.total).
+    const base = complete
+      ? ficheBaseDepuisAdherent(complete.dossier)
+      : {
+          nom,
+          prenom,
+          email,
+          packageType,
+          optionPrepa: prepa,
+          montantTotal: tarif.total,
+          adhesionDue: paieAdhesion,
+          remisePct: tarif.remisePct,
+        };
     return {
-      nom,
-      prenom,
+      ...base,
+      // Champs saisis (identité + contacts + mineur) — communs aux 2 modes.
       dateNaissance,
       telephone,
-      email,
       adresse,
       codePostal,
       ville,
-      packageType,
-      optionPrepa: prepa,
       typeAdherent: deduireType(dateNaissance),
-      montantTotal: tarif.total,
-      adhesionDue: paieAdhesion,
-      remisePct: tarif.remisePct,
       mineur: estMineur,
       responsable: estMineur ? responsable.trim() : null,
       autorisationMedicale: estMineur ? autorisationMedicale : undefined,

@@ -7,8 +7,9 @@ import {
 import { getAuthUser } from "@/lib/auth-server";
 import { clientIp } from "@/lib/inscription";
 import { estEngage } from "@/lib/engagement";
-import { deduireType, estMineur, remiseFamillePct } from "@/lib/pricing";
+import { deduireType, estMineur } from "@/lib/pricing";
 import { genererEtDeposerDocs } from "@/lib/pdf/generer-server";
+import { ficheBaseDepuisAdherent } from "@/lib/pdf/fiche-data";
 import type { SignatureVect } from "@/lib/pdf/types";
 import type { Adherent } from "@/lib/types";
 
@@ -75,15 +76,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }
   const a = adherent as Adherent;
-  // [TARIF_LIBRE] LOG TEMPORAIRE #1 — valeur brute lue en base après le SELECT.
-  console.log("[TARIF_LIBRE] #1 select", {
-    id: a.id,
-    tarif_libre: a.tarif_libre,
-    type: typeof a.tarif_libre,
-    date_debut: a.date_debut,
-    date_fin: a.date_fin,
-    montant_total: a.montant_total,
-  });
   // Appartenance (jamais le dossier d'un autre titulaire).
   if (a.titulaire_id !== user.id) {
     return NextResponse.json(
@@ -178,36 +170,20 @@ export async function POST(request: Request) {
   // --- Génération fiche + règlement au montant SERVEUR (jamais un input client) ---
   let ficheUrl: string;
   let reglementUrl: string;
-  // [TARIF_LIBRE] LOG TEMPORAIRE #2 — ce qui SERA injecté dans FicheData.
-  console.log("[TARIF_LIBRE] #2 avant gen", {
-    tarifLibreInjecte: a.tarif_libre === true,
-    dateDebut: a.date_debut,
-    dateFin: a.date_fin,
-    montantTotal: a.montant_total,
-  });
   try {
     const res = await genererEtDeposerDocs(
       supabase,
       a.id,
       {
-        nom: a.nom,
-        prenom: a.prenom,
+        // Base dossier (montant serveur + tarifLibre + période) : SOURCE UNIQUE.
+        ...ficheBaseDepuisAdherent(a),
+        // Champs saisis à la complétion.
         dateNaissance: date_naissance,
         telephone,
-        email: a.email,
         adresse,
         codePostal: code_postal,
         ville,
-        packageType: a.package,
-        optionPrepa: a.option_prepa_physique ?? false,
         typeAdherent: type_adherent,
-        montantTotal: a.montant_total, // ← montant SERVEUR (tarif libre figé)
-        adhesionDue: a.nouveau_membre,
-        remisePct: remiseFamillePct(a.nb_membres_famille ?? 0),
-        // Rendu alternatif tarif libre (formule + période + montant serveur).
-        tarifLibre: a.tarif_libre === true,
-        dateDebut: a.date_debut,
-        dateFin: a.date_fin,
         mineur,
         responsable: mineur ? responsable : null,
         autorisationMedicale: mineur ? true : undefined,
