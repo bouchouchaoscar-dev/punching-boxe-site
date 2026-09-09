@@ -5,6 +5,7 @@ import { getAuthUser } from "@/lib/auth-server";
 import { nbEcheances, TARIFS, type ModePaiement } from "@/lib/pricing";
 import { planEcheances, echeancesAutorisees } from "@/lib/tarifs";
 import { estEngage } from "@/lib/engagement";
+import { envoyerMailsInscription } from "@/lib/payments";
 import type { Adherent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -97,6 +98,14 @@ export async function POST(request: Request) {
         derniere_erreur_code: null,
       })
       .eq("id", adherentId);
+    // Mails de confirmation (adhérent + club), EXACTEMENT une fois (claim
+    // atomique mail_inscription_envoye) — aligné sur l'inscription espèces
+    // normale (POST /api/adherents). Erreur d'envoi loggée, pas silenciée.
+    await envoyerMailsInscription(adherentId, {
+      ...adherent,
+      adherentId,
+      mode_paiement: "especes",
+    });
     return NextResponse.json({ intentType: "especes", adherentId });
   }
 

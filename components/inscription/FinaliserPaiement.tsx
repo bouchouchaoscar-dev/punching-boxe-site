@@ -86,7 +86,9 @@ export function FinaliserPaiement({ id }: { id: string }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Finalisation impossible.");
       if (data.intentType === "especes") {
-        router.push("/inscription/merci?mode=especes");
+        router.push(
+          `/inscription/merci?mode=especes&prenom=${encodeURIComponent(adherent?.prenom ?? "")}`,
+        );
         return;
       }
       setPlan(data as StripePlan);

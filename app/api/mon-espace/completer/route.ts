@@ -224,6 +224,10 @@ export async function POST(request: Request) {
       ...(mineur ? { responsable } : {}),
       fiche_inscription_url: ficheUrl,
       reglement_url: reglementUrl,
+      // Fiche + règlement SIGNÉS EN LIGNE → auto-validés (comme l'inscription
+      // normale). Photo + certificat restent à valider par l'admin.
+      fiche_valide: !!ficheUrl,
+      reglement_valide: !!reglementUrl,
       fiche_signee_at: nowIso,
       reglement_signee_at: nowIso,
       signature_ip: clientIp(request),
