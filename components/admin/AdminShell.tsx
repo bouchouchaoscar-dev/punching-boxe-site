@@ -105,7 +105,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="container-px mx-auto max-w-6xl py-8 sm:py-10">
+        <main className="container-px mx-auto max-w-6xl py-8 sm:py-10 max-lg:overflow-x-hidden">
           {children}
         </main>
       </div>

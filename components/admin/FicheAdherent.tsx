@@ -390,7 +390,7 @@ export function FicheAdherent({ id }: { id: string }) {
               )}
             </div>
             <div className="p-5">
-              <h1 className="font-display text-2xl font-extrabold uppercase text-ink">
+              <h1 className="break-words font-display text-2xl font-extrabold uppercase text-ink">
                 {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
               </h1>
               <p className="mt-1 text-sm capitalize text-smoke">
@@ -1218,7 +1218,7 @@ function Info({ label, value }: { label: string; value: string }) {
       <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
         {label}
       </dt>
-      <dd className="mt-1 font-medium text-ink">{value}</dd>
+      <dd className="mt-1 break-words font-medium text-ink">{value}</dd>
     </div>
   );
 }
@@ -1253,7 +1253,7 @@ function EditableInfo({
           {hint && <span className="mt-1 block text-xs text-smoke">{hint}</span>}
         </>
       ) : (
-        <dd className="mt-1 font-medium text-ink">{display}</dd>
+        <dd className="mt-1 break-words font-medium text-ink">{display}</dd>
       )}
     </div>
   );
