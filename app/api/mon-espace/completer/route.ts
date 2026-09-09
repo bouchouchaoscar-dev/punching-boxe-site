@@ -51,6 +51,8 @@ export async function POST(request: Request) {
     autorisationMedicale?: boolean;
     signatureFiche?: unknown;
     signatureReglement?: unknown;
+    photo_url?: string | null;
+    certificat_medical_url?: string | null;
   };
   try {
     body = await request.json();
@@ -229,6 +231,12 @@ export async function POST(request: Request) {
       fiche_signee_at: nowIso,
       reglement_signee_at: nowIso,
       signature_ip: clientIp(request),
+      // Pièces déposées via l'espace (upload dans {id}/…). URLs persistées ici
+      // (le flux upload ne persiste pas seul). Non fournies → inchangées.
+      ...(typeof body.photo_url === "string" ? { photo_url: body.photo_url } : {}),
+      ...(typeof body.certificat_medical_url === "string"
+        ? { certificat_medical_url: body.certificat_medical_url }
+        : {}),
     })
     .eq("id", a.id);
   if (upErr) {

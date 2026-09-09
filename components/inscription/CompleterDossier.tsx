@@ -4,14 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAdherentSession } from "@/components/auth/useSession";
-import { euro, formuleLabel } from "@/lib/pricing";
+import { InscriptionForm } from "./InscriptionForm";
 import type { Adherent } from "@/lib/types";
-
-const formatFR = (iso?: string | null) => {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return d && m && y ? `${d}/${m}/${y}` : "—";
-};
 
 // Parcours de COMPLÉTION d'un dossier pré-créé par l'admin (tarif libre).
 // 4a-2 : chargement + gardes (session, appartenance, dossier complétable) +
@@ -96,36 +90,16 @@ export function CompleterDossier({ id }: { id: string }) {
         cotisation.
       </p>
 
-      {/* Récapitulatif VERROUILLÉ (posé par le club, non modifiable). */}
-      <div className="mt-6 rounded-2xl border border-line bg-white p-5">
-        <h2 className="text-xs font-bold uppercase tracking-wide text-smoke">
-          Défini par le club
-        </h2>
-        <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
-          <Info label="Nom" value={`${a.prenom} ${a.nom}`} />
-          <Info label="Formule" value={formuleLabel(a.package, a.option_prepa_physique)} />
-          <Info label="Période" value={`du ${formatFR(a.date_debut)} au ${formatFR(a.date_fin)}`} />
-          <Info label="Montant à régler" value={euro(a.montant_total)} />
-        </dl>
+      {/* InscriptionForm en mode « compléter » : formule/prépa/montant/période
+          verrouillés (récap dans l'étape Récapitulatif), identité + contacts +
+          (représentant légal si mineur) + signatures à remplir. Submit →
+          /api/mon-espace/completer, puis retour à l'espace. */}
+      <div className="mt-6">
+        <InscriptionForm
+          lockedEmail={a.email}
+          complete={{ dossier: a, onDone: () => router.replace("/mon-espace") }}
+        />
       </div>
-
-      {/* 4a-3 : InscriptionForm en mode « compléter » (identité + contacts +
-          représentant légal si mineur + signatures) sera rendu ici. */}
-      <div className="mt-6 rounded-2xl border border-dashed border-line bg-paper-2 p-6 text-center text-sm text-smoke">
-        Le formulaire de complétion (identité, contacts, signatures) sera
-        disponible ici très prochainement.
-      </div>
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
-        {label}
-      </dt>
-      <dd className="mt-1 font-medium text-ink [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }

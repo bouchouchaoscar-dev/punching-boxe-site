@@ -39,8 +39,23 @@ import {
 } from "@/lib/inscription";
 import { useAdherentSession } from "@/components/auth/useSession";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "@/lib/saison";
+import type { Adherent } from "@/lib/types";
 
 const STEPS = ["Informations", "Options", "Documents", "Paiement"];
+// Mode COMPLÉTION : parcours sans paiement (Lot 4b à part).
+const STEPS_COMPLETE = ["Informations", "Récapitulatif", "Documents"];
+
+// Dossier pré-créé par l'admin (tarif libre) à compléter par l'adhérent.
+// Présence de cette prop = mode « compléter » ; ABSENCE = mode création
+// (comportement strictement inchangé).
+export type CompleteConfig = { dossier: Adherent; onDone: () => void };
+
+// Formatage court JJ/MM/AAAA (récap période, mode complétion).
+const frDate = (iso?: string | null) => {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return d && m && y ? `${d}/${m}/${y}` : "—";
+};
 
 // Libellés du choix "Ce dossier concerne".
 const LIEN_LABEL: Record<LienParente, string> = {
@@ -62,14 +77,23 @@ const PAYMENTS: { mode: ModePaiement; icon: string; label: string }[] = [
   { mode: "especes", icon: "💵", label: "Espèces au prochain cours" },
 ];
 
-export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) {
+export function InscriptionForm({
+  lockedEmail,
+  complete,
+}: { lockedEmail?: string; complete?: CompleteConfig } = {}) {
   const router = useRouter();
   const { session } = useAdherentSession();
   const token = session?.access_token;
+  // Mode complétion : verrouillage + parcours sans paiement.
+  const locked = !!complete;
+  const steps = complete ? STEPS_COMPLETE : STEPS;
+  // Dossier de stockage : en complétion, celui du dossier existant (les PDF
+  // régénérés côté serveur et les pièces déposées partagent {dossier.id}/).
   const [adherentId] = useState(() =>
-    typeof crypto !== "undefined" && crypto.randomUUID
+    complete?.dossier.id ??
+    (typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
-      : `pbnp-${Date.now()}`,
+      : `pbnp-${Date.now()}`),
   );
   const [step, setStep] = useState(0);
 
@@ -163,6 +187,22 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   // Stripe
   const [plan, setPlan] = useState<StripePlan | null>(null);
 
+  // COMPLÉTION : pré-remplit (une seule fois) ce que l'admin a posé. Ces champs
+  // sont ensuite verrouillés dans le rendu (nom/prénom/email/formule/prépa).
+  // Le montant/la période ne sont PAS des états du formulaire (lus depuis le
+  // dossier pour l'affichage) → pas de recalcul de grille possible.
+  useEffect(() => {
+    if (!complete) return;
+    const a = complete.dossier;
+    setNom(a.nom ?? "");
+    setPrenom(a.prenom ?? "");
+    setEmail(a.email ?? "");
+    setPackageType(a.package);
+    setPrepa(a.option_prepa_physique ?? false);
+    setPaieAdhesion(a.nouveau_membre ?? false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Rattachement famille : aperçu serveur (sans PII) quand des membres sont
   // cités → statut par membre + nombre de membres comptés dans le foyer projeté.
   useEffect(() => {
@@ -242,6 +282,9 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
   // Le bon statut s'affiche donc dès l'étape Options. Re-déclenché si l'identité
   // change. Affichage anticipé seulement : le serveur tranche à la soumission.
   useEffect(() => {
+    // En complétion, l'adhésion (nouveau_membre) est figée par l'admin : on ne
+    // rappelle PAS le service ancienneté (qui écraserait paieAdhesion).
+    if (complete) return;
     const identiteOk =
       !!token &&
       !!nom.trim() &&
@@ -418,7 +461,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
 
   function next() {
     setError("");
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    setStep((s) => Math.min(steps.length - 1, s + 1));
   }
   function prev() {
     setError("");
@@ -492,6 +535,52 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
     }
   }
 
+  // COMPLÉTION : PATCH du dossier existant (jamais /api/adherents). Le serveur
+  // valide, dérive type_adherent et régénère les PDF au montant SERVEUR.
+  async function submitCompletion() {
+    if (!complete || !token) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch("/api/mon-espace/completer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          adherentId: complete.dossier.id,
+          date_naissance: dateNaissance,
+          telephone,
+          adresse,
+          ville,
+          code_postal: codePostal,
+          lien_parente: lienParente,
+          responsable: estMineur ? responsable.trim() : undefined,
+          contacts: [
+            { nom: contactNom1.trim(), tel: contactTel1.trim() },
+            ...(contactNom2.trim() || contactTel2.trim()
+              ? [{ nom: contactNom2.trim(), tel: contactTel2.trim() }]
+              : []),
+          ],
+          autorisationMedicale: estMineur ? autorisationMedicale : undefined,
+          signatureFiche,
+          signatureReglement,
+          photo_url: files.photo.url,
+          certificat_medical_url: files.certificat_medical.url,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "La complétion a échoué.");
+      }
+      complete.onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inconnue.");
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-[2rem] border border-line bg-white">
       {/* Stepper */}
@@ -529,7 +618,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
           )}
         </div>
         <div className="flex items-center justify-between">
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <div key={s} className="flex flex-1 items-center last:flex-none">
               <div className="flex items-center gap-2.5">
                 <span
@@ -551,7 +640,7 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                   {s}
                 </span>
               </div>
-              {i < STEPS.length - 1 && (
+              {i < steps.length - 1 && (
                 <div className="mx-3 h-px flex-1 bg-line" />
               )}
             </div>
@@ -606,8 +695,8 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
                     compte.
                   </p>
                 </div>
-                <Input label="Nom" value={nom} onChange={setNom} required hint="En majuscules" />
-                <Input label="Prénom" value={prenom} onChange={setPrenom} required hint="Ex : Jean-Marc" />
+                <Input label="Nom" value={nom} onChange={setNom} required hint="En majuscules" disabled={locked} />
+                <Input label="Prénom" value={prenom} onChange={setPrenom} required hint="Ex : Jean-Marc" disabled={locked} />
                 <DatePicker
                   label="Date de naissance"
                   value={dateNaissance}
@@ -814,7 +903,44 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
               </div>
             )}
 
-            {step === 1 && (
+            {step === 1 && complete && (
+              <div className="space-y-4">
+                {/* COMPLÉTION : récapitulatif VERROUILLÉ (défini par le club,
+                    non modifiable). Aucun calcul de grille. */}
+                <div className="rounded-2xl border border-line bg-paper-2 p-5">
+                  <p className="text-xs font-bold uppercase tracking-wide text-smoke">
+                    Défini par le club
+                  </p>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-smoke">Formule</dt>
+                      <dd className="text-right font-semibold text-ink">
+                        {formuleLabel(packageType, prepa)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-smoke">Période</dt>
+                      <dd className="text-right font-semibold text-ink">
+                        du {frDate(complete.dossier.date_debut)} au{" "}
+                        {frDate(complete.dossier.date_fin)}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4 border-t border-line pt-2">
+                      <dt className="font-bold text-ink">Montant à régler</dt>
+                      <dd className="text-right font-display text-lg font-black text-orange">
+                        {euro(complete.dossier.montant_total)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-3 text-xs text-smoke">
+                    Ces éléments ont été fixés par le club et ne sont pas
+                    modifiables.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && !complete && (
               <div className="space-y-4">
                 {/* Choix de la formule */}
                 <div>
@@ -1281,16 +1407,38 @@ export function InscriptionForm({ lockedEmail }: { lockedEmail?: string } = {}) 
               <span />
             )}
 
-            {step < 3 && (
-              <ButtonAction
-                onClick={next}
-                size="lg"
-                disabled={
-                  (step === 0 && !step1Ok) || (step === 2 && !documentsOk)
-                }
-              >
-                Continuer
-              </ButtonAction>
+            {/* COMPLÉTION : « Continuer » jusqu'à la dernière étape, puis
+                « Valider ma complétion » (submit vers /completer, pas de paiement). */}
+            {complete ? (
+              step < steps.length - 1 ? (
+                <ButtonAction
+                  onClick={next}
+                  size="lg"
+                  disabled={step === 0 && !step1Ok}
+                >
+                  Continuer
+                </ButtonAction>
+              ) : (
+                <ButtonAction
+                  onClick={submitCompletion}
+                  size="lg"
+                  disabled={busy || !documentsOk}
+                >
+                  {busy ? "Enregistrement…" : "Valider ma complétion"}
+                </ButtonAction>
+              )
+            ) : (
+              step < 3 && (
+                <ButtonAction
+                  onClick={next}
+                  size="lg"
+                  disabled={
+                    (step === 0 && !step1Ok) || (step === 2 && !documentsOk)
+                  }
+                >
+                  Continuer
+                </ButtonAction>
+              )
             )}
 
             {step === 3 && mode === "especes" && (
