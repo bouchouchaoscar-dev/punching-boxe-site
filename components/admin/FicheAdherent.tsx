@@ -376,7 +376,7 @@ export function FicheAdherent({ id }: { id: string }) {
 
       <div className="mt-4 grid gap-6 lg:grid-cols-[300px_1fr]">
         {/* Colonne gauche : photo + statut */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="overflow-hidden rounded-[1.5rem] border border-line bg-white">
             <div className="relative aspect-square bg-paper-2">
               {a.photo_url ? (
@@ -486,7 +486,7 @@ export function FicheAdherent({ id }: { id: string }) {
         </div>
 
         {/* Colonne droite : infos + documents */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="rounded-[1.5rem] border border-line bg-white p-6">
             <div className="flex items-center justify-between">
               <h3 className="font-display text-lg font-extrabold uppercase text-ink">
@@ -1214,11 +1214,11 @@ function DocsBadge({ statut }: { statut: DossierStatut }) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
         {label}
       </dt>
-      <dd className="mt-1 break-words font-medium text-ink">{value}</dd>
+      <dd className="mt-1 font-medium text-ink [overflow-wrap:anywhere]">{value}</dd>
     </div>
   );
 }
@@ -1239,7 +1239,7 @@ function EditableInfo({
   hint?: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
         {label}
       </dt>
@@ -1253,7 +1253,7 @@ function EditableInfo({
           {hint && <span className="mt-1 block text-xs text-smoke">{hint}</span>}
         </>
       ) : (
-        <dd className="mt-1 break-words font-medium text-ink">{display}</dd>
+        <dd className="mt-1 font-medium text-ink [overflow-wrap:anywhere]">{display}</dd>
       )}
     </div>
   );
