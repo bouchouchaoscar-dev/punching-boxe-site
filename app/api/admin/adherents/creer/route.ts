@@ -14,6 +14,7 @@ type Body = {
   prenom?: string;
   email?: string;
   package?: string;
+  option_prepa_physique?: boolean;
   type_adherent?: string;
   nouveau_membre?: boolean;
   cotisation_libre?: number;
@@ -76,6 +77,10 @@ export async function POST(request: Request) {
   const prenom = (body.prenom || "").trim();
   const email = (body.email || "").trim().toLowerCase();
   const pkg = body.package as PackageType;
+  // L'option prépa ne qualifie QUE la Boxe Française (comme à l'inscription).
+  // Elle ne recalcule pas le montant (libre, fixé par l'admin).
+  const option_prepa_physique =
+    body.option_prepa_physique === true && pkg === "boxe_classique";
   const type_adherent = body.type_adherent;
   const nouveau_membre = body.nouveau_membre === true;
   const cotisation = Number(body.cotisation_libre);
@@ -147,6 +152,7 @@ export async function POST(request: Request) {
       email,
       type_adherent,
       package: pkg,
+      option_prepa_physique,
       nouveau_membre,
       montant_total,
       statut_paiement: "en_attente",

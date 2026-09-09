@@ -2,9 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import { euro, PACKAGE_LABEL, TARIFS, type PackageType } from "@/lib/pricing";
+import { euro, formuleLabel, TARIFS, type PackageType } from "@/lib/pricing";
+import { DatePicker } from "@/components/ui/DatePicker";
 
-const PACKAGES = Object.entries(PACKAGE_LABEL) as [PackageType, string][];
+// Formules RÉELLES (mêmes qu'à l'inscription) : package + option prépa.
+// L'option prépa ne qualifie que la Boxe Française (pas un 3e package).
+const FORMULES = [
+  { id: "boxe", package: "boxe_classique" as PackageType, prepa: false },
+  { id: "boxe_prepa", package: "boxe_classique" as PackageType, prepa: true },
+  { id: "savate", package: "savate_prepa" as PackageType, prepa: false },
+] as const;
+type FormuleId = (typeof FORMULES)[number]["id"];
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const champCls =
   "focus-ring mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange";
@@ -22,7 +31,7 @@ export function CreerAdherentModal({
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [email, setEmail] = useState("");
-  const [pkg, setPkg] = useState<PackageType>(PACKAGES[0][0]);
+  const [formuleId, setFormuleId] = useState<FormuleId>("boxe");
   const [type, setType] = useState<"adulte" | "jeune">("adulte");
   const [nouveauMembre, setNouveauMembre] = useState(false);
   const [cotisation, setCotisation] = useState("");
@@ -50,6 +59,8 @@ export function CreerAdherentModal({
     if (Date.parse(dateFin) <= Date.parse(dateDebut))
       return setError("La date de fin doit être après la date de début.");
 
+    const formule = FORMULES.find((f) => f.id === formuleId) ?? FORMULES[0];
+
     setBusy(true);
     try {
       const res = await fetch("/api/admin/adherents/creer", {
@@ -59,7 +70,8 @@ export function CreerAdherentModal({
           nom: nom.trim(),
           prenom: prenom.trim(),
           email: email.trim(),
-          package: pkg,
+          package: formule.package,
+          option_prepa_physique: formule.prepa,
           type_adherent: type,
           nouveau_membre: nouveauMembre,
           cotisation_libre: cotisationNum,
@@ -115,10 +127,14 @@ export function CreerAdherentModal({
             <span className="text-xs font-bold uppercase tracking-wide text-smoke">
               Formule
             </span>
-            <select value={pkg} onChange={(e) => setPkg(e.target.value as PackageType)} className={champCls}>
-              {PACKAGES.map(([v, label]) => (
-                <option key={v} value={v}>
-                  {label}
+            <select
+              value={formuleId}
+              onChange={(e) => setFormuleId(e.target.value as FormuleId)}
+              className={champCls}
+            >
+              {FORMULES.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {formuleLabel(f.package, f.prepa)}
                 </option>
               ))}
             </select>
@@ -157,18 +173,18 @@ export function CreerAdherentModal({
               Frais d&apos;adhésion (30 €)
             </span>
           </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wide text-smoke">
-              Date de début
-            </span>
-            <input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} className={champCls} />
-          </label>
-          <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wide text-smoke">
-              Date de fin
-            </span>
-            <input type="date" value={dateFin} onChange={(e) => setDateFin(e.target.value)} className={champCls} />
-          </label>
+          <DatePicker
+            label="Date de début"
+            required
+            value={dateDebut}
+            onChange={setDateDebut}
+          />
+          <DatePicker
+            label="Date de fin"
+            required
+            value={dateFin}
+            onChange={setDateFin}
+          />
         </div>
 
         {/* Récap du montant total qui sera facturé. */}
