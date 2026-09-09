@@ -625,6 +625,26 @@ function DossierActions({
     }
     return null;
   }
+  // Dossier à tarif libre pas encore complété (identité/signatures manquantes,
+  // date de naissance non renseignée) → parcours de COMPLÉTION avant paiement.
+  if (a.tarif_libre === true && !a.date_naissance) {
+    return (
+      <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+        <Link
+          href={`/inscription/completer/${a.id}`}
+          className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+        >
+          Compléter mon dossier
+        </Link>
+        <button
+          onClick={onDelete}
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+        >
+          Supprimer ce dossier
+        </button>
+      </div>
+    );
+  }
   const especesAttente =
     a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
   return (

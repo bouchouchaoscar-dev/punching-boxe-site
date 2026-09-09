@@ -1,0 +1,131 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAdherentSession } from "@/components/auth/useSession";
+import { euro, formuleLabel } from "@/lib/pricing";
+import type { Adherent } from "@/lib/types";
+
+const formatFR = (iso?: string | null) => {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-");
+  return d && m && y ? `${d}/${m}/${y}` : "—";
+};
+
+// Parcours de COMPLÉTION d'un dossier pré-créé par l'admin (tarif libre).
+// 4a-2 : chargement + gardes (session, appartenance, dossier complétable) +
+// récapitulatif verrouillé (posé par l'admin). Le formulaire d'identité +
+// signatures (InscriptionForm en mode « compléter ») est branché au Lot 4a-3.
+export function CompleterDossier({ id }: { id: string }) {
+  const router = useRouter();
+  const { session, loading } = useAdherentSession();
+  const token = session?.access_token;
+
+  const [adherent, setAdherent] = useState<Adherent | null>(null);
+  const [fetching, setFetching] = useState(true);
+  const [error, setError] = useState("");
+
+  const CONNEXION_REDIRECT =
+    "/inscription/connexion?message=" +
+    encodeURIComponent("Connectez-vous pour compléter votre dossier") +
+    `&next=/inscription/completer/${id}`;
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setFetching(true);
+    try {
+      const res = await fetch("/api/mon-espace", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur.");
+      const found = (data.adherents ?? []).find((a: Adherent) => a.id === id);
+      if (!found) {
+        setError("Dossier introuvable ou non rattaché à votre compte.");
+      } else {
+        setAdherent(found);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur.");
+    } finally {
+      setFetching(false);
+    }
+  }, [token, id]);
+
+  useEffect(() => {
+    if (!loading && !session) router.replace(CONNEXION_REDIRECT);
+  }, [loading, session, router, CONNEXION_REDIRECT]);
+
+  useEffect(() => {
+    if (token) load();
+  }, [token, load]);
+
+  if (loading || fetching) {
+    return (
+      <div className="flex justify-center py-16">
+        <span className="h-8 w-8 animate-spin rounded-full border-2 border-ink/20 border-t-orange" />
+      </div>
+    );
+  }
+
+  if (error || !adherent) {
+    return (
+      <div className="rounded-2xl bg-amber-50 p-6 text-amber-800">
+        {error || "Dossier introuvable."}
+        <div className="mt-4">
+          <Link href="/mon-espace" className="font-bold text-orange">
+            ← Retour à mon espace
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const a = adherent;
+
+  return (
+    <div>
+      <h1 className="font-display text-3xl font-extrabold uppercase text-ink sm:text-4xl">
+        Compléter mon dossier
+      </h1>
+      <p className="mt-2 text-sm text-smoke">
+        Votre dossier a été ouvert par le club. Il ne reste plus qu&apos;à
+        renseigner vos informations, signer les documents, puis régler votre
+        cotisation.
+      </p>
+
+      {/* Récapitulatif VERROUILLÉ (posé par le club, non modifiable). */}
+      <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-smoke">
+          Défini par le club
+        </h2>
+        <dl className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2">
+          <Info label="Nom" value={`${a.prenom} ${a.nom}`} />
+          <Info label="Formule" value={formuleLabel(a.package, a.option_prepa_physique)} />
+          <Info label="Période" value={`du ${formatFR(a.date_debut)} au ${formatFR(a.date_fin)}`} />
+          <Info label="Montant à régler" value={euro(a.montant_total)} />
+        </dl>
+      </div>
+
+      {/* 4a-3 : InscriptionForm en mode « compléter » (identité + contacts +
+          représentant légal si mineur + signatures) sera rendu ici. */}
+      <div className="mt-6 rounded-2xl border border-dashed border-line bg-paper-2 p-6 text-center text-sm text-smoke">
+        Le formulaire de complétion (identité, contacts, signatures) sera
+        disponible ici très prochainement.
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
+        {label}
+      </dt>
+      <dd className="mt-1 font-medium text-ink [overflow-wrap:anywhere]">{value}</dd>
+    </div>
+  );
+}
