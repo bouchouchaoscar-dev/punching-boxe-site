@@ -10,7 +10,7 @@ import {
 } from "react";
 import type { Adherent } from "@/lib/types";
 import { saisonCourante } from "@/lib/saison";
-import { adminAuthHeaders } from "@/lib/admin-auth";
+import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 
 // Sentinelle "toutes saisons" + clé de persistance du choix.
 export const ALL_SAISONS = "all";
@@ -76,6 +76,13 @@ export function SaisonProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Mode coach : AUCUN accès aux données admin (adherents / saisons). Le coach
+    // tire tout de /api/coach/trombinoscope (données minimales). On n'appelle
+    // donc jamais /api/adherents ici.
+    if (getAdminRole() === "coach") {
+      setLoading(false);
+      return;
+    }
     refresh();
     // Saisons connues (historique ∪ natifs ∪ courante) pour le sélecteur.
     fetch("/api/admin/saisons", { headers: adminAuthHeaders(), cache: "no-store" })

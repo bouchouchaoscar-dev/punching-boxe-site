@@ -1,59 +1,21 @@
 import { renderToBuffer } from "@react-pdf/renderer";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { isAdminRequest } from "@/lib/admin-guard";
-import { estActifCompte } from "@/lib/adherents-actifs";
-import { statutTrombi } from "@/lib/paiement";
-import { formuleLabel } from "@/lib/pricing";
-import { formaterPrenom, formaterNom } from "@/lib/noms";
-import { TrombinoscopeDoc, type TrombiMembre } from "@/lib/pdf/Trombinoscope";
-import type { Adherent } from "@/lib/types";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { hasRole } from "@/lib/admin-guard";
+import {
+  chargerActifsTrombi,
+  chargerPhotos,
+  toMembrePublic,
+} from "@/lib/trombi-server";
+import { TrombinoscopeDoc } from "@/lib/pdf/Trombinoscope";
 
 export const runtime = "nodejs";
 
-const initiales = (prenom: string, nom: string) =>
-  `${(prenom || "").trim()[0] ?? ""}${(nom || "").trim()[0] ?? ""}`.toUpperCase() ||
-  "?";
-
-async function photoDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
-  try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(to);
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") || "image/jpeg";
-    if (!type.startsWith("image/")) return null;
-    const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
-    return `data:${type};base64,${b64}`;
-  } catch {
-    return null;
-  }
-}
-
-async function pool<T, R>(
-  items: T[],
-  n: number,
-  fn: (t: T) => Promise<R>,
-): Promise<R[]> {
-  const out = new Array<R>(items.length);
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(n, items.length) }, async () => {
-      while (i < items.length) {
-        const idx = i++;
-        out[idx] = await fn(items[idx]);
-      }
-    }),
-  );
-  return out;
-}
-
-// POST — génère le trombinoscope PDF pour la liste d'adhérents EXACTEMENT
-// affichée par la vue (filtres appliqués côté client → liste d'ids transmise).
-// À défaut d'ids, retombe sur tous les actifs (de la saison éventuelle).
+// POST — génère le trombinoscope PDF. Coach ET admin (le PDF ne contient que
+// photo + nom + formule + statut, aucune donnée sensible). L'admin transmet la
+// liste d'ids EXACTEMENT affichée (filtres client) ; le coach n'a pas d'ids →
+// retombe sur tous les actifs de la saison éventuelle.
 export async function POST(request: Request) {
-  if (!isAdminRequest(request)) {
+  if (!hasRole(request, ["coach", "admin"])) {
     return new Response(JSON.stringify({ error: "Non autorisé." }), {
       status: 401,
     });
@@ -73,39 +35,9 @@ export async function POST(request: Request) {
   const ids = Array.isArray(body.ids) ? body.ids : null;
   const saison = body.saison || "";
 
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase.from("adherents").select("*");
-  let actifs = ((data ?? []) as Adherent[]).filter(estActifCompte);
-
-  if (ids) {
-    const set = new Set(ids);
-    actifs = actifs.filter((a) => set.has(a.id)); // ∩ actifs (sécurité serveur)
-  } else if (saison && saison !== "all") {
-    actifs = actifs.filter((a) => a.saison === saison);
-  }
-
-  actifs.sort(
-    (a, b) =>
-      (a.nom || "").localeCompare(b.nom || "", "fr", { sensitivity: "base" }) ||
-      (a.prenom || "").localeCompare(b.prenom || "", "fr", {
-        sensitivity: "base",
-      }),
-  );
-
-  const photos = await pool(actifs, 8, (a) => photoDataUri(a.photo_url));
-
-  const membres: TrombiMembre[] = actifs.map((a, i) => {
-    const st = statutTrombi(a);
-    return {
-      nom: formaterNom(a.nom),
-      prenom: formaterPrenom(a.prenom),
-      formule: formuleLabel(a.package, a.option_prepa_physique),
-      statutLabel: st.label,
-      statutCouleur: st.couleur,
-      photo: photos[i],
-      initiales: initiales(a.prenom, a.nom),
-    };
-  });
+  const actifs = await chargerActifsTrombi({ ids, saison });
+  const photos = await chargerPhotos(actifs);
+  const membres = actifs.map((a, i) => toMembrePublic(a, photos[i]));
 
   const dateFr = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
     new Date(),

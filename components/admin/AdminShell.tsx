@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
-import { setAdminSession } from "@/lib/admin-auth";
+import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 const NAV = [
@@ -19,6 +19,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => setRole(getAdminRole()), []);
+
+  // Un coach ne voit QUE le trombinoscope (défense en profondeur : le
+  // middleware redirige aussi les URLs tapées à la main).
+  const nav =
+    role === "coach"
+      ? NAV.filter((n) => n.href === "/admin/trombinoscope")
+      : NAV;
 
   function logout() {
     setAdminSession(false);
@@ -42,7 +51,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <SaisonSelect className="w-full" />
         </div>
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-4">
-          {NAV.map((n) => {
+          {nav.map((n) => {
             const active =
               n.href === "/admin"
                 ? pathname === "/admin"
