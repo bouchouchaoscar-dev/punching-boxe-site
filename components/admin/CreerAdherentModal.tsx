@@ -18,6 +18,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const champCls =
   "focus-ring mt-1 w-full rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange";
 
+// Dates par défaut : début = aujourd'hui, fin = +1 mois.
+const pad = (n: number) => String(n).padStart(2, "0");
+const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const plusUnMois = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  const dt = new Date(y, m - 1, d);
+  dt.setMonth(dt.getMonth() + 1);
+  return toISO(dt);
+};
+
 // Modale ADMIN : création d'un dossier à TARIF LIBRE + DURÉE LIBRE. La validation
 // serveur (POST /api/admin/adherents/creer) reste autoritaire ; ici on valide
 // aussi côté client pour un retour immédiat.
@@ -34,10 +45,23 @@ export function CreerAdherentModal({
   const [formuleId, setFormuleId] = useState<FormuleId>("boxe");
   const [nouveauMembre, setNouveauMembre] = useState(false);
   const [cotisation, setCotisation] = useState("");
-  const [dateDebut, setDateDebut] = useState("");
-  const [dateFin, setDateFin] = useState("");
+  // Défauts intelligents : début = aujourd'hui, fin = +1 mois (recalculée tant
+  // que l'admin n'a pas fixé une fin à la main).
+  const [dateDebut, setDateDebut] = useState(() => toISO(new Date()));
+  const [dateFin, setDateFin] = useState(() => plusUnMois(toISO(new Date())));
+  const [finManuelle, setFinManuelle] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Date de début → recalcule la fin (+1 mois) tant qu'elle n'est pas manuelle.
+  function onDateDebut(v: string) {
+    setDateDebut(v);
+    if (!finManuelle && v) setDateFin(plusUnMois(v));
+  }
+  function onDateFin(v: string) {
+    setDateFin(v);
+    setFinManuelle(true);
+  }
 
   const cotisationNum = Number(cotisation.replace(",", "."));
   const total = useMemo(
@@ -151,7 +175,8 @@ export function CreerAdherentModal({
               className={champCls}
             />
           </label>
-          <label className="flex items-center gap-2 sm:pt-6">
+          {/* Adhésion : ligne pleine largeur (bien ancrée, plus flottante). */}
+          <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-line bg-paper-2 px-3 py-2.5 sm:col-span-2">
             <input
               type="checkbox"
               checked={nouveauMembre}
@@ -162,17 +187,18 @@ export function CreerAdherentModal({
               Frais d&apos;adhésion (30 €)
             </span>
           </label>
+          {/* Dates : paire alignée sur une ligne (2 colonnes). */}
           <DatePicker
             label="Date de début"
             required
             value={dateDebut}
-            onChange={setDateDebut}
+            onChange={onDateDebut}
           />
           <DatePicker
             label="Date de fin"
             required
             value={dateFin}
-            onChange={setDateFin}
+            onChange={onDateFin}
           />
         </div>
 

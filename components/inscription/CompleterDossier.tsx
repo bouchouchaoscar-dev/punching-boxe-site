@@ -97,7 +97,13 @@ export function CompleterDossier({ id }: { id: string }) {
       <div className="mt-6">
         <InscriptionForm
           lockedEmail={a.email}
-          complete={{ dossier: a, onDone: () => router.replace("/mon-espace") }}
+          complete={{
+            dossier: a,
+            // Enchaînement naturel : complétion validée → paiement du dossier.
+            // La page finaliser gère proprement un dossier introuvable/non
+            // payable (message + retour à l'espace) → pas de plantage.
+            onDone: () => router.replace(`/inscription/finaliser/${a.id}`),
+          }}
         />
       </div>
     </div>
