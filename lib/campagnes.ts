@@ -2,7 +2,8 @@ import type { Adherent } from "./types";
 import { saisonCourante } from "./saison";
 import { classerAncien } from "./anciennete";
 import { estActifCompte } from "./adherents-actifs";
-import { euro } from "./pricing";
+import { euro, formuleLabel as formuleLabelPricing } from "./pricing";
+import type { PackageType } from "./pricing";
 import { CLUB } from "./constants";
 
 export type StatutCampagne =
@@ -513,8 +514,10 @@ export function disciplinesLabel(ds: string[] | null | undefined): string {
   return (ds ?? []).map((d) => map[d] ?? d).filter(Boolean).join(", ");
 }
 
+// Source UNIQUE du libellé de formule = lib/pricing. (Ici sans option prépa :
+// libellé court par package, suffisant pour les variables de mailing.)
 export function formuleLabel(pkg?: string | null): string {
-  return pkg === "savate_prepa" ? "Savate et Prépa" : "Boxe Française";
+  return formuleLabelPricing((pkg as PackageType | null | undefined) ?? null);
 }
 
 // ---- Templates par défaut (auto-insérés en base s'ils sont absents) ----

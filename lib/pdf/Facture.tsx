@@ -29,6 +29,9 @@ export type FactureData = {
   echeancesReglees: FactureEcheance[];
   echeancesAVenir: FactureEcheance[];
   date: string; // date de génération, déjà formatée FR
+  // Période (dossier à tarif/durée libres) — affichée si présente.
+  dateDebut?: string | null;
+  dateFin?: string | null;
 };
 
 const fmtSaison = (s: string) => s.replace("-", "/");
@@ -99,7 +102,11 @@ export function FactureDoc({ data }: { data: FactureData }) {
           Je soussigné <Text style={styles.bold}>Pascal Bouchoucha</Text>,
           Directeur Sportif du club {CLUB.nom}, atteste que{" "}
           <Text style={styles.bold}>{nomComplet}</Text> adhère au club pour la
-          saison {fmtSaison(data.saison)} et{" "}
+          saison {fmtSaison(data.saison)}
+          {data.dateDebut
+            ? ` (période du ${frDate(data.dateDebut)} au ${frDate(data.dateFin)})`
+            : ""}{" "}
+          et{" "}
           {data.solde
             ? "s'est acquitté(e) de la totalité des sommes dues, réparties comme suit :"
             : `s'est acquitté(e) à ce jour de ${euro(data.regleAJour)} sur un total de ${euro(data.montantTotal)}, selon le détail ci-dessous :`}

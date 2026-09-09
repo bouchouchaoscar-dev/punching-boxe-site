@@ -104,6 +104,9 @@ export async function construireFacturePdf(
     date: new Intl.DateTimeFormat("fr-FR", { dateStyle: "long" }).format(
       new Date(),
     ),
+    // Période (dossier à tarif/durée libres) — affichée si présente.
+    dateDebut: a.tarif_libre ? a.date_debut : null,
+    dateFin: a.tarif_libre ? a.date_fin : null,
   };
 
   const buffer = await renderToBuffer(<FactureDoc data={factureData} />);

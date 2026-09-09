@@ -2,7 +2,7 @@ import { Document, Page, StyleSheet, Svg, Line, Text, View } from "@react-pdf/re
 import { styles, PDF_COLORS } from "./theme";
 import { PdfFooter, PdfHeader, SignatureBlock } from "./Shared";
 import { CLUB } from "@/lib/constants";
-import { TARIFS, PACKAGE_LABEL } from "@/lib/pricing";
+import { TARIFS, PACKAGE_LABEL, formuleLabel } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { FicheData } from "./types";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
@@ -215,6 +215,48 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
 
         {/* Formule + Tarifs */}
         <Text style={[styles.h2, f.h2]}>Formule et cotisation</Text>
+        {/* TARIF LIBRE : rendu alternatif (formule + période + montant serveur),
+            SANS la grille rond/croix des paliers standard. */}
+        {data?.tarifLibre && (
+          <View style={{ marginBottom: 4 }}>
+            <View style={[styles.priceRow, f.priceRow]}>
+              <Text style={styles.bold}>Formule</Text>
+              <Text>{formuleLabel(data?.packageType, data?.optionPrepa)}</Text>
+            </View>
+            {(data?.dateDebut || data?.dateFin) && (
+              <View style={[styles.priceRow, f.priceRow]}>
+                <Text style={styles.bold}>Période</Text>
+                <Text>
+                  du {frDate(data?.dateDebut ?? undefined)} au{" "}
+                  {frDate(data?.dateFin ?? undefined)}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.priceRow, f.priceRow]}>
+              <Text style={styles.bold}>Cotisation</Text>
+              <Text>
+                {Math.round(
+                  ((data?.montantTotal ?? 0) -
+                    (data?.adhesionDue ? TARIFS.adhesion : 0)) *
+                    100,
+                ) / 100}{" "}
+                €
+              </Text>
+            </View>
+            {data?.adhesionDue && (
+              <View style={[styles.priceRow, f.priceRow]}>
+                <Text style={styles.bold}>Adhésion-club (1ère année)</Text>
+                <Text>{`${TARIFS.adhesion} €`}</Text>
+              </View>
+            )}
+            <View style={[styles.priceRow, f.priceRow, { marginTop: 2 }]}>
+              <Text style={styles.bold}>Total réglé</Text>
+              <Text style={styles.price}>{data?.montantTotal} €</Text>
+            </View>
+          </View>
+        )}
+        {!data?.tarifLibre && (
+        <>
         <View style={{ flexDirection: "row", flexWrap: "wrap", marginBottom: 4 }}>
           <Check label={PACKAGE_LABEL.boxe_classique} checked={filled && data?.packageType === "boxe_classique"} />
           <Check label={PACKAGE_LABEL.savate_prepa} checked={filled && data?.packageType === "savate_prepa"} />
@@ -262,6 +304,8 @@ export function FicheInscriptionDoc({ data }: { data?: FicheData } = {}) {
             <Text style={styles.bold}>Total réglé</Text>
             <Text style={styles.price}>{data?.montantTotal} €</Text>
           </View>
+        )}
+        </>
         )}
 
         {/* Adhérent mineur : autorisation parentale (si mineur, ou modèle vierge) */}

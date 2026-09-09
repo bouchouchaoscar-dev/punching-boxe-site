@@ -445,7 +445,7 @@ export function FicheAdherent({ id }: { id: string }) {
                 {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
               </h1>
               <p className="mt-1 text-sm capitalize text-smoke">
-                {a.type_adherent} · Saison {a.saison}
+                {a.type_adherent ?? "En cours de complétion"} · Saison {a.saison}
               </p>
               <div className="mt-3">
                 <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
@@ -508,7 +508,9 @@ export function FicheAdherent({ id }: { id: string }) {
               {euro(a.montant_total)}
             </p>
             <p className="mt-1 text-sm text-smoke">
-              {MODE_LABEL[a.mode_paiement] ?? a.mode_paiement}
+              {a.mode_paiement
+                ? (MODE_LABEL[a.mode_paiement] ?? a.mode_paiement)
+                : "Mode à choisir au paiement"}
             </p>
             {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" && (
               <ButtonAction
@@ -601,7 +603,16 @@ export function FicheAdherent({ id }: { id: string }) {
                 label="Formule"
                 value={formuleLabel(a.package, a.option_prepa_physique)}
               />
-              <Info label="Date de naissance" value={new Date(a.date_naissance).toLocaleDateString("fr-FR")} />
+              {a.tarif_libre && a.date_debut && (
+                <Info
+                  label="Période"
+                  value={`du ${formatDateFr(a.date_debut)} au ${a.date_fin ? formatDateFr(a.date_fin) : "—"}`}
+                />
+              )}
+              <Info
+                label="Date de naissance"
+                value={a.date_naissance ? formatDateFr(a.date_naissance) : "—"}
+              />
               <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} />
               <EditableInfo label="Téléphone" editing={editing} value={form.telephone ?? ""} onChange={(v) => setForm({ ...form, telephone: v })} display={a.telephone ? formatTelephone(a.telephone) : "—"} />
               <EditableInfo label="Adresse" editing={editing} value={form.adresse ?? ""} onChange={(v) => setForm({ ...form, adresse: v })} display={a.adresse ?? "—"} />
@@ -1062,7 +1073,9 @@ function PaiementsCard({
           Paiements
         </h3>
         <span className="text-sm font-semibold text-smoke">
-          {MODE_LABEL[adherent.mode_paiement] ?? adherent.mode_paiement}
+          {adherent.mode_paiement
+            ? (MODE_LABEL[adherent.mode_paiement] ?? adherent.mode_paiement)
+            : "—"}
           {adherent.nb_echeances > 1 ? ` · ${adherent.nb_echeances} échéances` : ""}
         </span>
       </div>

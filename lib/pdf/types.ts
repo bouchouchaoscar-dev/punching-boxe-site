@@ -35,6 +35,11 @@ export type FicheData = {
   contacts?: { nom: string; tel: string }[];
   signature?: SignatureVect | null;
   dateSignature?: string | null; // ISO
+  // Dossier à TARIF LIBRE : rendu alternatif (pas de grille rond/croix par
+  // palier). montantTotal reste le montant SERVEUR figé.
+  tarifLibre?: boolean;
+  dateDebut?: string | null; // ISO — période (tarif libre)
+  dateFin?: string | null; // ISO — période (tarif libre)
 };
 
 // Données pour générer le RÈGLEMENT intérieur signé.

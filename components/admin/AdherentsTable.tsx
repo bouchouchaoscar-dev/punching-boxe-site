@@ -8,7 +8,7 @@ import { PaiementStatut } from "./StatutBadge";
 import { CreerAdherentModal } from "./CreerAdherentModal";
 import { ScrollX } from "@/components/ui/ScrollX";
 import { getAdminRole } from "@/lib/admin-auth";
-import { euro } from "@/lib/pricing";
+import { euro, formuleLabel } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { evaluerDossier } from "@/lib/dossier";
 import { formatTelephone } from "@/lib/telephone";
@@ -122,10 +122,10 @@ export function AdherentsTable() {
       a.prenom,
       a.email,
       formatTelephone(a.telephone),
-      a.type_adherent,
-      a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française",
+      a.type_adherent ?? "",
+      formuleLabel(a.package, a.option_prepa_physique),
       a.statut_paiement,
-      a.mode_paiement,
+      a.mode_paiement ?? "",
       String(a.montant_total),
       ...(OPTION_SUPPLEMENTAIRE.actif
         ? [a.option_prepa_physique ? "oui" : "non"]
@@ -349,10 +349,7 @@ function Row({
         {euro(encaisse)}
       </td>
       <td className="truncate px-2 py-3 text-center text-xs text-smoke">
-        {a.package === "savate_prepa" ? "Savate et Prépa" : "Boxe Française"}
-        {OPTION_SUPPLEMENTAIRE.actif && a.option_prepa_physique
-          ? ` · ${OPTION_SUPPLEMENTAIRE.labelCourt}`
-          : ""}
+        {formuleLabel(a.package, a.option_prepa_physique)}
         {a.nouveau_membre ? " · Nouveau" : ""}
       </td>
       <td className="whitespace-nowrap px-2 py-3 text-center text-xs text-smoke">

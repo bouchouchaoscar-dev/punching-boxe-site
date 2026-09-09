@@ -30,6 +30,13 @@ import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 import type { LienParente } from "@/lib/inscription";
 
+// Format court JJ/MM/AAAA (période d'un dossier à tarif/durée libres).
+const frDate = (iso?: string | null) => {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : "—";
+};
+
 const MODE_LABEL: Record<string, string> = {
   stripe_1x: "Carte — 1 fois",
   stripe_2x: "Carte — 2 fois",
@@ -487,9 +494,21 @@ export function MonEspace() {
                       </h3>
                       <dl className="mt-3 space-y-2.5 text-sm">
                         <Line label="Formule" value={formuleLabel(a.package, a.option_prepa_physique)} />
+                        {a.tarif_libre && a.date_debut && (
+                          <Line
+                            label="Période"
+                            value={`du ${frDate(a.date_debut)} au ${frDate(a.date_fin)}`}
+                          />
+                        )}
                         <Line
                           label="Catégorie"
-                          value={a.type_adherent === "jeune" ? "Jeune" : "Adulte"}
+                          value={
+                            a.type_adherent === "jeune"
+                              ? "Jeune"
+                              : a.type_adherent === "adulte"
+                                ? "Adulte"
+                                : "En cours de complétion"
+                          }
                         />
                         {remiseFamilleActive(a.nb_membres_famille) && (
                           <Line
@@ -502,7 +521,14 @@ export function MonEspace() {
                           />
                         )}
                         <Line label="Montant total" value={euro(a.montant_total)} />
-                        <Line label="Mode de paiement" value={MODE_LABEL[a.mode_paiement] ?? a.mode_paiement} />
+                        <Line
+                          label="Mode de paiement"
+                          value={
+                            a.mode_paiement
+                              ? (MODE_LABEL[a.mode_paiement] ?? a.mode_paiement)
+                              : "À choisir au paiement"
+                          }
+                        />
                         <div className="flex items-center justify-between gap-3">
                           <dt className="text-smoke">Paiement</dt>
                           <dd>

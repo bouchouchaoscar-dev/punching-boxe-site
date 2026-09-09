@@ -34,9 +34,7 @@ export function formuleLabel(
 ): string {
   if (!p) return "—";
   if (p === "savate_prepa") return "Savate et Prépa";
-  return optionPrepa
-    ? "Boxe Française + accès Préparation physique et Savate"
-    : "Boxe Française";
+  return optionPrepa ? "Boxe Française + Prépa" : "Boxe Française";
 }
 
 export type PricingInput = {

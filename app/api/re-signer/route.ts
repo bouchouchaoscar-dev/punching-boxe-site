@@ -363,6 +363,10 @@ async function regenererFiche(
       montantTotal: adherent.montant_total,
       adhesionDue: adherent.nouveau_membre,
       remisePct: remiseFamillePct(adherent.nb_membres_famille),
+      // Rendu alternatif tarif libre (formule + période + montant serveur).
+      tarifLibre: adherent.tarif_libre === true,
+      dateDebut: adherent.date_debut,
+      dateFin: adherent.date_fin,
       mineur,
       responsable: mineur ? responsable : null,
       contacts,

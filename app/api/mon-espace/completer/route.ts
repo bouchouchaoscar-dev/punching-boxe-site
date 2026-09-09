@@ -188,6 +188,10 @@ export async function POST(request: Request) {
         montantTotal: a.montant_total, // ← montant SERVEUR (tarif libre figé)
         adhesionDue: a.nouveau_membre,
         remisePct: remiseFamillePct(a.nb_membres_famille ?? 0),
+        // Rendu alternatif tarif libre (formule + période + montant serveur).
+        tarifLibre: a.tarif_libre === true,
+        dateDebut: a.date_debut,
+        dateFin: a.date_fin,
         mineur,
         responsable: mineur ? responsable : null,
         autorisationMedicale: mineur ? true : undefined,
