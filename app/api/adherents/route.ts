@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { signerDocsAdherents } from "@/lib/storage-url";
 import {
   buildAdherentInsert,
   validatePayload,
@@ -177,5 +178,8 @@ export async function GET(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ adherents: data ?? [] });
+  // Photos + documents renvoyés en URLs SIGNÉES (bucket privé cible) — 1 appel
+  // batch pour toute la liste. Fail-closed : champ non signable → null.
+  const adherents = await signerDocsAdherents(data ?? []);
+  return NextResponse.json({ adherents });
 }

@@ -142,14 +142,14 @@ export async function POST(request: Request) {
     if (rmErr) console.error("Nettoyage variantes (ignoré):", rmErr.message);
   }
 
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  const publicUrl = data.publicUrl;
-
-  // Persistance admin : on enregistre l'URL sur la ligne de l'adhérent et on
+  // Bucket privé cible : on stocke le CHEMIN storage (pas d'URL publique). La
+  // lecture signe à la volée (helper). Rétrocompatible (le helper lit aussi les
+  // anciennes URLs publiques déjà en base).
+  // Persistance admin : on enregistre le chemin sur la ligne de l'adhérent et on
   // ré-invalide la validation des documents (un nouveau document doit être revu).
   if (persist) {
     const update: Record<string, unknown> = {
-      [URL_COLUMN[field]]: publicUrl,
+      [URL_COLUMN[field]]: path,
       documents_valides: false,
     };
     let { error: upErr } = await supabase
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     if (upErr && /documents_valides/.test(upErr.message)) {
       ({ error: upErr } = await supabase
         .from("adherents")
-        .update({ [URL_COLUMN[field]]: publicUrl })
+        .update({ [URL_COLUMN[field]]: path })
         .eq("id", adherentId));
     }
     if (upErr) {
@@ -169,5 +169,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ url: publicUrl, path, field, type: detected });
+  return NextResponse.json({ url: path, path, field, type: detected });
 }

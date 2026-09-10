@@ -24,8 +24,9 @@ export async function genererEtDeposerDocs(
       .from(STORAGE_BUCKET)
       .upload(path, buf, { contentType: "application/pdf", upsert: true });
     if (error) throw error;
-    return supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path).data
-      .publicUrl;
+    // Bucket privé cible : on renvoie/stocke le CHEMIN (la lecture signe via le
+    // helper). Rétrocompatible : les anciennes URLs publiques restent lisibles.
+    return path;
   };
   const [ficheUrl, reglementUrl] = await Promise.all([
     upload("fiche.pdf", ficheBuf),

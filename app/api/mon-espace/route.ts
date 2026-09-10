@@ -5,6 +5,7 @@ import {
   STORAGE_BUCKET,
 } from "@/lib/supabase";
 import { sendAdminDocReplaced } from "@/lib/email";
+import { signerDocsAdherents } from "@/lib/storage-url";
 import { evaluerDossier } from "@/lib/dossier";
 import { getAuthUser } from "@/lib/auth-server";
 
@@ -60,7 +61,8 @@ export async function GET(request: Request) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const adherents = data ?? [];
+  // Photos + documents en URLs SIGNÉES (bucket privé cible) — batch, fail-closed.
+  const adherents = await signerDocsAdherents(data ?? []);
 
   // Compteur d'échéances NUMÉROTÉES payées, par dossier (pour le statut "X/N payé").
   const paidEcheances: Record<string, number> = {};
@@ -151,13 +153,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: upErr.message }, { status: 500 });
   }
 
-  const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-
-  // On enregistre l'URL et on réinitialise la validation de CE document : le
-  // doc redéposé n'est plus validé et son éventuel refus est levé (à revoir).
+  // Bucket privé cible : on stocke le CHEMIN storage (la lecture signe à la
+  // volée via le helper). On réinitialise la validation de CE document : le doc
+  // redéposé n'est plus validé et son éventuel refus est levé (à revoir).
   const base = DOC_BASE[field];
   const update: Record<string, unknown> = {
-    [URL_COLUMN[field]]: pub.publicUrl,
+    [URL_COLUMN[field]]: path,
     [`${base}_valide`]: false,
     [`${base}_motif_refus`]: null,
   };
@@ -171,7 +172,7 @@ export async function POST(request: Request) {
   if (updErr && /(_valide|_motif_refus)/.test(updErr.message)) {
     ({ data: updated, error: updErr } = await supabase
       .from("adherents")
-      .update({ [URL_COLUMN[field]]: pub.publicUrl })
+      .update({ [URL_COLUMN[field]]: path })
       .eq("id", adherent.id)
       .select()
       .single());
@@ -204,5 +205,5 @@ export async function POST(request: Request) {
     console.error("Email admin doc déposé:", e);
   }
 
-  return NextResponse.json({ url: pub.publicUrl, field });
+  return NextResponse.json({ url: path, field });
 }

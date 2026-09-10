@@ -2,6 +2,7 @@
 // Source unique : mêmes actifs, même tri A→Z, même mapping vers une forme
 // PUBLIQUE sans aucune donnée sensible.
 import { getSupabaseAdmin, STORAGE_BUCKET } from "@/lib/supabase";
+import { signerUrls, cheminDepuisUrl } from "@/lib/storage-url";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { statutTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
@@ -13,17 +14,21 @@ export const initialesTrombi = (prenom: string, nom: string) =>
   `${(prenom || "").trim()[0] ?? ""}${(nom || "").trim()[0] ?? ""}`.toUpperCase() ||
   "?";
 
+// Photo en data-URI pour le PDF (trombinoscope admin + coach). On TÉLÉCHARGE le
+// binaire via storage.download (service_role) — fonctionne que le bucket soit
+// public ou PRIVÉ, contrairement à un fetch d'URL. Chemin extrait par le helper
+// (URL publique existante OU chemin). Fail-closed : null si absent/erreur.
 export async function photoDataUri(url: string | null): Promise<string | null> {
-  if (!url) return null;
+  const chemin = cheminDepuisUrl(url);
+  if (!chemin) return null;
   try {
-    const ctrl = new AbortController();
-    const to = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(to);
-    if (!res.ok) return null;
-    const type = res.headers.get("content-type") || "image/jpeg";
+    const { data, error } = await getSupabaseAdmin()
+      .storage.from(STORAGE_BUCKET)
+      .download(chemin);
+    if (error || !data) return null;
+    const type = data.type || "image/jpeg";
     if (!type.startsWith("image/")) return null;
-    const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    const b64 = Buffer.from(await data.arrayBuffer()).toString("base64");
     return `data:${type};base64,${b64}`;
   } catch {
     return null;
@@ -53,42 +58,14 @@ async function pool<T, R>(
 export const chargerPhotos = (actifs: Adherent[]) =>
   pool(actifs, 8, (a) => photoDataUri(a.photo_url));
 
-// Extrait le chemin objet (`<uuid>/photo.jpg`) depuis l'URL stockée (publique).
-function cheminStorage(url: string | null): string | null {
-  if (!url) return null;
-  const marqueur = `/${STORAGE_BUCKET}/`;
-  const i = url.indexOf(marqueur);
-  if (i === -1) return null;
-  const chemin = url.slice(i + marqueur.length).split("?")[0];
-  return chemin || null;
-}
-
-// Durée de validité des URLs signées des photos (1 h). La page coach est
-// rechargée régulièrement → régénération à chaque chargement.
-const SIGNED_URL_TTL = 3600;
-
 /**
- * URLs de photos SIGNÉES (temporaires) alignées sur `actifs`. Un seul appel
- * batch (createSignedUrls) : rapide (génération de tokens, AUCUN téléchargement
- * ni encodage d'image). L'URL ne contient qu'un UUID + un token — aucune PII.
- * Le navigateur charge ensuite les images en parallèle (qualité d'origine).
+ * URLs de photos SIGNÉES (temporaires) alignées sur `actifs`, via la SOURCE
+ * UNIQUE de signature (lib/storage-url). Un seul appel batch, fail-closed.
  */
 export async function chargerPhotosSignees(
   actifs: Adherent[],
 ): Promise<(string | null)[]> {
-  const chemins = actifs.map((a) => cheminStorage(a.photo_url));
-  const valides = chemins.filter((c): c is string => !!c);
-  if (!valides.length) return chemins.map(() => null);
-
-  const supabase = getSupabaseAdmin();
-  const { data } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrls(valides, SIGNED_URL_TTL);
-
-  // Réponse alignée sur l'ordre des chemins demandés → zip par index.
-  const map = new Map<string, string | null>();
-  valides.forEach((p, i) => map.set(p, data?.[i]?.signedUrl ?? null));
-  return chemins.map((c) => (c ? (map.get(c) ?? null) : null));
+  return signerUrls(actifs.map((a) => a.photo_url));
 }
 
 // Membre PUBLIC : AUCUNE donnée sensible (ni email, ni téléphone, ni adresse,

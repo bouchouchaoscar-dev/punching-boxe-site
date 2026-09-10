@@ -9,6 +9,7 @@ import { clientIp } from "@/lib/inscription";
 import { estMineurISO } from "@/lib/resignature-data";
 import { renderReglementPdf, renderFichePdf } from "@/lib/pdf/render";
 import { ficheBaseDepuisAdherent } from "@/lib/pdf/fiche-data";
+import { cheminDepuisUrl } from "@/lib/storage-url";
 import {
   sendReSignatureConfirmationAdherent,
   sendReSignatureConfirmationAdmin,
@@ -30,15 +31,6 @@ function isSignatureVect(s: unknown): s is SignatureVect {
     typeof s === "object" &&
     Array.isArray((s as { strokes?: unknown }).strokes)
   );
-}
-
-/** Extrait le chemin storage (`<dossier>/reglement.pdf`) depuis l'URL publique
- *  existante — jamais reconstruit depuis l'id DB (le dossier porte un UUID ≠ id). */
-function storagePathFromUrl(url: string): string | null {
-  const marker = `/object/public/${STORAGE_BUCKET}/`;
-  const i = url.indexOf(marker);
-  if (i < 0) return null;
-  return decodeURIComponent(url.slice(i + marker.length));
 }
 
 export async function POST(request: Request) {
@@ -156,7 +148,7 @@ async function regenererReglement(
       { status: 422 },
     );
   }
-  const path = storagePathFromUrl(adherent.reglement_url);
+  const path = cheminDepuisUrl(adherent.reglement_url);
   if (!path) {
     await rollback();
     return NextResponse.json(
@@ -321,7 +313,7 @@ async function regenererFiche(
       { status: 422 },
     );
   }
-  const path = storagePathFromUrl(adherent.fiche_inscription_url);
+  const path = cheminDepuisUrl(adherent.fiche_inscription_url);
   if (!path) {
     await rollback();
     return NextResponse.json(
