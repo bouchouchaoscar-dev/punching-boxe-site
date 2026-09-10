@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { signerDocsAdherents } from "@/lib/storage-url";
 import { sendDocumentActionRequired } from "@/lib/email";
 import { evaluerDossier } from "@/lib/dossier";
 import { notifierSiDossierComplet } from "@/lib/dossier-complet";
@@ -22,7 +23,9 @@ export async function GET(_req: Request, { params }: Ctx) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
-  return NextResponse.json({ adherent: data });
+  // Photo + documents en URLs SIGNÉES (bucket privé) — même patron que la liste.
+  const [adherent] = await signerDocsAdherents([data]);
+  return NextResponse.json({ adherent });
 }
 
 // PATCH — mise à jour (ex : confirmer un paiement en espèces).
@@ -205,5 +208,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
     }
   }
 
-  return NextResponse.json({ adherent: data });
+  // Photo + documents signés (bucket privé) sur l'adhérent renvoyé après édition.
+  const [adherent] = await signerDocsAdherents([data]);
+  return NextResponse.json({ adherent });
 }
