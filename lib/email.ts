@@ -549,6 +549,35 @@ export async function sendAdminEchecPaiement(d: {
   });
 }
 
+/** Alerte ADMIN : passage par le FILET de paiement comptant (1x) — soit un
+ *  dossier marqué payé via le webhook, soit un PaymentIntent rejeté (orphelin /
+ *  encaissement non confirmé). Rend visible un chemin autrefois silencieux. */
+export async function sendAdminAlertePaiement(d: {
+  prenom: string;
+  nom: string;
+  adherentId: string;
+  montant: number;
+  paymentIntentId: string | null;
+  issue: string; // ex. "Marqué payé via le filet…" / "Rejeté — PI orphelin"
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Filet paiement comptant (1x)</h1>
+    <p style="line-height:1.6;color:#444"><strong>${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}</strong> — <strong>${euro(d.montant)}</strong></p>
+    <p style="line-height:1.6;color:#444">Issue : <strong>${d.issue}</strong><br/>PaymentIntent : ${d.paymentIntentId ?? "—"}</p>
+    <p style="margin:6px 0 18px">${button(lien, "Ouvrir la fiche adhérent")}</p>
+  `);
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    replyTo: REPLY_TO,
+    subject: `⚠️ Filet paiement 1x — ${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`,
+    html,
+  });
+}
+
 export type RemboursementContexte = {
   montant: number;
   canal: "stripe" | "especes" | "virement";

@@ -11,6 +11,30 @@ export function estPaiementSolde(a: Pick<Adherent, "statut_paiement">): boolean 
   );
 }
 
+// INCOHÉRENCE « payé sans encaissement » : un dossier CARTE COMPTANT (1x) marqué
+// statut_paiement='paye' MAIS dont aucun encaissement réel n'est reflété
+// (echeances_payees = 0). Après le durcissement de markAdherentPaid, un vrai 1x
+// encaissé a echeances_payees=1 → jamais incohérent ; seul un résidu (ou un futur
+// bug) tombe ici. Les espèces (confirme_especes, mode 'especes') et le fractionné
+// (nb>1, dont l'état vient déjà de echeances_payees) sont exclus. Sert de garde
+// « argent » commune : ni vert, ni facture acquittée tant que l'encaissement 1x
+// n'est pas prouvé — on montre alors un état ORANGE « à vérifier ».
+export function paiementIncoherent(
+  a: Pick<
+    Adherent,
+    "statut_paiement" | "mode_paiement" | "nb_echeances" | "echeances_payees"
+  >,
+): boolean {
+  const nb = a.nb_echeances || 1;
+  const carte = (a.mode_paiement ?? "").startsWith("stripe");
+  return (
+    a.statut_paiement === "paye" &&
+    carte &&
+    nb <= 1 &&
+    (a.echeances_payees ?? 0) === 0
+  );
+}
+
 // Libellé COURT du mode de paiement (stripe* → "Carte"). Préparé pour usage
 // éventuel ; la vignette essentielle n'affiche pas le mode.
 export function modeLabelCourt(mode: ModePaiement): string {
@@ -26,6 +50,7 @@ export type TrombiStatutCode =
   | "paye_especes"
   | "fractionne" // carte fractionnée en cours (sain)
   | "attente_especes"
+  | "a_verifier" // carte 1x 'paye' mais aucun encaissement réel reflété (alerte)
   | "echec";
 
 export type TrombiStatut = {
@@ -49,6 +74,16 @@ export function statutTrombi(
       code: "echec",
       couleur: "rouge",
       label: nb > 1 ? `Prélèvement échoué ${payees}/${nb}` : "Paiement échoué",
+    };
+  }
+
+  // 🟠 Carte comptant (1x) marquée « payé » SANS encaissement réel reflété :
+  // incohérence à vérifier (jamais vert tant que l'encaissement n'est pas prouvé).
+  if (paiementIncoherent(a)) {
+    return {
+      code: "a_verifier",
+      couleur: "orange",
+      label: "Paiement à vérifier",
     };
   }
 

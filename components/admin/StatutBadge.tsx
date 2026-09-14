@@ -1,6 +1,6 @@
 import type { Adherent, StatutPaiement } from "@/lib/types";
 import { nbEcheances } from "@/lib/pricing";
-import { statutTrombi } from "@/lib/paiement";
+import { statutTrombi, paiementIncoherent } from "@/lib/paiement";
 
 const MAP: Record<StatutPaiement, { label: string; cls: string }> = {
   paye: { label: "✅ Payé en ligne", cls: "bg-green-50 text-green-700" },
@@ -71,6 +71,11 @@ function baseStatut(
 
   if (a.statut_paiement === "echec_paiement")
     return { label: "❌ Échec · à régulariser", cls }; // rouge
+
+  // Carte comptant (1x) « payé » SANS encaissement réel reflété → ALERTE (orange),
+  // jamais un faux « ✅ Payé ». Aligné avec statutTrombi (cls déjà orange).
+  if (paiementIncoherent(a))
+    return { label: "⚠️ Paiement à vérifier", cls }; // orange
 
   if (a.mode_paiement === "especes")
     return a.statut_paiement === "confirme_especes"

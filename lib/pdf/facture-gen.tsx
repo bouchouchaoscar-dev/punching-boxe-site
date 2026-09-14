@@ -1,6 +1,6 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { estPaiementSolde } from "@/lib/paiement";
+import { estPaiementSolde, paiementIncoherent } from "@/lib/paiement";
 import { TARIFS } from "@/lib/pricing";
 import {
   FactureDoc,
@@ -67,14 +67,18 @@ export async function construireFacturePdf(
 
   // « Soldé » = état RÉEL des échéances (pas le seul statut_paiement, qui peut
   // être faussé sur certains fractionnés) :
-  //   - comptant / espèces payé → estPaiementSolde (statut paye/confirme_especes)
+  //   - comptant CARTE (1x) → soldé UNIQUEMENT si l'encaissement réel est reflété
+  //     (pas de faux « payé » : on exclut l'incohérence carte 1x 'paye' sans
+  //     encaissement via paiementIncoherent). Aligne le comptant sur le fractionné.
+  //   - espèces payé → estPaiementSolde (confirme_especes ; paiementIncoherent
+  //     ne cible que la carte, donc n'affecte pas les espèces).
   //   - fractionné → soldé UNIQUEMENT si toutes les échéances sont réglées
   //     (echeances_payees >= nb_echeances). Sinon → attestation (détail restant).
   const nbEch = a.nb_echeances || 1;
   const fractionne = nbEch > 1;
   const solde = fractionne
     ? (a.echeances_payees ?? 0) >= nbEch
-    : estPaiementSolde(a);
+    : estPaiementSolde(a) && !paiementIncoherent(a);
 
   // Disponibilité : soldé OU au moins une échéance réellement encaissée.
   if (!solde && echeancesReglees.length === 0) {

@@ -5,6 +5,7 @@ import { getStripe } from "./stripe";
 import {
   sendAdherentConfirmation,
   sendAdminNotification,
+  sendAdminAlertePaiement,
 } from "./email";
 import { notifierSiDossierComplet } from "./dossier-complet";
 import { notifierEchecPaiement } from "./echec-notify";
@@ -44,6 +45,34 @@ export async function envoyerMailsInscription(
   } catch (e) {
     console.error("Email error (envoyerMailsInscription):", e);
   }
+}
+
+/**
+ * Décision PURE (testable, sans I/O) : un encaissement CARTE COMPTANT (1x) est-il
+ * réellement confirmé côté Stripe ET rattaché AU BON dossier ? Sert de garde à
+ * markAdherentPaid (comptant) — on ne pose plus « payé » sur la confiance de
+ * l'appelant. Trois conditions cumulatives :
+ *   1) l'intent est bien encaissé (status === 'succeeded') ;
+ *   2) le montant réellement reçu couvre EXACTEMENT le total attendu du dossier
+ *      (amount_received en centimes === round(montant_total × 100)) ;
+ *   3) l'intent est CELUI du dossier courant (rejette un PI orphelin / obsolète /
+ *      parallèle qui n'est plus le stripe_payment_intent_id du dossier).
+ */
+export function encaissementComptantValide(params: {
+  intentStatus: string;
+  amountReceived: number; // centimes (intent.amount_received)
+  montantTotal: number; // euros (adherent.montant_total)
+  piId: string;
+  piCourant: string | null; // adherent.stripe_payment_intent_id
+}): boolean {
+  const attendu = Math.round(Number(params.montantTotal || 0) * 100);
+  return (
+    params.intentStatus === "succeeded" &&
+    attendu > 0 &&
+    params.amountReceived === attendu &&
+    !!params.piCourant &&
+    params.piId === params.piCourant
+  );
 }
 
 /**
@@ -94,6 +123,98 @@ export async function markAdherentPaid(
         .eq("id", adherentId);
     }
     return { updated: false, adherent };
+  }
+
+  // ── COMPTANT (1x) : NE PLUS faire confiance à l'appelant ──────────────────
+  // Avant de poser « payé », on VÉRIFIE l'encaissement réel auprès de Stripe et
+  // on enregistre l'encaissement PROPREMENT (ligne paiements → echeances_payees
+  // reflète la réalité). Rend visible ce filet autrefois silencieux (log +
+  // alerte admin). Le fractionné (nb>1) conserve EXACTEMENT le bloc d'origine
+  // ci-dessous (aucune modification).
+  if (nb <= 1) {
+    const alerter = async (issue: string) => {
+      try {
+        await sendAdminAlertePaiement({
+          prenom: adherent.prenom ?? "",
+          nom: adherent.nom ?? "",
+          adherentId,
+          montant: Number(adherent.montant_total || 0),
+          paymentIntentId: paymentIntentId ?? null,
+          issue,
+        });
+      } catch (e) {
+        console.error("[ALERTE PAIEMENT 1x] envoi mail admin échoué:", e);
+      }
+    };
+    const rejeter = async (motif: string) => {
+      console.error(
+        `[ALERTE PAIEMENT 1x] REJET — adherent=${adherentId} pi=${paymentIntentId ?? "?"} : ${motif}`,
+      );
+      await alerter(`Rejeté — ${motif}`);
+      return { updated: false, adherent } as const;
+    };
+
+    if (!paymentIntentId) return rejeter("aucun PaymentIntent fourni");
+    if (paymentIntentId !== (adherent.stripe_payment_intent_id ?? null)) {
+      return rejeter("PaymentIntent orphelin (≠ PI courant du dossier)");
+    }
+
+    let intent: Stripe.PaymentIntent;
+    try {
+      intent = await getStripe().paymentIntents.retrieve(paymentIntentId);
+    } catch (e) {
+      return rejeter(
+        "retrieve PaymentIntent impossible : " +
+          (e instanceof Error ? e.message : "erreur inconnue"),
+      );
+    }
+
+    if (
+      !encaissementComptantValide({
+        intentStatus: intent.status,
+        amountReceived: intent.amount_received ?? 0,
+        montantTotal: Number(adherent.montant_total || 0),
+        piId: paymentIntentId,
+        piCourant: adherent.stripe_payment_intent_id ?? null,
+      })
+    ) {
+      return rejeter(
+        `encaissement non confirmé (status=${intent.status}, amount_received=${intent.amount_received ?? 0}, attendu=${Math.round(Number(adherent.montant_total || 0) * 100)})`,
+      );
+    }
+
+    // Encaissement CONFIRMÉ par Stripe → enregistrement propre. On réutilise le
+    // même chemin que le flux normal (ligne paiements → recalcul) : statut
+    // « payé » ET echeances_payees=1 restent cohérents, et les mails partent une
+    // seule fois via recalculerEtatPaiement/marquerEcheancePayee.
+    const found = await marquerEcheancePayee(paymentIntentId);
+    if (!found) {
+      // Ligne paiements absente (ex. purgée par une re-finalisation) : on la
+      // recrée pour refléter l'encaissement réel, puis recalcul.
+      await supabase.from("paiements").insert({
+        adherent_id: adherentId,
+        stripe_payment_intent_id: paymentIntentId,
+        montant: Number(adherent.montant_total || 0),
+        statut: "paye",
+        numero_echeance: 1,
+        date_prevue: new Date().toISOString().slice(0, 10),
+        date_paiement: new Date().toISOString(),
+      });
+      await recalculerEtatPaiement(adherentId);
+    }
+
+    console.error(
+      `[ALERTE PAIEMENT 1x] MARQUÉ PAYÉ via filet — adherent=${adherentId} pi=${paymentIntentId} montant=${adherent.montant_total} (encaissement Stripe confirmé, ligne paiements ${found ? "mise à jour" : "recréée"})`,
+    );
+    await alerter(
+      `Marqué payé via le filet webhook (encaissement Stripe confirmé — ligne paiements ${found ? "mise à jour" : "recréée"})`,
+    );
+    const { data: apres } = await supabase
+      .from("adherents")
+      .select("*")
+      .eq("id", adherentId)
+      .single();
+    return { updated: true, adherent: (apres ?? adherent) as Adherent };
   }
 
   const { data: updated, error: updErr } = await supabase

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
+import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendAdminAlertePaiement } from "@/lib/email";
 import {
   marquerEcheancePayee,
   marquerEcheanceEchec,
@@ -42,9 +44,41 @@ export async function POST(request: Request) {
         break;
       }
       const found = await marquerEcheancePayee(intent.id);
-      // Filet : ancien flux sans table paiements.
+      // Filet : ancien flux sans table paiements. On ne sollicite markAdherentPaid
+      // (comptant) QUE si ce PI est bien le PI COURANT du dossier — un PI orphelin
+      // / obsolète / parallèle ne doit jamais marquer payé. markAdherentPaid
+      // re-vérifie l'encaissement réel côté Stripe (montant + status) ; ici on
+      // court-circuite l'orphelin en amont (évite un retrieve inutile) en le
+      // traçant + alerte admin. Les deux chemins sont exclusifs → une seule alerte.
       if (!found && intent.metadata?.adherentId) {
-        await markAdherentPaid(intent.metadata.adherentId, intent.id);
+        const adherentId = intent.metadata.adherentId;
+        const supabase = getSupabaseAdmin();
+        const { data: adh } = await supabase
+          .from("adherents")
+          .select("prenom, nom, montant_total, stripe_payment_intent_id")
+          .eq("id", adherentId)
+          .maybeSingle();
+        if (adh && intent.id === adh.stripe_payment_intent_id) {
+          await markAdherentPaid(adherentId, intent.id);
+        } else {
+          console.error(
+            `[ALERTE PAIEMENT 1x] REJET filet webhook — adherent=${adherentId} pi=${intent.id} : PaymentIntent ${adh ? "orphelin (≠ PI courant)" : "sans dossier"}`,
+          );
+          try {
+            await sendAdminAlertePaiement({
+              prenom: adh?.prenom ?? "",
+              nom: adh?.nom ?? "",
+              adherentId,
+              montant: Number(adh?.montant_total || 0),
+              paymentIntentId: intent.id,
+              issue: adh
+                ? "Rejeté — PaymentIntent orphelin (≠ PI courant du dossier)"
+                : "Rejeté — PaymentIntent sans dossier correspondant",
+            });
+          } catch (e) {
+            console.error("[ALERTE PAIEMENT 1x] envoi mail admin échoué:", e);
+          }
+        }
       }
       break;
     }
