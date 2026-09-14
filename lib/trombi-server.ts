@@ -3,8 +3,7 @@
 // PUBLIQUE sans aucune donnée sensible.
 import { getSupabaseAdmin, STORAGE_BUCKET } from "@/lib/supabase";
 import { signerUrls, cheminDepuisUrl } from "@/lib/storage-url";
-import { estActifCompte } from "@/lib/adherents-actifs";
-import { statutTrombi } from "@/lib/paiement";
+import { statutTrombi, estVisibleTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import type { TrombiMembre } from "@/lib/pdf/Trombinoscope";
@@ -99,7 +98,7 @@ export function toMembrePublic(a: Adherent, photo: string | null): MembrePublic 
 // formule + photo). Évite un select("*") coûteux (nombreuses colonnes/URLs
 // inutiles) → réponse plus rapide. Partagé par la vue coach et l'export PDF.
 const COLS_TROMBI =
-  "id,nom,prenom,saison,statut_paiement,mode_paiement,nb_echeances,echeances_payees,annule_at,package,option_prepa_physique,type_adherent,photo_url";
+  "id,nom,prenom,saison,statut_paiement,mode_paiement,nb_echeances,echeances_payees,annule_at,package,option_prepa_physique,type_adherent,photo_url,fiche_signee_at";
 
 // Actifs triés A→Z, filtrés par ids puis (à défaut) par saison. `ids` a la
 // priorité (∩ actifs = sécurité serveur). Source unique du filtrage serveur.
@@ -109,7 +108,9 @@ export async function chargerActifsTrombi(opts: {
 }): Promise<Adherent[]> {
   const supabase = getSupabaseAdmin();
   const { data } = await supabase.from("adherents").select(COLS_TROMBI);
-  let actifs = ((data ?? []) as unknown as Adherent[]).filter(estActifCompte);
+  // Trombi élargi : inscription signée + photo, payé OU non (helper dédié, PAS
+  // estActifCompte). Couvre l'endpoint coach ET l'export PDF admin.
+  let actifs = ((data ?? []) as unknown as Adherent[]).filter(estVisibleTrombi);
 
   const ids = opts.ids && opts.ids.length ? opts.ids : null;
   const saison = opts.saison || "";

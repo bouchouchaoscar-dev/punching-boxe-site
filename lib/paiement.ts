@@ -56,6 +56,19 @@ export function estPaiementAFinaliser(
   );
 }
 
+// SOURCE UNIQUE de « visible au trombinoscope » : inscription signée + photo
+// présente, hors dossiers fermés — PAYÉ OU NON. Élargit la population du trombi
+// (le coach voit toutes les têtes + le statut en couleur, dont « à finaliser »).
+// REMPLACE estActifCompte AUX 2 SEULS POINTS TROMBI (Trombinoscope.tsx admin +
+// trombi-server.ts coach/PDF). Ne touche PAS estActifCompte/estEngage, partagés
+// par dashboard/stats/mailing/foyers. Choix produit : on N'EXIGE PAS photo_valide
+// (photo montrée même non revue par l'admin), cohérent avec l'existant.
+export function estVisibleTrombi(
+  a: Pick<Adherent, "annule_at" | "photo_url" | "fiche_signee_at">,
+): boolean {
+  return !a.annule_at && !!a.photo_url && !!a.fiche_signee_at;
+}
+
 // Libellé COURT du mode de paiement (stripe* → "Carte"). Préparé pour usage
 // éventuel ; la vignette essentielle n'affiche pas le mode.
 export function modeLabelCourt(mode: ModePaiement): string {

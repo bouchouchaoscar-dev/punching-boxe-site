@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSaisonAdmin } from "./SaisonContext";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
-import { estActifCompte } from "@/lib/adherents-actifs";
 import {
   statutTrombi,
   matchStatutFiltre,
+  estVisibleTrombi,
   STATUT_FILTRE_OPTIONS,
   type StatutFiltre,
   type TrombiStatutCode,
@@ -153,7 +153,9 @@ export function Trombinoscope() {
   const actifs = useMemo<TrombiItem[]>(() => {
     if (isCoach) return coachMembres.map(itemFromCoach); // déjà triés serveur
     return adherents
-      .filter(estActifCompte)
+      // Trombi élargi : inscription signée + photo, payé OU non (helper dédié,
+      // PAS estActifCompte qui exclut les paniers carte non finalisés).
+      .filter(estVisibleTrombi)
       .map(itemFromAdherent)
       .sort(
         (a, b) =>
