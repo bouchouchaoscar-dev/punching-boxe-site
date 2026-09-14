@@ -15,6 +15,7 @@ import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { estPaiementSolde } from "@/lib/paiement";
+import { estEngage } from "@/lib/engagement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
@@ -91,6 +92,7 @@ export function FicheAdherent({ id }: { id: string }) {
   const [famille, setFamille] = useState<MembreFoyer[]>([]);
   const [histAncien, setHistAncien] = useState<HistLigne[]>([]);
   const [relancing, setRelancing] = useState(false);
+  const [relancePaiement, setRelancePaiement] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
   const [gererOpen, setGererOpen] = useState(false);
   const [finOpen, setFinOpen] = useState(false);
@@ -236,6 +238,27 @@ export function FicheAdherent({ id }: { id: string }) {
       );
     } finally {
       setRelancing(false);
+    }
+  }
+
+  // Relance MANUELLE du paiement (dossier carte en attente, jamais finalisé).
+  // Renvoi autorisé ; l'endpoint garde la cible côté serveur.
+  async function relancerPaiementCarte() {
+    setRelancePaiement(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/relancer-paiement`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      await load();
+      showToast(
+        res.ok && data.success
+          ? "Relance de paiement envoyée ✓"
+          : data.error || "Relance impossible.",
+      );
+    } finally {
+      setRelancePaiement(false);
     }
   }
 
@@ -921,6 +944,8 @@ export function FicheAdherent({ id }: { id: string }) {
             paiements={paiements}
             relancing={relancing}
             onRelance={relancerPaiement}
+            relancePaiementBusy={relancePaiement}
+            onRelancerPaiement={relancerPaiementCarte}
           />
 
           {/* Historique des remboursements */}
@@ -1159,12 +1184,22 @@ function PaiementsCard({
   paiements,
   relancing,
   onRelance,
+  relancePaiementBusy,
+  onRelancerPaiement,
 }: {
   adherent: Adherent;
   paiements: Paiement[];
   relancing: boolean;
   onRelance: () => void;
+  relancePaiementBusy: boolean;
+  onRelancerPaiement: () => void;
 }) {
+  // Dossier CARTE dont le paiement n'a jamais été finalisé (jamais engagé) :
+  // cible de la relance manuelle. Espèces / payés / échecs / engagés → exclus.
+  const carteEnAttente =
+    (adherent.mode_paiement ?? "").startsWith("stripe") &&
+    adherent.statut_paiement === "en_attente" &&
+    !estEngage(adherent);
   // Encaissé NET = payé − remboursé (carte + espèces), depuis les paiements.
   const collectees = paiements.filter(
     (p) => p.statut === "paye" || p.statut === "rembourse",
@@ -1226,6 +1261,28 @@ function PaiementsCard({
             >
               {relancing ? "Prélèvement…" : "Retenter le prélèvement"}
             </button>
+          )}
+        </div>
+      )}
+
+      {carteEnAttente && (
+        <div className="mt-4 rounded-xl border border-line bg-paper-2 p-4">
+          <p className="text-sm font-bold text-ink">Paiement carte non finalisé</p>
+          <p className="mt-1 text-xs text-smoke">
+            L&apos;adhérent a choisi la carte mais n&apos;a pas réglé en ligne. On
+            peut lui renvoyer le lien de paiement.
+          </p>
+          <button
+            onClick={onRelancerPaiement}
+            disabled={relancePaiementBusy}
+            className="mt-3 rounded-full bg-ink px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-ink/90 disabled:opacity-50"
+          >
+            {relancePaiementBusy ? "Envoi…" : "Relancer le paiement"}
+          </button>
+          {adherent.relance_paiement_manuelle_at && (
+            <p className="mt-2 text-xs text-smoke">
+              Dernière relance : {formatDateFr(adherent.relance_paiement_manuelle_at)}
+            </p>
           )}
         </div>
       )}

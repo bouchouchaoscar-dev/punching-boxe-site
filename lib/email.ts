@@ -295,6 +295,36 @@ export async function sendRelancePanier(d: {
   });
 }
 
+/** 0 bis — DERNIÈRE relance « panier abandonné » (J+3). Ton plus direct : c'est
+ *  le dernier rappel automatique. Même en-tête et même deep-link que
+ *  sendRelancePanier (couvre 1x + fractionné). Après cet envoi, aucune relance
+ *  auto supplémentaire (le relais est le bouton admin + téléphone). */
+export async function sendRelancePanier2(d: {
+  prenom: string;
+  email: string;
+  adherentId: string;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const html = wrap(`
+    <h1 style="font-size:22px;margin:0 0 8px">Dernier rappel 🥊</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
+    <p style="line-height:1.6;color:#444">Votre inscription au <strong>${CLUB.nom}</strong> n'est toujours pas finalisée. Tant que le paiement n'est pas réglé, votre place n'est pas confirmée.</p>
+    <p style="line-height:1.6;color:#444">C'est notre dernier rappel automatique. Le règlement prend quelques secondes (carte ou paiement en plusieurs fois).</p>
+    <p style="margin:6px 0 18px">${button(`${SITE_URL}/inscription/finaliser/${d.adherentId}`, "Finaliser mon paiement")}</p>
+    <p style="line-height:1.6;color:#666;font-size:13px">Vous pouvez aussi régler en espèces auprès du professeur lors de votre prochain cours. Une question ? Écrivez-nous à ${CLUB.email}.</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: d.email,
+    replyTo: REPLY_TO,
+    subject: "Dernier rappel : votre inscription n'est pas finalisée",
+    html,
+  });
+}
+
 /** 0 ter — Relance « compte sans inscription » : espace créé mais aucun dossier
  *  démarré (24h+). Envoyé une seule fois (table relances_compte gère le flag). */
 export async function sendCommencerInscription(d: {

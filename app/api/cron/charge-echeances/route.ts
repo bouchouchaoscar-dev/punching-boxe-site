@@ -4,6 +4,7 @@ import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
 import {
   sendRelancePanier,
+  sendRelancePanier2,
   sendCommencerInscription,
   sendPaiementEchec,
 } from "@/lib/email";
@@ -134,6 +135,10 @@ export async function GET(request: Request) {
   // Relances « panier abandonné » (dossiers carte non finalisés depuis 24h+).
   const relances = await relancerPaniersAbandonnes();
 
+  // 2e relance « panier abandonné » (J+3) : dossiers carte dont la 1ère relance
+  // est déjà partie depuis 48h+ et toujours non réglés. Envoi unique, pas de 3e.
+  const relances2 = await relancerPaniersAbandonnes2();
+
   // Relances « compte sans inscription » (espace créé, aucun dossier, 24h+).
   const relancesComptes = await relancerComptesSansInscription();
 
@@ -146,6 +151,7 @@ export async function GET(request: Request) {
     results,
     campagnes,
     relances,
+    relances2,
     relancesComptes,
     rappelsEchec,
   });
@@ -305,4 +311,55 @@ async function relancerPaniersAbandonnes() {
     await new Promise((r) => setTimeout(r, 300)); // pacing rate-limit Resend
   }
   return { candidats: dossiers?.length ?? 0, envoyes };
+}
+
+/**
+ * 2e (et DERNIÈRE) relance « panier abandonné » (~J+3) : dossiers carte non
+ * finalisés dont la 1ère relance est DÉJÀ partie (relance_panier_envoyee_at non
+ * nul) depuis au moins 48h, toujours 'en_attente' / non engagés / non annulés,
+ * et pas encore relancés une 2e fois. Envoi UNIQUE (flag distinct
+ * relance_panier_2_envoyee_at). AUCUNE 3e relance ensuite.
+ *
+ * NE MODIFIE PAS relancerPaniersAbandonnes (1ère relance, flag séparé).
+ * RÉSILIENT : sans la colonne (migration 008) la requête échoue → 0 envoi (pas
+ * de régression), comme le patron des relances 007.
+ */
+async function relancerPaniersAbandonnes2(): Promise<{
+  candidats: number;
+  envoyes: number;
+}> {
+  const supabase = getSupabaseAdmin();
+  const seuil = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data: dossiers, error } = await supabase
+    .from("adherents")
+    .select("id, prenom, email")
+    .like("mode_paiement", "stripe%")
+    .eq("statut_paiement", "en_attente")
+    .is("engage_at", null)
+    .is("annule_at", null)
+    .not("relance_panier_envoyee_at", "is", null) // 1ère relance déjà partie
+    .is("relance_panier_2_envoyee_at", null) // 2e pas encore envoyée
+    .lt("relance_panier_envoyee_at", seuil); // au moins 48h après la 1ère
+  if (error || !dossiers?.length) return { candidats: 0, envoyes: 0 };
+
+  let envoyes = 0;
+  for (const a of dossiers) {
+    // Claim atomique AVANT envoi → un seul 2e mail, jamais de 3e.
+    const { data: claimed } = await supabase
+      .from("adherents")
+      .update({ relance_panier_2_envoyee_at: new Date().toISOString() })
+      .eq("id", a.id)
+      .is("relance_panier_2_envoyee_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed || !a.email) continue;
+    try {
+      await sendRelancePanier2({ prenom: a.prenom ?? "", email: a.email, adherentId: a.id });
+      envoyes++;
+    } catch (e) {
+      console.error("Relance panier 2:", a.id, e);
+    }
+    await new Promise((r) => setTimeout(r, 300)); // pacing rate-limit Resend
+  }
+  return { candidats: dossiers.length, envoyes };
 }

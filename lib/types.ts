@@ -68,6 +68,10 @@ export interface Adherent {
   // Optionnels : valeurs par défaut en base, non posées à l'insertion.
   montant_rembourse?: number;
   rembourse_at?: string | null;
+  // Relances « carte en attente de paiement » (migration 008) — traces d'envoi.
+  // relance_panier_envoyee_at (1ère relance J+1) est géré côté cron sans typage.
+  relance_paiement_manuelle_at?: string | null; // bouton admin (renvoi autorisé)
+  relance_panier_2_envoyee_at?: string | null; // 2e relance auto J+3 (unique)
   litige?: boolean;
   litige_statut?: string | null; // 'ouvert' | 'gagne' | 'perdu'
   annule_at?: string | null;
