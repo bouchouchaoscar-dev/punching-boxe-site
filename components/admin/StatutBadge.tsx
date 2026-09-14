@@ -78,8 +78,9 @@ function baseStatut(
   if (paiementIncoherent(a))
     return { label: "⚠️ Paiement à vérifier", cls }; // orange
 
-  // Carte, inscription faite, paiement jamais mené au bout → « à finaliser »
-  // (jamais vert). Libellé aligné sur le trombinoscope. cls orange via statutTrombi.
+  // Carte, inscription faite, paiement jamais mené au bout → « à finaliser ».
+  // ROUGE (même cls que l'échec, via statutTrombi) : problème d'argent, action
+  // attendue. Libellé distinct de « échec », aligné sur le trombinoscope.
   if (estPaiementAFinaliser(a))
     return { label: "⏳ Paiement à finaliser", cls };
 

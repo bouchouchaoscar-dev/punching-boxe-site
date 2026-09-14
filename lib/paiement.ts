@@ -117,13 +117,13 @@ export function statutTrombi(
     };
   }
 
-  // 🟠 Carte, inscription faite, mais paiement JAMAIS mené au bout (aucune
-  // tentative). Ne doit PAS s'afficher en vert « en cours » (faux positif
-  // trompeur pour le coach) — état propre distinct du fractionné sain.
+  // 🔴 Carte, inscription faite, mais paiement JAMAIS mené au bout (aucune
+  // tentative). ROUGE (problème d'argent, action attendue) — même convention que
+  // l'échec. Ne doit PAS s'afficher en vert « en cours » (faux positif trompeur).
   if (estPaiementAFinaliser(a)) {
     return {
       code: "a_finaliser",
-      couleur: "orange",
+      couleur: "rouge",
       label: "Paiement à finaliser",
     };
   }
