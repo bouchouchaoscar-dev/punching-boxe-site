@@ -5,9 +5,9 @@ import { getStripe } from "./stripe";
 import {
   sendAdherentConfirmation,
   sendAdminNotification,
-  sendPaiementEchec,
 } from "./email";
 import { notifierSiDossierComplet } from "./dossier-complet";
+import { notifierEchecPaiement } from "./echec-notify";
 import type { Adherent, Paiement } from "./types";
 
 /**
@@ -460,26 +460,27 @@ export async function marquerEcheanceEchec(
     })
     .eq("id", paiement.adherent_id);
 
-  // Email à l'adhérent, adapté à la famille de l'échec.
+  // Mails (adhérent + admin), CLAIM-THEN-SEND idempotent → jamais de double
+  // envoi même si l'échec est aussi posé par le catch du cron.
   const { data: adh } = await supabase
     .from("adherents")
-    .select("prenom, email, nb_echeances")
+    .select("prenom, nom, email, nb_echeances")
     .eq("id", paiement.adherent_id)
     .single();
-  if (adh?.email) {
-    try {
-      await sendPaiementEchec({
-        prenom: adh.prenom,
-        email: adh.email,
-        montant: Number(paiement.montant || 0),
-        date: paiement.date_prevue,
-        numero: paiement.numero_echeance,
-        nbEcheances: adh.nb_echeances,
-        code: code ?? null,
-      });
-    } catch (e) {
-      console.error("Email échec paiement:", e);
-    }
+  if (adh) {
+    await notifierEchecPaiement(supabase, {
+      paiementId: paiement.id,
+      adherentId: paiement.adherent_id,
+      prenom: adh.prenom,
+      nom: adh.nom,
+      email: adh.email,
+      montant: Number(paiement.montant || 0),
+      date: paiement.date_prevue,
+      numero: paiement.numero_echeance,
+      nbEcheances: adh.nb_echeances,
+      message,
+      code: code ?? null,
+    });
   }
 }
 
@@ -502,7 +503,7 @@ export async function chargerEcheance(
 
   const { data: a } = await supabase
     .from("adherents")
-    .select("id, stripe_customer_id, prenom, email, nb_echeances")
+    .select("id, stripe_customer_id, prenom, nom, email, nb_echeances")
     .eq("id", p.adherent_id)
     .single();
   if (!a?.stripe_customer_id) {
@@ -603,21 +604,19 @@ export async function chargerEcheance(
         statut_paiement: "echec_paiement",
       })
       .eq("id", a.id);
-    if (a.email) {
-      try {
-        await sendPaiementEchec({
-          prenom: a.prenom,
-          email: a.email,
-          montant: Number(p.montant || 0),
-          date: p.date_prevue,
-          numero: p.numero_echeance,
-          nbEcheances: a.nb_echeances,
-          code,
-        });
-      } catch (mailErr) {
-        console.error("Email échec paiement:", mailErr);
-      }
-    }
+    await notifierEchecPaiement(supabase, {
+      paiementId: p.id,
+      adherentId: a.id,
+      prenom: a.prenom,
+      nom: a.nom,
+      email: a.email,
+      montant: Number(p.montant || 0),
+      date: p.date_prevue,
+      numero: p.numero_echeance,
+      nbEcheances: a.nb_echeances,
+      message,
+      code,
+    });
     return { ok: false, error: message };
   }
 }

@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
-import { sendRelancePanier, sendCommencerInscription } from "@/lib/email";
+import {
+  sendRelancePanier,
+  sendCommencerInscription,
+  sendPaiementEchec,
+} from "@/lib/email";
 import {
   envoyerCampagne,
   statutCampagne,
@@ -133,7 +137,76 @@ export async function GET(request: Request) {
   // Relances « compte sans inscription » (espace créé, aucun dossier, 24h+).
   const relancesComptes = await relancerComptesSansInscription();
 
-  return NextResponse.json({ traitees: results.length, results, campagnes, relances, relancesComptes });
+  // Rappel UNIQUE aux adhérents dont une échéance est en échec depuis 48h+ et
+  // toujours non régularisée.
+  const rappelsEchec = await relancerEchecs48h();
+
+  return NextResponse.json({
+    traitees: results.length,
+    results,
+    campagnes,
+    relances,
+    relancesComptes,
+    rappelsEchec,
+  });
+}
+
+/**
+ * Rappel UNIQUE (J+48h) aux adhérents ayant une échéance en échec non
+ * régularisée. Sélection : statut='echec' ET echec_a < now()-48h ET
+ * rappel_echec_envoye=false. CLAIM-THEN-SEND (rappel_echec_envoye) → jamais
+ * deux rappels. Si l'échéance est régularisée entre-temps (statut != 'echec'),
+ * elle sort du filtre → aucun rappel. Résilient : sans les colonnes (migration
+ * 007) la requête échoue silencieusement → aucun rappel (pas de régression).
+ */
+async function relancerEchecs48h(): Promise<{ envoyes: number }> {
+  const supabase = getSupabaseAdmin();
+  const seuil = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+  const { data: echecs, error } = await supabase
+    .from("paiements")
+    .select("id, adherent_id, montant, date_prevue, numero_echeance")
+    .eq("statut", "echec")
+    .eq("rappel_echec_envoye", false)
+    .not("echec_a", "is", null)
+    .lt("echec_a", seuil);
+  if (error || !echecs?.length) return { envoyes: 0 };
+
+  let envoyes = 0;
+  for (const p of echecs) {
+    // Claim atomique AVANT envoi → un seul rappel.
+    const { data: claimed } = await supabase
+      .from("paiements")
+      .update({ rappel_echec_envoye: true })
+      .eq("id", p.id)
+      .eq("rappel_echec_envoye", false)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue;
+
+    const { data: adh } = await supabase
+      .from("adherents")
+      .select("prenom, email, nb_echeances, derniere_erreur_code")
+      .eq("id", p.adherent_id)
+      .single();
+    if (!adh?.email) continue;
+    try {
+      await sendPaiementEchec({
+        prenom: adh.prenom,
+        email: adh.email,
+        montant: Number(p.montant || 0),
+        date: p.date_prevue,
+        numero: p.numero_echeance,
+        nbEcheances: adh.nb_echeances,
+        code: adh.derniere_erreur_code,
+        rappel: true,
+      });
+      envoyes++;
+    } catch (e) {
+      console.error("Rappel échec paiement:", e);
+    }
+  }
+  return { envoyes };
 }
 
 /**

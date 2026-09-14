@@ -455,6 +455,9 @@ export async function sendPaiementEchec(d: {
   numero?: number | null;
   nbEcheances?: number | null;
   code?: string | null;
+  // Rappel J+48h (régularisation toujours en attente) : même corps, wording de
+  // rappel dans l'en-tête + l'objet.
+  rappel?: boolean;
 }) {
   const client = getResend();
   if (!client) return { skipped: true };
@@ -471,10 +474,12 @@ export async function sendPaiementEchec(d: {
   // Une seule maquette, 3 variantes de texte selon la cause.
   let corps: string;
   if (famille === "provision") {
+    // Pas de promesse de représentation automatique : le club ne re-présente
+    // pas seul, la reprise se fait depuis l'espace adhérent.
     corps = `
-    <p style="line-height:1.6;color:#444">Le prélèvement de <strong>${euro(d.montant)}</strong>${ech}${prevu} n'a pas pu aboutir par manque de provision.</p>
-    <p style="line-height:1.6;color:#444">Réalimentez votre compte, le prélèvement sera représenté. Vous pouvez aussi régler tout de suite depuis votre espace.</p>
-    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Voir mon espace")}</p>`;
+    <p style="line-height:1.6;color:#444">Le prélèvement de <strong>${euro(d.montant)}</strong>${ech}${prevu} n'a pas pu aboutir faute de provision suffisante.</p>
+    <p style="line-height:1.6;color:#444">Merci de régulariser votre paiement depuis votre espace adhérent dès que possible.</p>
+    <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Régulariser mon paiement")}</p>`;
   } else if (famille === "carte_morte") {
     corps = `
     <p style="line-height:1.6;color:#444">Le prélèvement de <strong>${euro(d.montant)}</strong>${ech}${prevu} n'a pas pu aboutir : votre carte n'est plus valide.</p>
@@ -487,9 +492,13 @@ export async function sendPaiementEchec(d: {
     <p style="margin:6px 0">${button(`${SITE_URL}/mon-espace`, "Régulariser mon paiement")}</p>`;
   }
 
+  const titre = d.rappel
+    ? "Rappel : régularisation en attente"
+    : "Problème avec votre paiement";
   const html = wrap(`
-    <h1 style="font-size:20px;margin:0 0 8px">Problème avec votre paiement</h1>
+    <h1 style="font-size:20px;margin:0 0 8px">${titre}</h1>
     <p style="line-height:1.6;color:#444">Bonjour ${formaterPrenom(d.prenom)},</p>
+    ${d.rappel ? `<p style="line-height:1.6;color:#444">Sauf erreur de notre part, votre paiement n'a pas encore été régularisé.</p>` : ""}
     ${corps}
     <p style="line-height:1.6;color:#666;font-size:13px">Une question ? Écrivez-nous à ${CLUB.email}.</p>
   `);
@@ -498,7 +507,44 @@ export async function sendPaiementEchec(d: {
     from: FROM,
     to: d.email,
     replyTo: REPLY_TO,
-    subject: "⚠️ Problème avec votre paiement",
+    subject: d.rappel
+      ? "⚠️ Rappel — régularisation en attente"
+      : "⚠️ Problème avec votre paiement",
+    html,
+  });
+}
+
+/** Alerte ADMIN (Pascal) à l'échec d'un prélèvement d'échéance. Destinataire =
+ *  ADMIN_TO (même source que sendAdminNotification à l'inscription). */
+export async function sendAdminEchecPaiement(d: {
+  prenom: string;
+  nom: string;
+  adherentId: string;
+  numero?: number | null;
+  nbEcheances?: number | null;
+  montant: number;
+  motif?: string | null;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true };
+
+  const ech =
+    d.numero != null
+      ? `${d.numero}${d.nbEcheances ? `/${d.nbEcheances}` : ""}`
+      : "—";
+  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Échec de prélèvement</h1>
+    <p style="line-height:1.6;color:#444">Un prélèvement d'échéance a échoué pour <strong>${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}</strong>.</p>
+    <p style="line-height:1.6;color:#444">Échéance <strong>${ech}</strong> — <strong>${euro(d.montant)}</strong><br/>Motif : ${d.motif ? d.motif : "non précisé"}</p>
+    <p style="margin:6px 0 18px">${button(lien, "Ouvrir la fiche adhérent")}</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    replyTo: REPLY_TO,
+    subject: `⚠️ Échec de prélèvement — ${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`,
     html,
   });
 }
