@@ -97,6 +97,9 @@ export function FicheAdherent({ id }: { id: string }) {
   const [finishing, setFinishing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Filet humain : reconnaître/dé-reconnaître comme ancien adhérent (30 €).
+  const [reconOpen, setReconOpen] = useState(false);
+  const [reconBusy, setReconBusy] = useState(false);
   const [remboursements, setRemboursements] = useState<RemboursementLigne[]>([]);
   // Demande de re-signature (fiche / règlement).
   const [resignOpen, setResignOpen] = useState(false);
@@ -281,6 +284,36 @@ export function FicheAdherent({ id }: { id: string }) {
     }
   }
 
+  // Bascule "ancien adhérent" (retire/rétablit les 30 €). Serveur autoritaire :
+  // recalcul du montant + garde-fou "rien encaissé" côté endpoint.
+  async function basculerReconnaissance() {
+    const etaitNouveau = a?.nouveau_membre;
+    setReconBusy(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/reconnaissance`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      setReconOpen(false);
+      if (res.ok && data.success) {
+        await load();
+        showToast(
+          etaitNouveau
+            ? "Reconnu comme ancien adhérent — 30 € retirés."
+            : "Traité comme nouveau membre — 30 € rétablis.",
+        );
+      } else {
+        showToast(data.error || "Action impossible.");
+      }
+    } catch {
+      setReconOpen(false);
+      showToast("Erreur réseau.");
+    } finally {
+      setReconBusy(false);
+    }
+  }
+
   useEffect(() => {
     load();
   }, [load]);
@@ -385,6 +418,18 @@ export function FicheAdherent({ id }: { id: string }) {
   const montantEncaisse = encaisseNet > 0 ? encaisseNet : a.montant_total;
 
   const isAdmin = role === "admin";
+
+  // Filet "ancien adhérent" : n'agit QUE si rien encaissé et non engagé (miroir
+  // du garde-fou serveur, fail-safe). Sinon bouton grisé → passer par un
+  // remboursement. Montant après bascule (affichage seul ; serveur autoritaire).
+  const rienEncaisse =
+    a.statut_paiement === "en_attente" &&
+    (a.echeances_payees ?? 0) === 0 &&
+    !a.engage_at &&
+    !aArgentEncaisse;
+  const montantApresBascule = a.nouveau_membre
+    ? a.montant_total - TARIFS.adhesion
+    : a.montant_total + TARIFS.adhesion;
 
   return (
     <div>
@@ -618,7 +663,30 @@ export function FicheAdherent({ id }: { id: string }) {
               <EditableInfo label="Adresse" editing={editing} value={form.adresse ?? ""} onChange={(v) => setForm({ ...form, adresse: v })} display={a.adresse ?? "—"} />
               <EditableInfo label="Code postal" editing={editing} value={form.code_postal ?? ""} onChange={(v) => setForm({ ...form, code_postal: v })} display={a.code_postal ?? "—"} />
               <EditableInfo label="Ville" editing={editing} value={form.ville ?? ""} onChange={(v) => setForm({ ...form, ville: v })} display={a.ville ?? "—"} />
-              <Info label="Nouveau membre" value={a.nouveau_membre ? "Oui" : "Non"} />
+              <div className="sm:col-span-2">
+                <dt className="text-xs font-bold uppercase tracking-wide text-smoke">
+                  Nouveau membre
+                </dt>
+                <dd className="mt-1 flex flex-wrap items-center gap-3 font-medium text-ink">
+                  <span>{a.nouveau_membre ? "Oui" : "Non"}</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => rienEncaisse && setReconOpen(true)}
+                      disabled={!rienEncaisse}
+                      title={
+                        rienEncaisse
+                          ? undefined
+                          : "Dossier déjà payé ou engagé — pour ajuster les 30 €, utilisez la fonction de remboursement."
+                      }
+                      className="rounded-full border border-line bg-white px-3 py-1 text-xs font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-line disabled:hover:text-ink"
+                    >
+                      {a.nouveau_membre
+                        ? "Reconnaître comme ancien adhérent (retirer les 30 €)"
+                        : "Traiter comme nouveau membre (rétablir les 30 €)"}
+                    </button>
+                  )}
+                </dd>
+              </div>
               {OPTION_SUPPLEMENTAIRE.actif && (
                 <Info
                   label={OPTION_SUPPLEMENTAIRE.label}
@@ -951,6 +1019,61 @@ export function FicheAdherent({ id }: { id: string }) {
             </div>
           </div>
         ))}
+
+      {/* Confirmation reconnaissance "ancien adhérent" (bascule des 30 €) */}
+      {reconOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-xl font-extrabold uppercase text-ink">
+              {a.nouveau_membre
+                ? "Reconnaître comme ancien adhérent ?"
+                : "Traiter comme nouveau membre ?"}
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              {a.nouveau_membre ? (
+                <>
+                  Les <strong>{euro(TARIFS.adhesion)}</strong> d&apos;adhésion
+                  seront <strong>retirés</strong> pour{" "}
+                  <strong>
+                    {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
+                  </strong>
+                  .
+                </>
+              ) : (
+                <>
+                  Les <strong>{euro(TARIFS.adhesion)}</strong> d&apos;adhésion
+                  seront <strong>rétablis</strong> pour{" "}
+                  <strong>
+                    {formaterPrenom(a.prenom)} {formaterNom(a.nom)}
+                  </strong>
+                  .
+                </>
+              )}
+            </p>
+            <p className="mt-3 text-sm">
+              Montant du dossier :{" "}
+              <strong className="text-ink">{euro(a.montant_total)}</strong> →{" "}
+              <strong className="text-orange">{euro(montantApresBascule)}</strong>
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                onClick={() => setReconOpen(false)}
+                disabled={reconBusy}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={basculerReconnaissance}
+                disabled={reconBusy}
+                className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50"
+              >
+                {reconBusy ? "…" : "Confirmer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Envoi d'un mail individuel */}
       {mailOpen && (
