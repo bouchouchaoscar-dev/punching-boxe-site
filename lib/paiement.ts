@@ -35,6 +35,27 @@ export function paiementIncoherent(
   );
 }
 
+// SOURCE UNIQUE de la population « paiement carte jamais finalisé » : dossier
+// carte (stripe*), inscription faite, mais paiement jamais mené au bout — AUCUNE
+// tentative de débit. À distinguer de l'échec (echec_paiement = carte présentée
+// puis refusée) et des espèces en attente (mode especes). Réutilisé aux 4
+// endroits (filtre liste, filtre trombi, statutTrombi, carte dashboard) — ne
+// jamais recopier la condition.
+export function estPaiementAFinaliser(
+  a: Pick<
+    Adherent,
+    "mode_paiement" | "statut_paiement" | "engage_at" | "echeances_payees" | "annule_at"
+  >,
+): boolean {
+  return (
+    (a.mode_paiement ?? "").startsWith("stripe") &&
+    a.statut_paiement === "en_attente" &&
+    a.engage_at == null &&
+    (a.echeances_payees ?? 0) === 0 &&
+    a.annule_at == null
+  );
+}
+
 // Libellé COURT du mode de paiement (stripe* → "Carte"). Préparé pour usage
 // éventuel ; la vignette essentielle n'affiche pas le mode.
 export function modeLabelCourt(mode: ModePaiement): string {
@@ -50,6 +71,7 @@ export type TrombiStatutCode =
   | "paye_especes"
   | "fractionne" // carte fractionnée en cours (sain)
   | "attente_especes"
+  | "a_finaliser" // carte, inscription faite, paiement jamais mené au bout (aucune tentative)
   | "a_verifier" // carte 1x 'paye' mais aucun encaissement réel reflété (alerte)
   | "echec";
 
@@ -62,7 +84,12 @@ export type TrombiStatut = {
 export function statutTrombi(
   a: Pick<
     Adherent,
-    "statut_paiement" | "mode_paiement" | "nb_echeances" | "echeances_payees"
+    | "statut_paiement"
+    | "mode_paiement"
+    | "nb_echeances"
+    | "echeances_payees"
+    | "engage_at"
+    | "annule_at"
   >,
 ): TrombiStatut {
   const nb = a.nb_echeances || 1;
@@ -74,6 +101,17 @@ export function statutTrombi(
       code: "echec",
       couleur: "rouge",
       label: nb > 1 ? `Prélèvement échoué ${payees}/${nb}` : "Paiement échoué",
+    };
+  }
+
+  // 🟠 Carte, inscription faite, mais paiement JAMAIS mené au bout (aucune
+  // tentative). Ne doit PAS s'afficher en vert « en cours » (faux positif
+  // trompeur pour le coach) — état propre distinct du fractionné sain.
+  if (estPaiementAFinaliser(a)) {
+    return {
+      code: "a_finaliser",
+      couleur: "orange",
+      label: "Paiement à finaliser",
     };
   }
 
@@ -111,4 +149,47 @@ export function statutTrombi(
     couleur: "vert",
     label: nb > 1 ? `Carte ${payees}/${nb}` : "Carte — en cours",
   };
+}
+
+// ---- Filtre STATUT harmonisé (liste adhérents + trombinoscope) ----
+// SOURCE UNIQUE des options + libellés, partagée par les deux vues. Chaque vue
+// dérive le code via statutTrombi(a) puis appelle matchStatutFiltre — même
+// granularité et mêmes libellés partout.
+export type StatutFiltre =
+  | "all"
+  | "paye"
+  | "confirme_especes"
+  | "attente_especes"
+  | "a_finaliser"
+  | "fractionne"
+  | "echec"
+  | "a_verifier";
+
+export const STATUT_FILTRE_OPTIONS: [StatutFiltre, string][] = [
+  ["all", "Tous statuts"],
+  ["paye", "Payé en ligne"],
+  ["confirme_especes", "Espèces confirmées"],
+  ["attente_especes", "Espèces en attente"],
+  ["a_finaliser", "Paiement à finaliser"],
+  ["fractionne", "Fractionné en cours"],
+  ["echec", "Prélèvement échoué"],
+  ["a_verifier", "Paiement à vérifier"],
+];
+
+// Chaque valeur de filtre correspond à UN code statutTrombi (1:1).
+const STATUT_FILTRE_CODE: Record<Exclude<StatutFiltre, "all">, TrombiStatutCode> = {
+  paye: "paye_carte",
+  confirme_especes: "paye_especes",
+  attente_especes: "attente_especes",
+  a_finaliser: "a_finaliser",
+  fractionne: "fractionne",
+  echec: "echec",
+  a_verifier: "a_verifier",
+};
+
+export function matchStatutFiltre(
+  code: TrombiStatutCode,
+  filtre: StatutFiltre,
+): boolean {
+  return filtre === "all" || code === STATUT_FILTRE_CODE[filtre];
 }

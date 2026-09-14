@@ -8,7 +8,13 @@ import { PaiementStatut } from "./StatutBadge";
 import { CreerAdherentModal } from "./CreerAdherentModal";
 import { ScrollX } from "@/components/ui/ScrollX";
 import { getAdminRole } from "@/lib/admin-auth";
-import { euro, formuleLabel } from "@/lib/pricing";
+import { euro, formuleLabel, formuleCle, FORMULE_FILTRE_OPTIONS } from "@/lib/pricing";
+import {
+  statutTrombi,
+  matchStatutFiltre,
+  STATUT_FILTRE_OPTIONS,
+  type StatutFiltre,
+} from "@/lib/paiement";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { evaluerDossier } from "@/lib/dossier";
 import { formatTelephone } from "@/lib/telephone";
@@ -25,8 +31,8 @@ export function AdherentsTable() {
   }, [refresh]);
   const [q, setQ] = useState("");
   const [type, setType] = useState("all");
-  const [statut, setStatut] = useState("all");
-  const [prepa, setPrepa] = useState("all");
+  const [statut, setStatut] = useState<StatutFiltre>("all");
+  const [formule, setFormule] = useState("all");
   const [confirming, setConfirming] = useState<string | null>(null);
   // Création admin (tarif/durée libres) — bouton réservé à l'admin.
   const [role, setRole] = useState<string | null>(null);
@@ -81,13 +87,15 @@ export function AdherentsTable() {
         `${a.prenom} ${a.nom}`.toLowerCase().includes(q.toLowerCase()) ||
         a.email.toLowerCase().includes(q.toLowerCase());
       const matchType = type === "all" || a.type_adherent === type;
-      const matchStatut = statut === "all" || a.statut_paiement === statut;
-      const matchPrepa =
-        prepa === "all" ||
-        (prepa === "oui" ? a.option_prepa_physique : !a.option_prepa_physique);
-      return matchQ && matchType && matchStatut && matchPrepa;
+      // Filtre statut harmonisé : même granularité que le trombi (via statutTrombi).
+      const matchStatut = matchStatutFiltre(statutTrombi(a).code, statut);
+      // Filtre formule harmonisé : 3 formules mutuellement exclusives.
+      const matchFormule =
+        formule === "all" ||
+        formuleCle(a.package, a.option_prepa_physique) === formule;
+      return matchQ && matchType && matchStatut && matchFormule;
     });
-  }, [adherents, q, type, statut, prepa]);
+  }, [adherents, q, type, statut, formule]);
 
   async function confirmCash(id: string) {
     setConfirming(id);
@@ -210,10 +218,8 @@ export function AdherentsTable() {
           className="focus-ring col-span-2 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange lg:col-span-1"
         />
         <Select value={type} onChange={setType} options={[["all", "Tous types"], ["adulte", "Adultes"], ["jeune", "Jeunes"]]} />
-        <Select value={statut} onChange={setStatut} options={[["all", "Tous statuts"], ["paye", "Payé en ligne"], ["confirme_especes", "Espèces confirmé"], ["en_attente", "En attente"]]} />
-        {OPTION_SUPPLEMENTAIRE.actif && (
-          <Select value={prepa} onChange={setPrepa} options={[["all", `${OPTION_SUPPLEMENTAIRE.labelCourt} : tous`], ["oui", `Avec ${OPTION_SUPPLEMENTAIRE.labelCourt.toLowerCase()}`], ["non", `Sans ${OPTION_SUPPLEMENTAIRE.labelCourt.toLowerCase()}`]]} />
-        )}
+        <Select value={statut} onChange={(v) => setStatut(v as StatutFiltre)} options={STATUT_FILTRE_OPTIONS} />
+        <Select value={formule} onChange={setFormule} options={FORMULE_FILTRE_OPTIONS} />
       </div>
 
       {error && (

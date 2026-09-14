@@ -37,6 +37,28 @@ export function formuleLabel(
   return optionPrepa ? "Boxe Française + Prépa" : "Boxe Française";
 }
 
+// ---- Filtre FORMULE harmonisé (liste + trombi + dashboard) ----
+// SOURCE UNIQUE : 3 formules mutuellement exclusives, dérivées de
+// package + option_prepa_physique. Réutilisé par les deux filtres ET les
+// comptages dashboard (formuleBoxe / boxePrepa / savateForme).
+export type FormuleCle = "boxe" | "boxe_prepa" | "savate_prepa";
+
+export function formuleCle(
+  p?: PackageType | null,
+  optionPrepa?: boolean,
+): FormuleCle | null {
+  if (p === "savate_prepa") return "savate_prepa";
+  if (p === "boxe_classique") return optionPrepa ? "boxe_prepa" : "boxe";
+  return null;
+}
+
+export const FORMULE_FILTRE_OPTIONS: [string, string][] = [
+  ["all", "Toutes formules"],
+  ["boxe", "Boxe Française"],
+  ["savate_prepa", "Savate + Prépa"],
+  ["boxe_prepa", "Boxe Française + Prépa"],
+];
+
 export type PricingInput = {
   dateNaissance?: string; // ISO yyyy-mm-dd — sert à déduire le type
   typeAdherent?: TypeAdherent; // override possible

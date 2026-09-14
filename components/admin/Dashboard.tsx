@@ -20,8 +20,9 @@ import {
 import { useSaisonAdmin, ALL_SAISONS } from "./SaisonContext";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { analyserSaisons } from "@/lib/stats-insights";
-import { euro } from "@/lib/pricing";
+import { euro, formuleCle } from "@/lib/pricing";
 import { estActifCompte } from "@/lib/adherents-actifs";
+import { estPaiementAFinaliser } from "@/lib/paiement";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
@@ -101,17 +102,27 @@ export function Dashboard() {
         a.mode_paiement === "especes" &&
         a.statut_paiement === "en_attente",
     ).length;
-    // Échecs à régulariser : non fermés (inclut un 1er paiement échoué).
+    // Échecs à régulariser : non fermés (inclut un 1er paiement échoué). CONSERVÉ.
     const echecs = adherents.filter(
       (a) => !a.annule_at && a.statut_paiement === "echec_paiement",
     ).length;
+    // Nouveaux membres de la saison active (le tableau est déjà filtré par saison).
+    const nouveauxMembres = actifs.filter((a) => a.nouveau_membre).length;
+    // Paiement carte jamais finalisé (argent récupérable via relance) — helper
+    // unique. Compté sur `adherents` (comme échecs/espèces) : estActifCompte
+    // EXCLUT justement les paniers non finalisés, donc on ne peut pas passer par
+    // `actifs` (le helper filtre déjà les dossiers fermés via annule_at).
+    const aFinaliser = adherents.filter(estPaiementAFinaliser).length;
+    // Formules — clé partagée (source unique package + option_prepa_physique).
     const formuleBoxe = actifs.filter(
-      (a) => a.package === "boxe_classique" && !a.option_prepa_physique,
+      (a) => formuleCle(a.package, a.option_prepa_physique) === "boxe",
     ).length;
     const boxePrepa = actifs.filter(
-      (a) => a.package === "boxe_classique" && a.option_prepa_physique,
+      (a) => formuleCle(a.package, a.option_prepa_physique) === "boxe_prepa",
     ).length;
-    const savateForme = actifs.filter((a) => a.package === "savate_prepa").length;
+    const savateForme = actifs.filter(
+      (a) => formuleCle(a.package, a.option_prepa_physique) === "savate_prepa",
+    ).length;
 
     // Fenêtre de 12 mois alignée sur la VRAIE étendue d'une saison (juin → mai,
     // cf. lib/saison) : les inscriptions anticipées de juin doivent compter.
@@ -149,6 +160,8 @@ export function Dashboard() {
       total: actifs.length,
       encaisse,
       nouveauxMois,
+      nouveauxMembres,
+      aFinaliser,
       attenteEspeces,
       echecs,
       formuleBoxe,
@@ -220,6 +233,8 @@ type NatifData = {
   total: number;
   encaisse: number;
   nouveauxMois: number;
+  nouveauxMembres: number;
+  aFinaliser: number;
   attenteEspeces: number;
   echecs: number;
   formuleBoxe: number;
@@ -238,7 +253,9 @@ function SaisonNative({ data }: { data: NatifData }) {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Adhérents" value={String(data.total)} accent />
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
+        <Kpi label="Nouveaux membres" value={String(data.nouveauxMembres)} />
         <Kpi label="Nouveaux ce mois" value={String(data.nouveauxMois)} />
+        <Kpi label="Paiement à finaliser" value={String(data.aFinaliser)} warn />
         <Kpi label="En attente espèces" value={String(data.attenteEspeces)} warn />
         <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />

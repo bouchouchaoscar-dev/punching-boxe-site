@@ -1,6 +1,6 @@
 import type { Adherent, StatutPaiement } from "@/lib/types";
 import { nbEcheances } from "@/lib/pricing";
-import { statutTrombi, paiementIncoherent } from "@/lib/paiement";
+import { statutTrombi, paiementIncoherent, estPaiementAFinaliser } from "@/lib/paiement";
 
 const MAP: Record<StatutPaiement, { label: string; cls: string }> = {
   paye: { label: "✅ Payé en ligne", cls: "bg-green-50 text-green-700" },
@@ -32,6 +32,7 @@ type PaiementInfo = Pick<
   | "echeances_payees"
   | "annule_at"
   | "montant_rembourse"
+  | "engage_at"
 >;
 
 // Échelle : gris (en attente, NON engagé) → orange (engagé X/N) → vert (payé)
@@ -76,6 +77,11 @@ function baseStatut(
   // jamais un faux « ✅ Payé ». Aligné avec statutTrombi (cls déjà orange).
   if (paiementIncoherent(a))
     return { label: "⚠️ Paiement à vérifier", cls }; // orange
+
+  // Carte, inscription faite, paiement jamais mené au bout → « à finaliser »
+  // (jamais vert). Libellé aligné sur le trombinoscope. cls orange via statutTrombi.
+  if (estPaiementAFinaliser(a))
+    return { label: "⏳ Paiement à finaliser", cls };
 
   if (a.mode_paiement === "especes")
     return a.statut_paiement === "confirme_especes"

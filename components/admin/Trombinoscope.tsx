@@ -5,8 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useSaisonAdmin } from "./SaisonContext";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { estActifCompte } from "@/lib/adherents-actifs";
-import { statutTrombi } from "@/lib/paiement";
-import { formuleLabel, PACKAGE_LABEL } from "@/lib/pricing";
+import {
+  statutTrombi,
+  matchStatutFiltre,
+  STATUT_FILTRE_OPTIONS,
+  type StatutFiltre,
+  type TrombiStatutCode,
+} from "@/lib/paiement";
+import {
+  formuleLabel,
+  formuleCle,
+  FORMULE_FILTRE_OPTIONS,
+  type FormuleCle,
+  type PackageType,
+} from "@/lib/pricing";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import type { Adherent } from "@/lib/types";
 
@@ -21,7 +33,8 @@ type TrombiItem = {
   prenom: string;
   nom: string;
   formule: string;
-  pkg: string; // code formule (filtre)
+  pkg: string; // code package (affichage)
+  formuleCode: FormuleCle | null; // 3 formules harmonisées (filtre)
   type: string; // jeune | adulte (filtre)
   statutCode: string; // filtre
   statutCouleur: Couleur;
@@ -68,6 +81,7 @@ function itemFromAdherent(a: Adherent): TrombiItem {
     nom: formaterNom(a.nom),
     formule: formuleLabel(a.package, a.option_prepa_physique),
     pkg: a.package,
+    formuleCode: formuleCle(a.package, a.option_prepa_physique),
     type: a.type_adherent,
     statutCode: st.code,
     statutCouleur: st.couleur,
@@ -85,6 +99,12 @@ function itemFromCoach(m: MembreCoach, i: number): TrombiItem {
     nom: m.nom,
     formule: m.formule,
     pkg: m.package,
+    // Payload coach minimal (pas le booléen prépa) : on dérive la clé formule du
+    // package + du libellé (formuleLabel est déterministe → « … Prépa » fiable).
+    formuleCode: formuleCle(
+      m.package as PackageType | null,
+      m.package === "boxe_classique" && /Prépa/i.test(m.formule),
+    ),
     type: m.type,
     statutCode: m.statutCode,
     statutCouleur: m.statutCouleur,
@@ -108,8 +128,8 @@ export function Trombinoscope() {
   // Filtres combinables.
   const [q, setQ] = useState("");
   const [type, setType] = useState("all"); // all | jeune | adulte
-  const [statut, setStatut] = useState("all"); // all | paye | fractionne | attente_especes | echec
-  const [formule, setFormule] = useState("all"); // all | <package>
+  const [statut, setStatut] = useState<StatutFiltre>("all"); // options partagées
+  const [formule, setFormule] = useState("all"); // all | boxe | boxe_prepa | savate_prepa
 
   // Données coach — chargées UNIQUEMENT en mode coach, depuis l'endpoint
   // minimal. La vue coach n'appelle jamais /api/adherents ni useSaisonAdmin()
@@ -144,25 +164,13 @@ export function Trombinoscope() {
 
   const loading = isCoach ? coachLoading : adminLoading;
 
-  const packages = useMemo(
-    () => [...new Set(actifs.map((a) => a.pkg))],
-    [actifs],
-  );
-
   // Filtrage multi-critères, réactif (côté client) — identique admin/coach.
   const filtres = useMemo(
     () =>
       actifs.filter((a) => {
         if (type !== "all" && a.type !== type) return false;
-        if (formule !== "all" && a.pkg !== formule) return false;
-        if (statut !== "all") {
-          const c = a.statutCode;
-          if (statut === "paye") {
-            if (c !== "paye_carte" && c !== "paye_especes") return false;
-          } else if (c !== statut) {
-            return false;
-          }
-        }
+        if (formule !== "all" && a.formuleCode !== formule) return false;
+        if (!matchStatutFiltre(a.statutCode as TrombiStatutCode, statut)) return false;
         if (q.trim()) {
           const s = `${a.prenom} ${a.nom}`.toLowerCase();
           if (!s.includes(q.trim().toLowerCase())) return false;
@@ -237,22 +245,21 @@ export function Trombinoscope() {
           className={`${selCls} col-span-2 min-w-[180px] lg:col-auto lg:flex-1`}
         />
         <select value={type} onChange={(e) => setType(e.target.value)} className={selCls}>
-          <option value="all">Tous âges</option>
-          <option value="jeune">Jeunes</option>
+          <option value="all">Tous types</option>
           <option value="adulte">Adultes</option>
+          <option value="jeune">Jeunes</option>
         </select>
-        <select value={statut} onChange={(e) => setStatut(e.target.value)} className={selCls}>
-          <option value="all">Tous statuts</option>
-          <option value="paye">Payé</option>
-          <option value="fractionne">Fractionné en cours</option>
-          <option value="attente_especes">Attente espèces</option>
-          <option value="echec">Prélèvement échoué</option>
+        <select value={statut} onChange={(e) => setStatut(e.target.value as StatutFiltre)} className={selCls}>
+          {STATUT_FILTRE_OPTIONS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
         </select>
         <select value={formule} onChange={(e) => setFormule(e.target.value)} className={selCls}>
-          <option value="all">Toutes formules</option>
-          {packages.map((p) => (
-            <option key={p} value={p}>
-              {PACKAGE_LABEL[p as keyof typeof PACKAGE_LABEL] ?? p}
+          {FORMULE_FILTRE_OPTIONS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
             </option>
           ))}
         </select>
