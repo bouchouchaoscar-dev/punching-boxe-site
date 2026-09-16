@@ -300,6 +300,11 @@ function SaisonNative({ data }: { data: NatifData }) {
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Adhérents" value={String(data.total)} accent />
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
+        <Kpi
+          label="Encaissement à venir"
+          value={euro(data.encaissementAVenir)}
+          tooltip={<DetailList items={data.listeAVenir} />}
+        />
         <Kpi label="Nouveaux membres" value={String(data.nouveauxMembres)} />
         <Kpi label="Nouveaux ce mois" value={String(data.nouveauxMois)} />
         <Kpi
@@ -313,11 +318,6 @@ function SaisonNative({ data }: { data: NatifData }) {
           value={String(data.attenteEspeces)}
           warn
           tooltip={<DetailList items={data.listeEspeces} />}
-        />
-        <Kpi
-          label="Encaissement à venir"
-          value={euro(data.encaissementAVenir)}
-          tooltip={<DetailList items={data.listeAVenir} />}
         />
         <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
