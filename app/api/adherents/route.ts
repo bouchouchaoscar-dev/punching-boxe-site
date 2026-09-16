@@ -5,6 +5,7 @@ import {
   buildAdherentInsert,
   validatePayload,
   clientIp,
+  trouverDossierDoublon,
   OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
@@ -123,6 +124,21 @@ export async function POST(request: Request) {
     signature_ip: docs.ficheUrl || docs.reglementUrl ? clientIp(request) : null,
   };
 
+  // GARDE-FOU ANTI-DOUBLON (protection 1) : si ce même enfant est DÉJÀ inscrit
+  // par ce compte sur cette saison (rejeu réseau / re-soumission), on renvoie le
+  // dossier existant SANS en créer un second ni renvoyer d'erreur.
+  const doublon = await trouverDossierDoublon(supabase, {
+    titulaire_id: record.titulaire_id,
+    saison: record.saison,
+    match_key: record.match_key,
+    nom: record.nom,
+    prenom: record.prenom,
+    date_naissance: record.date_naissance,
+  });
+  if (doublon) {
+    return NextResponse.json({ adherent: doublon }, { status: 200 });
+  }
+
   let { data, error } = await supabase
     .from("adherents")
     .insert(record)
@@ -139,6 +155,21 @@ export async function POST(request: Request) {
       .insert(rest)
       .select()
       .single());
+  }
+
+  // Protection 2 (filet ultime) : course perdue → l'index unique (migration 009)
+  // rejette le 2e insert (23505). On récupère le dossier existant et on le renvoie
+  // comme un succès : l'utilisateur légitime ne voit jamais d'erreur.
+  if (error && (error as { code?: string }).code === "23505") {
+    const dup = await trouverDossierDoublon(supabase, {
+      titulaire_id: record.titulaire_id,
+      saison: record.saison,
+      match_key: record.match_key,
+      nom: record.nom,
+      prenom: record.prenom,
+      date_naissance: record.date_naissance,
+    });
+    if (dup) return NextResponse.json({ adherent: dup }, { status: 200 });
   }
 
   if (error) {

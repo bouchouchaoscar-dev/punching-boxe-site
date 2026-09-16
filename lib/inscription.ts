@@ -1,8 +1,43 @@
 import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
 import { matchKey } from "./anciennete";
-import type { NewAdherent } from "./types";
+import type { NewAdherent, Adherent } from "./types";
 import type { FicheData, ReglementData } from "./pdf/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// GARDE-FOU ANTI-DOUBLON (source unique, réutilisé aux 2 points de création).
+// Cherche un dossier DÉJÀ créé pour le MÊME compte titulaire + la MÊME saison +
+// la MÊME identité (match_key normalisé nom|prenom|naissance), NON annulé. Sert à
+// rendre un rejeu réseau transparent : on renvoie le dossier existant au lieu d'en
+// créer un second. Un vrai 2e enfant (prénom OU date différents → match_key
+// différent) n'est PAS attrapé. Repli sur nom+prenom+naissance si match_key null.
+export async function trouverDossierDoublon(
+  supabase: SupabaseClient,
+  crit: {
+    titulaire_id: string | null;
+    saison: string;
+    match_key: string | null;
+    nom: string;
+    prenom: string;
+    date_naissance: string;
+  },
+): Promise<Adherent | null> {
+  if (!crit.titulaire_id) return null; // pas de titulaire → pas de dédup fiable
+  let q = supabase
+    .from("adherents")
+    .select("*")
+    .eq("titulaire_id", crit.titulaire_id)
+    .eq("saison", crit.saison)
+    .is("annule_at", null);
+  q = crit.match_key
+    ? q.eq("match_key", crit.match_key)
+    : q
+        .eq("nom", crit.nom)
+        .eq("prenom", crit.prenom)
+        .eq("date_naissance", crit.date_naissance);
+  const { data } = await q.order("created_at", { ascending: true }).limit(1);
+  return (data?.[0] as Adherent) ?? null;
+}
 
 /** Lien du dossier avec le titulaire du compte (refonte "1 compte = N adhérents"). */
 export type LienParente = "moi" | "enfant" | "frere_soeur" | "conjoint" | "autre";

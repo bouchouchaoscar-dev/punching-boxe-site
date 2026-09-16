@@ -5,9 +5,11 @@ import {
   buildAdherentInsert,
   validatePayload,
   clientIp,
+  trouverDossierDoublon,
   OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
+import type { Adherent } from "@/lib/types";
 import { nbEcheances, remiseFamilleActive } from "@/lib/pricing";
 import { devisPourAdherent, planEcheances } from "@/lib/tarifs";
 import {
@@ -21,6 +23,57 @@ import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
 import { evaluerAnciennete } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
+
+// Reprise transparente d'un dossier carte DÉJÀ créé (rejeu réseau) : on renvoie
+// le clientSecret de SON intent existant (PaymentIntent 1x / SetupIntent
+// fractionné) au lieu d'en créer un second. Retourne null si le dossier existant
+// n'a pas d'intent exploitable (échec partiel du 1er appel) → le flux normal
+// créera alors l'intent sur ce même dossier (sans réinsérer).
+async function repriseIntentExistant(
+  a: Adherent,
+  n: number,
+  devis: { total: number; adhesion: number; proratise: boolean },
+  plan: { dates: string[]; montants: number[]; premierPrelevement: number },
+): Promise<Record<string, unknown> | null> {
+  const stripe = getStripe();
+  try {
+    if (n === 1 && a.stripe_payment_intent_id) {
+      const pi = await stripe.paymentIntents.retrieve(a.stripe_payment_intent_id);
+      if (pi.client_secret)
+        return {
+          intentType: "payment",
+          clientSecret: pi.client_secret,
+          adherentId: a.id,
+          nbEcheances: 1,
+          total: devis.total,
+          adhesion: devis.adhesion,
+          proratise: devis.proratise,
+          premierPrelevement: devis.total,
+          dates: plan.dates,
+          montants: plan.montants,
+        };
+    }
+    if (n > 1 && a.stripe_setup_intent_id) {
+      const si = await stripe.setupIntents.retrieve(a.stripe_setup_intent_id);
+      if (si.client_secret)
+        return {
+          intentType: "setup",
+          clientSecret: si.client_secret,
+          adherentId: a.id,
+          nbEcheances: n,
+          total: devis.total,
+          adhesion: devis.adhesion,
+          proratise: devis.proratise,
+          premierPrelevement: plan.premierPrelevement,
+          dates: plan.dates,
+          montants: plan.montants,
+        };
+    }
+  } catch {
+    // intent introuvable côté Stripe → on laissera le flux normal en recréer un.
+  }
+  return null;
+}
 
 export async function POST(request: Request) {
   if (!isStripeConfigured() || !isSupabaseConfigured()) {
@@ -143,25 +196,56 @@ export async function POST(request: Request) {
     reglement_signee_at: docs.reglementUrl ? new Date().toISOString() : null,
     signature_ip: docs.ficheUrl || docs.reglementUrl ? clientIp(request) : null,
   };
-  let { data: adherent, error: insErr } = await supabase
-    .from("adherents")
-    .insert(record)
-    .select()
-    .single();
-  if (insErr && OPTIONAL_DOC_COLUMNS.some((c) => insErr!.message.includes(c))) {
-    const rest = { ...record } as Record<string, unknown>;
-    for (const c of OPTIONAL_DOC_COLUMNS) delete rest[c];
-    ({ data: adherent, error: insErr } = await supabase
-      .from("adherents")
-      .insert(rest)
-      .select()
-      .single());
+  // GARDE-FOU ANTI-DOUBLON (protection 1) : dossier carte identique déjà créé
+  // par ce compte sur cette saison (rejeu réseau) → on réutilise SON dossier et
+  // on renvoie le clientSecret de SON intent (jamais un 2e dossier ni un 2e PI).
+  const critDoublon = {
+    titulaire_id: record.titulaire_id,
+    saison: record.saison,
+    match_key: record.match_key,
+    nom: record.nom,
+    prenom: record.prenom,
+    date_naissance: record.date_naissance,
+  };
+  const existant = await trouverDossierDoublon(supabase, critDoublon);
+  if (existant) {
+    const reprise = await repriseIntentExistant(existant, n, devis, plan);
+    if (reprise) return NextResponse.json(reprise);
+    // dossier existant sans intent exploitable → on poursuit la création d'intent
+    // SUR CE dossier (adherent = existant), sans réinsérer de ligne.
   }
-  if (insErr || !adherent) {
-    return NextResponse.json(
-      { error: insErr?.message || "Insertion impossible." },
-      { status: 500 },
-    );
+
+  let adherent: Adherent | null = existant;
+  if (!adherent) {
+    let ins = await supabase.from("adherents").insert(record).select().single();
+    if (ins.error && OPTIONAL_DOC_COLUMNS.some((c) => ins.error!.message.includes(c))) {
+      const rest = { ...record } as Record<string, unknown>;
+      for (const c of OPTIONAL_DOC_COLUMNS) delete rest[c];
+      ins = await supabase.from("adherents").insert(rest).select().single();
+    }
+    // Protection 2 (filet ultime) : course perdue → l'index unique (migration 009)
+    // rejette le 2e insert (23505). On récupère le dossier existant et on renvoie
+    // son intent si dispo — sinon on le réutilise pour créer l'intent ci-dessous.
+    if (ins.error && (ins.error as { code?: string }).code === "23505") {
+      const dup = await trouverDossierDoublon(supabase, critDoublon);
+      if (dup) {
+        const reprise = await repriseIntentExistant(dup, n, devis, plan);
+        if (reprise) return NextResponse.json(reprise);
+        adherent = dup;
+      }
+    }
+    if (!adherent) {
+      if (ins.error || !ins.data) {
+        return NextResponse.json(
+          { error: ins.error?.message || "Insertion impossible." },
+          { status: 500 },
+        );
+      }
+      adherent = ins.data as Adherent;
+    }
+  }
+  if (!adherent) {
+    return NextResponse.json({ error: "Insertion impossible." }, { status: 500 });
   }
 
   const stripe = getStripe();
