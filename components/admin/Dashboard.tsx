@@ -22,7 +22,11 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 import { analyserSaisons } from "@/lib/stats-insights";
 import { euro, formuleCle } from "@/lib/pricing";
 import { estActifCompte } from "@/lib/adherents-actifs";
-import { estPaiementAFinaliser } from "@/lib/paiement";
+import { estPaiementAFinaliser, estEspecesEnAttente } from "@/lib/paiement";
+import { resteParAdherent, type EcheanceRow } from "@/lib/encaissement";
+import { formaterPrenom, formaterNom } from "@/lib/noms";
+import { Tooltip as InfoTooltip } from "@/components/ui/Tooltip";
+import type { ReactNode } from "react";
 
 const ORANGE = "#FF6B00";
 const INK = "#0A0A0A";
@@ -48,6 +52,9 @@ export function Dashboard() {
   const [payRows, setPayRows] = useState<
     { adherent_id: string; net: number; date: string }[]
   >([]);
+  // Lignes d'échéances BRUTES (tous statuts) — conservées pour le calcul DYNAMIQUE
+  // du « reste à encaisser » (aucune nouvelle requête : même réponse /api/paiements).
+  const [echeanceRows, setEcheanceRows] = useState<EcheanceRow[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/stats-saisons", { headers: adminAuthHeaders(), cache: "no-store" })
@@ -58,7 +65,16 @@ export function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         const rows: { adherent_id: string; net: number; date: string }[] = [];
+        const ech: EcheanceRow[] = [];
         for (const p of d.paiements ?? []) {
+          // Reste à encaisser : on CONSERVE les échéances (le helper filtre lui-même
+          // 'en_attente' + numero_echeance != null).
+          ech.push({
+            adherent_id: p.adherent_id,
+            montant: p.montant,
+            statut: p.statut,
+            numero_echeance: p.numero_echeance,
+          });
           if (p.statut !== "paye" && p.statut !== "rembourse") continue;
           rows.push({
             adherent_id: p.adherent_id,
@@ -67,6 +83,7 @@ export function Dashboard() {
           });
         }
         setPayRows(rows);
+        setEcheanceRows(ech);
       })
       .catch(() => {});
   }, []);
@@ -95,13 +112,8 @@ export function Dashboard() {
       const d = new Date(a.created_at);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
-    // Espèces RÉELLEMENT en attente (mode espèces, pas confirmées, non fermées).
-    const attenteEspeces = adherents.filter(
-      (a) =>
-        !a.annule_at &&
-        a.mode_paiement === "especes" &&
-        a.statut_paiement === "en_attente",
-    ).length;
+    // Espèces RÉELLEMENT en attente (helper partagé : même source que l'infobulle).
+    const attenteEspeces = adherents.filter(estEspecesEnAttente).length;
     // Échecs à régulariser : non fermés (inclut un 1er paiement échoué). CONSERVÉ.
     const echecs = adherents.filter(
       (a) => !a.annule_at && a.statut_paiement === "echec_paiement",
@@ -113,6 +125,33 @@ export function Dashboard() {
     // EXCLUT justement les paniers non finalisés, donc on ne peut pas passer par
     // `actifs` (le helper filtre déjà les dossiers fermés via annule_at).
     const aFinaliser = adherents.filter(estPaiementAFinaliser).length;
+
+    // --- Listes {nom, montant} des infobulles (MÊMES sources que les comptes) ---
+    const nomAff = (a: (typeof adherents)[number]) =>
+      `${formaterPrenom(a.prenom)} ${formaterNom(a.nom)}`.trim();
+    const parNom = (x: { nom: string }, y: { nom: string }) =>
+      x.nom.localeCompare(y.nom, "fr", { sensitivity: "base" });
+    // Espèces en attente & à finaliser : dû = montant_total (rien encaissé).
+    const listeEspeces = adherents
+      .filter(estEspecesEnAttente)
+      .map((a) => ({ nom: nomAff(a), montant: Number(a.montant_total || 0) }))
+      .sort(parNom);
+    const listeAFinaliser = adherents
+      .filter(estPaiementAFinaliser)
+      .map((a) => ({ nom: nomAff(a), montant: Number(a.montant_total || 0) }))
+      .sort(parNom);
+    // Encaissement à venir (fractionné) : reste = Σ échéances 'en_attente' via le
+    // helper SOURCE UNIQUE (calcul DYNAMIQUE ; une échéance payée sort d'elle-même).
+    // Le total de la carte ET la liste dérivent de la MÊME liste → zéro divergence.
+    const resteMap = resteParAdherent(
+      echeanceRows.filter((r) => adhIds.has(r.adherent_id)),
+    );
+    const listeAVenir = adherents
+      .filter((a) => estActifCompte(a) && (resteMap.get(a.id) ?? 0) > 0)
+      .map((a) => ({ nom: nomAff(a), montant: resteMap.get(a.id) ?? 0 }))
+      .sort(parNom);
+    const encaissementAVenir = listeAVenir.reduce((s, x) => s + x.montant, 0);
+
     // Formules — clé partagée (source unique package + option_prepa_physique).
     const formuleBoxe = actifs.filter(
       (a) => formuleCle(a.package, a.option_prepa_physique) === "boxe",
@@ -163,6 +202,10 @@ export function Dashboard() {
       nouveauxMembres,
       aFinaliser,
       attenteEspeces,
+      encaissementAVenir,
+      listeEspeces,
+      listeAFinaliser,
+      listeAVenir,
       echecs,
       formuleBoxe,
       boxePrepa,
@@ -181,7 +224,7 @@ export function Dashboard() {
         { name: "Savate et Prépa", value: savateForme, color: INK },
       ].filter((x) => x.value > 0),
     };
-  }, [adherents, selectedSaison, payRows]);
+  }, [adherents, selectedSaison, payRows, echeanceRows]);
 
   if (loading) {
     return (
@@ -236,6 +279,10 @@ type NatifData = {
   nouveauxMembres: number;
   aFinaliser: number;
   attenteEspeces: number;
+  encaissementAVenir: number;
+  listeEspeces: { nom: string; montant: number }[];
+  listeAFinaliser: { nom: string; montant: number }[];
+  listeAVenir: { nom: string; montant: number }[];
   echecs: number;
   formuleBoxe: number;
   boxePrepa: number;
@@ -255,8 +302,23 @@ function SaisonNative({ data }: { data: NatifData }) {
         <Kpi label="Encaissé" value={euro(data.encaisse)} />
         <Kpi label="Nouveaux membres" value={String(data.nouveauxMembres)} />
         <Kpi label="Nouveaux ce mois" value={String(data.nouveauxMois)} />
-        <Kpi label="Paiement à finaliser" value={String(data.aFinaliser)} warn />
-        <Kpi label="En attente espèces" value={String(data.attenteEspeces)} warn />
+        <Kpi
+          label="Paiement à finaliser"
+          value={String(data.aFinaliser)}
+          warn
+          tooltip={<DetailList items={data.listeAFinaliser} />}
+        />
+        <Kpi
+          label="En attente espèces"
+          value={String(data.attenteEspeces)}
+          warn
+          tooltip={<DetailList items={data.listeEspeces} />}
+        />
+        <Kpi
+          label="Encaissement à venir"
+          value={euro(data.encaissementAVenir)}
+          tooltip={<DetailList items={data.listeAVenir} />}
+        />
         <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
         <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
@@ -468,16 +530,18 @@ function Kpi({
   accent,
   warn,
   danger,
+  tooltip,
 }: {
   label: string;
   value: string;
   accent?: boolean;
   warn?: boolean;
   danger?: boolean;
+  tooltip?: ReactNode;
 }) {
-  return (
+  const card = (
     <div
-      className={`rounded-2xl border p-5 ${
+      className={`h-full rounded-2xl border p-5 ${
         accent
           ? "border-transparent bg-ink text-white"
           : danger && value !== "0"
@@ -495,6 +559,31 @@ function Kpi({
       >
         {value}
       </p>
+    </div>
+  );
+  // Infobulle (survol desktop / tap mobile) uniquement si un détail est fourni.
+  return tooltip ? <InfoTooltip content={tooltip}>{card}</InfoTooltip> : card;
+}
+
+// Détail nom + montant par personne (+ total) pour les infobulles KPI.
+function DetailList({ items }: { items: { nom: string; montant: number }[] }) {
+  if (!items.length)
+    return <p className="min-w-[180px] text-xs text-smoke">Personne pour le moment.</p>;
+  const total = items.reduce((s, x) => s + x.montant, 0);
+  return (
+    <div className="min-w-[200px] text-xs">
+      <ul className="space-y-1">
+        {items.map((it, i) => (
+          <li key={i} className="flex justify-between gap-4">
+            <span className="text-ink">{it.nom}</span>
+            <span className="whitespace-nowrap font-semibold text-ink">{euro(it.montant)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-2 flex justify-between gap-4 border-t border-line pt-2 font-bold text-ink">
+        <span>Total</span>
+        <span className="whitespace-nowrap">{euro(total)}</span>
+      </div>
     </div>
   );
 }

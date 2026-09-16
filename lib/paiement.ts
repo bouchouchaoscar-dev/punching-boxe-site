@@ -56,6 +56,19 @@ export function estPaiementAFinaliser(
   );
 }
 
+// SOURCE UNIQUE « espèces en attente » : mode espèces, non confirmé, non fermé.
+// Partagé par le COMPTE de la carte dashboard ET la liste de son infobulle
+// (cohérence garantie). Montant dû par personne = montant_total (rien encaissé).
+export function estEspecesEnAttente(
+  a: Pick<Adherent, "annule_at" | "mode_paiement" | "statut_paiement">,
+): boolean {
+  return (
+    !a.annule_at &&
+    a.mode_paiement === "especes" &&
+    a.statut_paiement === "en_attente"
+  );
+}
+
 // SOURCE UNIQUE de « visible au trombinoscope » : inscription signée + photo
 // présente, hors dossiers fermés — PAYÉ OU NON. Élargit la population du trombi
 // (le coach voit toutes les têtes + le statut en couleur, dont « à finaliser »).
