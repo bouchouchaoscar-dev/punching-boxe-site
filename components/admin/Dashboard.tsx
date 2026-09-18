@@ -220,7 +220,10 @@ export function Dashboard() {
         { name: "Espèces", value: especes, color: INK },
       ].filter((x) => x.value > 0),
       repartitionFormule: [
-        { name: "Boxe Française", value: actifs.filter((a) => a.package === "boxe_classique").length, color: ORANGE },
+        // 3 formules distinctes via formuleCle (même population `actifs` + même
+        // helper que les KPI formule) → Boxe + (Boxe+Prépa) + (Savate+Prépa) cohérent.
+        { name: "Boxe Française", value: formuleBoxe, color: ORANGE },
+        { name: "Boxe + Prépa", value: boxePrepa, color: "#9ca3af" },
         { name: "Savate et Prépa", value: savateForme, color: INK },
       ].filter((x) => x.value > 0),
     };
