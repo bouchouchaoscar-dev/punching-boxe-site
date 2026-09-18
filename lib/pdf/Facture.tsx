@@ -25,6 +25,7 @@ export type FactureData = {
   adhesion: number; // 30 si nouveau membre, sinon 0
   fractionne: boolean;
   nbEcheances: number;
+  modePaiement: string; // libellé lisible du mode de règlement
   regleAJour: number;
   echeancesReglees: FactureEcheance[];
   echeancesAVenir: FactureEcheance[];
@@ -129,6 +130,10 @@ export function FactureDoc({ data }: { data: FactureData }) {
           <View style={s.total}>
             <Text style={s.totalLabel}>Total</Text>
             <Text style={s.totalVal}>{euro(data.montantTotal)}</Text>
+          </View>
+          <View style={s.ligne}>
+            <Text style={s.ligneLabel}>Mode de paiement</Text>
+            <Text style={s.ligneVal}>{data.modePaiement}</Text>
           </View>
         </View>
 

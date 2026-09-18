@@ -100,6 +100,19 @@ export async function construireFacturePdf(
         echeancesReglees.reduce((sum, e) => sum + e.montant, 0) * 100,
       ) / 100;
 
+  // Libellé lisible du mode de règlement (jamais la valeur brute "stripe_3x").
+  const nbEchLabel = a.nb_echeances || 1;
+  const modePaiement =
+    a.mode_paiement === "especes"
+      ? "Espèces"
+      : a.mode_paiement === "stripe_1x"
+        ? "Carte bancaire"
+        : a.mode_paiement === "stripe_2x" ||
+            a.mode_paiement === "stripe_3x" ||
+            a.mode_paiement === "stripe_4x"
+          ? `Carte bancaire — paiement en ${nbEchLabel} fois`
+          : "Non précisé";
+
   const factureData: FactureData = {
     prenom: a.prenom,
     nom: a.nom,
@@ -110,6 +123,7 @@ export async function construireFacturePdf(
     adhesion,
     fractionne,
     nbEcheances: a.nb_echeances || 1,
+    modePaiement,
     regleAJour,
     echeancesReglees,
     echeancesAVenir,
