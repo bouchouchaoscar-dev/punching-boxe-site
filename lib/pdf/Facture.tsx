@@ -26,6 +26,7 @@ export type FactureData = {
   fractionne: boolean;
   nbEcheances: number;
   modePaiement: string; // libellé lisible du mode de règlement
+  datePaiement: string; // date d'encaissement réel (JJ/MM/AAAA) ; "" si absente
   regleAJour: number;
   echeancesReglees: FactureEcheance[];
   echeancesAVenir: FactureEcheance[];
@@ -135,6 +136,12 @@ export function FactureDoc({ data }: { data: FactureData }) {
             <Text style={s.ligneLabel}>Mode de paiement</Text>
             <Text style={s.ligneVal}>{data.modePaiement}</Text>
           </View>
+          {data.solde && data.datePaiement !== "" && (
+            <View style={s.ligne}>
+              <Text style={s.ligneLabel}>Date de paiement</Text>
+              <Text style={s.ligneVal}>{data.datePaiement}</Text>
+            </View>
+          )}
         </View>
 
         {/* Fractionné en cours : échéancier détaillé */}

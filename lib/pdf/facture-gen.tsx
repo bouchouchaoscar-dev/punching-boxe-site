@@ -113,6 +113,25 @@ export async function construireFacturePdf(
           ? `Carte bancaire — paiement en ${nbEchLabel} fois`
           : "Non précisé";
 
+  // Date d'ENCAISSEMENT RÉEL (jamais la date d'inscription) :
+  //  - espèces → engage_at, posé à la CONFIRMATION admin (adherents/[id]/route.ts:124 ;
+  //    un dossier espèces en attente a engage_at null → engage_at = moment de confirmation).
+  //  - carte 1x / fractionné soldé → dernière date_paiement réelle des échéances réglées
+  //    (le fractionné n'est acquitté qu'à la dernière échéance payée).
+  const datesReglees = echeancesReglees
+    .map((e) => e.date)
+    .filter((d): d is string => !!d)
+    .sort();
+  const dateEncaissementIso =
+    a.mode_paiement === "especes"
+      ? (a.engage_at ?? null)
+      : (datesReglees[datesReglees.length - 1] ?? null);
+  let datePaiement = "";
+  if (dateEncaissementIso) {
+    const d = new Date(dateEncaissementIso);
+    if (!isNaN(d.getTime())) datePaiement = new Intl.DateTimeFormat("fr-FR").format(d); // JJ/MM/AAAA
+  }
+
   const factureData: FactureData = {
     prenom: a.prenom,
     nom: a.nom,
@@ -124,6 +143,7 @@ export async function construireFacturePdf(
     fractionne,
     nbEcheances: a.nb_echeances || 1,
     modePaiement,
+    datePaiement,
     regleAJour,
     echeancesReglees,
     echeancesAVenir,
