@@ -93,6 +93,8 @@ export function FicheAdherent({ id }: { id: string }) {
   const [histAncien, setHistAncien] = useState<HistLigne[]>([]);
   const [relancing, setRelancing] = useState(false);
   const [relancePaiement, setRelancePaiement] = useState(false);
+  const [renvoiActivBusy, setRenvoiActivBusy] = useState(false);
+  const [renvoiActivAt, setRenvoiActivAt] = useState<string | null>(null);
   const [mailOpen, setMailOpen] = useState(false);
   const [gererOpen, setGererOpen] = useState(false);
   const [finOpen, setFinOpen] = useState(false);
@@ -259,6 +261,34 @@ export function FicheAdherent({ id }: { id: string }) {
       );
     } finally {
       setRelancePaiement(false);
+    }
+  }
+
+  // Renvoyer le lien d'activation (définition du mot de passe). Régénère un lien
+  // FRAIS pour le compte existant, sans recréer compte ni dossier. Renvoi multiple
+  // autorisé ; on garde la date du dernier envoi (session) pour l'affichage.
+  async function renvoyerActivation() {
+    if (
+      !window.confirm(
+        "Renvoyer le lien d'activation (définition du mot de passe) à cet adhérent ?",
+      )
+    )
+      return;
+    setRenvoiActivBusy(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/renvoyer-activation`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setRenvoiActivAt(data.renvoye_at ?? new Date().toISOString());
+        showToast("Lien d'activation renvoyé ✓");
+      } else {
+        showToast(data.error || "Renvoi impossible.");
+      }
+    } finally {
+      setRenvoiActivBusy(false);
     }
   }
 
@@ -550,6 +580,18 @@ export function FicheAdherent({ id }: { id: string }) {
               >
                 Envoyer un mail
               </button>
+              <button
+                onClick={renvoyerActivation}
+                disabled={renvoiActivBusy}
+                className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+              >
+                {renvoiActivBusy ? "Envoi…" : "Renvoyer le lien d'activation"}
+              </button>
+              {renvoiActivAt && (
+                <p className="mt-1 text-center text-xs text-smoke">
+                  Dernier envoi : {new Date(renvoiActivAt).toLocaleString("fr-FR")}
+                </p>
+              )}
               <button
                 onClick={() => setGererOpen(true)}
                 className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange"

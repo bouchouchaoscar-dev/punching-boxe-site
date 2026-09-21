@@ -3,8 +3,7 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { TARIFS, PACKAGE_LABEL, type PackageType } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
-import { SITE_URL } from "@/lib/constants";
-import { sendActivationDossier } from "@/lib/email";
+import { envoyerLienActivation } from "@/lib/activation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -172,23 +171,9 @@ export async function POST(request: Request) {
   }
 
   // --- Lien d'activation (définition du mot de passe) → notre mail Resend ---
-  // 'recovery' fonctionne que le compte vienne d'être créé ou préexiste, et
-  // mène à /auth/reset-password (flux existant), SANS email Supabase.
-  let mailEnvoye = false;
-  const { data: linkData } = await supabase.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo: `${SITE_URL}/auth/reset-password` },
-  });
-  const lien = linkData?.properties?.action_link;
-  if (lien) {
-    try {
-      const res = await sendActivationDossier({ prenom, email, lien });
-      mailEnvoye = !(res as { skipped?: boolean })?.skipped;
-    } catch (e) {
-      console.error("Mail activation (ignoré):", e);
-    }
-  }
+  // Helper partagé (lib/activation.ts) : lien 'recovery' vers /auth/reset-password,
+  // sans email Supabase. Réutilisé par le bouton admin "Renvoyer le lien".
+  const { envoye: mailEnvoye } = await envoyerLienActivation(email, prenom);
 
   return NextResponse.json({
     success: true,

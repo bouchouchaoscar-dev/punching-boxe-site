@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuthClient, isAuthConfigured } from "@/lib/supabase-auth";
+import { demanderLienReset } from "@/lib/auth-reset";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -12,6 +13,29 @@ export function ResetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // État "lien expiré/invalide" → on propose un renvoi de lien en self-service
+  // (plus de cul-de-sac), en réutilisant la logique de "mot de passe oublié".
+  const [expired, setExpired] = useState(false);
+  const [renvoiEmail, setRenvoiEmail] = useState("");
+  const [renvoiMsg, setRenvoiMsg] = useState("");
+  const [renvoiBusy, setRenvoiBusy] = useState(false);
+
+  async function handleRenvoi() {
+    setRenvoiMsg("");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(renvoiEmail)) {
+      return setRenvoiMsg("Adresse email invalide.");
+    }
+    setRenvoiBusy(true);
+    try {
+      await demanderLienReset(renvoiEmail);
+    } catch {
+      /* on affiche quand même le message anti-énumération ci-dessous */
+    } finally {
+      // Message identique que le compte existe ou non (anti-énumération).
+      setRenvoiMsg("Si un compte existe, un email vient d'être envoyé.");
+      setRenvoiBusy(false);
+    }
+  }
 
   async function handleUpdate() {
     setError("");
@@ -25,8 +49,10 @@ export function ResetPasswordForm() {
     try {
       const { error } = await getAuthClient().auth.updateUser({ password });
       if (error) {
+        const estExpire = /session|missing|expired/i.test(error.message);
+        setExpired(estExpire);
         setError(
-          /session|missing|expired/i.test(error.message)
+          estExpire
             ? "Lien expiré ou invalide. Refaites une demande de réinitialisation."
             : error.message,
         );
@@ -95,6 +121,34 @@ export function ResetPasswordForm() {
             <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
               {error}
             </p>
+          )}
+
+          {/* Lien expiré/invalide → renvoi self-service (plus de cul-de-sac). */}
+          {expired && (
+            <div className="space-y-2 rounded-xl border border-line bg-paper-2 p-3">
+              <p className="text-sm font-semibold text-ink">
+                Recevoir un nouveau lien
+              </p>
+              <input
+                type="email"
+                value={renvoiEmail}
+                onChange={(e) => setRenvoiEmail(e.target.value)}
+                placeholder="Votre adresse email"
+                autoComplete="email"
+                className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
+              />
+              <ButtonAction
+                onClick={handleRenvoi}
+                size="lg"
+                className="w-full"
+                disabled={renvoiBusy}
+              >
+                {renvoiBusy ? "…" : "M'envoyer un nouveau lien"}
+              </ButtonAction>
+              {renvoiMsg && (
+                <p className="text-sm font-semibold text-ink">{renvoiMsg}</p>
+              )}
+            </div>
           )}
 
           <ButtonAction

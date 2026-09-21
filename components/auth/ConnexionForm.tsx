@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getAuthClient, isAuthConfigured } from "@/lib/supabase-auth";
+import { demanderLienReset } from "@/lib/auth-reset";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 
@@ -40,13 +41,7 @@ export function ConnexionForm() {
     }
     setResetBusy(true);
     try {
-      // URL du site (prod) — jamais localhost dans l'email de réinitialisation.
-      const base =
-        process.env.NEXT_PUBLIC_SITE_URL ||
-        (typeof window !== "undefined" ? window.location.origin : "");
-      await getAuthClient().auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: `${base}/auth/reset-password`,
-      });
+      await demanderLienReset(resetEmail);
     } finally {
       // Message identique que le compte existe ou non (anti-énumération).
       setResetMsg(
