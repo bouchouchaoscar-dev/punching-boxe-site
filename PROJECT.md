@@ -39,7 +39,7 @@ components/          ui, home, sections, inscription, espace, admin, infos, cont
 lib/                 logique métier PURE + serveur (voir §3)
 lib/pdf/             templates React-PDF (fiche, règlement, certificat) + render + génération
 scripts/            tests (.mts) + ops (nettoyage, seed, init, check, import anciens)
-supabase/           schema.sql (historique) + migrations/001_schema_complet.sql (canon)
+supabase/           schema.sql (CANON consolidé 001+004→010, pour nouveau client) + migrations/ (historique appliqué sur PB)
 .github/workflows/  charge-echeances.yml (cron horaire) + keep-alive.yml
 ```
 
