@@ -141,27 +141,41 @@ export async function POST(request: Request) {
   // --- Insert du dossier (titulaire_id posé d'emblée) ---
   // date_naissance reste NULL : renseignée par l'adhérent lors de la complétion
   // (Lot 4). Nécessite date_naissance nullable (migration 006).
-  const { data: inserted, error: insErr } = await supabase
+  const record: Record<string, unknown> = {
+    nom,
+    prenom,
+    email,
+    // type_adherent posé à la complétion (dérivé de la date de naissance).
+    type_adherent: null,
+    package: pkg,
+    option_prepa_physique,
+    nouveau_membre,
+    montant_total,
+    statut_paiement: "en_attente",
+    saison,
+    date_debut,
+    date_fin,
+    tarif_libre: true,
+    cree_par_admin: true,
+    titulaire_id: userId,
+  };
+  let { data: inserted, error: insErr } = await supabase
     .from("adherents")
-    .insert({
-      nom,
-      prenom,
-      email,
-      // type_adherent posé à la complétion (dérivé de la date de naissance).
-      type_adherent: null,
-      package: pkg,
-      option_prepa_physique,
-      nouveau_membre,
-      montant_total,
-      statut_paiement: "en_attente",
-      saison,
-      date_debut,
-      date_fin,
-      tarif_libre: true,
-      titulaire_id: userId,
-    })
+    .insert(record)
     .select("id")
     .single();
+
+  // Tolérance ordre migration↔code : si la colonne cree_par_admin (migration 010)
+  // n'est pas encore appliquée, on réessaie sans elle (défaut false) — la création
+  // de dossier ne casse jamais. Le champ sera posé dès la migration en place.
+  if (insErr && insErr.message.includes("cree_par_admin")) {
+    delete record.cree_par_admin;
+    ({ data: inserted, error: insErr } = await supabase
+      .from("adherents")
+      .insert(record)
+      .select("id")
+      .single());
+  }
 
   if (insErr || !inserted) {
     return NextResponse.json(

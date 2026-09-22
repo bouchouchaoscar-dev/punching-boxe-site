@@ -580,17 +580,23 @@ export function FicheAdherent({ id }: { id: string }) {
               >
                 Envoyer un mail
               </button>
-              <button
-                onClick={renvoyerActivation}
-                disabled={renvoiActivBusy}
-                className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
-              >
-                {renvoiActivBusy ? "Envoi…" : "Renvoyer le lien d'activation"}
-              </button>
-              {renvoiActivAt && (
-                <p className="mt-1 text-center text-xs text-smoke">
-                  Dernier envoi : {new Date(renvoiActivAt).toLocaleString("fr-FR")}
-                </p>
+              {/* Uniquement pour les dossiers créés par l'admin (compte à activer) :
+                  sans objet pour une auto-inscription (mot de passe déjà défini). */}
+              {a.cree_par_admin && (
+                <>
+                  <button
+                    onClick={renvoyerActivation}
+                    disabled={renvoiActivBusy}
+                    className="mt-2 w-full rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                  >
+                    {renvoiActivBusy ? "Envoi…" : "Renvoyer le lien d'activation"}
+                  </button>
+                  {renvoiActivAt && (
+                    <p className="mt-1 text-center text-xs text-smoke">
+                      Dernier envoi : {new Date(renvoiActivAt).toLocaleString("fr-FR")}
+                    </p>
+                  )}
+                </>
               )}
               <button
                 onClick={() => setGererOpen(true)}

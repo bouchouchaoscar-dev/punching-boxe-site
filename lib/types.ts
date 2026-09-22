@@ -101,6 +101,9 @@ export interface Adherent {
   date_debut?: string | null;
   date_fin?: string | null;
   tarif_libre?: boolean;
+  // Dossier dont le COMPTE a été créé par l'admin (pas une auto-inscription).
+  // Posé true UNIQUEMENT par /api/admin/adherents/creer ; défaut false.
+  cree_par_admin?: boolean;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;
