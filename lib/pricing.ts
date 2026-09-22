@@ -1,21 +1,25 @@
 // ============================================================
-// Logique tarifaire — Punching Boxe
-// Source : BRIEF.md
+// Logique tarifaire — MOTEUR (socle). Les VALEURS (tarifs, seuils) sont dans
+// lib/config-club.ts et lues ici ; la logique de calcul ne change pas.
 // ============================================================
+
+import { CONFIG_CLUB } from "./config-club";
 
 export type TypeAdherent = "adulte" | "jeune";
 
 // Deux formules au choix.
 export type PackageType = "boxe_classique" | "savate_prepa";
 
+// VALEURS lues dans la config club (lib/config-club.ts). Même forme, mêmes
+// montants qu'avant : le moteur ci-dessous est inchangé.
 export const TARIFS = {
-  adhesion: 30, // 1ère année uniquement (nouveau membre)
-  prepaPhysique: 70,
-  // La cotisation dépend désormais de la formule.
-  cotisation: {
-    boxe_classique: { adulte: 430, jeune: 410 },
-    savate_prepa: { adulte: 350, jeune: 330 },
-  } as Record<PackageType, { adulte: number; jeune: number }>,
+  adhesion: CONFIG_CLUB.tarifs.adhesion, // 1ère année uniquement (nouveau membre)
+  prepaPhysique: CONFIG_CLUB.tarifs.prepaPhysique,
+  // La cotisation dépend de la formule.
+  cotisation: CONFIG_CLUB.tarifs.cotisation as Record<
+    PackageType,
+    { adulte: number; jeune: number }
+  >,
 } as const;
 
 export const PACKAGE_LABEL: Record<PackageType, string> = {
@@ -98,33 +102,12 @@ export type MoisPalier =
 export const COTISATION_PALIERS: Record<
   MoisPalier,
   Record<PackageType, { adulte: number; jeune: number }>
-> = {
-  sept: TARIFS.cotisation,
-  oct: TARIFS.cotisation,
-  nov: TARIFS.cotisation,
-  dec: { boxe_classique: { adulte: 375, jeune: 355 }, savate_prepa: { adulte: 305, jeune: 285 } },
-  jan: { boxe_classique: { adulte: 320, jeune: 300 }, savate_prepa: { adulte: 260, jeune: 240 } },
-  fev: { boxe_classique: { adulte: 265, jeune: 250 }, savate_prepa: { adulte: 215, jeune: 200 } },
-  mars: { boxe_classique: { adulte: 210, jeune: 200 }, savate_prepa: { adulte: 170, jeune: 160 } },
-  avr: { boxe_classique: { adulte: 155, jeune: 150 }, savate_prepa: { adulte: 125, jeune: 120 } },
-  mai: { boxe_classique: { adulte: 100, jeune: 95 }, savate_prepa: { adulte: 80, jeune: 75 } },
-  juin: { boxe_classique: { adulte: 50, jeune: 50 }, savate_prepa: { adulte: 50, jeune: 50 } },
-};
+> = CONFIG_CLUB.tarifs.cotisationPaliers;
 
 // Option prépa (Boxe Française uniquement) — DÉGRESSIVE selon le mois.
 // Sept→Fév = plein (TARIFS.prepaPhysique) ; mars/avr/mai = 35 ; juin = 10.
-export const PREPA_PALIERS: Record<MoisPalier, number> = {
-  sept: TARIFS.prepaPhysique,
-  oct: TARIFS.prepaPhysique,
-  nov: TARIFS.prepaPhysique,
-  dec: TARIFS.prepaPhysique,
-  jan: TARIFS.prepaPhysique,
-  fev: TARIFS.prepaPhysique,
-  mars: 35,
-  avr: 35,
-  mai: 35,
-  juin: 10,
-};
+export const PREPA_PALIERS: Record<MoisPalier, number> =
+  CONFIG_CLUB.tarifs.prepaPaliers;
 
 /**
  * Mois d'inscription → palier de la table.
@@ -159,8 +142,8 @@ export function prepaDuMois(date: Date, saisonEnCours = false): number {
 // référence, jamais figés sur une année → se décalent automatiquement chaque
 // saison. Les deux seuils sont INDÉPENDANTS : un 13-17 ans = tarif adulte MAIS
 // mineur (autorisation parentale requise).
-export const SEUIL_JEUNE_ANS = 13; // < 13 ans = tarif « jeune »
-export const SEUIL_MAJORITE_ANS = 18; // < 18 ans = mineur (autorisation parentale)
+export const SEUIL_JEUNE_ANS = CONFIG_CLUB.seuils.jeuneAns; // < N ans = tarif « jeune » (config)
+export const SEUIL_MAJORITE_ANS = 18; // < 18 ans = mineur : RÈGLE LÉGALE FR, reste en dur (socle)
 
 /** Âge révolu à une date de référence (anniversaire de l'année pris en compte). */
 function ageRevolu(dateNaissance: string, ref: Date): number | null {
@@ -214,10 +197,8 @@ export type RemiseFamilleConfig =
   | { type: "pourcentage"; paliers: Record<number, number> }
   | { type: "montant"; paliers: Record<number, number> };
 
-export const REMISE_FAMILLE: RemiseFamilleConfig = {
-  type: "pourcentage",
-  paliers: { 3: 10, 4: 15, 5: 20 },
-};
+export const REMISE_FAMILLE: RemiseFamilleConfig =
+  CONFIG_CLUB.tarifs.remiseFamille;
 
 /** Valeur brute du palier atteint pour un rang donné (0 si aucun). */
 function paliersValeur(rang: number): number {

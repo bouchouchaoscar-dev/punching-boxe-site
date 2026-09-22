@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
+import { CONFIG_CLUB } from "@/lib/config-club";
+
+// Délais de relance (config club), convertis en millisecondes.
+const H = 60 * 60 * 1000;
+const RELANCES = CONFIG_CLUB.seuils.relances;
 import {
   sendRelancePanier,
   sendRelancePanier2,
@@ -167,7 +172,7 @@ export async function GET(request: Request) {
  */
 async function relancerEchecs48h(): Promise<{ envoyes: number }> {
   const supabase = getSupabaseAdmin();
-  const seuil = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const seuil = new Date(Date.now() - RELANCES.echecH * H).toISOString();
 
   const { data: echecs, error } = await supabase
     .from("paiements")
@@ -222,7 +227,7 @@ async function relancerEchecs48h(): Promise<{ envoyes: number }> {
  */
 async function relancerComptesSansInscription() {
   const supabase = getSupabaseAdmin();
-  const seuilMs = Date.now() - 24 * 60 * 60 * 1000;
+  const seuilMs = Date.now() - RELANCES.compteSansInscriptionH * H;
 
   // Titulaires ayant au moins un dossier (à exclure).
   const { data: adh } = await supabase
@@ -280,7 +285,7 @@ async function relancerComptesSansInscription() {
  */
 async function relancerPaniersAbandonnes() {
   const supabase = getSupabaseAdmin();
-  const seuil = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const seuil = new Date(Date.now() - RELANCES.panierH * H).toISOString();
   const { data: dossiers } = await supabase
     .from("adherents")
     .select("id, prenom, email, created_at")
@@ -329,7 +334,7 @@ async function relancerPaniersAbandonnes2(): Promise<{
   envoyes: number;
 }> {
   const supabase = getSupabaseAdmin();
-  const seuil = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const seuil = new Date(Date.now() - RELANCES.panier2H * H).toISOString();
   const { data: dossiers, error } = await supabase
     .from("adherents")
     .select("id, prenom, email")

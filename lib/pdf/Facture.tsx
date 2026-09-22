@@ -2,6 +2,7 @@ import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { styles, PDF_COLORS } from "./theme";
 import { PdfHeader, PdfFooter } from "./Shared";
 import { CLUB } from "@/lib/constants";
+import { CONFIG_CLUB } from "@/lib/config-club";
 import { euro } from "@/lib/pricing";
 import { formaterNomComplet } from "@/lib/noms";
 
@@ -101,8 +102,8 @@ export function FactureDoc({ data }: { data: FactureData }) {
         <PdfHeader title={titre} season={fmtSaison(data.saison)} />
 
         <Text style={s.intro}>
-          Je soussigné <Text style={styles.bold}>Pascal Bouchoucha</Text>,
-          Directeur Sportif du club {CLUB.nom}, atteste que{" "}
+          Je soussigné <Text style={styles.bold}>{CONFIG_CLUB.identite.signataire.nom}</Text>,
+          {" "}{CONFIG_CLUB.identite.signataire.titre} du club {CLUB.nom}, atteste que{" "}
           <Text style={styles.bold}>{nomComplet}</Text> adhère au club pour la
           saison {fmtSaison(data.saison)}
           {data.dateDebut
@@ -189,13 +190,13 @@ export function FactureDoc({ data }: { data: FactureData }) {
         )}
 
         <Text style={s.cloture}>
-          Fait à Nogent-sur-Marne, le {data.date}, pour servir et valoir ce que
+          Fait à {CONFIG_CLUB.identite.signataire.ville}, le {data.date}, pour servir et valoir ce que
           de droit.
         </Text>
 
         <View style={s.sign}>
-          <Text style={s.signNom}>Pascal Bouchoucha</Text>
-          <Text style={s.signRole}>Directeur Sportif — {CLUB.nomCourt}</Text>
+          <Text style={s.signNom}>{CONFIG_CLUB.identite.signataire.nom}</Text>
+          <Text style={s.signRole}>{CONFIG_CLUB.identite.signataire.titre} — {CLUB.nomCourt}</Text>
         </View>
 
         <PdfFooter />

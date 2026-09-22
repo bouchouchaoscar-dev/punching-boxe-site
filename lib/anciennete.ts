@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { CONFIG_CLUB } from "./config-club";
 
 // Ancienneté : matching d'identité (natif ↔ ancien importé) + règle des 30€.
 // Le SERVEUR est seule autorité : décide l'adhésion via la dernière saison active
 // (historique importé + natif confondus), jamais via un champ envoyé par le client.
 
 // Écart (années de début de saison) au-delà duquel on refacture l'adhésion.
-export const SEUIL_ADHESION_GAP = 4;
+export const SEUIL_ADHESION_GAP = CONFIG_CLUB.seuils.adhesionGapAns;
 
 // ---- Normalisation (IDENTIQUE à l'import, pour que les clés correspondent) ----
 export function sansAccents(s: string): string {
@@ -46,8 +47,8 @@ export function anneeDebutSaison(saison: string): number {
   return parseInt(saison.slice(0, 4), 10);
 }
 
-// Seuil "jeune" : moins de 13 ans (cohérent avec l'esprit de la règle native).
-export const SEUIL_JEUNE_ANS = 13;
+// Seuil "jeune" : SOURCE UNIQUE = config club (dédupliqué avec lib/pricing.ts).
+export const SEUIL_JEUNE_ANS = CONFIG_CLUB.seuils.jeuneAns;
 
 /**
  * Jeune/adulte d'un ANCIEN pour une saison donnée : âge au 1er septembre de

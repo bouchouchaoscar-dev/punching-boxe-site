@@ -23,13 +23,14 @@ import { analyserSaisons } from "@/lib/stats-insights";
 import { euro, formuleCle } from "@/lib/pricing";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { estPaiementAFinaliser, estEspecesEnAttente } from "@/lib/paiement";
+import { CONFIG_CLUB } from "@/lib/config-club";
 import { resteParAdherent, type EcheanceRow } from "@/lib/encaissement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { Tooltip as InfoTooltip } from "@/components/ui/Tooltip";
 import type { ReactNode } from "react";
 
-const ORANGE = "#FF6B00";
-const INK = "#0A0A0A";
+const ORANGE = CONFIG_CLUB.identite.couleurs.orange;
+const INK = CONFIG_CLUB.identite.couleurs.ink;
 
 type Disc = { BF: number; SAVATE: number; LES_2: number; AUTRE: number };
 type Ages = { jeunes: number; adultes: number; inconnu: number };
