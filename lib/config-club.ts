@@ -38,6 +38,16 @@ export const CONFIG_CLUB = {
     couleurs: { orange: "#FF6B00", ink: "#0A0A0A" },
   },
 
+  // -- MODULES OPTIONNELS --------------------------------------------------
+  // Chaque module se coupe/active ICI par club. Les données restent en base
+  // (aucun spécifique en dur) ; un flag false masque l'onglet admin et fait
+  // renvoyer 404 aux routes du module.
+  modules: {
+    planning: {
+      actif: true, // Calendrier hebdo des cours + profs + affectations + mail au prof.
+    },
+  },
+
   // -- SEUILS COMPORTEMENTAUX ---------------------------------------------
   seuils: {
     adhesionGapAns: 4, // gap ≥ N saisons → re-facturer l'adhésion (froid)

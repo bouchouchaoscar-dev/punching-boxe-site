@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
+import { planningActif } from "@/lib/planning";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 const NAV = [
@@ -13,6 +14,10 @@ const NAV = [
   { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "camera" },
   { href: "/admin/anciens", label: "Anciens", icon: "history" },
   { href: "/admin/campagnes", label: "Mailing", icon: "mail" },
+  // Module OPTIONNEL : masqué si CONFIG_CLUB.modules.planning.actif = false.
+  ...(planningActif()
+    ? [{ href: "/admin/planning", label: "Planning", icon: "calendar" }]
+    : []),
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -158,6 +163,13 @@ function Icon({ name }: { name: string }) {
       <svg {...common}>
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx="12" cy="13" r="4" stroke="currentColor" strokeWidth="1.7" />
+      </svg>
+    );
+  if (name === "calendar")
+    return (
+      <svg {...common}>
+        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.7" />
+        <path d="M3 10h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   return (

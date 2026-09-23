@@ -314,6 +314,59 @@ create table if not exists public.admin_users (
 );
 
 -- ---------------------------------------------------------------------------
+-- 7bis) PLANNING [011] — module OPTIONNEL (activable via lib/config-club.ts).
+--   Socle réutilisable, zéro donnée en dur : le club saisit profs/cours/vacances.
+--   profs (intervenants) · cours (grille récurrente hebdo) · affectations (prof
+--   sur un cours pour une semaine) · periodes_fermeture (vacances / jours fermés).
+-- ---------------------------------------------------------------------------
+create table if not exists public.profs (
+  id         uuid primary key default gen_random_uuid(),
+  actif      boolean not null default true,
+  nom        text,
+  prenom     text,
+  email      text,
+  telephone  text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.cours (
+  id            uuid primary key default gen_random_uuid(),
+  actif         boolean not null default true,
+  libelle       text,
+  package       text,                                  -- boxe_classique | savate_prepa | null (transverse)
+  type_adherent text,                                  -- adulte | jeune | null (tous)
+  jour_semaine  integer check (jour_semaine between 1 and 7),  -- 1=lundi … 7=dimanche
+  heure_debut   time,
+  heure_fin     time,
+  salle         text,
+  ville         text,
+  created_at    timestamptz not null default now()
+);
+create index if not exists cours_jour_idx  on public.cours (jour_semaine);
+create index if not exists cours_actif_idx on public.cours (actif);
+
+create table if not exists public.affectations (
+  id         uuid primary key default gen_random_uuid(),
+  cours_id   uuid references public.cours(id) on delete cascade,
+  prof_id    uuid references public.profs(id) on delete set null,
+  semaine    date not null,                            -- lundi de la semaine concernée
+  statut     text not null default 'prevu' check (statut in ('prevu','annule')),
+  created_at timestamptz not null default now(),
+  unique (cours_id, semaine)
+);
+create index if not exists affectations_semaine_idx on public.affectations (semaine);
+create index if not exists affectations_prof_idx    on public.affectations (prof_id);
+
+create table if not exists public.periodes_fermeture (
+  id         uuid primary key default gen_random_uuid(),
+  libelle    text,
+  date_debut date not null,
+  date_fin   date not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists periodes_fermeture_dates_idx on public.periodes_fermeture (date_debut, date_fin);
+
+-- ---------------------------------------------------------------------------
 -- 8) RLS — activé partout, AUCUNE policy publique (accès serveur uniquement)
 -- ---------------------------------------------------------------------------
 alter table public.adherents               enable row level security;
@@ -330,6 +383,10 @@ alter table public.emails_bounced          enable row level security;   -- [002]
 alter table public.envois_mailing          enable row level security;
 alter table public.relances_compte         enable row level security;
 alter table public.admin_users             enable row level security;
+alter table public.profs                   enable row level security;   -- [011] planning
+alter table public.cours                   enable row level security;   -- [011] planning
+alter table public.affectations            enable row level security;   -- [011] planning
+alter table public.periodes_fermeture      enable row level security;   -- [011] planning
 
 -- ---------------------------------------------------------------------------
 -- 8bis) GRANTS — privilèges standard Supabase sur le schéma public.

@@ -419,6 +419,50 @@ export async function sendAdminNotification(d: MailData) {
   });
 }
 
+/**
+ * 2bis — [Planning] Email TRANSACTIONNEL au prof positionné sur un cours pour une
+ * semaine donnée. Gabarit du club (wrap) SANS pied de désinscription (ce n'est
+ * pas une campagne). Renvoie { skipped: true } si Resend n'est pas configuré ou
+ * si le prof n'a pas d'email (jamais d'erreur : l'affectation reste valide).
+ */
+export async function sendProfNotification(d: {
+  email?: string | null;
+  prenomProf?: string | null;
+  coursLibelle: string;
+  jour: string; // "Lundi"
+  horaire: string; // "19:00 – 20:30"
+  salle?: string | null;
+  ville?: string | null;
+  semaineISO: string; // lundi de la semaine (ISO)
+}) {
+  const email = (d.email || "").trim();
+  if (!email) return { skipped: true as const };
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+
+  const bonjour = d.prenomProf ? `Bonjour ${formaterPrenom(d.prenomProf)},` : "Bonjour,";
+  const lieu = [d.salle, d.ville].filter(Boolean).join(" · ");
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Vous êtes positionné sur un cours 🥊</h1>
+    <p style="line-height:1.6;color:#444">${bonjour}</p>
+    <p style="line-height:1.6;color:#444">Vous encadrez le cours suivant pour la semaine du <strong>${formatDateFr(d.semaineISO)}</strong> :</p>
+    <div style="border:1px solid #eee;border-radius:12px;padding:16px;margin:14px 0">
+      <p style="margin:4px 0"><strong>${d.coursLibelle}</strong></p>
+      <p style="margin:4px 0"><strong>${d.jour}</strong> · ${d.horaire}</p>
+      ${lieu ? `<p style="margin:4px 0">${lieu}</p>` : ""}
+    </div>
+    <p style="line-height:1.6;color:#444">Merci, et à bientôt à la salle !</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: email,
+    replyTo: REPLY_TO,
+    subject: `Cours du ${d.jour} — semaine du ${formatDateFr(d.semaineISO)}`,
+    html,
+  });
+}
+
 /** 3 — Email à l'adhérent : un document a été refusé. */
 export async function sendDocumentActionRequired(d: {
   prenom: string;
