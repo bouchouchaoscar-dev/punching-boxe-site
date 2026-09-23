@@ -143,7 +143,7 @@ export function prepaDuMois(date: Date, saisonEnCours = false): number {
 // saison. Les deux seuils sont INDÉPENDANTS : un 13-17 ans = tarif adulte MAIS
 // mineur (autorisation parentale requise).
 export const SEUIL_JEUNE_ANS = CONFIG_CLUB.seuils.jeuneAns; // < N ans = tarif « jeune » (config)
-export const SEUIL_MAJORITE_ANS = 18; // < 18 ans = mineur : RÈGLE LÉGALE FR, reste en dur (socle)
+export const SEUIL_MAJORITE_ANS = CONFIG_CLUB.seuils.majoriteAns; // < N ans = mineur (config, défaut 18)
 
 /** Âge révolu à une date de référence (anniversaire de l'année pris en compte). */
 function ageRevolu(dateNaissance: string, ref: Date): number | null {
@@ -176,7 +176,7 @@ export function deduireType(
  * donc l'autorisation parentale). DYNAMIQUE.
  */
 export function estMineur(
-  dateNaissance?: string,
+  dateNaissance?: string | null,
   ref: Date = new Date(),
 ): boolean {
   if (!dateNaissance) return false;

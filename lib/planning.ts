@@ -409,16 +409,7 @@ export function libelleChangements(nAjoutes: number, nRetires: number, nModifies
 }
 
 // ---- Mails « prévenir les adhérents » (PUR, testable) -----------------------
-/** Adhérent mineur (< 18 ans) → mail reçu par le parent. Naissance absente → majeur. */
-export function estMineur(dateNaissance?: string | null, ref: Date = new Date()): boolean {
-  if (!dateNaissance) return false;
-  const d = new Date(dateNaissance);
-  if (Number.isNaN(d.getTime())) return false;
-  let age = ref.getFullYear() - d.getFullYear();
-  const m = ref.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && ref.getDate() < d.getDate())) age--;
-  return age < 18;
-}
+// (Mineur/majeur : réutiliser `estMineur` de lib/pricing — seuil CONFIG_CLUB.)
 
 /** Prochaine occurrence non fermée d'un cours (même jour) après `apresSemaineISO`. */
 export function prochaineOccurrence(

@@ -15,7 +15,6 @@ import {
   formatDateCours,
   formatLieu,
   lieuAvecPreposition,
-  estMineur,
   prochaineOccurrence,
   genererMailPrevenir,
   type Cours,
@@ -23,6 +22,7 @@ import {
   type CoursEnvoi,
 } from "../lib/planning";
 import { resoudreOuverture } from "../lib/campagnes";
+import { estMineur } from "../lib/pricing";
 
 let ok = 0;
 let ko = 0;

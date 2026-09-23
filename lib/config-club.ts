@@ -66,6 +66,7 @@ export const CONFIG_CLUB = {
   seuils: {
     adhesionGapAns: 4, // gap ≥ N saisons → re-facturer l'adhésion (froid)
     jeuneAns: 13, // < N ans = tarif « jeune » (SOURCE UNIQUE, cf. pricing + anciennete)
+    majoriteAns: 18, // < N ans = mineur (autorisation parentale ; ouverture mails). SOURCE UNIQUE.
     // Délais des relances du cron charge-echeances, en HEURES.
     relances: {
       panierH: 24, // 1ère relance panier abandonné (dossier carte non finalisé)

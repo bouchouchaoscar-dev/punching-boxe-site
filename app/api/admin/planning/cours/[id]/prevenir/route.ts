@@ -4,12 +4,12 @@ import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
 import { resoudreOuverture, type PersonneEnvoi } from "@/lib/campagnes";
 import { estActifCompte } from "@/lib/adherents-actifs";
+import { estMineur } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import {
   planningActif,
   adherentDansDiscipline,
   disciplineLabel,
-  estMineur,
   formatDateCours,
   plageHoraire,
   formatLieu,
