@@ -42,6 +42,8 @@ export default function PlanningPage() {
   const [panneau, setPanneau] = useState<{ cours: Cours; aff: Affectation | null } | null>(null);
   // Cours pour lequel on prévient les adhérents (mailing ciblé par discipline).
   const [prevenir, setPrevenir] = useState<Cours | null>(null);
+  // Affectation en attente de confirmation (avant écriture + mail au prof).
+  const [confirmAff, setConfirmAff] = useState<{ profId: string | null } | null>(null);
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -211,8 +213,8 @@ export default function PlanningPage() {
                 Affecter un professeur
               </span>
               <select
-                defaultValue={panneau.aff?.prof_id ?? ""}
-                onChange={(e) => affecter(e.target.value || null)}
+                value={panneau.aff?.prof_id ?? ""}
+                onChange={(e) => setConfirmAff({ profId: e.target.value || null })}
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
               >
                 <option value="">
@@ -265,6 +267,50 @@ export default function PlanningPage() {
           flash={flash}
         />
       )}
+
+      {/* Confirmation avant affectation / retrait (l'affectation envoie un mail) */}
+      {confirmAff && panneau && (() => {
+        const profId = confirmAff.profId;
+        const prof = profId ? profs.find((p) => p.id === profId) : null;
+        const nomProf = prof ? [prof.prenom, prof.nom].filter(Boolean).join(" ") : "";
+        const c = panneau.cours;
+        const coursInfo = `${c.libelle} du ${jourLong(c.jour_semaine)} ${formatHeure(c.heure_debut)}–${formatHeure(c.heure_fin)}`;
+        const ancienProf = panneau.aff?.prof_id ? profs.find((p) => p.id === panneau.aff!.prof_id) : null;
+        const ancienNom = ancienProf ? [ancienProf.prenom, ancienProf.nom].filter(Boolean).join(" ") : "ce professeur";
+        const message =
+          profId === null
+            ? `Retirer ${ancienNom} du cours ${coursInfo} ? Aucun email ne sera envoyé.`
+            : prof?.email
+              ? `Affecter ${nomProf} au cours ${coursInfo} ? Un email de confirmation lui sera envoyé.`
+              : `Affecter ${nomProf} au cours ${coursInfo} ? Aucun email ne sera envoyé, ce professeur n'a pas d'adresse renseignée.`;
+        return (
+          <div className="fixed inset-0 z-[65] flex items-center justify-center bg-ink/40 p-4">
+            <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
+              <h2 className="font-display text-lg font-extrabold uppercase text-ink">
+                {profId === null ? "Retirer le professeur" : "Confirmer l'affectation"}
+              </h2>
+              <p className="mt-3 text-sm text-smoke">{message}</p>
+              <div className="mt-5 flex justify-center gap-3">
+                <button
+                  onClick={() => setConfirmAff(null)}
+                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => {
+                    affecter(profId);
+                    setConfirmAff(null);
+                  }}
+                  className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+                >
+                  {profId === null ? "Retirer" : "Affecter"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] max-w-xs rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white shadow-lg">
