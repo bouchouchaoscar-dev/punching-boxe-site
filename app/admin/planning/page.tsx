@@ -24,6 +24,8 @@ type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 const jsonHeaders = () => ({ "Content-Type": "application/json", ...adminAuthHeaders() });
 
 const TYPE_LABEL: Record<string, string> = { adulte: "Adultes", jeune: "Jeunes" };
+// Public d'un cours : type_adherent null = "Tous" (pas de distinction d'âge).
+const publicLabel = (t: string | null) => (t ? TYPE_LABEL[t] ?? t : "Tous");
 
 export default function PlanningPage() {
   const actif = planningActif();
@@ -187,8 +189,8 @@ export default function PlanningPage() {
       {panneau && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
           <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
-            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-              Affecter un prof
+            <h2 className="text-center font-display text-lg font-extrabold uppercase text-ink">
+              Ce cours
             </h2>
             <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
               <p className="font-bold text-ink">{panneau.cours.libelle}</p>
@@ -204,13 +206,19 @@ export default function PlanningPage() {
             </div>
 
             <label className="mt-4 block">
-              <span className="mb-1.5 block text-sm font-semibold text-ink">Prof</span>
+              <span className="mb-1.5 block text-sm font-semibold text-ink">
+                Affecter un professeur
+              </span>
               <select
                 defaultValue={panneau.aff?.prof_id ?? ""}
                 onChange={(e) => affecter(e.target.value || null)}
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
               >
-                <option value="">— Aucun (retirer l&apos;affectation) —</option>
+                <option value="">
+                  {panneau.aff?.prof_id
+                    ? "Retirer l'affectation"
+                    : "— Sélectionner un professeur —"}
+                </option>
                 {profsActifs.map((p) => (
                   <option key={p.id} value={p.id}>
                     {[p.prenom, p.nom].filter(Boolean).join(" ")}
@@ -282,11 +290,24 @@ function CoursTab({
   const [form, setForm] = useState({ ...vide });
   const [jours, setJours] = useState<number[]>([1]); // création : multi-jours
   const [jourEdit, setJourEdit] = useState(1); // édition : un seul jour
+  const [perJour, setPerJour] = useState(false); // horaires différents par jour
+  const [horJour, setHorJour] = useState<Record<number, { debut: string; fin: string }>>({});
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function toggleJour(v: number) {
     setJours((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v].sort((a, b) => a - b)));
+  }
+  // Ajuste l'horaire d'un jour donné (part de l'horaire commun comme base).
+  function setJourHoraire(j: number, champ: "debut" | "fin", val: string) {
+    setHorJour((h) => ({
+      ...h,
+      [j]: {
+        debut: h[j]?.debut ?? form.heure_debut,
+        fin: h[j]?.fin ?? form.heure_fin,
+        [champ]: val,
+      },
+    }));
   }
 
   function editer(c: Cours) {
@@ -295,7 +316,7 @@ function CoursTab({
     setForm({
       libelle: c.libelle ?? "",
       discipline: c.discipline ?? "",
-      type_adherent: c.type_adherent ?? "",
+      type_adherent: c.type_adherent ?? "tous",
       heure_debut: formatHeure(c.heure_debut) || "18:00",
       heure_fin: formatHeure(c.heure_fin) || "19:30",
       salle: c.salle ?? "",
@@ -307,6 +328,8 @@ function CoursTab({
     setForm({ ...vide });
     setJours([1]);
     setJourEdit(1);
+    setPerJour(false);
+    setHorJour({});
   }
 
   const valide = form.libelle.trim() && form.discipline && form.type_adherent && (editId ? true : jours.length > 0);
@@ -314,9 +337,15 @@ function CoursTab({
   async function soumettre() {
     setBusy(true);
     try {
+      // Création : un créneau par jour coché, avec SON horaire (commun ou ajusté).
+      const creneaux = jours.map((j) => ({
+        jour_semaine: j,
+        heure_debut: perJour ? horJour[j]?.debut ?? form.heure_debut : form.heure_debut,
+        heure_fin: perJour ? horJour[j]?.fin ?? form.heure_fin : form.heure_fin,
+      }));
       const body = editId
         ? { id: editId, ...form, jour_semaine: jourEdit }
-        : { ...form, jours };
+        : { ...form, creneaux };
       const res = await fetch("/api/admin/planning/cours", {
         method: editId ? "PATCH" : "POST",
         headers: jsonHeaders(),
@@ -421,7 +450,7 @@ function CoursTab({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Début">
+            <Field label={editId ? "Début" : "Début (horaire commun)"}>
               <input
                 type="time"
                 value={form.heure_debut}
@@ -429,7 +458,7 @@ function CoursTab({
                 className={inputCls}
               />
             </Field>
-            <Field label="Fin">
+            <Field label={editId ? "Fin" : "Fin (horaire commun)"}>
               <input
                 type="time"
                 value={form.heure_fin}
@@ -438,6 +467,49 @@ function CoursTab({
               />
             </Field>
           </div>
+
+          {/* Option : horaire différent par jour (création multi-jours only) */}
+          {!editId && jours.length > 1 && (
+            <div className="rounded-xl border border-line bg-paper-2/50 p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
+                <input
+                  type="checkbox"
+                  checked={perJour}
+                  onChange={(e) => setPerJour(e.target.checked)}
+                  className="h-4 w-4 accent-orange"
+                />
+                Horaires différents selon le jour
+              </label>
+              {perJour && (
+                <div className="mt-3 space-y-2">
+                  {jours.map((j) => (
+                    <div key={j} className="flex items-center gap-2">
+                      <span className="w-10 shrink-0 text-xs font-bold text-smoke">
+                        {JOURS.find((x) => x.valeur === j)?.court}
+                      </span>
+                      <input
+                        type="time"
+                        value={horJour[j]?.debut ?? form.heure_debut}
+                        onChange={(e) => setJourHoraire(j, "debut", e.target.value)}
+                        className={inputCls}
+                      />
+                      <span className="text-smoke">→</span>
+                      <input
+                        type="time"
+                        value={horJour[j]?.fin ?? form.heure_fin}
+                        onChange={(e) => setJourHoraire(j, "fin", e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                  ))}
+                  <p className="text-xs text-smoke">
+                    Pré-rempli à l&apos;horaire commun ; ajustez seulement les jours qui diffèrent.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <Field label="Discipline">
               <select
@@ -466,6 +538,7 @@ function CoursTab({
                 </option>
                 <option value="adulte">Adultes</option>
                 <option value="jeune">Jeunes</option>
+                <option value="tous">Tous (adultes + jeunes)</option>
               </select>
             </Field>
           </div>
@@ -523,7 +596,7 @@ function CoursTab({
                   <p className="truncate text-xs text-smoke">
                     {jourLong(c.jour_semaine)} · {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
                     {` · ${disciplineLabel(c.discipline)}`}
-                    {c.type_adherent ? ` · ${TYPE_LABEL[c.type_adherent] ?? c.type_adherent}` : ""}
+                    {` · ${publicLabel(c.type_adherent)}`}
                     {c.salle ? ` · ${c.salle}` : ""}
                   </p>
                 </div>
@@ -870,12 +943,21 @@ function PrevenirPanel({
   onClose: () => void;
   flash: (m: string) => void;
 }) {
+  const libelle = cours.libelle ?? "ce cours";
+  const jour = jourLong(cours.jour_semaine);
   const horaire = `${formatHeure(cours.heure_debut)}–${formatHeure(cours.heure_fin)}`;
   const dateSemaine = new Date(semaineISO).toLocaleDateString("fr-FR", { dateStyle: "long" });
-  const [objet, setObjet] = useState(`Cours ${cours.libelle ?? ""} — information`);
-  const [contenu, setContenu] = useState(
-    `Bonjour {{prenom}},\n\nLe cours ${cours.libelle ?? ""} du ${jourLong(cours.jour_semaine)} (${horaire}), semaine du ${dateSemaine}, est annulé / modifié.\n\nMerci de votre compréhension.\n\nSportivement,\nL'équipe`,
-  );
+
+  type Motif = "annule" | "deplace" | "reporte";
+  const [etape, setEtape] = useState<"motif" | "compose">("motif");
+  const [motif, setMotif] = useState<Motif | null>(null);
+  const [raison, setRaison] = useState(""); // annulé (optionnel)
+  const [lieu, setLieu] = useState(""); // déplacé
+  const [nvDate, setNvDate] = useState(""); // reporté (ISO)
+  const [nvHeure, setNvHeure] = useState(formatHeure(cours.heure_debut) || "18:00"); // reporté
+
+  const [objet, setObjet] = useState("");
+  const [contenu, setContenu] = useState("");
   const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
@@ -892,6 +974,48 @@ function PrevenirPanel({
       .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0 }))
       .catch(() => setCible({ count: 0, emails: 0 }));
   }, [cours.id]);
+
+  // Gabarit de mail auto-généré selon le motif (base ÉDITABLE ensuite).
+  function genererMail(m: Motif): { objet: string; contenu: string } {
+    let phrase = "";
+    let sujet = "";
+    if (m === "annule") {
+      sujet = `Cours ${libelle} du ${jour} — annulé`;
+      phrase = `Le cours ${libelle} du ${jour} ${horaire}, semaine du ${dateSemaine}, est annulé${
+        raison.trim() ? ` pour raison : ${raison.trim()}` : ""
+      }. Merci de votre compréhension.`;
+    } else if (m === "deplace") {
+      sujet = `Cours ${libelle} du ${jour} — changement de lieu`;
+      phrase = `Le cours ${libelle} du ${jour} ${horaire} est déplacé : il aura lieu à ${lieu.trim()}.`;
+    } else {
+      const dFr = nvDate ? new Date(nvDate).toLocaleDateString("fr-FR", { dateStyle: "long" }) : "…";
+      sujet = `Cours ${libelle} du ${jour} — reporté`;
+      phrase = `Le cours ${libelle} initialement prévu le ${jour} ${horaire} est reporté au ${dFr} à ${nvHeure}.`;
+    }
+    return {
+      objet: sujet,
+      contenu: `Bonjour {{prenom}},\n\n${phrase}\n\nSportivement,\nL'équipe`,
+    };
+  }
+
+  const motifValide =
+    motif === "annule" ||
+    (motif === "deplace" && lieu.trim().length > 0) ||
+    (motif === "reporte" && !!nvDate && !!nvHeure);
+
+  function continuer() {
+    if (!motif || !motifValide) return;
+    const m = genererMail(motif);
+    setObjet(m.objet);
+    setContenu(m.contenu);
+    setEtape("compose");
+  }
+
+  const MOTIFS: { cle: Motif; label: string; emoji: string }[] = [
+    { cle: "annule", label: "Annulé", emoji: "🚫" },
+    { cle: "deplace", label: "Déplacé", emoji: "📍" },
+    { cle: "reporte", label: "Reporté", emoji: "🗓️" },
+  ];
 
   async function envoyer() {
     setSending(true);
@@ -946,7 +1070,7 @@ function PrevenirPanel({
               <p className="font-bold text-ink">{cours.libelle}</p>
               <p className="text-smoke">
                 {jourLong(cours.jour_semaine)} · {horaire} · {disciplineLabel(cours.discipline)}
-                {cours.type_adherent ? ` · ${TYPE_LABEL[cours.type_adherent] ?? cours.type_adherent}` : ""}
+                {` · ${publicLabel(cours.type_adherent)}`}
               </p>
             </div>
 
@@ -956,12 +1080,97 @@ function PrevenirPanel({
                 : `${cible.count} adhérent${cible.count > 1 ? "s" : ""} concerné${cible.count > 1 ? "s" : ""} · ${cible.emails} email${cible.emails > 1 ? "s" : ""}`}
               <span className="mt-1 block text-xs font-normal text-smoke">
                 Ciblage : {disciplineLabel(cours.discipline)}
-                {cours.type_adherent ? ` · ${TYPE_LABEL[cours.type_adherent] ?? cours.type_adherent}` : " · tous publics"}
+                {` · ${cours.type_adherent ? publicLabel(cours.type_adherent) : "tous publics"}`}
                 {" "}· adhérents actifs de la saison en cours (désinscrits et adresses invalides exclus à l&apos;envoi).
               </span>
             </div>
 
-            <label className="mt-4 block">
+            {/* Étape 1 — motif (pré-remplit le mail) */}
+            {etape === "motif" && (
+              <div className="mt-4">
+                <p className="mb-2 text-sm font-semibold text-ink">Que se passe-t-il ?</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {MOTIFS.map((m) => (
+                    <button
+                      key={m.cle}
+                      onClick={() => setMotif(m.cle)}
+                      className={`rounded-xl border px-3 py-3 text-center text-sm font-semibold transition-colors ${
+                        motif === m.cle
+                          ? "border-orange bg-orange-50 text-orange"
+                          : "border-line text-ink hover:border-orange/40"
+                      }`}
+                    >
+                      <span className="mb-0.5 block text-lg">{m.emoji}</span>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+
+                {motif === "annule" && (
+                  <label className="mt-4 block">
+                    <span className="mb-1.5 block text-sm font-semibold text-ink">Raison (optionnel)</span>
+                    <input
+                      value={raison}
+                      onChange={(e) => setRaison(e.target.value)}
+                      placeholder="Ex. professeur absent"
+                      className={inputCls}
+                    />
+                  </label>
+                )}
+                {motif === "deplace" && (
+                  <label className="mt-4 block">
+                    <span className="mb-1.5 block text-sm font-semibold text-ink">Nouveau lieu</span>
+                    <input
+                      value={lieu}
+                      onChange={(e) => setLieu(e.target.value)}
+                      placeholder="Ex. Gymnase des Ormes, 12 rue du Port"
+                      className={inputCls}
+                    />
+                  </label>
+                )}
+                {motif === "reporte" && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <DatePicker label="Nouvelle date" value={nvDate} onChange={setNvDate} />
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle heure</span>
+                      <input
+                        type="time"
+                        value={nvHeure}
+                        onChange={(e) => setNvHeure(e.target.value)}
+                        className={inputCls}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                <div className="mt-5 flex gap-2">
+                  <button
+                    onClick={onClose}
+                    className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={continuer}
+                    disabled={!motif || !motifValide}
+                    className="rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white hover:bg-orange disabled:opacity-40"
+                  >
+                    Continuer
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Étape 2 — mail pré-rempli, éditable, puis envoi */}
+            {etape === "compose" && (
+            <>
+            <button
+              onClick={() => setEtape("motif")}
+              className="mt-4 text-sm font-semibold text-smoke hover:text-ink"
+            >
+              ← Changer le motif
+            </button>
+            <label className="mt-2 block">
               <span className="mb-1.5 block text-sm font-semibold text-ink">Objet</span>
               <input
                 value={objet}
@@ -1022,6 +1231,8 @@ function PrevenirPanel({
                   Prévenir {cible ? `(${cible.count})` : ""}
                 </button>
               </div>
+            )}
+            </>
             )}
           </>
         )}

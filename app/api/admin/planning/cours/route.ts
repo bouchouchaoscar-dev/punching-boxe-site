@@ -5,8 +5,15 @@ import { planningActif, DISCIPLINES_COURS } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
-const TYPES = ["adulte", "jeune"];
+// Public accepté à la SAISIE. "tous" → stocké type_adherent = null (pas de
+// distinction d'âge → le mailing ne croisera pas par type).
+const TYPES = ["adulte", "jeune", "tous"];
 const DISCIPLINES = DISCIPLINES_COURS.map((d) => d.cle) as string[];
+
+// Public saisi → valeur stockée (null pour "tous").
+function typeStocke(type: string): string | null {
+  return type === "tous" ? null : type;
+}
 
 // Normalise une heure "HH:MM" ; renvoie null si vide/invalide.
 function optHeure(v: unknown): string | null {
@@ -59,28 +66,51 @@ export async function POST(request: Request) {
   }
 
   const libelle = String(body.libelle ?? "").trim();
-  const jours = lireJours(body);
-  const heureDebut = optHeure(body.heure_debut);
-  const heureFin = optHeure(body.heure_fin);
   const type = String(body.type_adherent ?? "").trim();
   const discipline = String(body.discipline ?? "").trim();
+  const salle = String(body.salle ?? "").trim() || null;
+  const ville = String(body.ville ?? "").trim() || null;
 
   if (!libelle) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
   if (!DISCIPLINES.includes(discipline)) return NextResponse.json({ error: "Discipline requise." }, { status: 400 });
-  if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes ou jeunes)." }, { status: 400 });
-  if (jours.length === 0) return NextResponse.json({ error: "Sélectionnez au moins un jour." }, { status: 400 });
-  if (!heureDebut || !heureFin) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
-  if (heureFin <= heureDebut) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
+  if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes, jeunes ou tous)." }, { status: 400 });
 
-  const lignes = jours.map((j) => ({
+  // Créneaux : soit une liste explicite [{jour_semaine, heure_debut, heure_fin}]
+  // (horaire par jour), soit les jours + un horaire commun (cas simple).
+  type Creneau = { jour_semaine: number; heure_debut: string; heure_fin: string };
+  let creneaux: Creneau[] = [];
+  if (Array.isArray(body.creneaux) && body.creneaux.length > 0) {
+    for (const c of body.creneaux as Record<string, unknown>[]) {
+      const j = Number(c.jour_semaine);
+      const hd = optHeure(c.heure_debut);
+      const hf = optHeure(c.heure_fin);
+      if (!(j >= 1 && j <= 7)) return NextResponse.json({ error: "Jour invalide." }, { status: 400 });
+      if (!hd || !hf) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
+      if (hf <= hd) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
+      creneaux.push({ jour_semaine: j, heure_debut: hd, heure_fin: hf });
+    }
+    // Dédoublonne par jour (garde le premier créneau d'un jour donné).
+    const vus = new Set<number>();
+    creneaux = creneaux.filter((c) => (vus.has(c.jour_semaine) ? false : vus.add(c.jour_semaine) && true));
+  } else {
+    const jours = lireJours(body);
+    const hd = optHeure(body.heure_debut);
+    const hf = optHeure(body.heure_fin);
+    if (jours.length === 0) return NextResponse.json({ error: "Sélectionnez au moins un jour." }, { status: 400 });
+    if (!hd || !hf) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
+    if (hf <= hd) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
+    creneaux = jours.map((j) => ({ jour_semaine: j, heure_debut: hd, heure_fin: hf }));
+  }
+
+  const lignes = creneaux.map((c) => ({
     libelle,
     discipline,
-    type_adherent: type,
-    jour_semaine: j,
-    heure_debut: heureDebut,
-    heure_fin: heureFin,
-    salle: String(body.salle ?? "").trim() || null,
-    ville: String(body.ville ?? "").trim() || null,
+    type_adherent: typeStocke(type),
+    jour_semaine: c.jour_semaine,
+    heure_debut: c.heure_debut,
+    heure_fin: c.heure_fin,
+    salle,
+    ville,
   }));
 
   const supabase = getSupabaseAdmin();
@@ -118,8 +148,8 @@ export async function PATCH(request: Request) {
   }
   if (body.type_adherent !== undefined) {
     const t = String(body.type_adherent).trim();
-    if (!TYPES.includes(t)) return NextResponse.json({ error: "Public requis (adultes ou jeunes)." }, { status: 400 });
-    patch.type_adherent = t;
+    if (!TYPES.includes(t)) return NextResponse.json({ error: "Public requis (adultes, jeunes ou tous)." }, { status: 400 });
+    patch.type_adherent = typeStocke(t);
   }
   if (body.jour_semaine !== undefined) {
     const j = Number(body.jour_semaine);

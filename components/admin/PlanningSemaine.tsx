@@ -15,8 +15,10 @@ import {
   type PeriodeFermeture,
 } from "@/lib/planning";
 
-const PX_PAR_HEURE = 64; // hauteur d'une heure dans la grille
-const HEURE_MIN_DEFAUT = 9;
+const PX_PAR_HEURE = 60; // hauteur d'une heure dans la grille
+// Amplitude d'agenda par défaut : journée complète 8h→22h (grille toujours
+// affichée en entier, créneaux vides visibles), étendue si un cours déborde.
+const HEURE_MIN_DEFAUT = 8;
 const HEURE_MAX_DEFAUT = 22;
 
 const minutes = (t: string | null) => {
@@ -65,19 +67,18 @@ export function PlanningSemaine({
     return [...base, ...weekend];
   }, [cours]);
 
-  // Plage horaire = min/max des cours affichés (arrondie à l'heure), défaut 9→22.
+  // Plage = journée complète (8h→22h) ÉTENDUE aux cours qui débordent, de sorte
+  // que la grille soit affichée en entier (créneaux vides inclus), pas seulement
+  // la tranche des cours existants.
   const { hMin, hMax } = useMemo(() => {
-    let min = HEURE_MIN_DEFAUT * 60;
-    let max = HEURE_MAX_DEFAUT * 60;
-    const avecHoraire = cours.filter((c) => c.heure_debut && c.heure_fin);
-    if (avecHoraire.length) {
-      min = Math.min(...avecHoraire.map((c) => minutes(c.heure_debut)));
-      max = Math.max(...avecHoraire.map((c) => minutes(c.heure_fin)));
+    let minH = HEURE_MIN_DEFAUT;
+    let maxH = HEURE_MAX_DEFAUT;
+    for (const c of cours) {
+      if (!c.heure_debut || !c.heure_fin) continue;
+      minH = Math.min(minH, Math.floor(minutes(c.heure_debut) / 60));
+      maxH = Math.max(maxH, Math.ceil(minutes(c.heure_fin) / 60));
     }
-    return {
-      hMin: Math.floor(min / 60),
-      hMax: Math.ceil(max / 60),
-    };
+    return { hMin: minH, hMax: maxH };
   }, [cours]);
 
   const heures = useMemo(
