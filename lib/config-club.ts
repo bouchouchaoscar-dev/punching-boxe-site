@@ -45,6 +45,20 @@ export const CONFIG_CLUB = {
   modules: {
     planning: {
       actif: true, // Calendrier hebdo des cours + profs + affectations + mail au prof.
+      // Couleurs des cours (paramétrable par club). `disciplines` = couleur de
+      // repli par discipline ; `couples` = surcharge fine par discipline:public
+      // (clé "<discipline>:<public>"). Public "Tous" → couleur de la discipline.
+      // bg = fond pâle de la carte, bar = liseré d'accent. Texte toujours foncé.
+      couleurs: {
+        disciplines: {
+          boxe_francaise: { bg: "#fff4ec", bar: "#f84800" }, // rouge/orange charte
+          savate: { bg: "#eef2ff", bar: "#4f46e5" }, // indigo
+          prepa_physique: { bg: "#ecfdf5", bar: "#059669" }, // vert
+        } as Record<string, { bg: string; bar: string }>,
+        couples: {
+          "boxe_francaise:jeune": { bg: "#fef8e7", bar: "#d97706" }, // ambre (texte foncé)
+        } as Record<string, { bg: string; bar: string }>,
+      },
     },
   },
 

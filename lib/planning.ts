@@ -48,6 +48,33 @@ export function disciplineLabel(d: string | null): string {
   return DISCIPLINES_COURS.find((x) => x.cle === d)?.label ?? "—";
 }
 
+/** Libellé du public d'un cours. type_adherent null = "Tous" (pas de distinction). */
+export function publicLabel(t: string | null): string {
+  if (t === "adulte") return "Adultes";
+  if (t === "jeune") return "Jeunes";
+  return "Tous";
+}
+
+// ---- Couleur d'un cours (discipline × public) — SOURCE UNIQUE ---------------
+export type CouleurCours = { bg: string; bar: string };
+const COULEUR_REPLI: CouleurCours = { bg: "#f5f5f5", bar: "#9ca3af" };
+
+/**
+ * Couleur d'un cours selon (discipline, public), lue depuis CONFIG_CLUB
+ * (paramétrable par club). Priorité : surcharge du couple "discipline:public",
+ * sinon couleur de la discipline, sinon repli neutre. Public "Tous" (null) →
+ * couleur de la discipline. Utilisé partout où un cours est coloré (calendrier,
+ * pastille de la liste, légende).
+ */
+export function couleurCours(discipline: string | null, publicType: string | null): CouleurCours {
+  const conf = CONFIG_CLUB.modules?.planning?.couleurs;
+  const disc = discipline ?? "";
+  if (publicType && conf?.couples?.[`${disc}:${publicType}`]) {
+    return conf.couples[`${disc}:${publicType}`];
+  }
+  return conf?.disciplines?.[disc] ?? COULEUR_REPLI;
+}
+
 /**
  * CIBLAGE MAILING — un adhérent (défini par sa FORMULE : package +
  * option_prepa_physique) est-il concerné par la discipline d'un cours ?

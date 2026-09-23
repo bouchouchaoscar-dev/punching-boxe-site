@@ -12,6 +12,8 @@ import {
   jourLong,
   formatHeure,
   disciplineLabel,
+  publicLabel,
+  couleurCours,
   DISCIPLINES_COURS,
   JOURS,
   type Prof,
@@ -23,10 +25,6 @@ import {
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
 const jsonHeaders = () => ({ "Content-Type": "application/json", ...adminAuthHeaders() });
-
-const TYPE_LABEL: Record<string, string> = { adulte: "Adultes", jeune: "Jeunes" };
-// Public d'un cours : type_adherent null = "Tous" (pas de distinction d'âge).
-const publicLabel = (t: string | null) => (t ? TYPE_LABEL[t] ?? t : "Tous");
 
 export default function PlanningPage() {
   const actif = planningActif();
@@ -333,85 +331,21 @@ function CoursTab({
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
-  const vide = { libelle: "", discipline: "", type_adherent: "", heure_debut: "18:00", heure_fin: "19:30", salle: "", ville: "" };
-  const [form, setForm] = useState({ ...vide });
-  const [jours, setJours] = useState<number[]>([1]); // création : multi-jours
-  const [jourEdit, setJourEdit] = useState(1); // édition : un seul jour
-  const [perJour, setPerJour] = useState(false); // horaires/salle différents par jour
-  const [horJour, setHorJour] = useState<Record<number, { debut: string; fin: string; salle: string }>>({});
-  const [editId, setEditId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [modale, setModale] = useState<{ mode: "create" } | { mode: "edit"; cours: Cours } | null>(null);
+  const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
+  const [groupeAction, setGroupeAction] =
+    useState<{ type: "desactiver" | "supprimer"; groupe: Groupe } | null>(null);
+  const [busyGroupe, setBusyGroupe] = useState(false);
 
-  function toggleJour(v: number) {
-    setJours((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v].sort((a, b) => a - b)));
-  }
-  // Ajuste l'horaire/la salle d'un jour donné (part des valeurs communes comme base).
-  function setJourChamp(j: number, champ: "debut" | "fin" | "salle", val: string) {
-    setHorJour((h) => ({
-      ...h,
-      [j]: {
-        debut: h[j]?.debut ?? form.heure_debut,
-        fin: h[j]?.fin ?? form.heure_fin,
-        salle: h[j]?.salle ?? form.salle,
-        [champ]: val,
-      },
-    }));
-  }
+  const groupes = useMemo(() => grouperCours(cours), [cours]);
 
-  function editer(c: Cours) {
-    setEditId(c.id);
-    setJourEdit(c.jour_semaine ?? 1);
-    setForm({
-      libelle: c.libelle ?? "",
-      discipline: c.discipline ?? "",
-      type_adherent: c.type_adherent ?? "tous",
-      heure_debut: formatHeure(c.heure_debut) || "18:00",
-      heure_fin: formatHeure(c.heure_fin) || "19:30",
-      salle: c.salle ?? "",
-      ville: c.ville ?? "",
+  function toggleOpen(k: string) {
+    setOpenKeys((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
     });
-  }
-  function annuler() {
-    setEditId(null);
-    setForm({ ...vide });
-    setJours([1]);
-    setJourEdit(1);
-    setPerJour(false);
-    setHorJour({});
-  }
-
-  const valide = form.libelle.trim() && form.discipline && form.type_adherent && (editId ? true : jours.length > 0);
-
-  async function soumettre() {
-    setBusy(true);
-    try {
-      // Création : un créneau par jour coché, avec SON horaire/salle (commun ou ajusté).
-      const creneaux = jours.map((j) => ({
-        jour_semaine: j,
-        heure_debut: perJour ? horJour[j]?.debut ?? form.heure_debut : form.heure_debut,
-        heure_fin: perJour ? horJour[j]?.fin ?? form.heure_fin : form.heure_fin,
-        salle: perJour ? horJour[j]?.salle ?? form.salle : form.salle,
-      }));
-      const body = editId
-        ? { id: editId, ...form, jour_semaine: jourEdit }
-        : { ...form, creneaux };
-      const res = await fetch("/api/admin/planning/cours", {
-        method: editId ? "PATCH" : "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify(body),
-      });
-      const d = await res.json();
-      if (!res.ok) {
-        flash(d.error || "Échec de l'enregistrement.");
-        return;
-      }
-      const n = d.crees ?? 1;
-      flash(editId ? "Cours modifié ✓" : `${n} cours créé${n > 1 ? "s" : ""} ✓`);
-      annuler();
-      onChanged();
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function basculerActif(c: Cours) {
@@ -426,46 +360,408 @@ function CoursTab({
     }
   }
 
-  async function supprimer(c: Cours) {
-    if (!confirm("Supprimer ce cours ? Les affectations liées seront supprimées.")) return;
+  async function supprimerUn(c: Cours) {
+    if (!confirm("Supprimer ce créneau ? Les affectations liées seront supprimées.")) return;
     const res = await fetch(`/api/admin/planning/cours/${c.id}`, {
       method: "DELETE",
       headers: adminAuthHeaders(),
     });
     if (res.ok) {
-      flash("Cours supprimé");
-      if (editId === c.id) annuler();
+      flash("Créneau supprimé");
       onChanged();
     } else {
       flash("Échec de la suppression.");
     }
   }
 
+  // Actions de GROUPE (tous les créneaux d'un groupe), après confirmation.
+  async function executerGroupe() {
+    if (!groupeAction) return;
+    setBusyGroupe(true);
+    try {
+      const { type, groupe } = groupeAction;
+      for (const c of groupe.creneaux) {
+        if (type === "supprimer") {
+          await fetch(`/api/admin/planning/cours/${c.id}`, {
+            method: "DELETE",
+            headers: adminAuthHeaders(),
+          });
+        } else {
+          await fetch("/api/admin/planning/cours", {
+            method: "PATCH",
+            headers: jsonHeaders(),
+            body: JSON.stringify({ id: c.id, actif: false }),
+          });
+        }
+      }
+      flash(type === "supprimer" ? "Groupe supprimé" : "Groupe désactivé");
+      setGroupeAction(null);
+      onChanged();
+    } finally {
+      setBusyGroupe(false);
+    }
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-      {/* Formulaire */}
-      <div className="rounded-xl border border-line p-4">
-        <h3 className="font-display text-base font-extrabold uppercase text-ink">
-          {editId ? "Modifier le cours" : "Nouveau cours"}
-        </h3>
-        <div className="mt-3 space-y-3">
+    <div>
+      {/* En-tête : bouton d'ouverture de la modale de création */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-smoke">
+          {cours.length} créneau{cours.length > 1 ? "x" : ""} · {groupes.length} cours
+        </p>
+        <button
+          onClick={() => setModale({ mode: "create" })}
+          className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+        >
+          + Nouveau cours
+        </button>
+      </div>
+
+      {groupes.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-line bg-paper-2/40 py-8 text-center text-sm text-smoke">
+          Aucun cours pour l&apos;instant. Cliquez sur « + Nouveau cours ».
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {groupes.map((g) => {
+            const col = couleurCours(g.discipline, g.type_adherent);
+            const ouvert = openKeys.has(g.key);
+            const joursTxt = [...new Set(g.creneaux.map((c) => c.jour_semaine))]
+              .sort((a, b) => (a ?? 0) - (b ?? 0))
+              .map((j) => JOURS.find((x) => x.valeur === j)?.court)
+              .filter(Boolean)
+              .join(", ");
+            const sallesDistinctes = [...new Set(g.creneaux.map((c) => (c.salle || "").trim()).filter(Boolean))];
+            const sallesTxt =
+              sallesDistinctes.length > 2 ? `${sallesDistinctes.length} salles` : sallesDistinctes.join(", ");
+            const inactifTotal = g.creneaux.every((c) => !c.actif);
+            return (
+              <li
+                key={g.key}
+                className={`overflow-hidden rounded-xl border border-line ${inactifTotal ? "opacity-60" : "bg-white"}`}
+              >
+                {/* Ligne de groupe (repliée) */}
+                <button
+                  onClick={() => toggleOpen(g.key)}
+                  className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-paper-2/50"
+                >
+                  <span
+                    className="h-8 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: col.bar }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-ink">{g.libelle || "—"}</p>
+                    <p className="truncate text-xs text-smoke">
+                      {disciplineLabel(g.discipline)} · {publicLabel(g.type_adherent)} · {joursTxt}
+                      {sallesTxt ? ` · ${sallesTxt}` : ""}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs font-semibold text-smoke">
+                    {g.creneaux.length} créneau{g.creneaux.length > 1 ? "x" : ""}
+                  </span>
+                  <span className={`shrink-0 text-smoke transition-transform ${ouvert ? "rotate-90" : ""}`}>›</span>
+                </button>
+
+                {/* Détail déplié : créneaux + actions */}
+                {ouvert && (
+                  <div className="border-t border-line">
+                    <ul className="divide-y divide-line/60">
+                      {g.creneaux.map((c) => (
+                        <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className={`truncate text-sm font-semibold ${c.actif ? "text-ink" : "text-smoke line-through"}`}>
+                              {jourLong(c.jour_semaine)} · {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
+                            </p>
+                            <p className="truncate text-xs text-smoke">
+                              {[c.salle, c.ville].filter(Boolean).join(" · ") || "—"}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 gap-2">
+                            <button
+                              onClick={() => setModale({ mode: "edit", cours: c })}
+                              className="text-xs font-semibold text-orange hover:underline"
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              onClick={() => basculerActif(c)}
+                              className="text-xs font-semibold text-smoke hover:text-ink"
+                            >
+                              {c.actif ? "Désactiver" : "Réactiver"}
+                            </button>
+                            <button
+                              onClick={() => supprimerUn(c)}
+                              className="text-xs font-semibold text-red-600 hover:underline"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap justify-end gap-2 bg-paper-2/40 px-3 py-2">
+                      <button
+                        onClick={() => setGroupeAction({ type: "desactiver", groupe: g })}
+                        className="rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink hover:border-orange"
+                      >
+                        Désactiver tout
+                      </button>
+                      <button
+                        onClick={() => setGroupeAction({ type: "supprimer", groupe: g })}
+                        className="rounded-full border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:border-red-400"
+                      >
+                        Supprimer tout
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* Modale création / édition (composant unique) */}
+      {modale && (
+        <CoursModale
+          mode={modale.mode}
+          cours={modale.mode === "edit" ? modale.cours : undefined}
+          onClose={() => setModale(null)}
+          onSaved={() => {
+            setModale(null);
+            onChanged();
+          }}
+          flash={flash}
+        />
+      )}
+
+      {/* Confirmation action de groupe (récap chiffré) */}
+      {groupeAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
+              {groupeAction.type === "supprimer" ? "Supprimer le cours" : "Désactiver le cours"}
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              {groupeAction.type === "supprimer" ? (
+                <>
+                  Supprimer les <strong>{groupeAction.groupe.creneaux.length}</strong> créneau
+                  {groupeAction.groupe.creneaux.length > 1 ? "x" : ""} de{" "}
+                  <strong className="text-ink">{groupeAction.groupe.libelle}</strong> ? Les affectations
+                  liées (toutes semaines) seront supprimées. Action irréversible.
+                </>
+              ) : (
+                <>
+                  Désactiver les <strong>{groupeAction.groupe.creneaux.length}</strong> créneau
+                  {groupeAction.groupe.creneaux.length > 1 ? "x" : ""} de{" "}
+                  <strong className="text-ink">{groupeAction.groupe.libelle}</strong> ? Ils n&apos;apparaîtront
+                  plus au calendrier (réactivables).
+                </>
+              )}
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button
+                onClick={() => setGroupeAction(null)}
+                disabled={busyGroupe}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={executerGroupe}
+                disabled={busyGroupe}
+                className={`rounded-full px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${
+                  groupeAction.type === "supprimer" ? "bg-red-600 hover:bg-red-700" : "bg-orange hover:bg-orange-600"
+                }`}
+              >
+                {busyGroupe ? "…" : groupeAction.type === "supprimer" ? "Tout supprimer" : "Tout désactiver"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Regroupe les cours À L'AFFICHAGE par libellé normalisé + discipline + public.
+type Groupe = {
+  key: string;
+  libelle: string;
+  discipline: string | null;
+  type_adherent: string | null;
+  creneaux: Cours[];
+};
+function grouperCours(cours: Cours[]): Groupe[] {
+  const min = (t: string | null) => {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + (m || 0);
+  };
+  const m = new Map<string, Groupe>();
+  for (const c of cours) {
+    const key = `${(c.libelle ?? "").trim().toLowerCase()}|${c.discipline ?? ""}|${c.type_adherent ?? "tous"}`;
+    let g = m.get(key);
+    if (!g) {
+      g = { key, libelle: c.libelle ?? "", discipline: c.discipline ?? null, type_adherent: c.type_adherent ?? null, creneaux: [] };
+      m.set(key, g);
+    }
+    g.creneaux.push(c);
+  }
+  const arr = [...m.values()];
+  const rangDisc = (d: string | null) => ["boxe_francaise", "savate", "prepa_physique"].indexOf(d ?? "");
+  // Public : jeunes/enfants avant adultes ; "Tous" (null) au milieu.
+  const rangPublic = (t: string | null) => (t === "jeune" ? 0 : t === "adulte" ? 2 : 1);
+  arr.sort(
+    (a, b) =>
+      rangDisc(a.discipline) - rangDisc(b.discipline) ||
+      rangPublic(a.type_adherent) - rangPublic(b.type_adherent) ||
+      a.libelle.localeCompare(b.libelle),
+  );
+  for (const g of arr)
+    g.creneaux.sort(
+      (x, y) => (x.jour_semaine ?? 0) - (y.jour_semaine ?? 0) || min(x.heure_debut) - min(y.heure_debut),
+    );
+  return arr;
+}
+
+// ============================================================================
+// Modale de création / édition d'un cours (composant unique)
+// ============================================================================
+function CoursModale({
+  mode,
+  cours,
+  onClose,
+  onSaved,
+  flash,
+}: {
+  mode: "create" | "edit";
+  cours?: Cours;
+  onClose: () => void;
+  onSaved: () => void;
+  flash: (m: string) => void;
+}) {
+  const edit = mode === "edit";
+  const initial = {
+    libelle: cours?.libelle ?? "",
+    discipline: cours?.discipline ?? "",
+    type_adherent: edit ? cours?.type_adherent ?? "tous" : "",
+    heure_debut: formatHeure(cours?.heure_debut ?? null) || "18:00",
+    heure_fin: formatHeure(cours?.heure_fin ?? null) || "19:30",
+    salle: cours?.salle ?? "",
+    ville: cours?.ville ?? "",
+  };
+  const [form, setForm] = useState({ ...initial });
+  const [jours, setJours] = useState<number[]>(edit ? [cours?.jour_semaine ?? 1] : [1]);
+  const [jourEdit, setJourEdit] = useState(cours?.jour_semaine ?? 1);
+  const [perJour, setPerJour] = useState(false);
+  const [horJour, setHorJour] = useState<Record<number, { debut: string; fin: string; salle: string; ville: string }>>({});
+  const [busy, setBusy] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const maj = (patch: Partial<typeof form>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    setDirty(true);
+  };
+  function toggleJour(v: number) {
+    setDirty(true);
+    setJours((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v].sort((a, b) => a - b)));
+  }
+  function setJourChamp(j: number, champ: "debut" | "fin" | "salle" | "ville", val: string) {
+    setDirty(true);
+    setHorJour((h) => ({
+      ...h,
+      [j]: {
+        debut: h[j]?.debut ?? form.heure_debut,
+        fin: h[j]?.fin ?? form.heure_fin,
+        salle: h[j]?.salle ?? form.salle,
+        ville: h[j]?.ville ?? form.ville,
+        [champ]: val,
+      },
+    }));
+  }
+
+  // Fermeture avec garde si des champs ont été modifiés.
+  function tryClose() {
+    if (dirty && !confirm("Fermer sans enregistrer ? Les informations saisies seront perdues.")) return;
+    onClose();
+  }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") tryClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirty]);
+
+  const valide = form.libelle.trim() && form.discipline && form.type_adherent && (edit ? true : jours.length > 0);
+
+  async function soumettre() {
+    setBusy(true);
+    try {
+      const creneaux = jours.map((j) => ({
+        jour_semaine: j,
+        heure_debut: perJour ? horJour[j]?.debut ?? form.heure_debut : form.heure_debut,
+        heure_fin: perJour ? horJour[j]?.fin ?? form.heure_fin : form.heure_fin,
+        salle: perJour ? horJour[j]?.salle ?? form.salle : form.salle,
+        ville: perJour ? horJour[j]?.ville ?? form.ville : form.ville,
+      }));
+      const body = edit ? { id: cours!.id, ...form, jour_semaine: jourEdit } : { ...form, creneaux };
+      const res = await fetch("/api/admin/planning/cours", {
+        method: edit ? "PATCH" : "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify(body),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        flash(d.error || "Échec de l'enregistrement.");
+        return;
+      }
+      const n = d.crees ?? 1;
+      flash(edit ? "Cours modifié ✓" : `${n} cours créé${n > 1 ? "s" : ""} ✓`);
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const champHeure =
+    "focus-ring w-24 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange";
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-stretch justify-center bg-ink/40 sm:items-center sm:p-4"
+      onClick={tryClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex h-full w-full flex-col overflow-y-auto bg-white p-5 sm:h-auto sm:max-h-[90vh] sm:w-[720px] sm:max-w-[720px] sm:rounded-[1.5rem] sm:p-6"
+      >
+        <button
+          onClick={tryClose}
+          aria-label="Fermer"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-xl text-smoke hover:bg-paper-2 hover:text-ink"
+        >
+          ×
+        </button>
+        <h2 className="font-display text-xl font-extrabold uppercase text-ink">
+          {edit ? "Modifier le cours" : "Nouveau cours"}
+        </h2>
+
+        <div className="mt-4 space-y-3">
           <Field label="Libellé">
             <input
               value={form.libelle}
-              onChange={(e) => setForm((f) => ({ ...f, libelle: e.target.value }))}
+              onChange={(e) => maj({ libelle: e.target.value })}
               placeholder="Ex. Boxe française — Adultes"
               className={inputCls}
             />
           </Field>
 
-          {/* Jour(s) : multi-cases en création, sélecteur unique en édition */}
-          {editId ? (
+          {edit ? (
             <Field label="Jour">
-              <select
-                value={String(jourEdit)}
-                onChange={(e) => setJourEdit(Number(e.target.value))}
-                className={inputCls}
-              >
+              <select value={String(jourEdit)} onChange={(e) => { setJourEdit(Number(e.target.value)); setDirty(true); }} className={inputCls}>
                 {JOURS.map((j) => (
                   <option key={j.valeur} value={j.valeur}>
                     {j.long}
@@ -485,12 +781,7 @@ function CoursTab({
                         : "border-line text-ink hover:border-orange/40"
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={jours.includes(j.valeur)}
-                      onChange={() => toggleJour(j.valeur)}
-                      className="sr-only"
-                    />
+                    <input type="checkbox" checked={jours.includes(j.valeur)} onChange={() => toggleJour(j.valeur)} className="sr-only" />
                     {j.court}
                   </label>
                 ))}
@@ -499,67 +790,35 @@ function CoursTab({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={editId ? "Début" : "Début (horaire commun)"}>
-              <input
-                type="time"
-                value={form.heure_debut}
-                onChange={(e) => setForm((f) => ({ ...f, heure_debut: e.target.value }))}
-                className={inputCls}
-              />
+            <Field label={edit ? "Début" : "Début (horaire commun)"}>
+              <input type="time" value={form.heure_debut} onChange={(e) => maj({ heure_debut: e.target.value })} className={inputCls} />
             </Field>
-            <Field label={editId ? "Fin" : "Fin (horaire commun)"}>
-              <input
-                type="time"
-                value={form.heure_fin}
-                onChange={(e) => setForm((f) => ({ ...f, heure_fin: e.target.value }))}
-                className={inputCls}
-              />
+            <Field label={edit ? "Fin" : "Fin (horaire commun)"}>
+              <input type="time" value={form.heure_fin} onChange={(e) => maj({ heure_fin: e.target.value })} className={inputCls} />
             </Field>
           </div>
 
-          {/* Option : horaire ET salle différents par jour (création multi-jours) */}
-          {!editId && jours.length > 1 && (
+          {!edit && jours.length > 1 && (
             <div className="rounded-xl border border-line bg-paper-2/50 p-3">
               <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
-                <input
-                  type="checkbox"
-                  checked={perJour}
-                  onChange={(e) => setPerJour(e.target.checked)}
-                  className="h-4 w-4 accent-orange"
-                />
+                <input type="checkbox" checked={perJour} onChange={(e) => { setPerJour(e.target.checked); setDirty(true); }} className="h-4 w-4 accent-orange" />
                 Horaire / salle différents selon le jour
               </label>
               {perJour && (
                 <div className="mt-3 space-y-2">
                   {jours.map((j) => (
-                    <div key={j} className="flex flex-wrap items-center gap-2">
+                    <div key={j} className="flex flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-center">
                       <span className="w-10 shrink-0 text-xs font-bold text-smoke">
                         {JOURS.find((x) => x.valeur === j)?.court}
                       </span>
-                      <input
-                        type="time"
-                        value={horJour[j]?.debut ?? form.heure_debut}
-                        onChange={(e) => setJourChamp(j, "debut", e.target.value)}
-                        className="focus-ring w-24 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
-                      />
-                      <span className="text-smoke">→</span>
-                      <input
-                        type="time"
-                        value={horJour[j]?.fin ?? form.heure_fin}
-                        onChange={(e) => setJourChamp(j, "fin", e.target.value)}
-                        className="focus-ring w-24 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
-                      />
-                      <input
-                        value={horJour[j]?.salle ?? form.salle}
-                        onChange={(e) => setJourChamp(j, "salle", e.target.value)}
-                        placeholder="Salle"
-                        className="focus-ring min-w-[6rem] flex-1 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
-                      />
+                      <input type="time" value={horJour[j]?.debut ?? form.heure_debut} onChange={(e) => setJourChamp(j, "debut", e.target.value)} className={champHeure} />
+                      <span className="hidden text-smoke sm:inline">→</span>
+                      <input type="time" value={horJour[j]?.fin ?? form.heure_fin} onChange={(e) => setJourChamp(j, "fin", e.target.value)} className={champHeure} />
+                      <input value={horJour[j]?.salle ?? form.salle} onChange={(e) => setJourChamp(j, "salle", e.target.value)} placeholder="Salle" className="focus-ring min-w-0 flex-1 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange" />
+                      <input value={horJour[j]?.ville ?? form.ville} onChange={(e) => setJourChamp(j, "ville", e.target.value)} placeholder="Ville" className="focus-ring min-w-0 flex-1 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange" />
                     </div>
                   ))}
-                  <p className="text-xs text-smoke">
-                    Pré-rempli aux valeurs communes ; ajustez seulement les jours qui diffèrent.
-                  </p>
+                  <p className="text-xs text-smoke">Pré-rempli aux valeurs communes ; ajustez seulement les jours qui diffèrent.</p>
                 </div>
               )}
             </div>
@@ -567,30 +826,16 @@ function CoursTab({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Discipline">
-              <select
-                value={form.discipline}
-                onChange={(e) => setForm((f) => ({ ...f, discipline: e.target.value }))}
-                className={inputCls}
-              >
-                <option value="" disabled>
-                  — Choisir —
-                </option>
+              <select value={form.discipline} onChange={(e) => maj({ discipline: e.target.value })} className={inputCls}>
+                <option value="" disabled>— Choisir —</option>
                 {DISCIPLINES_COURS.map((d) => (
-                  <option key={d.cle} value={d.cle}>
-                    {d.label}
-                  </option>
+                  <option key={d.cle} value={d.cle}>{d.label}</option>
                 ))}
               </select>
             </Field>
             <Field label="Public">
-              <select
-                value={form.type_adherent}
-                onChange={(e) => setForm((f) => ({ ...f, type_adherent: e.target.value }))}
-                className={inputCls}
-              >
-                <option value="" disabled>
-                  — Choisir —
-                </option>
+              <select value={form.type_adherent} onChange={(e) => maj({ type_adherent: e.target.value })} className={inputCls}>
+                <option value="" disabled>— Choisir —</option>
                 <option value="adulte">Adultes</option>
                 <option value="jeune">Jeunes</option>
                 <option value="tous">Tous (adultes + jeunes)</option>
@@ -599,86 +844,26 @@ function CoursTab({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Salle (option)">
-              <input
-                value={form.salle}
-                onChange={(e) => setForm((f) => ({ ...f, salle: e.target.value }))}
-                className={inputCls}
-              />
+              <input value={form.salle} onChange={(e) => maj({ salle: e.target.value })} className={inputCls} />
             </Field>
             <Field label="Ville (option)">
-              <input
-                value={form.ville}
-                onChange={(e) => setForm((f) => ({ ...f, ville: e.target.value }))}
-                className={inputCls}
-              />
+              <input value={form.ville} onChange={(e) => maj({ ville: e.target.value })} className={inputCls} />
             </Field>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={soumettre}
-              disabled={busy || !valide}
-              className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
-            >
-              {editId ? "Enregistrer" : jours.length > 1 ? `Ajouter (${jours.length} cours)` : "Ajouter"}
-            </button>
-            {editId && (
-              <button
-                onClick={annuler}
-                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-              >
-                Annuler
-              </button>
-            )}
-          </div>
         </div>
-      </div>
 
-      {/* Liste */}
-      <div>
-        {cours.length === 0 ? (
-          <p className="text-sm text-smoke">Aucun cours pour l&apos;instant.</p>
-        ) : (
-          <ul className="space-y-2">
-            {cours.map((c) => (
-              <li
-                key={c.id}
-                className={`flex items-center justify-between gap-3 rounded-xl border border-line p-3 ${
-                  c.actif ? "bg-white" : "bg-paper-2 opacity-60"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink">{c.libelle}</p>
-                  <p className="truncate text-xs text-smoke">
-                    {jourLong(c.jour_semaine)} · {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
-                    {` · ${disciplineLabel(c.discipline)}`}
-                    {` · ${publicLabel(c.type_adherent)}`}
-                    {c.salle ? ` · ${c.salle}` : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => editer(c)}
-                    className="text-xs font-semibold text-orange hover:underline"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => basculerActif(c)}
-                    className="text-xs font-semibold text-smoke hover:text-ink"
-                  >
-                    {c.actif ? "Désactiver" : "Réactiver"}
-                  </button>
-                  <button
-                    onClick={() => supprimer(c)}
-                    className="text-xs font-semibold text-red-600 hover:underline"
-                  >
-                    Supprimer
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        <div className="mt-6 flex justify-end gap-2">
+          <button onClick={tryClose} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">
+            Annuler
+          </button>
+          <button
+            onClick={soumettre}
+            disabled={busy || !valide}
+            className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
+          >
+            {edit ? "Enregistrer" : jours.length > 1 ? `Ajouter (${jours.length} cours)` : "Ajouter"}
+          </button>
+        </div>
       </div>
     </div>
   );
