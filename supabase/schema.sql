@@ -333,8 +333,9 @@ create table if not exists public.cours (
   id            uuid primary key default gen_random_uuid(),
   actif         boolean not null default true,
   libelle       text,
-  package       text,                                  -- boxe_classique | savate_prepa | null (transverse)
-  avec_prepa    boolean not null default false,        -- [012] Boxe + Prépa (miroir adherents.option_prepa_physique)
+  discipline    text check (discipline in ('boxe_francaise','savate','prepa_physique')), -- [013] discipline enseignée (champ de référence du planning)
+  package       text,                                  -- [héritage] formule d'adhésion — conservé, non utilisé par le planning
+  avec_prepa    boolean not null default false,        -- [héritage 012] — conservé, non utilisé par le planning
   type_adherent text,                                  -- adulte | jeune | null (tous)
   jour_semaine  integer check (jour_semaine between 1 and 7),  -- 1=lundi … 7=dimanche
   heure_debut   time,

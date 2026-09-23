@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { planningActif, formuleVersColonnes } from "@/lib/planning";
+import { planningActif, DISCIPLINES_COURS } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
 const TYPES = ["adulte", "jeune"];
+const DISCIPLINES = DISCIPLINES_COURS.map((d) => d.cle) as string[];
 
 // Normalise une heure "HH:MM" ; renvoie null si vide/invalide.
 function optHeure(v: unknown): string | null {
@@ -62,10 +63,10 @@ export async function POST(request: Request) {
   const heureDebut = optHeure(body.heure_debut);
   const heureFin = optHeure(body.heure_fin);
   const type = String(body.type_adherent ?? "").trim();
-  const formule = formuleVersColonnes(String(body.formule ?? ""));
+  const discipline = String(body.discipline ?? "").trim();
 
   if (!libelle) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
-  if (!formule) return NextResponse.json({ error: "Formule requise." }, { status: 400 });
+  if (!DISCIPLINES.includes(discipline)) return NextResponse.json({ error: "Discipline requise." }, { status: 400 });
   if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes ou jeunes)." }, { status: 400 });
   if (jours.length === 0) return NextResponse.json({ error: "Sélectionnez au moins un jour." }, { status: 400 });
   if (!heureDebut || !heureFin) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
@@ -73,8 +74,7 @@ export async function POST(request: Request) {
 
   const lignes = jours.map((j) => ({
     libelle,
-    package: formule.package,
-    avec_prepa: formule.avecPrepa,
+    discipline,
     type_adherent: type,
     jour_semaine: j,
     heure_debut: heureDebut,
@@ -111,11 +111,10 @@ export async function PATCH(request: Request) {
     if (!l) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
     patch.libelle = l;
   }
-  if (body.formule !== undefined) {
-    const f = formuleVersColonnes(String(body.formule));
-    if (!f) return NextResponse.json({ error: "Formule invalide." }, { status: 400 });
-    patch.package = f.package;
-    patch.avec_prepa = f.avecPrepa;
+  if (body.discipline !== undefined) {
+    const d = String(body.discipline).trim();
+    if (!DISCIPLINES.includes(d)) return NextResponse.json({ error: "Discipline invalide." }, { status: 400 });
+    patch.discipline = d;
   }
   if (body.type_adherent !== undefined) {
     const t = String(body.type_adherent).trim();

@@ -33,6 +33,44 @@ export function formuleVersColonnes(cle: string): { package: PackageType; avecPr
   return f ? { package: f.package, avecPrepa: f.avecPrepa } : null;
 }
 
+// ---- DISCIPLINE d'un cours ([013]) -----------------------------------------
+// Un cours enseigne UNE discipline (≠ formule d'adhésion). Le mailing « prévenir
+// les adhérents » cible ensuite les formules qui incluent cette discipline.
+export type DisciplineCours = "boxe_francaise" | "savate" | "prepa_physique";
+
+export const DISCIPLINES_COURS: { cle: DisciplineCours; label: string }[] = [
+  { cle: "boxe_francaise", label: "Boxe française" },
+  { cle: "savate", label: "Savate" },
+  { cle: "prepa_physique", label: "Préparation physique" },
+];
+
+export function disciplineLabel(d: string | null): string {
+  return DISCIPLINES_COURS.find((x) => x.cle === d)?.label ?? "—";
+}
+
+/**
+ * CIBLAGE MAILING — un adhérent (défini par sa FORMULE : package +
+ * option_prepa_physique) est-il concerné par la discipline d'un cours ?
+ * Recoupement clé : la prépa est incluse dans « Boxe française + Prépa »
+ * (boxe_classique + option) ET dans « Savate + Prépa » (savate_prepa).
+ */
+export function adherentDansDiscipline(
+  pkg: string | null,
+  optionPrepa: boolean,
+  discipline: string,
+): boolean {
+  switch (discipline) {
+    case "boxe_francaise":
+      return pkg === "boxe_classique"; // BF pures ET BF+Prépa (même package)
+    case "savate":
+      return pkg === "savate_prepa";
+    case "prepa_physique":
+      return (pkg === "boxe_classique" && optionPrepa === true) || pkg === "savate_prepa";
+    default:
+      return false;
+  }
+}
+
 /** Clé de formule d'un cours à partir de ses colonnes (pour préremplir un select). */
 export function coursFormuleCle(c: { package: string | null; avec_prepa?: boolean }): FormuleCle | null {
   if (c.package === "savate_prepa") return "savate_prepa";
@@ -61,8 +99,9 @@ export type Cours = {
   id: string;
   actif: boolean;
   libelle: string | null;
-  package: string | null; // boxe_classique | savate_prepa | null
-  avec_prepa: boolean; // [012] Boxe + Prépa (miroir adherents.option_prepa_physique)
+  discipline: string | null; // [013] boxe_francaise | savate | prepa_physique (référence planning)
+  package: string | null; // [héritage] formule d'adhésion — conservé, non utilisé
+  avec_prepa: boolean; // [héritage 012] — conservé, non utilisé
   type_adherent: string | null; // adulte | jeune | null
   jour_semaine: number | null; // 1=lundi … 7=dimanche
   heure_debut: string | null; // "HH:MM[:SS]"

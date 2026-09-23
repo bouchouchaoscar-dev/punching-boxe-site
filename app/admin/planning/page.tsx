@@ -10,9 +10,8 @@ import {
   toISODate,
   jourLong,
   formatHeure,
-  coursFormuleCle,
-  coursFormuleLabel,
-  FORMULES_COURS,
+  disciplineLabel,
+  DISCIPLINES_COURS,
   JOURS,
   type Prof,
   type Cours,
@@ -38,6 +37,8 @@ export default function PlanningPage() {
 
   // Cours sélectionné dans le calendrier → panneau d'affectation.
   const [panneau, setPanneau] = useState<{ cours: Cours; aff: Affectation | null } | null>(null);
+  // Cours pour lequel on prévient les adhérents (mailing ciblé par discipline).
+  const [prevenir, setPrevenir] = useState<Cours | null>(null);
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -228,13 +229,32 @@ export default function PlanningPage() {
             </p>
 
             <button
+              onClick={() => {
+                const c = panneau.cours;
+                setPanneau(null);
+                setPrevenir(c);
+              }}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white hover:bg-orange"
+            >
+              ✉️ Prévenir les adhérents de ce cours
+            </button>
+            <button
               onClick={() => setPanneau(null)}
-              className="mt-5 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              className="mt-2 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
             >
               Fermer
             </button>
           </div>
         </div>
+      )}
+
+      {prevenir && (
+        <PrevenirPanel
+          cours={prevenir}
+          semaineISO={semaineISO}
+          onClose={() => setPrevenir(null)}
+          flash={flash}
+        />
       )}
 
       {toast && (
@@ -258,7 +278,7 @@ function CoursTab({
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
-  const vide = { libelle: "", formule: "", type_adherent: "", heure_debut: "18:00", heure_fin: "19:30", salle: "", ville: "" };
+  const vide = { libelle: "", discipline: "", type_adherent: "", heure_debut: "18:00", heure_fin: "19:30", salle: "", ville: "" };
   const [form, setForm] = useState({ ...vide });
   const [jours, setJours] = useState<number[]>([1]); // création : multi-jours
   const [jourEdit, setJourEdit] = useState(1); // édition : un seul jour
@@ -274,7 +294,7 @@ function CoursTab({
     setJourEdit(c.jour_semaine ?? 1);
     setForm({
       libelle: c.libelle ?? "",
-      formule: coursFormuleCle(c) ?? "",
+      discipline: c.discipline ?? "",
       type_adherent: c.type_adherent ?? "",
       heure_debut: formatHeure(c.heure_debut) || "18:00",
       heure_fin: formatHeure(c.heure_fin) || "19:30",
@@ -289,7 +309,7 @@ function CoursTab({
     setJourEdit(1);
   }
 
-  const valide = form.libelle.trim() && form.formule && form.type_adherent && (editId ? true : jours.length > 0);
+  const valide = form.libelle.trim() && form.discipline && form.type_adherent && (editId ? true : jours.length > 0);
 
   async function soumettre() {
     setBusy(true);
@@ -325,6 +345,21 @@ function CoursTab({
     if (res.ok) {
       flash(c.actif ? "Cours désactivé" : "Cours réactivé");
       onChanged();
+    }
+  }
+
+  async function supprimer(c: Cours) {
+    if (!confirm("Supprimer ce cours ? Les affectations liées seront supprimées.")) return;
+    const res = await fetch(`/api/admin/planning/cours/${c.id}`, {
+      method: "DELETE",
+      headers: adminAuthHeaders(),
+    });
+    if (res.ok) {
+      flash("Cours supprimé");
+      if (editId === c.id) annuler();
+      onChanged();
+    } else {
+      flash("Échec de la suppression.");
     }
   }
 
@@ -404,18 +439,18 @@ function CoursTab({
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Formule">
+            <Field label="Discipline">
               <select
-                value={form.formule}
-                onChange={(e) => setForm((f) => ({ ...f, formule: e.target.value }))}
+                value={form.discipline}
+                onChange={(e) => setForm((f) => ({ ...f, discipline: e.target.value }))}
                 className={inputCls}
               >
                 <option value="" disabled>
                   — Choisir —
                 </option>
-                {FORMULES_COURS.map((f) => (
-                  <option key={f.cle} value={f.cle}>
-                    {f.label}
+                {DISCIPLINES_COURS.map((d) => (
+                  <option key={d.cle} value={d.cle}>
+                    {d.label}
                   </option>
                 ))}
               </select>
@@ -487,7 +522,7 @@ function CoursTab({
                   <p className="truncate text-sm font-bold text-ink">{c.libelle}</p>
                   <p className="truncate text-xs text-smoke">
                     {jourLong(c.jour_semaine)} · {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
-                    {` · ${coursFormuleLabel(c)}`}
+                    {` · ${disciplineLabel(c.discipline)}`}
                     {c.type_adherent ? ` · ${TYPE_LABEL[c.type_adherent] ?? c.type_adherent}` : ""}
                     {c.salle ? ` · ${c.salle}` : ""}
                   </p>
@@ -504,6 +539,12 @@ function CoursTab({
                     className="text-xs font-semibold text-smoke hover:text-ink"
                   >
                     {c.actif ? "Désactiver" : "Réactiver"}
+                  </button>
+                  <button
+                    onClick={() => supprimer(c)}
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                  >
+                    Supprimer
                   </button>
                 </div>
               </li>
@@ -576,6 +617,22 @@ function ProfsTab({
     if (res.ok) {
       flash(p.actif ? "Prof désactivé" : "Prof réactivé");
       onChanged();
+    }
+  }
+
+  async function supprimer(p: Prof) {
+    const nom = [p.prenom, p.nom].filter(Boolean).join(" ") || "ce prof";
+    if (!confirm(`Supprimer ${nom} ? Ses affectations passées resteront (sans prof).`)) return;
+    const res = await fetch(`/api/admin/planning/profs/${p.id}`, {
+      method: "DELETE",
+      headers: adminAuthHeaders(),
+    });
+    if (res.ok) {
+      flash("Prof supprimé");
+      if (editId === p.id) annuler();
+      onChanged();
+    } else {
+      flash("Échec de la suppression.");
     }
   }
 
@@ -671,6 +728,12 @@ function ProfsTab({
                     className="text-xs font-semibold text-smoke hover:text-ink"
                   >
                     {p.actif ? "Désactiver" : "Réactiver"}
+                  </button>
+                  <button
+                    onClick={() => supprimer(p)}
+                    className="text-xs font-semibold text-red-600 hover:underline"
+                  >
+                    Supprimer
                   </button>
                 </div>
               </li>
@@ -787,6 +850,180 @@ function FermeturesTab({
               </li>
             ))}
           </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Panneau « Prévenir les adhérents d'un cours » (mailing ciblé par discipline)
+// ============================================================================
+function PrevenirPanel({
+  cours,
+  semaineISO,
+  onClose,
+  flash,
+}: {
+  cours: Cours;
+  semaineISO: string;
+  onClose: () => void;
+  flash: (m: string) => void;
+}) {
+  const horaire = `${formatHeure(cours.heure_debut)}–${formatHeure(cours.heure_fin)}`;
+  const dateSemaine = new Date(semaineISO).toLocaleDateString("fr-FR", { dateStyle: "long" });
+  const [objet, setObjet] = useState(`Cours ${cours.libelle ?? ""} — information`);
+  const [contenu, setContenu] = useState(
+    `Bonjour {{prenom}},\n\nLe cours ${cours.libelle ?? ""} du ${jourLong(cours.jour_semaine)} (${horaire}), semaine du ${dateSemaine}, est annulé / modifié.\n\nMerci de votre compréhension.\n\nSportivement,\nL'équipe`,
+  );
+  const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
+  const [confirm, setConfirm] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [resultat, setResultat] = useState<{ emails: number; personnes: number } | null>(null);
+
+  // Comptage de la cible dès l'ouverture (preview, aucun envoi).
+  useEffect(() => {
+    fetch(`/api/admin/planning/cours/${cours.id}/prevenir`, {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ preview: true }),
+    })
+      .then((r) => r.json())
+      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0 }))
+      .catch(() => setCible({ count: 0, emails: 0 }));
+  }, [cours.id]);
+
+  async function envoyer() {
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/planning/cours/${cours.id}/prevenir`, {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ objet, contenu }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.success) {
+        setConfirm(false);
+        flash(d.error || "L'envoi a échoué.");
+        return;
+      }
+      setResultat({ emails: d.emails ?? 0, personnes: d.personnes ?? 0 });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-ink/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] bg-white p-6">
+        {resultat ? (
+          <div className="text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl">
+              ✅
+            </div>
+            <h2 className="font-display mt-4 text-xl font-extrabold uppercase text-ink">
+              Adhérents prévenus
+            </h2>
+            <p className="mt-3 text-sm text-smoke">
+              <strong className="text-ink">{resultat.personnes}</strong> adhérent
+              {resultat.personnes > 1 ? "s" : ""} touché{resultat.personnes > 1 ? "s" : ""} via{" "}
+              <strong className="text-ink">{resultat.emails}</strong> email
+              {resultat.emails > 1 ? "s" : ""}.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-6 rounded-full bg-orange px-6 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+            >
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <>
+            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
+              Prévenir les adhérents
+            </h2>
+            <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
+              <p className="font-bold text-ink">{cours.libelle}</p>
+              <p className="text-smoke">
+                {jourLong(cours.jour_semaine)} · {horaire} · {disciplineLabel(cours.discipline)}
+                {cours.type_adherent ? ` · ${TYPE_LABEL[cours.type_adherent] ?? cours.type_adherent}` : ""}
+              </p>
+            </div>
+
+            <div className="mt-3 rounded-xl bg-orange-50 p-3 text-sm font-semibold text-orange">
+              {cible === null
+                ? "Calcul de la cible…"
+                : `${cible.count} adhérent${cible.count > 1 ? "s" : ""} concerné${cible.count > 1 ? "s" : ""} · ${cible.emails} email${cible.emails > 1 ? "s" : ""}`}
+              <span className="mt-1 block text-xs font-normal text-smoke">
+                Ciblage : {disciplineLabel(cours.discipline)}
+                {cours.type_adherent ? ` · ${TYPE_LABEL[cours.type_adherent] ?? cours.type_adherent}` : " · tous publics"}
+                {" "}· adhérents actifs de la saison en cours (désinscrits et adresses invalides exclus à l&apos;envoi).
+              </span>
+            </div>
+
+            <label className="mt-4 block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink">Objet</span>
+              <input
+                value={objet}
+                onChange={(e) => setObjet(e.target.value)}
+                className={inputCls}
+              />
+            </label>
+            <label className="mt-3 block">
+              <span className="mb-1.5 block text-sm font-semibold text-ink">Message</span>
+              <textarea
+                value={contenu}
+                onChange={(e) => setContenu(e.target.value)}
+                rows={9}
+                className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
+              />
+              <span className="mt-1 block text-xs text-smoke">
+                Variable disponible : {"{{prenom}}"}.
+              </span>
+            </label>
+
+            {confirm ? (
+              <div className="mt-4 rounded-xl border border-orange/30 bg-orange-50 p-3">
+                <p className="text-sm text-ink">
+                  Envoyer à <strong>{cible?.count ?? 0}</strong> adhérent
+                  {(cible?.count ?? 0) > 1 ? "s" : ""} ? Les désinscrits sont exclus. Action
+                  irréversible.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setConfirm(false)}
+                    disabled={sending}
+                    className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={envoyer}
+                    disabled={sending}
+                    className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {sending ? "Envoi…" : "Confirmer l'envoi"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={onClose}
+                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={() => setConfirm(true)}
+                  disabled={!objet.trim() || !contenu.trim() || !cible || cible.count === 0}
+                  className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
+                >
+                  Prévenir {cible ? `(${cible.count})` : ""}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
