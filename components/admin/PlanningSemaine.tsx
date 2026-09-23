@@ -15,17 +15,19 @@ import {
   type PeriodeFermeture,
 } from "@/lib/planning";
 
-const PX_PAR_HEURE = 60; // hauteur d'une heure dans la grille
-// Amplitude d'agenda par défaut : journée complète 8h→22h (grille toujours
-// affichée en entier, créneaux vides visibles), étendue si un cours déborde.
-const HEURE_MIN_DEFAUT = 8;
-const HEURE_MAX_DEFAUT = 22;
-
 const minutes = (t: string | null) => {
   if (!t) return 0;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + (m || 0);
 };
+
+// Couleur douce par discipline (fond lisible + filet d'accent à gauche).
+const COULEUR_DISCIPLINE: Record<string, { bg: string; bar: string }> = {
+  boxe_francaise: { bg: "#fff4ec", bar: "#f84800" }, // orange charte
+  savate: { bg: "#eef2ff", bar: "#4f46e5" }, // indigo
+  prepa_physique: { bg: "#ecfdf5", bar: "#059669" }, // vert
+};
+const COULEUR_DEFAUT = { bg: "#f5f5f5", bar: "#9ca3af" };
 
 function nomProf(p: Prof | undefined): string {
   if (!p) return "";
@@ -66,26 +68,6 @@ export function PlanningSemaine({
     ).map((j) => j.valeur);
     return [...base, ...weekend];
   }, [cours]);
-
-  // Plage = journée complète (8h→22h) ÉTENDUE aux cours qui débordent, de sorte
-  // que la grille soit affichée en entier (créneaux vides inclus), pas seulement
-  // la tranche des cours existants.
-  const { hMin, hMax } = useMemo(() => {
-    let minH = HEURE_MIN_DEFAUT;
-    let maxH = HEURE_MAX_DEFAUT;
-    for (const c of cours) {
-      if (!c.heure_debut || !c.heure_fin) continue;
-      minH = Math.min(minH, Math.floor(minutes(c.heure_debut) / 60));
-      maxH = Math.max(maxH, Math.ceil(minutes(c.heure_fin) / 60));
-    }
-    return { hMin: minH, hMax: maxH };
-  }, [cours]);
-
-  const heures = useMemo(
-    () => Array.from({ length: hMax - hMin }, (_, i) => hMin + i),
-    [hMin, hMax],
-  );
-  const hauteur = (hMax - hMin) * PX_PAR_HEURE;
 
   const affParCours = useMemo(() => {
     const m = new Map<string, Affectation>();
@@ -143,25 +125,36 @@ export function PlanningSemaine({
         </div>
       </div>
 
-      <ScrollX className="overflow-x-auto">
-        <div className="min-w-[720px]">
-          {/* En-têtes de jours */}
-          <div
-            className="grid border-b border-line"
-            style={{ gridTemplateColumns: `3.5rem repeat(${jours.length}, minmax(0,1fr))` }}
-          >
-            <div />
-            {jours.map((jv) => {
-              const info = JOURS.find((j) => j.valeur === jv)!;
-              const d = dateDuJour(semaineISO, jv);
-              const iso = toISODate(d);
-              const isToday = iso === todayISO;
-              return (
-                <div key={jv} className="px-2 py-2 text-center">
+      {/* Agenda COMPACT : une colonne par jour, cartes de cours empilées.
+          Pas d'axe horaire vide → tous les cours visibles d'un coup d'œil. */}
+      <ScrollX className="overflow-x-auto pb-1">
+        <div
+          className="grid gap-2"
+          style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(140px, 1fr))` }}
+        >
+          {jours.map((jv) => {
+            const info = JOURS.find((j) => j.valeur === jv)!;
+            const d = dateDuJour(semaineISO, jv);
+            const iso = toISODate(d);
+            const isToday = iso === todayISO;
+            const ferme = estFerme(iso, periodes);
+            const coursDuJour = cours
+              .filter((c) => c.jour_semaine === jv)
+              .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
+
+            return (
+              <div
+                key={jv}
+                className={`rounded-xl border ${isToday ? "border-orange" : "border-line"} bg-paper-2/40`}
+              >
+                {/* En-tête de jour */}
+                <div
+                  className={`rounded-t-xl border-b px-2 py-2 text-center ${
+                    isToday ? "border-orange/40 bg-orange-50" : "border-line"
+                  }`}
+                >
                   <div
-                    className={`text-xs font-bold uppercase tracking-wide ${
-                      isToday ? "text-orange" : "text-smoke"
-                    }`}
+                    className={`text-xs font-bold uppercase tracking-wide ${isToday ? "text-orange" : "text-smoke"}`}
                   >
                     {info.court}
                   </div>
@@ -169,55 +162,12 @@ export function PlanningSemaine({
                     {d.getDate()}
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Corps : axe horaire + colonnes de jours */}
-          <div
-            className="grid"
-            style={{ gridTemplateColumns: `3.5rem repeat(${jours.length}, minmax(0,1fr))` }}
-          >
-            {/* Axe des heures */}
-            <div className="relative" style={{ height: hauteur }}>
-              {heures.map((h, i) => (
-                <div
-                  key={h}
-                  className="absolute right-2 -translate-y-1/2 text-[11px] font-medium text-smoke"
-                  style={{ top: i * PX_PAR_HEURE }}
-                >
-                  {i === 0 ? "" : `${h}h`}
-                </div>
-              ))}
-            </div>
-
-            {/* Colonnes de jours */}
-            {jours.map((jv) => {
-              const d = dateDuJour(semaineISO, jv);
-              const iso = toISODate(d);
-              const ferme = estFerme(iso, periodes);
-              const coursDuJour = cours
-                .filter((c) => c.jour_semaine === jv && c.heure_debut && c.heure_fin)
-                .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
-              return (
-                <div
-                  key={jv}
-                  className="relative border-l border-line"
-                  style={{ height: hauteur }}
-                >
-                  {/* Lignes horaires */}
-                  {heures.map((h, i) => (
-                    <div
-                      key={h}
-                      className="absolute inset-x-0 border-t border-line/60"
-                      style={{ top: i * PX_PAR_HEURE }}
-                    />
-                  ))}
-
-                  {/* Voile "Fermé" si vacances */}
-                  {ferme && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-paper-2/80 backdrop-blur-[1px]">
-                      <span className="rotate-[-6deg] rounded-lg border border-line bg-white/90 px-2 py-1 text-center text-[11px] font-bold uppercase tracking-wide text-smoke shadow-sm">
+                {/* Contenu du jour */}
+                <div className="min-h-[64px] space-y-1.5 p-1.5">
+                  {ferme ? (
+                    <div className="flex min-h-[56px] items-center justify-center rounded-lg border border-dashed border-line bg-white/60 px-2 py-3 text-center">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-smoke">
                         Fermé
                         {ferme.libelle ? (
                           <span className="mt-0.5 block font-semibold normal-case text-smoke/80">
@@ -226,52 +176,42 @@ export function PlanningSemaine({
                         ) : null}
                       </span>
                     </div>
-                  )}
-
-                  {/* Cartes de cours */}
-                  {!ferme &&
+                  ) : coursDuJour.length === 0 ? (
+                    <div className="py-3 text-center text-[11px] text-smoke/50">—</div>
+                  ) : (
                     coursDuJour.map((c) => {
-                      const top = ((minutes(c.heure_debut) - hMin * 60) / 60) * PX_PAR_HEURE;
-                      const h = Math.max(
-                        ((minutes(c.heure_fin) - minutes(c.heure_debut)) / 60) * PX_PAR_HEURE - 4,
-                        26,
-                      );
                       const aff = affParCours.get(c.id) ?? null;
                       const prof = aff?.prof_id ? profParId.get(aff.prof_id) : undefined;
-                      const affecte = !!prof;
+                      const col = COULEUR_DISCIPLINE[c.discipline ?? ""] ?? COULEUR_DEFAUT;
                       return (
                         <button
                           key={c.id}
                           onClick={() => onSelectCours(c, aff, iso, ferme)}
-                          style={{ top, height: h }}
-                          className={`absolute inset-x-1 z-[5] flex flex-col overflow-hidden rounded-lg border px-2 py-1 text-left transition-colors ${
-                            affecte
-                              ? "border-orange/40 bg-orange-50 hover:border-orange"
-                              : "border-line bg-white hover:border-orange/50"
-                          }`}
+                          style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
+                          className="w-full rounded-lg border border-l-4 border-line/60 px-2 py-1.5 text-left transition-transform hover:scale-[1.02]"
                         >
-                          <span className="truncate text-[11px] font-bold leading-tight text-ink">
+                          <div className="text-[12px] font-bold leading-tight text-ink">
                             {c.libelle}
-                          </span>
-                          <span className="truncate text-[10px] leading-tight text-smoke">
+                          </div>
+                          <div className="text-[11px] leading-tight text-ink/70">
                             {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
-                          </span>
-                          {affecte ? (
-                            <span className="mt-auto truncate text-[10px] font-semibold leading-tight text-orange">
-                              {nomProf(prof)}
-                            </span>
-                          ) : (
-                            <span className="mt-auto truncate text-[10px] leading-tight text-smoke/70">
-                              + affecter
-                            </span>
-                          )}
+                            {c.salle ? ` · ${c.salle}` : ""}
+                          </div>
+                          <div
+                            className={`mt-0.5 truncate text-[11px] font-semibold leading-tight ${
+                              prof ? "text-ink" : "text-smoke/70"
+                            }`}
+                          >
+                            {prof ? `👤 ${nomProf(prof)}` : "+ affecter"}
+                          </div>
                         </button>
                       );
-                    })}
+                    })
+                  )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       </ScrollX>
     </div>

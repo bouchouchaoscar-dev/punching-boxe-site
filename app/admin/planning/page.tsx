@@ -8,6 +8,7 @@ import {
   planningActif,
   lundiDeLaSemaine,
   toISODate,
+  dateDuJour,
   jourLong,
   formatHeure,
   disciplineLabel,
@@ -290,21 +291,22 @@ function CoursTab({
   const [form, setForm] = useState({ ...vide });
   const [jours, setJours] = useState<number[]>([1]); // création : multi-jours
   const [jourEdit, setJourEdit] = useState(1); // édition : un seul jour
-  const [perJour, setPerJour] = useState(false); // horaires différents par jour
-  const [horJour, setHorJour] = useState<Record<number, { debut: string; fin: string }>>({});
+  const [perJour, setPerJour] = useState(false); // horaires/salle différents par jour
+  const [horJour, setHorJour] = useState<Record<number, { debut: string; fin: string; salle: string }>>({});
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   function toggleJour(v: number) {
     setJours((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v].sort((a, b) => a - b)));
   }
-  // Ajuste l'horaire d'un jour donné (part de l'horaire commun comme base).
-  function setJourHoraire(j: number, champ: "debut" | "fin", val: string) {
+  // Ajuste l'horaire/la salle d'un jour donné (part des valeurs communes comme base).
+  function setJourChamp(j: number, champ: "debut" | "fin" | "salle", val: string) {
     setHorJour((h) => ({
       ...h,
       [j]: {
         debut: h[j]?.debut ?? form.heure_debut,
         fin: h[j]?.fin ?? form.heure_fin,
+        salle: h[j]?.salle ?? form.salle,
         [champ]: val,
       },
     }));
@@ -337,11 +339,12 @@ function CoursTab({
   async function soumettre() {
     setBusy(true);
     try {
-      // Création : un créneau par jour coché, avec SON horaire (commun ou ajusté).
+      // Création : un créneau par jour coché, avec SON horaire/salle (commun ou ajusté).
       const creneaux = jours.map((j) => ({
         jour_semaine: j,
         heure_debut: perJour ? horJour[j]?.debut ?? form.heure_debut : form.heure_debut,
         heure_fin: perJour ? horJour[j]?.fin ?? form.heure_fin : form.heure_fin,
+        salle: perJour ? horJour[j]?.salle ?? form.salle : form.salle,
       }));
       const body = editId
         ? { id: editId, ...form, jour_semaine: jourEdit }
@@ -468,7 +471,7 @@ function CoursTab({
             </Field>
           </div>
 
-          {/* Option : horaire différent par jour (création multi-jours only) */}
+          {/* Option : horaire ET salle différents par jour (création multi-jours) */}
           {!editId && jours.length > 1 && (
             <div className="rounded-xl border border-line bg-paper-2/50 p-3">
               <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-ink">
@@ -478,32 +481,38 @@ function CoursTab({
                   onChange={(e) => setPerJour(e.target.checked)}
                   className="h-4 w-4 accent-orange"
                 />
-                Horaires différents selon le jour
+                Horaire / salle différents selon le jour
               </label>
               {perJour && (
                 <div className="mt-3 space-y-2">
                   {jours.map((j) => (
-                    <div key={j} className="flex items-center gap-2">
+                    <div key={j} className="flex flex-wrap items-center gap-2">
                       <span className="w-10 shrink-0 text-xs font-bold text-smoke">
                         {JOURS.find((x) => x.valeur === j)?.court}
                       </span>
                       <input
                         type="time"
                         value={horJour[j]?.debut ?? form.heure_debut}
-                        onChange={(e) => setJourHoraire(j, "debut", e.target.value)}
-                        className={inputCls}
+                        onChange={(e) => setJourChamp(j, "debut", e.target.value)}
+                        className="focus-ring w-24 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
                       />
                       <span className="text-smoke">→</span>
                       <input
                         type="time"
                         value={horJour[j]?.fin ?? form.heure_fin}
-                        onChange={(e) => setJourHoraire(j, "fin", e.target.value)}
-                        className={inputCls}
+                        onChange={(e) => setJourChamp(j, "fin", e.target.value)}
+                        className="focus-ring w-24 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
+                      />
+                      <input
+                        value={horJour[j]?.salle ?? form.salle}
+                        onChange={(e) => setJourChamp(j, "salle", e.target.value)}
+                        placeholder="Salle"
+                        className="focus-ring min-w-[6rem] flex-1 rounded-lg border border-line bg-paper-2 px-2 py-2 text-sm outline-none focus:border-orange"
                       />
                     </div>
                   ))}
                   <p className="text-xs text-smoke">
-                    Pré-rempli à l&apos;horaire commun ; ajustez seulement les jours qui diffèrent.
+                    Pré-rempli aux valeurs communes ; ajustez seulement les jours qui diffèrent.
                   </p>
                 </div>
               )}
@@ -830,10 +839,32 @@ function FermeturesTab({
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
+  // + 2 semaines à partir d'une date ISO.
+  const plus2Semaines = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    dt.setDate(dt.getDate() + 14);
+    return toISODate(dt);
+  };
+
+  const aujourdhui = toISODate(new Date());
   const [libelle, setLibelle] = useState("");
-  const [debut, setDebut] = useState("");
-  const [fin, setFin] = useState("");
+  // Début pré-rempli à aujourd'hui ; fin à +2 semaines (modifiable ensuite).
+  const [debut, setDebut] = useState(aujourdhui);
+  const [fin, setFin] = useState(() => plus2Semaines(aujourdhui));
+  const [finTouchee, setFinTouchee] = useState(false); // ne pas écraser une fin saisie main
   const [busy, setBusy] = useState(false);
+
+  // Changer le début recalcule la fin à +2 semaines, SAUF si l'admin a déjà
+  // ajusté la fin manuellement.
+  function onChangeDebut(v: string) {
+    setDebut(v);
+    if (!finTouchee) setFin(plus2Semaines(v));
+  }
+  function onChangeFin(v: string) {
+    setFin(v);
+    setFinTouchee(true);
+  }
 
   async function ajouter() {
     setBusy(true);
@@ -850,8 +881,9 @@ function FermeturesTab({
       }
       flash("Période ajoutée ✓");
       setLibelle("");
-      setDebut("");
-      setFin("");
+      setDebut(aujourdhui);
+      setFin(plus2Semaines(aujourdhui));
+      setFinTouchee(false);
       onChanged();
     } finally {
       setBusy(false);
@@ -885,8 +917,8 @@ function FermeturesTab({
               className={inputCls}
             />
           </Field>
-          <DatePicker label="Début" value={debut} onChange={setDebut} />
-          <DatePicker label="Fin" value={fin} onChange={setFin} />
+          <DatePicker label="Début" value={debut} onChange={onChangeDebut} />
+          <DatePicker label="Fin" value={fin} onChange={onChangeFin} />
           <button
             onClick={ajouter}
             disabled={busy || !debut || !fin}
@@ -948,11 +980,21 @@ function PrevenirPanel({
   const horaire = `${formatHeure(cours.heure_debut)}–${formatHeure(cours.heure_fin)}`;
   const dateSemaine = new Date(semaineISO).toLocaleDateString("fr-FR", { dateStyle: "long" });
 
+  // Date de l'occurrence concernée (jour du cours dans la semaine affichée).
+  const dateOcc = dateDuJour(semaineISO, cours.jour_semaine ?? 1);
+  const dateOccCourt = dateOcc.toLocaleDateString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
+
   type Motif = "annule" | "deplace" | "reporte";
+  const MOTIF_LABEL: Record<Motif, string> = { annule: "Annulé", deplace: "Déplacé", reporte: "Reporté" };
   const [etape, setEtape] = useState<"motif" | "compose">("motif");
   const [motif, setMotif] = useState<Motif | null>(null);
   const [raison, setRaison] = useState(""); // annulé (optionnel)
-  const [lieu, setLieu] = useState(""); // déplacé
+  const [depHeure, setDepHeure] = useState(formatHeure(cours.heure_debut) || "18:00"); // déplacé (oblig)
+  const [depSalle, setDepSalle] = useState(""); // déplacé (optionnel)
   const [nvDate, setNvDate] = useState(""); // reporté (ISO)
   const [nvHeure, setNvHeure] = useState(formatHeure(cours.heure_debut) || "18:00"); // reporté
 
@@ -976,31 +1018,31 @@ function PrevenirPanel({
   }, [cours.id]);
 
   // Gabarit de mail auto-généré selon le motif (base ÉDITABLE ensuite).
+  // Objet enrichi : "📅 Cours [libellé] — [Jour] [JJ/MM/AA] — [Motif]".
+  // Corps : "Le cours [libellé]…" (libellé tel quel, aucune redondance).
   function genererMail(m: Motif): { objet: string; contenu: string } {
     let phrase = "";
-    let sujet = "";
     if (m === "annule") {
-      sujet = `Cours ${libelle} du ${jour} — annulé`;
       phrase = `Le cours ${libelle} du ${jour} ${horaire}, semaine du ${dateSemaine}, est annulé${
         raison.trim() ? ` pour raison : ${raison.trim()}` : ""
       }. Merci de votre compréhension.`;
     } else if (m === "deplace") {
-      sujet = `Cours ${libelle} du ${jour} — changement de lieu`;
-      phrase = `Le cours ${libelle} du ${jour} ${horaire} est déplacé : il aura lieu à ${lieu.trim()}.`;
+      phrase = depSalle.trim()
+        ? `Le cours ${libelle} du ${jour} est déplacé à ${depHeure}, en salle ${depSalle.trim()}.`
+        : `Le cours ${libelle} du ${jour} est déplacé à ${depHeure}.`;
     } else {
       const dFr = nvDate ? new Date(nvDate).toLocaleDateString("fr-FR", { dateStyle: "long" }) : "…";
-      sujet = `Cours ${libelle} du ${jour} — reporté`;
       phrase = `Le cours ${libelle} initialement prévu le ${jour} ${horaire} est reporté au ${dFr} à ${nvHeure}.`;
     }
     return {
-      objet: sujet,
+      objet: `📅 Cours ${libelle} — ${jour} ${dateOccCourt} — ${MOTIF_LABEL[m]}`,
       contenu: `Bonjour {{prenom}},\n\n${phrase}\n\nSportivement,\nL'équipe`,
     };
   }
 
   const motifValide =
     motif === "annule" ||
-    (motif === "deplace" && lieu.trim().length > 0) ||
+    (motif === "deplace" && depHeure.length > 0) ||
     (motif === "reporte" && !!nvDate && !!nvHeure);
 
   function continuer() {
@@ -1118,15 +1160,26 @@ function PrevenirPanel({
                   </label>
                 )}
                 {motif === "deplace" && (
-                  <label className="mt-4 block">
-                    <span className="mb-1.5 block text-sm font-semibold text-ink">Nouveau lieu</span>
-                    <input
-                      value={lieu}
-                      onChange={(e) => setLieu(e.target.value)}
-                      placeholder="Ex. Gymnase des Ormes, 12 rue du Port"
-                      className={inputCls}
-                    />
-                  </label>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle heure</span>
+                      <input
+                        type="time"
+                        value={depHeure}
+                        onChange={(e) => setDepHeure(e.target.value)}
+                        className={inputCls}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle salle (optionnel)</span>
+                      <input
+                        value={depSalle}
+                        onChange={(e) => setDepSalle(e.target.value)}
+                        placeholder="Ex. Gymnase des Ormes"
+                        className={inputCls}
+                      />
+                    </label>
+                  </div>
                 )}
                 {motif === "reporte" && (
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">

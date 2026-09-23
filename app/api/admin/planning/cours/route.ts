@@ -75,19 +75,20 @@ export async function POST(request: Request) {
   if (!DISCIPLINES.includes(discipline)) return NextResponse.json({ error: "Discipline requise." }, { status: 400 });
   if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes, jeunes ou tous)." }, { status: 400 });
 
-  // Créneaux : soit une liste explicite [{jour_semaine, heure_debut, heure_fin}]
-  // (horaire par jour), soit les jours + un horaire commun (cas simple).
-  type Creneau = { jour_semaine: number; heure_debut: string; heure_fin: string };
+  // Créneaux : soit une liste explicite [{jour_semaine, heure_debut, heure_fin, salle?}]
+  // (horaire/salle par jour), soit les jours + horaire+salle communs (cas simple).
+  type Creneau = { jour_semaine: number; heure_debut: string; heure_fin: string; salle: string | null };
   let creneaux: Creneau[] = [];
   if (Array.isArray(body.creneaux) && body.creneaux.length > 0) {
     for (const c of body.creneaux as Record<string, unknown>[]) {
       const j = Number(c.jour_semaine);
       const hd = optHeure(c.heure_debut);
       const hf = optHeure(c.heure_fin);
+      const s = typeof c.salle === "string" ? c.salle.trim() : "";
       if (!(j >= 1 && j <= 7)) return NextResponse.json({ error: "Jour invalide." }, { status: 400 });
       if (!hd || !hf) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
       if (hf <= hd) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
-      creneaux.push({ jour_semaine: j, heure_debut: hd, heure_fin: hf });
+      creneaux.push({ jour_semaine: j, heure_debut: hd, heure_fin: hf, salle: s || salle });
     }
     // Dédoublonne par jour (garde le premier créneau d'un jour donné).
     const vus = new Set<number>();
@@ -99,7 +100,7 @@ export async function POST(request: Request) {
     if (jours.length === 0) return NextResponse.json({ error: "Sélectionnez au moins un jour." }, { status: 400 });
     if (!hd || !hf) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
     if (hf <= hd) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
-    creneaux = jours.map((j) => ({ jour_semaine: j, heure_debut: hd, heure_fin: hf }));
+    creneaux = jours.map((j) => ({ jour_semaine: j, heure_debut: hd, heure_fin: hf, salle }));
   }
 
   const lignes = creneaux.map((c) => ({
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
     jour_semaine: c.jour_semaine,
     heure_debut: c.heure_debut,
     heure_fin: c.heure_fin,
-    salle,
+    salle: c.salle,
     ville,
   }));
 
