@@ -8,7 +8,9 @@ import {
   planningProfSemaine,
   diffEnvoiDetaille,
   libelleChangements,
-  jourLong,
+  formatDateCours,
+  plageHoraire,
+  formatLieu,
   dateDuJour,
   toISODate,
   type Cours,
@@ -24,12 +26,15 @@ export const runtime = "nodejs";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
-// Ligne lisible d'un cours pour le mail : "Lundi 3 mars, 18:00 à 19:30, Libellé, Salle".
+// Ligne lisible d'un cours pour le mail, via les helpers partagés :
+// "Mardi 29 septembre, de 18h à 19h30, Libellé, Gymnase du Port (Nogent)".
 function ligneCours(c: CoursEnvoi): string {
-  const dateFr = new Date(c.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
-  const horaire = c.horaire.replace(" – ", " à ");
-  const lieu = [c.salle, c.ville].filter(Boolean).join(", ");
-  return `${jourLong(c.jour)} ${dateFr}, ${horaire}, ${c.libelle}${lieu ? `, ${lieu}` : ""}`;
+  const d = formatDateCours(c.date);
+  const dateFr = d.charAt(0).toUpperCase() + d.slice(1);
+  const [hd, hf] = (c.horaire || "").split(" – ");
+  const horaire = plageHoraire(hd || null, hf || null);
+  const lieu = formatLieu(c.salle, c.ville);
+  return `${dateFr}, ${horaire}, ${c.libelle}${lieu ? `, ${lieu}` : ""}`;
 }
 
 type Ligne = {

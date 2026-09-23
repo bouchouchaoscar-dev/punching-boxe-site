@@ -872,7 +872,7 @@ export function getResendClient(): Resend | null {
  * Si `email` est fourni, ajoute un pied de page avec le lien de désinscription
  * (RGPD). Les mails TRANSACTIONNELS utilisent `wrap()` directement → pas de lien.
  */
-export function renderCampagne(contenu: string, email?: string): string {
+export function renderCampagne(contenu: string, email?: string, blocHtml?: string): string {
   // Le contenu est échappé (sécurité), puis les jetons de bouton sont remplacés
   // par de vrais CTA orange cliquables (style identique aux transactionnels).
   const corpsTexte = escapeHtml(contenu)
@@ -895,7 +895,9 @@ export function renderCampagne(contenu: string, email?: string): string {
         <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
        </div>`
     : "";
-  return wrap(corps + pied);
+  // blocHtml : HTML de confiance construit côté serveur (ex. encadré « Avant /
+  // Désormais » du planning), inséré entre le corps et le pied de désinscription.
+  return wrap(corps + (blocHtml || "") + pied);
 }
 
 /** Formulaire de contact → email à Pascal (avec reply-to vers l'expéditeur). */

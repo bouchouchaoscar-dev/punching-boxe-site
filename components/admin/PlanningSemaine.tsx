@@ -124,11 +124,14 @@ function CarteCours({
             e.stopPropagation();
             onPrevenir(c);
           }}
-          aria-label="Prévenir les adhérents"
-          className="absolute bottom-1 right-1 text-[12px] opacity-60 hover:opacity-100"
+          aria-label="Prévenir les adhérents de ce cours"
           title="Prévenir les adhérents de ce cours"
+          className="focus-ring mt-1.5 inline-flex items-center gap-1 rounded-full border border-orange/40 bg-orange-50 px-2 py-1 text-[10px] font-bold text-orange transition-all hover:-translate-y-0.5 hover:border-orange hover:shadow-sm"
         >
-          ✉️
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" />
+          </svg>
+          Prévenir
         </button>
       )}
     </div>

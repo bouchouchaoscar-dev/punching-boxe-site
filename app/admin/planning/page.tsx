@@ -11,6 +11,11 @@ import {
   dateDuJour,
   jourLong,
   formatHeure,
+  heureFr,
+  plageHoraire,
+  formatDateCours,
+  formatLieu,
+  lieuAvecPreposition,
   disciplineLabel,
   publicLabel,
   couleurCours,
@@ -1537,36 +1542,32 @@ function PrevenirPanel({
   flash: (m: string) => void;
 }) {
   const libelle = cours.libelle ?? "ce cours";
-  const jour = jourLong(cours.jour_semaine);
-  const horaire = `${formatHeure(cours.heure_debut)}–${formatHeure(cours.heure_fin)}`;
-  const dateSemaine = new Date(semaineISO).toLocaleDateString("fr-FR", { dateStyle: "long" });
 
-  // Date de l'occurrence concernée (jour du cours dans la semaine affichée).
-  const dateOcc = dateDuJour(semaineISO, cours.jour_semaine ?? 1);
-  const dateOccCourt = dateOcc.toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-  });
+  // Cours d'ORIGINE (occurrence de la semaine affichée) — rappelé en entier.
+  const origDateISO = toISODate(dateDuJour(semaineISO, cours.jour_semaine ?? 1));
+  const origDebut = formatHeure(cours.heure_debut) || "18:00"; // "HH:MM"
+  const origFin = formatHeure(cours.heure_fin) || "19:00";
+  const origSalle = cours.salle ?? "";
+  const origVille = cours.ville ?? "";
 
   type Motif = "annule" | "deplace" | "reporte";
-  const MOTIF_LABEL: Record<Motif, string> = { annule: "Annulé", deplace: "Déplacé", reporte: "Reporté" };
   const [etape, setEtape] = useState<"motif" | "compose">("motif");
   const [motif, setMotif] = useState<Motif | null>(null);
   const [raison, setRaison] = useState(""); // annulé (optionnel)
-  const [depHeure, setDepHeure] = useState(formatHeure(cours.heure_debut) || "18:00"); // déplacé (oblig)
-  const [depSalle, setDepSalle] = useState(""); // déplacé (optionnel)
   const [nvDate, setNvDate] = useState(""); // reporté (ISO)
-  const [nvHeure, setNvHeure] = useState(formatHeure(cours.heure_debut) || "18:00"); // reporté
+  const [nvDebut, setNvDebut] = useState(origDebut);
+  const [nvFin, setNvFin] = useState(origFin);
+  const [nvSalle, setNvSalle] = useState(origSalle);
+  const [nvVille, setNvVille] = useState(origVille);
 
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
+  const [contenuEdite, setContenuEdite] = useState(false);
   const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
   const [resultat, setResultat] = useState<{ emails: number; personnes: number } | null>(null);
 
-  // Comptage de la cible dès l'ouverture (preview, aucun envoi).
   useEffect(() => {
     fetch(`/api/admin/planning/cours/${cours.id}/prevenir`, {
       method: "POST",
@@ -1578,39 +1579,84 @@ function PrevenirPanel({
       .catch(() => setCible({ count: 0, emails: 0 }));
   }, [cours.id]);
 
-  // Gabarit de mail auto-généré selon le motif (base ÉDITABLE ensuite).
-  // Objet enrichi : "📅 Cours [libellé] — [Jour] [JJ/MM/AA] — [Motif]".
-  // Corps : "Le cours [libellé]…" (libellé tel quel, aucune redondance).
+  // Rappel complet du cours d'origine + lieu (avec préposition si connue).
+  const origLieuPrep = lieuAvecPreposition(origSalle, origVille);
+  const origPlage = plageHoraire(cours.heure_debut, cours.heure_fin);
+  const origDateFr = formatDateCours(origDateISO);
+
+  // Ce qui change (déplacé/reporté).
+  const horaireChange = nvDebut !== origDebut || nvFin !== origFin;
+  const lieuChange = formatLieu(nvSalle, nvVille) !== formatLieu(origSalle, origVille);
+
+  // Gabarit auto-généré : rappel d'origine complet + ce qui change.
   function genererMail(m: Motif): { objet: string; contenu: string } {
-    let phrase = "";
-    if (m === "annule") {
-      phrase = `Le cours ${libelle} du ${jour} ${horaire}, semaine du ${dateSemaine}, est annulé${
-        raison.trim() ? ` pour raison : ${raison.trim()}` : ""
-      }. Merci de votre compréhension.`;
-    } else if (m === "deplace") {
-      phrase = depSalle.trim()
-        ? `Le cours ${libelle} du ${jour} est déplacé à ${depHeure}, en salle ${depSalle.trim()}.`
-        : `Le cours ${libelle} du ${jour} est déplacé à ${depHeure}.`;
-    } else {
-      const dFr = nvDate ? new Date(nvDate).toLocaleDateString("fr-FR", { dateStyle: "long" }) : "…";
-      phrase = `Le cours ${libelle} initialement prévu le ${jour} ${horaire} est reporté au ${dFr} à ${nvHeure}.`;
+    const verbe = m === "annule" ? "annulé" : m === "deplace" ? "déplacé" : "reporté";
+    const lieuInline = origLieuPrep.connue && origLieuPrep.texte ? ` ${origLieuPrep.texte}` : "";
+    let rappel = `Le cours ${libelle} du ${origDateFr}, prévu ${origPlage}${lieuInline}, est ${verbe}`;
+    if (m === "annule" && raison.trim()) rappel += ` pour la raison suivante : ${raison.trim()}`;
+    rappel += ".";
+    // Lieu sur une ligne à part si la préposition est inconnue.
+    const lieuSepare = !origLieuPrep.connue && formatLieu(origSalle, origVille)
+      ? `\nLieu : ${formatLieu(origSalle, origVille)}`
+      : "";
+
+    let changement = "";
+    const nvPlage = plageHoraire(nvDebut, nvFin);
+    const nvPrep = lieuAvecPreposition(nvSalle, nvVille);
+    const nvLieuTxt = nvPrep.connue && nvPrep.texte ? nvPrep.texte : formatLieu(nvSalle, nvVille);
+    if (m === "deplace") {
+      if (horaireChange && lieuChange) changement = `\n\nNouveau créneau : ${origDateFr}, ${nvPlage}, ${nvLieuTxt}.`;
+      else if (horaireChange) changement = `\n\nMême lieu, nouvel horaire : ${nvPlage}.`;
+      else if (lieuChange) changement = `\n\nMême horaire, nouveau lieu : ${nvLieuTxt}.`;
+    } else if (m === "reporte") {
+      changement = `\n\nNouveau créneau : ${formatDateCours(nvDate || origDateISO)}, ${nvPlage}, ${nvLieuTxt}.`;
     }
+
+    // Objet court et explicite.
+    let suffixe = "annulé";
+    if (m === "deplace") suffixe = horaireChange ? `déplacé à ${heureFr(nvDebut)}` : "changement de lieu";
+    if (m === "reporte") suffixe = `reporté au ${formatDateCours(nvDate || origDateISO)}`;
+
     return {
-      objet: `📅 Cours ${libelle} — ${jour} ${dateOccCourt} — ${MOTIF_LABEL[m]}`,
-      contenu: `Bonjour {{prenom}},\n\n${phrase}\n\nSportivement,\nL'équipe`,
+      objet: `📅 Cours ${libelle} du ${origDateFr} : ${suffixe}`,
+      contenu: `Bonjour {{prenom}},\n\n${rappel}${lieuSepare}${changement}\n\nSportivement,\nL'équipe`,
+    };
+  }
+
+  // Aperçu structuré envoyé au serveur (encadré Avant / Désormais).
+  function construireApercu(m: Motif) {
+    return {
+      motif: m,
+      origine: { dateISO: origDateISO, heure_debut: origDebut, heure_fin: origFin, salle: origSalle, ville: origVille },
+      nouveau:
+        m === "annule"
+          ? undefined
+          : {
+              dateISO: m === "reporte" ? nvDate || origDateISO : origDateISO,
+              heure_debut: nvDebut,
+              heure_fin: nvFin,
+              salle: nvSalle,
+              ville: nvVille,
+            },
     };
   }
 
   const motifValide =
     motif === "annule" ||
-    (motif === "deplace" && depHeure.length > 0) ||
-    (motif === "reporte" && !!nvDate && !!nvHeure);
+    (motif === "deplace" && (horaireChange || lieuChange)) ||
+    (motif === "reporte" && !!nvDate);
 
   function continuer() {
     if (!motif || !motifValide) return;
-    const m = genererMail(motif);
-    setObjet(m.objet);
-    setContenu(m.contenu);
+    // Ne pas écraser une édition manuelle sans prévenir.
+    if (contenuEdite && contenu.trim() && !window.confirm("Le message a été modifié à la main. Régénérer et perdre vos modifications ?")) {
+      setEtape("compose");
+      return;
+    }
+    const g = genererMail(motif);
+    setObjet(g.objet);
+    setContenu(g.contenu);
+    setContenuEdite(false);
     setEtape("compose");
   }
 
@@ -1626,7 +1672,7 @@ function PrevenirPanel({
       const res = await fetch(`/api/admin/planning/cours/${cours.id}/prevenir`, {
         method: "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify({ objet, contenu }),
+        body: JSON.stringify({ objet, contenu, apercu: motif ? construireApercu(motif) : undefined }),
       });
       const d = await res.json();
       if (!res.ok || !d.success) {
@@ -1672,7 +1718,7 @@ function PrevenirPanel({
             <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
               <p className="font-bold text-ink">{cours.libelle}</p>
               <p className="text-smoke">
-                {jourLong(cours.jour_semaine)} · {horaire} · {disciplineLabel(cours.discipline)}
+                {origDateFr} · {origPlage} · {disciplineLabel(cours.discipline)}
                 {` · ${publicLabel(cours.type_adherent)}`}
               </p>
             </div>
@@ -1720,40 +1766,35 @@ function PrevenirPanel({
                     />
                   </label>
                 )}
-                {motif === "deplace" && (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle heure</span>
-                      <input
-                        type="time"
-                        value={depHeure}
-                        onChange={(e) => setDepHeure(e.target.value)}
-                        className={inputCls}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle salle (optionnel)</span>
-                      <input
-                        value={depSalle}
-                        onChange={(e) => setDepSalle(e.target.value)}
-                        placeholder="Ex. Gymnase des Ormes"
-                        className={inputCls}
-                      />
-                    </label>
-                  </div>
-                )}
-                {motif === "reporte" && (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <DatePicker label="Nouvelle date" value={nvDate} onChange={setNvDate} />
-                    <label className="block">
-                      <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle heure</span>
-                      <input
-                        type="time"
-                        value={nvHeure}
-                        onChange={(e) => setNvHeure(e.target.value)}
-                        className={inputCls}
-                      />
-                    </label>
+                {(motif === "deplace" || motif === "reporte") && (
+                  <div className="mt-4 space-y-3">
+                    {motif === "reporte" && (
+                      <DatePicker label="Nouvelle date" value={nvDate} onChange={setNvDate} />
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-semibold text-ink">Nouveau début</span>
+                        <input type="time" value={nvDebut} onChange={(e) => setNvDebut(e.target.value)} className={inputCls} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-semibold text-ink">Nouvelle fin</span>
+                        <input type="time" value={nvFin} onChange={(e) => setNvFin(e.target.value)} className={inputCls} />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-semibold text-ink">Salle</span>
+                        <input value={nvSalle} onChange={(e) => setNvSalle(e.target.value)} placeholder="Salle" className={inputCls} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1.5 block text-sm font-semibold text-ink">Ville</span>
+                        <input value={nvVille} onChange={(e) => setNvVille(e.target.value)} placeholder="Ville" className={inputCls} />
+                      </label>
+                    </div>
+                    <p className="text-xs text-smoke">
+                      Pré-rempli au créneau d&apos;origine ; ne changez que ce qui bouge.
+                      {motif === "deplace" && !horaireChange && !lieuChange ? " (Modifiez l'horaire ou le lieu.)" : ""}
+                    </p>
                   </div>
                 )}
 
@@ -1796,8 +1837,11 @@ function PrevenirPanel({
               <span className="mb-1.5 block text-sm font-semibold text-ink">Message</span>
               <textarea
                 value={contenu}
-                onChange={(e) => setContenu(e.target.value)}
-                rows={9}
+                onChange={(e) => {
+                  setContenu(e.target.value);
+                  setContenuEdite(true);
+                }}
+                rows={10}
                 className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm leading-relaxed outline-none focus:border-orange"
               />
               <span className="mt-1 block text-xs text-smoke">

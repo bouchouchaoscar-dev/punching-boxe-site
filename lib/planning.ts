@@ -205,6 +205,68 @@ export function formatHeure(t: string | null): string {
   return t.slice(0, 5);
 }
 
+// ---- Formulation partagée (mails profs ET adhérents) — SOURCE UNIQUE ---------
+/** "18h" pour une heure pleine, "18h30" sinon. À partir de "HH:MM[:SS]". */
+export function heureFr(t: string | null): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
+}
+/** Plage : "de 18h à 19h30". */
+export function plageHoraire(debut: string | null, fin: string | null): string {
+  const a = heureFr(debut);
+  const b = heureFr(fin);
+  if (a && b) return `de ${a} à ${b}`;
+  return a || b || "";
+}
+/** "mardi 29 septembre" (+ année si différente de l'année de référence). */
+export function formatDateCours(iso: string, ref: Date = new Date()): string {
+  const [y, mo, d] = iso.split("-").map(Number);
+  const dt = new Date(y, mo - 1, d);
+  const jour = dt.toLocaleDateString("fr-FR", { weekday: "long" });
+  const mois = dt.toLocaleDateString("fr-FR", { month: "long" });
+  const num = d === 1 ? "1er" : String(d);
+  let s = `${jour} ${num} ${mois}`;
+  if (dt.getFullYear() !== ref.getFullYear()) s += ` ${dt.getFullYear()}`;
+  return s;
+}
+/** Minuscule sans accents (dédoublonnage lieu / choix de préposition). */
+function normaliserLieu(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+/**
+ * "Gymnase du Port (Nogent)". Ville vide → salle seule. Salle contenant déjà la
+ * ville (insensible casse/accents) → pas de doublon. Salle vide → ville seule.
+ */
+export function formatLieu(salle?: string | null, ville?: string | null): string {
+  const s = (salle || "").trim();
+  const v = (ville || "").trim();
+  if (!s && !v) return "";
+  if (!s) return v;
+  if (!v) return s;
+  if (normaliserLieu(s).includes(normaliserLieu(v))) return s;
+  return `${s} (${v})`;
+}
+// Table de prépositions GÉNÉRIQUE (paramétrable, aucun nom de club en dur).
+const PREPO_AU = ["gymnase", "dojo", "stade", "complexe", "centre", "parc", "palais", "club"];
+const PREPO_ALA = ["salle", "maison", "piscine", "halle", "base"];
+/**
+ * Lieu avec préposition selon le 1er mot du nom de salle. Mot non reconnu →
+ * { texte: null } : l'appelant met le lieu sur une ligne séparée "Lieu : …".
+ */
+export function lieuAvecPreposition(salle?: string | null, ville?: string | null): { texte: string | null; connue: boolean } {
+  const s = (salle || "").trim();
+  const v = (ville || "").trim();
+  const lieu = formatLieu(s, v);
+  if (!lieu) return { texte: "", connue: true };
+  if (!s) return { texte: `à ${v}`, connue: true }; // ville seule
+  const premier = normaliserLieu(s.split(/\s+/)[0] || "");
+  if (PREPO_AU.includes(premier)) return { texte: `au ${lieu}`, connue: true };
+  if (PREPO_ALA.includes(premier)) return { texte: `à la ${lieu}`, connue: true };
+  if (/^[aeiouy]/.test(premier) || /^h/.test(premier)) return { texte: `à l'${lieu}`, connue: true };
+  return { texte: null, connue: false };
+}
+
 /** Durée d'un cours en heures décimales (pour d'éventuelles stats V2). */
 export function dureeHeures(debut: string | null, fin: string | null): number {
   if (!debut || !fin) return 0;

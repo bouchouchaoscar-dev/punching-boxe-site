@@ -29,6 +29,8 @@ export type RecetteCampagne = {
   disciplines?: DisciplineKey[];
   includeContacts?: boolean;
   manualEmails?: string[];
+  // HTML de confiance (serveur) inséré après le corps (ex. encadré planning).
+  blocHtml?: string;
 };
 
 export type EnvoiResultat = {
@@ -273,7 +275,7 @@ export async function envoyerCampagne(
       from: MAIL_FROM,
       to: e.email,
       subject: remplacerVariables(objet, e.vars),
-      html: renderCampagne(remplacerVariables(contenu, e.vars), e.email),
+      html: renderCampagne(remplacerVariables(contenu, e.vars), e.email, recette.blocHtml),
     };
     const prenom = e.vars.prenom ?? null;
     const nom = e.vars.nom ?? null;

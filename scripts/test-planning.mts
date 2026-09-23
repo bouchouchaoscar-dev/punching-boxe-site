@@ -10,6 +10,11 @@ import {
   choisirSourceReprise,
   semaineFermee,
   estHistoriqueSemaine,
+  heureFr,
+  plageHoraire,
+  formatDateCours,
+  formatLieu,
+  lieuAvecPreposition,
   type Cours,
   type PeriodeFermeture,
   type CoursEnvoi,
@@ -51,6 +56,34 @@ const cours: Cours[] = [
   mkCours({ id: "c2", jour_semaine: 3, heure_debut: "17:00", heure_fin: "18:00", libelle: "BF Jeunes", salle: "B" }),
   mkCours({ id: "c3", actif: false, jour_semaine: 5, libelle: "Désactivé" }),
 ];
+
+console.log("— helpers de formulation (heures, dates, lieux, prépositions) —");
+{
+  check(heureFr("18:00") === "18h", "18:00 → 18h (heure pleine)");
+  check(heureFr("18:30") === "18h30", "18:30 → 18h30");
+  check(heureFr("09:05") === "9h05", "09:05 → 9h05 (minutes paddées)");
+  check(plageHoraire("18:00", "19:30") === "de 18h à 19h30", "plage → de 18h à 19h30");
+
+  const ref = new Date(2026, 5, 1); // année de référence 2026
+  check(formatDateCours("2026-10-01", ref).includes("1er octobre"), "1er du mois → '1er octobre'");
+  check(!formatDateCours("2026-10-01", ref).includes("2026"), "année courante omise");
+  check(formatDateCours("2027-01-05", ref).includes("2027"), "année différente affichée");
+
+  check(formatLieu("Gymnase du Port", "Nogent") === "Gymnase du Port (Nogent)", "lieu = salle (ville)");
+  check(formatLieu("Dojo de Nogent", "Nogent") === "Dojo de Nogent", "pas de doublon si la salle contient la ville");
+  check(formatLieu("", "Nogent") === "Nogent", "salle vide → ville seule");
+  check(formatLieu("Salle A", "") === "Salle A", "ville vide → salle seule");
+
+  check(lieuAvecPreposition("Gymnase du Port", "Nogent").texte === "au Gymnase du Port (Nogent)", "Gymnase → au");
+  check(lieuAvecPreposition("Salle Jean Jaurès", "").texte === "à la Salle Jean Jaurès", "Salle → à la");
+  check(lieuAvecPreposition("Espace Sportif", "").texte === "à l'Espace Sportif", "voyelle → à l'");
+  check(lieuAvecPreposition("Halle des sports", "").texte === "à la Halle des sports", "Halle → à la (pas à l')");
+  const inconnu = lieuAvecPreposition("Terrain municipal", "");
+  check(inconnu.connue === false && inconnu.texte === null, "mot inconnu → pas de préposition devinée");
+  const accent = lieuAvecPreposition("Dôjo central", "");
+  check(accent.connue === true && !!accent.texte && accent.texte.startsWith("au "), "accents ignorés (Dôjo → au)");
+  check(lieuAvecPreposition("", "Nogent").texte === "à Nogent", "ville seule → à Nogent");
+}
 
 console.log("— planningProfSemaine (exclut jours fermés, trie) —");
 {
