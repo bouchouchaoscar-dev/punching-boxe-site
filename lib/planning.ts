@@ -13,6 +13,14 @@ export function planningActif(): boolean {
   return CONFIG_CLUB.modules?.planning?.actif === true;
 }
 
+// Message du garde-fou de suppression (cours avec historique d'affectations).
+export const MSG_HISTORIQUE_COURS =
+  "Ce cours a un historique d'affectations. Désactivez-le plutôt pour le retirer du planning sans perdre l'historique.";
+
+// Message du garde-fou de suppression d'un PROF ayant un historique de cours.
+export const MSG_PROF_HISTORIQUE =
+  "Ce prof a un historique de cours. Archivez-le plutôt : il ne sera plus proposé, mais ses heures restent.";
+
 // Les 3 formules du club (SOURCE : pricing.formuleCle) déclinées pour un cours.
 // Un cours porte package + avec_prepa (miroir adherents.option_prepa_physique) →
 // en V2 « boxe_prepa » cible à la fois le segment boxe ET le segment prépa.
@@ -212,4 +220,137 @@ export function estFerme(dateISO: string, periodes: PeriodeFermeture[]): Periode
     if (dateISO >= p.date_debut && dateISO <= p.date_fin) return p;
   }
   return null;
+}
+
+// ---- Envoi de planning aux profs : snapshot + diff (PUR, testable) ----------
+export type CoursEnvoi = {
+  cours_id: string;
+  jour: number; // 1..7
+  date: string; // ISO de l'occurrence
+  horaire: string; // "18:00 – 19:30"
+  libelle: string;
+  salle: string | null;
+  ville: string | null;
+};
+
+/** Planning d'un prof pour une semaine : ses cours affectés, hors jours fermés, trié. */
+export function planningProfSemaine(
+  profId: string,
+  cours: Cours[],
+  affectations: { cours_id: string; prof_id: string | null }[],
+  semaineISO: string,
+  periodes: PeriodeFermeture[],
+): CoursEnvoi[] {
+  const coursIds = new Set(affectations.filter((a) => a.prof_id === profId).map((a) => a.cours_id));
+  const items: CoursEnvoi[] = [];
+  for (const c of cours) {
+    if (!coursIds.has(c.id) || !c.jour_semaine) continue;
+    const dISO = toISODate(dateDuJour(semaineISO, c.jour_semaine));
+    if (estFerme(dISO, periodes)) continue; // jour fermé → hors planning
+    items.push({
+      cours_id: c.id,
+      jour: c.jour_semaine,
+      date: dISO,
+      horaire: `${formatHeure(c.heure_debut)} – ${formatHeure(c.heure_fin)}`,
+      libelle: c.libelle ?? "Cours",
+      salle: c.salle,
+      ville: c.ville,
+    });
+  }
+  items.sort((a, b) => a.jour - b.jour || a.horaire.localeCompare(b.horaire));
+  return items;
+}
+
+/** Clé de comparaison : ce qui, s'il change, justifie un (re)envoi. */
+export function cleEnvoi(c: CoursEnvoi): string {
+  return [c.cours_id, c.jour, c.horaire, c.salle ?? "", c.ville ?? ""].join("|");
+}
+
+// ---- Reprise des profs de la semaine passée (PUR, testable) ----------------
+/** Une semaine (lundi) est-elle entièrement fermée ? (tous ses jours fermés) */
+export function semaineFermee(lundiISO: string, periodes: PeriodeFermeture[]): boolean {
+  return JOURS.every((j) => estFerme(toISODate(dateDuJour(lundiISO, j.valeur)), periodes));
+}
+export function reculerSemaine(lundiISO: string, semaines: number): string {
+  const [y, m, d] = lundiISO.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() - 7 * semaines);
+  return toISODate(dt);
+}
+/** Source de reprise : S-1, ou la dernière semaine ouverte si S-1 est fermée. */
+export function choisirSourceReprise(
+  semaineCible: string,
+  periodes: PeriodeFermeture[],
+  maxRecul = 8,
+): { source: string; sourceFermee: boolean } {
+  const s1 = reculerSemaine(semaineCible, 1);
+  if (!semaineFermee(s1, periodes)) return { source: s1, sourceFermee: false };
+  for (let k = 2; k <= maxRecul; k++) {
+    const s = reculerSemaine(semaineCible, k);
+    if (!semaineFermee(s, periodes)) return { source: s, sourceFermee: true };
+  }
+  return { source: s1, sourceFermee: true };
+}
+/**
+ * Décide quelles affectations de la source recopier sur la cible. Ignore :
+ * cours introuvable/désactivé, jour fermé sur la cible, ou déjà affecté (cible).
+ */
+export function calculerReprise(
+  semaineCible: string,
+  cours: Cours[],
+  affSource: { cours_id: string; prof_id: string | null }[],
+  affCible: { cours_id: string; prof_id: string | null }[],
+  periodes: PeriodeFermeture[],
+  profsActifsIds?: Set<string>, // si fourni : les profs ARCHIVÉS ne sont pas repris
+): { aInserer: { cours_id: string; prof_id: string; semaine: string; statut: "prevu" }[]; reprises: number; ignorees: number } {
+  const coursById = new Map(cours.map((c) => [c.id, c]));
+  const deja = new Set(affCible.filter((a) => a.prof_id).map((a) => `${a.cours_id}:${a.prof_id}`));
+  const aInserer: { cours_id: string; prof_id: string; semaine: string; statut: "prevu" }[] = [];
+  let ignorees = 0;
+  for (const a of affSource) {
+    if (!a.prof_id) {
+      ignorees++;
+      continue;
+    }
+    const c = coursById.get(a.cours_id);
+    const jourFerme = c?.jour_semaine
+      ? !!estFerme(toISODate(dateDuJour(semaineCible, c.jour_semaine)), periodes)
+      : false;
+    const profArchive = profsActifsIds ? !profsActifsIds.has(a.prof_id) : false;
+    if (!c || !c.actif || jourFerme || profArchive || deja.has(`${a.cours_id}:${a.prof_id}`)) {
+      ignorees++;
+      continue;
+    }
+    aInserer.push({ cours_id: a.cours_id, prof_id: a.prof_id, semaine: semaineCible, statut: "prevu" });
+    deja.add(`${a.cours_id}:${a.prof_id}`);
+  }
+  return { aInserer, reprises: aInserer.length, ignorees };
+}
+
+/** Une affectation sur `semaineISO` est-elle « historique » (passée/en cours) ? */
+export function estHistoriqueSemaine(semaineISO: string, lundiCourantISO: string): boolean {
+  return semaineISO <= lundiCourantISO;
+}
+
+export type StatutEnvoi = "nouveau" | "maj" | "plus_de_cours" | "identique" | "rien";
+
+/**
+ * Diff du planning d'un prof vs son dernier snapshot envoyé.
+ * - jamais envoyé + cours → "nouveau" ; jamais envoyé + aucun cours → "rien"
+ * - identique → "identique" (aucun mail)
+ * - devenu vide → "plus_de_cours" (avec la liste retirée)
+ * - sinon → "maj" (avec la liste retirée éventuelle)
+ */
+export function diffEnvoiPlanning(
+  actuel: CoursEnvoi[],
+  precedent: CoursEnvoi[] | null,
+): { statut: StatutEnvoi; retires: CoursEnvoi[] } {
+  const clesA = new Set(actuel.map(cleEnvoi));
+  if (!precedent) return { statut: actuel.length > 0 ? "nouveau" : "rien", retires: [] };
+  const clesP = new Set(precedent.map(cleEnvoi));
+  const identique = clesA.size === clesP.size && [...clesA].every((k) => clesP.has(k));
+  const retires = precedent.filter((c) => !clesA.has(cleEnvoi(c)));
+  if (identique) return { statut: "identique", retires: [] };
+  if (actuel.length === 0) return { statut: "plus_de_cours", retires };
+  return { statut: "maj", retires };
 }

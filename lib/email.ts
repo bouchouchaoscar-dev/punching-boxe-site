@@ -463,6 +463,64 @@ export async function sendProfNotification(d: {
   });
 }
 
+/**
+ * 2ter — [Planning] Envoi GROUPÉ du planning de la semaine à un prof. Gabarit du
+ * club (wrap), transactionnel. Les lignes sont déjà mises en forme par l'appelant
+ * (jour + date + horaire + libellé + salle). Ton simple, phrases courtes.
+ */
+export async function sendPlanningProf(d: {
+  email?: string | null;
+  prenomProf?: string | null;
+  semaineLabel: string; // "3 mars 2026"
+  lignes: string[]; // cours mis en forme, triés
+  retires?: string[]; // cours retirés depuis le dernier envoi (maj)
+  maj?: boolean; // true = "mise à jour"
+  plusDeCours?: boolean; // true = plus aucun cours cette semaine
+}) {
+  const email = (d.email || "").trim();
+  if (!email) return { skipped: true as const };
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+
+  const bonjour = d.prenomProf ? `Bonjour ${formaterPrenom(d.prenomProf)},` : "Bonjour,";
+  const liste = d.lignes
+    .map(
+      (l) =>
+        `<li style="margin:4px 0;line-height:1.5;color:#444">${escapeHtml(l)}</li>`,
+    )
+    .join("");
+  const blocRetires =
+    d.retires && d.retires.length > 0
+      ? `<p style="margin:16px 0 4px;font-weight:700;color:#b1480f">Cours retirés</p>
+         <ul style="margin:0;padding-left:18px">${d.retires
+           .map((l) => `<li style="margin:4px 0;line-height:1.5;color:#777;text-decoration:line-through">${escapeHtml(l)}</li>`)
+           .join("")}</ul>`
+      : "";
+
+  const corps = d.plusDeCours
+    ? `<p style="line-height:1.6;color:#444">${bonjour}</p>
+       <p style="line-height:1.6;color:#444">Vous n'avez plus de cours cette semaine du <strong>${d.semaineLabel}</strong>.</p>
+       ${blocRetires}`
+    : `<p style="line-height:1.6;color:#444">${bonjour}</p>
+       <p style="line-height:1.6;color:#444">Voici votre planning pour la semaine du <strong>${d.semaineLabel}</strong> :</p>
+       <ul style="margin:8px 0;padding-left:18px">${liste}</ul>
+       ${blocRetires}`;
+
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">${d.maj ? "Mise à jour de votre planning" : "Votre planning de la semaine"} 🥊</h1>
+    ${corps}
+    <p style="line-height:1.6;color:#444;margin-top:14px">À bientôt à la salle !</p>
+  `);
+
+  return client.emails.send({
+    from: FROM,
+    to: email,
+    replyTo: REPLY_TO,
+    subject: `${d.maj ? "Mise à jour de votre planning" : "Votre planning"} — semaine du ${d.semaineLabel}`,
+    html,
+  });
+}
+
 /** 3 — Email à l'adhérent : un document a été refusé. */
 export async function sendDocumentActionRequired(d: {
   prenom: string;

@@ -350,14 +350,25 @@ create index if not exists cours_actif_idx on public.cours (actif);
 create table if not exists public.affectations (
   id         uuid primary key default gen_random_uuid(),
   cours_id   uuid references public.cours(id) on delete cascade,
-  prof_id    uuid references public.profs(id) on delete set null,
+  prof_id    uuid not null references public.profs(id) on delete restrict, -- [014] N profs/cours/semaine ; RESTRICT protège l'historique
   semaine    date not null,                            -- lundi de la semaine concernée
   statut     text not null default 'prevu' check (statut in ('prevu','annule')),
   created_at timestamptz not null default now(),
-  unique (cours_id, semaine)
+  unique (cours_id, semaine, prof_id)                  -- [014] un prof au plus une fois par occurrence
 );
 create index if not exists affectations_semaine_idx on public.affectations (semaine);
 create index if not exists affectations_prof_idx    on public.affectations (prof_id);
+
+-- [014] Suivi des plannings envoyés aux profs (idempotence + diff nouveau/maj).
+create table if not exists public.envois_planning (
+  id         uuid primary key default gen_random_uuid(),
+  prof_id    uuid not null references public.profs(id) on delete cascade,
+  semaine    date not null,
+  envoye_at  timestamptz not null default now(),
+  snapshot   jsonb not null default '[]'::jsonb,
+  unique (prof_id, semaine)
+);
+create index if not exists envois_planning_semaine_idx on public.envois_planning (semaine);
 
 create table if not exists public.periodes_fermeture (
   id         uuid primary key default gen_random_uuid(),
@@ -389,6 +400,7 @@ alter table public.profs                   enable row level security;   -- [011]
 alter table public.cours                   enable row level security;   -- [011] planning
 alter table public.affectations            enable row level security;   -- [011] planning
 alter table public.periodes_fermeture      enable row level security;   -- [011] planning
+alter table public.envois_planning         enable row level security;   -- [014] planning
 
 -- ---------------------------------------------------------------------------
 -- 8bis) GRANTS — privilèges standard Supabase sur le schéma public.

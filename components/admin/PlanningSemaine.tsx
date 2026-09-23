@@ -23,43 +23,115 @@ const minutes = (t: string | null) => {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + (m || 0);
 };
-const bandeDe = (c: Cours) => Math.floor(minutes(c.heure_debut) / 60); // heure pleine de début
+const bandeDe = (c: Cours) => Math.floor(minutes(c.heure_debut) / 60);
 
-function nomProf(p: Prof | undefined): string {
-  if (!p) return "";
+function nomProf(p: Prof): string {
   return [p.prenom, p.nom].filter(Boolean).join(" ").trim() || "Prof";
 }
 
-// Carte d'un cours — look IDENTIQUE partout (desktop bandes + mobile empilé).
+// Case grisée "Fermé · nom" (à l'emplacement d'un cours, jour fermé).
+function CaseFermee({ libelle }: { libelle: string | null }) {
+  return (
+    <div className="rounded-lg border border-dashed border-line bg-paper-2 px-2 py-1.5 text-center">
+      <span className="text-[11px] font-bold uppercase tracking-wide text-smoke">Fermé</span>
+      {libelle ? <span className="block text-[10px] text-smoke/80">{libelle}</span> : null}
+    </div>
+  );
+}
+
+// Carte d'un cours — multi-profs, look identique desktop/mobile.
 function CarteCours({
   c,
-  prof,
-  onClick,
+  profsDuCours,
+  selectionMode,
+  selected,
+  onToggleSelect,
+  onAddProf,
+  onRemoveProf,
+  onPrevenir,
 }: {
   c: Cours;
-  prof: Prof | undefined;
-  onClick: () => void;
+  profsDuCours: Prof[];
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (coursId: string) => void;
+  onAddProf: (coursId: string) => void;
+  onRemoveProf: (coursId: string, profId: string) => void;
+  onPrevenir: (c: Cours) => void;
 }) {
   const col = couleurCours(c.discipline, c.type_adherent);
   return (
-    <button
-      onClick={onClick}
+    <div
       style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
-      className="w-full rounded-lg border border-l-4 border-line/60 px-2 py-1.5 text-left transition-transform hover:scale-[1.02]"
+      className={`relative rounded-lg border border-l-4 border-line/60 px-2 py-1.5 ${
+        selectionMode ? "cursor-pointer" : ""
+      } ${selected ? "ring-2 ring-orange" : ""}`}
+      onClick={selectionMode ? () => onToggleSelect(c.id) : undefined}
     >
-      <div className="text-[12px] font-bold leading-tight text-ink">{c.libelle}</div>
+      {selectionMode && (
+        <span
+          className={`absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+            selected ? "border-orange bg-orange text-white" : "border-smoke/40 bg-white"
+          }`}
+        >
+          {selected ? "✓" : ""}
+        </span>
+      )}
+      <div className="pr-5 text-[12px] font-bold leading-tight text-ink">{c.libelle}</div>
       <div className="text-[11px] leading-tight text-ink/70">
         {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
         {c.salle ? ` · ${c.salle}` : ""}
       </div>
-      <div
-        className={`mt-0.5 truncate text-[11px] font-semibold leading-tight ${
-          prof ? "text-ink" : "text-smoke/70"
-        }`}
-      >
-        {prof ? `👤 ${nomProf(prof)}` : "+ affecter"}
+
+      {/* Profs affectés (chips) + ajout, hors mode sélection */}
+      <div className="mt-1 flex flex-wrap gap-1">
+        {profsDuCours.map((p) => (
+          <span
+            key={p.id}
+            className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
+          >
+            {nomProf(p)}
+            {!selectionMode && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveProf(c.id, p.id);
+                }}
+                aria-label={`Retirer ${nomProf(p)}`}
+                className="ml-0.5 text-smoke hover:text-red-600"
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {!selectionMode && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddProf(c.id);
+            }}
+            className="rounded-full border border-dashed border-smoke/40 px-1.5 py-0.5 text-[10px] font-semibold text-smoke hover:border-orange hover:text-orange"
+          >
+            + prof
+          </button>
+        )}
       </div>
-    </button>
+
+      {!selectionMode && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrevenir(c);
+          }}
+          aria-label="Prévenir les adhérents"
+          className="absolute bottom-1 right-1 text-[12px] opacity-60 hover:opacity-100"
+          title="Prévenir les adhérents de ce cours"
+        >
+          ✉️
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -72,7 +144,12 @@ export function PlanningSemaine({
   onPrev,
   onNext,
   onToday,
-  onSelectCours,
+  selectionMode,
+  selected,
+  onToggleSelect,
+  onAddProf,
+  onRemoveProf,
+  onPrevenir,
 }: {
   semaineISO: string;
   cours: Cours[];
@@ -82,14 +159,14 @@ export function PlanningSemaine({
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
-  onSelectCours: (
-    cours: Cours,
-    affectation: Affectation | null,
-    dateISO: string,
-    ferme: PeriodeFermeture | null,
-  ) => void;
+  selectionMode: boolean;
+  selected: Set<string>;
+  onToggleSelect: (coursId: string) => void;
+  onAddProf: (coursId: string) => void;
+  onRemoveProf: (coursId: string, profId: string) => void;
+  onPrevenir: (c: Cours) => void;
 }) {
-  // Jours affichés : Lun→Ven, + Sam/Dim seulement si des cours actifs y existent.
+  // Jours affichés : Lun→Ven, + Sam/Dim si des cours actifs y existent.
   const jours = useMemo(() => {
     const base = JOURS.filter((j) => j.valeur <= 5).map((j) => j.valeur);
     const weekend = JOURS.filter(
@@ -98,14 +175,13 @@ export function PlanningSemaine({
     return [...base, ...weekend];
   }, [cours]);
 
-  // Bandes horaires réellement utilisées (heure pleine de début), triées.
+  // Bandes = heures pleines de TOUS les cours de la grille (forme stable toute l'année).
   const bandes = useMemo(() => {
     const set = new Set<number>();
     for (const c of cours) if (c.heure_debut) set.add(bandeDe(c));
     return [...set].sort((a, b) => a - b);
   }, [cours]);
 
-  // Couples (discipline × public) présents → légende.
   const combos = useMemo(() => {
     const m = new Map<string, { discipline: string; type: string | null }>();
     for (const c of cours) {
@@ -115,37 +191,31 @@ export function PlanningSemaine({
     return [...m.values()];
   }, [cours]);
 
-  const affParCours = useMemo(() => {
-    const m = new Map<string, Affectation>();
-    for (const a of affectations) m.set(a.cours_id, a);
-    return m;
-  }, [affectations]);
-  const profParId = useMemo(() => {
+  const profById = useMemo(() => {
     const m = new Map<string, Prof>();
     for (const p of profs) m.set(p.id, p);
     return m;
   }, [profs]);
-
-  const profDe = (c: Cours) => {
-    const aff = affParCours.get(c.id) ?? null;
-    return aff?.prof_id ? profParId.get(aff.prof_id) : undefined;
-  };
-  const clic = (c: Cours, iso: string, ferme: PeriodeFermeture | null) =>
-    onSelectCours(c, affParCours.get(c.id) ?? null, iso, ferme);
+  // profs affectés par cours (pour la semaine affichée), triés par nom.
+  const profsParCours = useMemo(() => {
+    const m = new Map<string, Prof[]>();
+    for (const a of affectations) {
+      if (!a.prof_id) continue;
+      const p = profById.get(a.prof_id);
+      if (!p) continue;
+      const arr = m.get(a.cours_id) ?? [];
+      arr.push(p);
+      m.set(a.cours_id, arr);
+    }
+    for (const arr of m.values()) arr.sort((x, y) => nomProf(x).localeCompare(nomProf(y)));
+    return m;
+  }, [affectations, profById]);
 
   const lundi = dateDuJour(semaineISO, 1);
   const dimanche = dateDuJour(semaineISO, 7);
-  const libelleSemaine = `${lundi.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-  })} – ${dimanche.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  })}`;
+  const libelleSemaine = `${lundi.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${dimanche.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
   const todayISO = toISODate(new Date());
 
-  // Métadonnées par jour affiché (date, iso, aujourd'hui, fermeture).
   const infosJours = jours.map((jv) => {
     const d = dateDuJour(semaineISO, jv);
     const iso = toISODate(d);
@@ -159,9 +229,23 @@ export function PlanningSemaine({
     };
   });
 
+  const carte = (c: Cours) => (
+    <CarteCours
+      key={c.id}
+      c={c}
+      profsDuCours={profsParCours.get(c.id) ?? []}
+      selectionMode={selectionMode}
+      selected={selected.has(c.id)}
+      onToggleSelect={onToggleSelect}
+      onAddProf={onAddProf}
+      onRemoveProf={onRemoveProf}
+      onPrevenir={onPrevenir}
+    />
+  );
+
   return (
     <div>
-      {/* Barre de navigation semaine */}
+      {/* Navigation semaine */}
       <div className="mb-3 flex items-center justify-between gap-3">
         <button
           onClick={onToday}
@@ -170,27 +254,17 @@ export function PlanningSemaine({
           Aujourd&apos;hui
         </button>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onPrev}
-            aria-label="Semaine précédente"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange"
-          >
+          <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
             <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
           </button>
-          <span className="min-w-[9.5rem] text-center text-sm font-bold text-ink">
-            {libelleSemaine}
-          </span>
-          <button
-            onClick={onNext}
-            aria-label="Semaine suivante"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange"
-          >
+          <span className="min-w-[9.5rem] text-center text-sm font-bold text-ink">{libelleSemaine}</span>
+          <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
             <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
           </button>
         </div>
       </div>
 
-      {/* Légende — uniquement les couples réellement présents */}
+      {/* Légende */}
       {combos.length > 0 && (
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           {combos.map((cb) => {
@@ -198,10 +272,7 @@ export function PlanningSemaine({
             const label = `${disciplineLabel(cb.discipline)}${cb.type ? ` · ${publicLabel(cb.type)}` : ""}`;
             return (
               <span key={`${cb.discipline}:${cb.type}`} className="flex items-center gap-1.5 text-xs text-smoke">
-                <span
-                  className="inline-block h-3 w-3 rounded-sm border"
-                  style={{ backgroundColor: col.bg, borderColor: col.bar }}
-                />
+                <span className="inline-block h-3 w-3 rounded-sm border" style={{ backgroundColor: col.bg, borderColor: col.bar }} />
                 {label}
               </span>
             );
@@ -211,69 +282,41 @@ export function PlanningSemaine({
 
       {bandes.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line bg-paper-2/40 py-8 text-center text-sm text-smoke">
-          Aucun cours cette semaine.
+          Aucun cours dans la grille. Ajoutez des cours dans l&apos;onglet « Cours ».
         </p>
       ) : (
         <>
-          {/* ============ DESKTOP (≥ md) : bandes horaires alignées ============ */}
+          {/* DESKTOP : bandes horaires */}
           <div className="hidden md:block">
             <ScrollX className="overflow-x-auto pb-1">
-              <div
-                className="min-w-[640px]"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: `3rem repeat(${jours.length}, minmax(150px, 1fr))`,
-                }}
-              >
-                {/* Ligne d'en-tête (gouttière vide + jours) */}
+              <div className="min-w-[640px]" style={{ display: "grid", gridTemplateColumns: `3rem repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 <div />
                 {infosJours.map((it) => (
-                  <div
-                    key={it.jv}
-                    className={`px-2 py-2 text-center ${
-                      it.isToday ? "rounded-t-lg border-x-2 border-t-2 border-orange bg-orange-50" : ""
-                    }`}
-                  >
-                    <div className={`text-xs font-bold uppercase tracking-wide ${it.isToday ? "text-orange" : "text-smoke"}`}>
-                      {it.court}
-                    </div>
-                    <div className={`text-sm font-semibold ${it.isToday ? "text-orange" : "text-ink"}`}>
-                      {it.date}
-                    </div>
-                    {it.ferme && (
-                      <div className="mt-0.5 text-[10px] font-bold uppercase text-smoke/70">
-                        Fermé
-                      </div>
-                    )}
+                  <div key={it.jv} className={`px-2 py-2 text-center ${it.isToday ? "rounded-t-lg border-x-2 border-t-2 border-orange bg-orange-50" : ""}`}>
+                    <div className={`text-xs font-bold uppercase tracking-wide ${it.isToday ? "text-orange" : "text-smoke"}`}>{it.court}</div>
+                    <div className={`text-sm font-semibold ${it.isToday ? "text-orange" : "text-ink"}`}>{it.date}</div>
                   </div>
                 ))}
-
-                {/* Une rangée par bande horaire */}
                 {bandes.map((h, bi) => {
                   const dernier = bi === bandes.length - 1;
                   return (
                     <div key={h} style={{ display: "contents" }}>
-                      {/* Gouttière : libellé d'heure discret */}
-                      <div className="border-t border-line/40 pr-1 pt-1.5 text-right text-[11px] font-medium text-smoke/70">
-                        {h}h
-                      </div>
+                      <div className="border-t border-line/40 pr-1 pt-1.5 text-right text-[11px] font-medium text-smoke/70">{h}h</div>
                       {infosJours.map((it) => {
-                        const items = it.ferme
-                          ? []
-                          : cours
-                              .filter((c) => c.jour_semaine === it.jv && bandeDe(c) === h)
-                              .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
+                        const items = cours
+                          .filter((c) => c.jour_semaine === it.jv && bandeDe(c) === h)
+                          .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
                         const todayCls = it.isToday
                           ? `border-x-2 border-orange bg-orange-50/40 ${dernier ? "rounded-b-lg border-b-2" : ""}`
                           : "border-t border-line/40";
                         return (
                           <div key={it.jv} className={`space-y-1.5 px-1.5 py-1.5 ${todayCls}`}>
-                            {it.ferme ? null : items.length === 0 ? (
+                            {items.length === 0 ? (
                               <div className="h-1" />
+                            ) : it.ferme ? (
+                              items.map((c) => <CaseFermee key={c.id} libelle={it.ferme!.libelle} />)
                             ) : (
-                              items.map((c) => (
-                                <CarteCours key={c.id} c={c} prof={profDe(c)} onClick={() => clic(c, it.iso, null)} />
-                              ))
+                              items.map(carte)
                             )}
                           </div>
                         );
@@ -285,54 +328,27 @@ export function PlanningSemaine({
             </ScrollX>
           </div>
 
-          {/* ============ MOBILE (< md) : colonnes empilées par jour ============ */}
+          {/* MOBILE : colonnes empilées */}
           <div className="md:hidden">
             <ScrollX className="overflow-x-auto pb-1">
-              <div
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(140px, 1fr))` }}
-              >
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 {infosJours.map((it) => {
-                  const coursDuJour = it.ferme
-                    ? []
-                    : cours
-                        .filter((c) => c.jour_semaine === it.jv)
-                        .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
+                  const coursDuJour = cours
+                    .filter((c) => c.jour_semaine === it.jv)
+                    .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
                   return (
-                    <div
-                      key={it.jv}
-                      className={`rounded-xl border ${it.isToday ? "border-orange" : "border-line"} bg-paper-2/40`}
-                    >
-                      <div
-                        className={`rounded-t-xl border-b px-2 py-2 text-center ${
-                          it.isToday ? "border-orange/40 bg-orange-50" : "border-line"
-                        }`}
-                      >
-                        <div className={`text-xs font-bold uppercase tracking-wide ${it.isToday ? "text-orange" : "text-smoke"}`}>
-                          {it.court}
-                        </div>
-                        <div className={`text-sm font-semibold ${it.isToday ? "text-orange" : "text-ink"}`}>
-                          {it.date}
-                        </div>
+                    <div key={it.jv} className={`rounded-xl border ${it.isToday ? "border-orange" : "border-line"} bg-paper-2/40`}>
+                      <div className={`rounded-t-xl border-b px-2 py-2 text-center ${it.isToday ? "border-orange/40 bg-orange-50" : "border-line"}`}>
+                        <div className={`text-xs font-bold uppercase tracking-wide ${it.isToday ? "text-orange" : "text-smoke"}`}>{it.court}</div>
+                        <div className={`text-sm font-semibold ${it.isToday ? "text-orange" : "text-ink"}`}>{it.date}</div>
                       </div>
                       <div className="min-h-[64px] space-y-1.5 p-1.5">
-                        {it.ferme ? (
-                          <div className="flex min-h-[56px] items-center justify-center rounded-lg border border-dashed border-line bg-white/60 px-2 py-3 text-center">
-                            <span className="text-[11px] font-bold uppercase tracking-wide text-smoke">
-                              Fermé
-                              {it.ferme.libelle ? (
-                                <span className="mt-0.5 block font-semibold normal-case text-smoke/80">
-                                  {it.ferme.libelle}
-                                </span>
-                              ) : null}
-                            </span>
-                          </div>
-                        ) : coursDuJour.length === 0 ? (
+                        {coursDuJour.length === 0 ? (
                           <div className="py-3 text-center text-[11px] text-smoke/50">—</div>
+                        ) : it.ferme ? (
+                          coursDuJour.map((c) => <CaseFermee key={c.id} libelle={it.ferme!.libelle} />)
                         ) : (
-                          coursDuJour.map((c) => (
-                            <CarteCours key={c.id} c={c} prof={profDe(c)} onClick={() => clic(c, it.iso, null)} />
-                          ))
+                          coursDuJour.map(carte)
                         )}
                       </div>
                     </div>

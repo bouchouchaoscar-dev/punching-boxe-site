@@ -14,6 +14,8 @@ import {
   disciplineLabel,
   publicLabel,
   couleurCours,
+  MSG_HISTORIQUE_COURS,
+  MSG_PROF_HISTORIQUE,
   DISCIPLINES_COURS,
   JOURS,
   type Prof,
@@ -36,12 +38,20 @@ export default function PlanningPage() {
   const [affectations, setAffectations] = useState<Affectation[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Cours sélectionné dans le calendrier → panneau d'affectation.
-  const [panneau, setPanneau] = useState<{ cours: Cours; aff: Affectation | null } | null>(null);
   // Cours pour lequel on prévient les adhérents (mailing ciblé par discipline).
   const [prevenir, setPrevenir] = useState<Cours | null>(null);
-  // Affectation en attente de confirmation (avant écriture + mail au prof).
-  const [confirmAff, setConfirmAff] = useState<{ profId: string | null } | null>(null);
+  // Mode sélection multiple (cases à cocher) + cours sélectionnés (semaine courante).
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Choix d'un prof : soit pour un cours précis (coursId), soit en masse (action).
+  const [profPicker, setProfPicker] = useState<
+    { kind: "single"; coursId: string } | { kind: "bulk"; action: "add" | "remove" } | null
+  >(null);
+  // Aperçu d'envoi de planning (badge + bouton) et modales récap.
+  const [envoiPreview, setEnvoiPreview] = useState<{ aEnvoyer: number; profs: { prof_id: string; nom: string; sansEmail: boolean; statut: string; nbCours: number }[] } | null>(null);
+  const [envoiModal, setEnvoiModal] = useState(false);
+  const [reprise, setReprise] = useState<{ source: string; sourceFermee: boolean; reprises: number; ignorees: number } | null>(null);
+  const [busyAction, setBusyAction] = useState(false);
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -73,10 +83,20 @@ export default function PlanningPage() {
       .then((r) => r.json())
       .then((d) => setAffectations(d.affectations ?? []))
       .catch(() => {});
+    // Aperçu d'envoi (badge « modifications non envoyées » + bouton).
+    fetch(`/api/admin/planning/envoi?semaine=${semaineISO}`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setEnvoiPreview({ aEnvoyer: d.aEnvoyer ?? 0, profs: d.profs ?? [] }))
+      .catch(() => setEnvoiPreview(null));
   }, [actif, semaineISO]);
 
   useEffect(() => chargerBase(), [chargerBase]);
   useEffect(() => chargerAffectations(), [chargerAffectations]);
+  // Changer de semaine vide la sélection (elle est propre à la semaine affichée).
+  useEffect(() => {
+    setSelected(new Set());
+    setSelectionMode(false);
+  }, [semaineISO]);
 
   const profsActifs = useMemo(() => profs.filter((p) => p.actif), [profs]);
   const coursActifs = useMemo(() => cours.filter((c) => c.actif), [cours]);
@@ -88,29 +108,118 @@ export default function PlanningPage() {
     setSemaineISO(toISODate(lundiDeLaSemaine(base)));
   }
 
-  // ---- Affectation d'un prof à un cours pour la semaine affichée ----
-  async function affecter(profId: string | null) {
-    if (!panneau) return;
+  // ---- Affectations (SILENCIEUX : aucun mail — l'envoi passe par « Envoyer le planning ») ----
+  async function ajouterProf(coursId: string, profId: string) {
     const res = await fetch("/api/admin/planning/affectations", {
       method: "POST",
       headers: jsonHeaders(),
-      body: JSON.stringify({ cours_id: panneau.cours.id, prof_id: profId, semaine: semaineISO }),
+      body: JSON.stringify({ cours_id: coursId, prof_id: profId, semaine: semaineISO }),
     });
     const d = await res.json();
-    if (!res.ok) {
-      flash(d.error || "Échec de l'affectation.");
-      return;
-    }
-    const map: Record<string, string> = {
-      envoye: "Prof affecté · mail envoyé ✓",
-      sans_email: "Prof affecté (pas d'email → aucun mail)",
-      erreur: "Prof affecté, mais l'envoi du mail a échoué",
-      aucun_prof: "Affectation retirée",
-    };
-    flash(map[d.mail as string] ?? "Affectation enregistrée");
-    setPanneau(null);
-    chargerAffectations();
+    if (!res.ok) flash(d.error || "Échec de l'affectation.");
+    else chargerAffectations();
   }
+  async function retirerProf(coursId: string, profId: string) {
+    const res = await fetch("/api/admin/planning/affectations", {
+      method: "DELETE",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ cours_id: coursId, prof_id: profId, semaine: semaineISO }),
+    });
+    if (res.ok) chargerAffectations();
+    else flash("Échec du retrait.");
+  }
+
+  function toggleSelect(coursId: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(coursId)) n.delete(coursId);
+      else n.add(coursId);
+      return n;
+    });
+  }
+
+  // Profs déjà affectés à un cours (pour ne pas les reproposer au « + prof »).
+  const profIdsParCours = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const a of affectations) {
+      if (!a.prof_id) continue;
+      const set = m.get(a.cours_id) ?? new Set<string>();
+      set.add(a.prof_id);
+      m.set(a.cours_id, set);
+    }
+    return m;
+  }, [affectations]);
+
+  // Application d'un choix de prof (single ou masse).
+  async function appliquerProf(profId: string) {
+    if (!profPicker) return;
+    setBusyAction(true);
+    try {
+      if (profPicker.kind === "single") {
+        await ajouterProf(profPicker.coursId, profId);
+      } else {
+        const res = await fetch("/api/admin/planning/affectations/bulk", {
+          method: "POST",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ semaine: semaineISO, prof_id: profId, cours_ids: [...selected], action: profPicker.action }),
+        });
+        const d = await res.json();
+        if (!res.ok) flash(d.error || "Échec de l'opération.");
+        else {
+          flash(profPicker.action === "add" ? "Prof affecté à la sélection ✓" : "Prof retiré de la sélection ✓");
+          chargerAffectations();
+        }
+      }
+    } finally {
+      setBusyAction(false);
+      setProfPicker(null);
+    }
+  }
+
+  // Reprise des profs de la semaine passée : aperçu puis application.
+  async function ouvrirReprise() {
+    const res = await fetch(`/api/admin/planning/reprendre?semaine=${semaineISO}`, { headers: adminAuthHeaders(), cache: "no-store" });
+    const d = await res.json();
+    if (!res.ok) return flash(d.error || "Impossible de calculer la reprise.");
+    setReprise({ source: d.source, sourceFermee: d.sourceFermee, reprises: d.reprises, ignorees: d.ignorees });
+  }
+  async function confirmerReprise() {
+    setBusyAction(true);
+    try {
+      const res = await fetch("/api/admin/planning/reprendre", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ semaine: semaineISO }) });
+      const d = await res.json();
+      if (!res.ok) flash(d.error || "Échec de la reprise.");
+      else {
+        flash(`${d.reprises} affectation${d.reprises > 1 ? "s" : ""} reprise${d.reprises > 1 ? "s" : ""}`);
+        chargerAffectations();
+      }
+    } finally {
+      setBusyAction(false);
+      setReprise(null);
+    }
+  }
+
+  // Envoi groupé du planning.
+  async function confirmerEnvoi() {
+    setBusyAction(true);
+    try {
+      const res = await fetch("/api/admin/planning/envoi", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ semaine: semaineISO }) });
+      const d = await res.json();
+      if (!res.ok) flash(d.error || "Échec de l'envoi.");
+      else flash(`${d.envoyes} mail${d.envoyes > 1 ? "s" : ""} envoyé${d.envoyes > 1 ? "s" : ""}${d.sansEmail ? ` · ${d.sansEmail} sans email` : ""}`);
+      chargerAffectations();
+    } finally {
+      setBusyAction(false);
+      setEnvoiModal(false);
+    }
+  }
+
+  // Profs présents sur la sélection (pour « Retirer un prof » en masse).
+  const profsSurSelection = useMemo(() => {
+    const ids = new Set<string>();
+    for (const a of affectations) if (a.prof_id && selected.has(a.cours_id)) ids.add(a.prof_id);
+    return profs.filter((p) => ids.has(p.id));
+  }, [affectations, selected, profs]);
 
   if (!actif) {
     return (
@@ -156,23 +265,60 @@ export default function PlanningPage() {
 
       <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-4 sm:p-6">
         {tab === "calendrier" && (
-          <PlanningSemaine
-            semaineISO={semaineISO}
-            cours={coursActifs}
-            affectations={affectations}
-            profs={profs}
-            periodes={periodes}
-            onPrev={() => decalerSemaine(-7)}
-            onNext={() => decalerSemaine(7)}
-            onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
-            onSelectCours={(c, aff, _iso, ferme) => {
-              if (ferme) {
-                flash(`Fermé (${ferme.libelle || "vacances"}) — pas d'affectation.`);
-                return;
-              }
-              setPanneau({ cours: c, aff });
-            }}
-          />
+          <>
+            {/* Barre d'outils : sélection, reprise S-1, envoi planning (+ badge) */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setSelectionMode((v) => !v);
+                  setSelected(new Set());
+                }}
+                className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                  selectionMode ? "border-orange bg-orange-50 text-orange" : "border-line bg-white text-ink hover:border-orange"
+                }`}
+              >
+                {selectionMode ? "Quitter la sélection" : "Sélectionner"}
+              </button>
+              <button
+                onClick={ouvrirReprise}
+                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange"
+              >
+                Reprendre les profs de la semaine passée
+              </button>
+              <div className="ml-auto flex items-center gap-2">
+                {envoiPreview && envoiPreview.aEnvoyer > 0 && (
+                  <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange">
+                    Modifications non envoyées à {envoiPreview.aEnvoyer} prof{envoiPreview.aEnvoyer > 1 ? "s" : ""}
+                  </span>
+                )}
+                <button
+                  onClick={() => setEnvoiModal(true)}
+                  disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
+                  title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Aucune modification à envoyer" : "Envoyer le planning aux profs concernés"}
+                  className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Envoyer le planning aux profs
+                </button>
+              </div>
+            </div>
+
+            <PlanningSemaine
+              semaineISO={semaineISO}
+              cours={coursActifs}
+              affectations={affectations}
+              profs={profs}
+              periodes={periodes}
+              onPrev={() => decalerSemaine(-7)}
+              onNext={() => decalerSemaine(7)}
+              onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
+              selectionMode={selectionMode}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+              onAddProf={(coursId) => setProfPicker({ kind: "single", coursId })}
+              onRemoveProf={retirerProf}
+              onPrevenir={(c) => setPrevenir(c)}
+            />
+          </>
         )}
 
         {tab === "cours" && (
@@ -186,76 +332,6 @@ export default function PlanningPage() {
         )}
       </div>
 
-      {/* Panneau d'affectation */}
-      {panneau && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
-            <h2 className="text-center font-display text-lg font-extrabold uppercase text-ink">
-              Ce cours
-            </h2>
-            <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
-              <p className="font-bold text-ink">{panneau.cours.libelle}</p>
-              <p className="text-smoke">
-                {jourLong(panneau.cours.jour_semaine)} · {formatHeure(panneau.cours.heure_debut)}–
-                {formatHeure(panneau.cours.heure_fin)}
-                {panneau.cours.salle ? ` · ${panneau.cours.salle}` : ""}
-              </p>
-              <p className="mt-1 text-xs text-smoke">
-                Semaine du{" "}
-                {new Date(semaineISO).toLocaleDateString("fr-FR", { dateStyle: "long" })}
-              </p>
-            </div>
-
-            <label className="mt-4 block">
-              <span className="mb-1.5 block text-sm font-semibold text-ink">
-                Affecter un professeur
-              </span>
-              <select
-                value={panneau.aff?.prof_id ?? ""}
-                onChange={(e) => setConfirmAff({ profId: e.target.value || null })}
-                className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-4 py-3 text-sm outline-none focus:border-orange"
-              >
-                <option value="">
-                  {panneau.aff?.prof_id
-                    ? "Retirer l'affectation"
-                    : "— Sélectionner un professeur —"}
-                </option>
-                {profsActifs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {[p.prenom, p.nom].filter(Boolean).join(" ")}
-                    {!p.email ? " (sans email)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {profsActifs.length === 0 && (
-              <p className="mt-2 text-xs text-smoke">
-                Aucun prof actif. Ajoutez-en un dans l&apos;onglet « Profs ».
-              </p>
-            )}
-            <p className="mt-2 text-xs text-smoke">
-              Choisir un prof enregistre l&apos;affectation et lui envoie un email (s&apos;il en a un).
-            </p>
-
-            <button
-              onClick={() => {
-                const c = panneau.cours;
-                setPanneau(null);
-                setPrevenir(c);
-              }}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-bold text-white hover:bg-orange"
-            >
-              ✉️ Prévenir les adhérents de ce cours
-            </button>
-            <button
-              onClick={() => setPanneau(null)}
-              className="mt-2 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-            >
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
 
       {prevenir && (
         <PrevenirPanel
@@ -266,49 +342,136 @@ export default function PlanningPage() {
         />
       )}
 
-      {/* Confirmation avant affectation / retrait (l'affectation envoie un mail) */}
-      {confirmAff && panneau && (() => {
-        const profId = confirmAff.profId;
-        const prof = profId ? profs.find((p) => p.id === profId) : null;
-        const nomProf = prof ? [prof.prenom, prof.nom].filter(Boolean).join(" ") : "";
-        const c = panneau.cours;
-        const coursInfo = `${c.libelle} du ${jourLong(c.jour_semaine)} ${formatHeure(c.heure_debut)}–${formatHeure(c.heure_fin)}`;
-        const ancienProf = panneau.aff?.prof_id ? profs.find((p) => p.id === panneau.aff!.prof_id) : null;
-        const ancienNom = ancienProf ? [ancienProf.prenom, ancienProf.nom].filter(Boolean).join(" ") : "ce professeur";
-        const message =
-          profId === null
-            ? `Retirer ${ancienNom} du cours ${coursInfo} ? Aucun email ne sera envoyé.`
-            : prof?.email
-              ? `Affecter ${nomProf} au cours ${coursInfo} ? Un email de confirmation lui sera envoyé.`
-              : `Affecter ${nomProf} au cours ${coursInfo} ? Aucun email ne sera envoyé, ce professeur n'a pas d'adresse renseignée.`;
+      {/* Choix d'un prof (ajout à un cours OU opération de masse) */}
+      {profPicker && (() => {
+        const exclus =
+          profPicker.kind === "single" ? profIdsParCours.get(profPicker.coursId) ?? new Set<string>() : new Set<string>();
+        const liste =
+          profPicker.kind === "bulk" && profPicker.action === "remove"
+            ? profsSurSelection
+            : profsActifs.filter((p) => !exclus.has(p.id));
+        const titre =
+          profPicker.kind === "single"
+            ? "Ajouter un professeur"
+            : profPicker.action === "add"
+              ? `Affecter un prof à ${selected.size} cours`
+              : `Retirer un prof de ${selected.size} cours`;
         return (
-          <div className="fixed inset-0 z-[65] flex items-center justify-center bg-ink/40 p-4">
-            <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
-              <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-                {profId === null ? "Retirer le professeur" : "Confirmer l'affectation"}
-              </h2>
-              <p className="mt-3 text-sm text-smoke">{message}</p>
-              <div className="mt-5 flex justify-center gap-3">
-                <button
-                  onClick={() => setConfirmAff(null)}
-                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={() => {
-                    affecter(profId);
-                    setConfirmAff(null);
-                  }}
-                  className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
-                >
-                  {profId === null ? "Retirer" : "Affecter"}
-                </button>
-              </div>
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
+            <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6">
+              <h2 className="font-display text-lg font-extrabold uppercase text-ink">{titre}</h2>
+              {liste.length === 0 ? (
+                <p className="mt-3 text-sm text-smoke">
+                  {profPicker.kind === "single"
+                    ? "Tous les profs actifs sont déjà affectés à ce cours."
+                    : "Aucun prof disponible pour cette action."}
+                </p>
+              ) : (
+                <div className="mt-3 max-h-72 space-y-1 overflow-y-auto">
+                  {liste.map((p) => (
+                    <button
+                      key={p.id}
+                      disabled={busyAction}
+                      onClick={() => appliquerProf(p.id)}
+                      className="flex w-full items-center justify-between rounded-lg border border-line px-3 py-2 text-left text-sm hover:border-orange disabled:opacity-50"
+                    >
+                      <span className="font-semibold text-ink">{[p.prenom, p.nom].filter(Boolean).join(" ")}</span>
+                      {!p.email && <span className="text-xs text-smoke">sans email</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button onClick={() => setProfPicker(null)} className="mt-4 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">
+                Fermer
+              </button>
             </div>
           </div>
         );
       })()}
+
+      {/* Récap avant reprise des profs de la semaine passée */}
+      {reprise && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
+            <h2 className="font-display text-lg font-extrabold uppercase text-ink">Reprendre les profs</h2>
+            <p className="mt-3 text-sm text-smoke">
+              Depuis la semaine du{" "}
+              <strong className="text-ink">{new Date(reprise.source).toLocaleDateString("fr-FR", { dateStyle: "long" })}</strong>
+              {reprise.sourceFermee ? " (la semaine passée était fermée, on reprend la dernière semaine ouverte)" : ""}.
+            </p>
+            <p className="mt-2 text-sm text-ink">
+              <strong>{reprise.reprises}</strong> affectation{reprise.reprises > 1 ? "s" : ""} reprise{reprise.reprises > 1 ? "s" : ""},{" "}
+              <strong>{reprise.ignorees}</strong> ignorée{reprise.ignorees > 1 ? "s" : ""} (jour fermé, cours désactivé ou déjà affecté).
+            </p>
+            <div className="mt-5 flex justify-center gap-3">
+              <button onClick={() => setReprise(null)} disabled={busyAction} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">
+                Annuler
+              </button>
+              <button onClick={confirmerReprise} disabled={busyAction || reprise.reprises === 0} className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40">
+                {busyAction ? "…" : "Reprendre"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Récap avant envoi groupé du planning */}
+      {envoiModal && envoiPreview && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
+            <h2 className="font-display text-lg font-extrabold uppercase text-ink">Envoyer le planning</h2>
+            <p className="mt-3 text-sm text-smoke">
+              <strong className="text-ink">{envoiPreview.aEnvoyer}</strong> prof{envoiPreview.aEnvoyer > 1 ? "s" : ""} à notifier pour la semaine affichée.
+            </p>
+            <ul className="mt-3 max-h-60 space-y-1 overflow-y-auto text-sm">
+              {envoiPreview.profs.map((p) => (
+                <li key={p.prof_id} className="flex items-center justify-between rounded-lg border border-line px-3 py-2">
+                  <span className="font-semibold text-ink">{p.nom}</span>
+                  <span className="text-xs text-smoke">
+                    {p.statut === "nouveau" ? "nouveau" : p.statut === "plus_de_cours" ? "plus de cours" : "mise à jour"}
+                    {p.sansEmail ? " · sans email" : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setEnvoiModal(false)} disabled={busyAction} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">
+                Annuler
+              </button>
+              <button onClick={confirmerEnvoi} disabled={busyAction} className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">
+                {busyAction ? "Envoi…" : `Envoyer (${envoiPreview.aEnvoyer})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barre d'action de sélection multiple (fixe en bas) */}
+      {selectionMode && selected.size > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-[55] border-t border-line bg-white/95 px-4 py-3 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-ink">
+              {selected.size} cours sélectionné{selected.size > 1 ? "s" : ""}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setProfPicker({ kind: "bulk", action: "add" })} className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white hover:bg-orange-600">
+                Affecter un prof
+              </button>
+              <button
+                onClick={() => setProfPicker({ kind: "bulk", action: "remove" })}
+                disabled={profsSurSelection.length === 0}
+                title={profsSurSelection.length === 0 ? "Aucun prof à retirer sur la sélection" : ""}
+                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-40"
+              >
+                Retirer un prof
+              </button>
+              <button onClick={() => setSelected(new Set())} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-smoke hover:text-ink">
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-[60] max-w-xs rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white shadow-lg">
@@ -334,7 +497,7 @@ function CoursTab({
   const [modale, setModale] = useState<{ mode: "create" } | { mode: "edit"; cours: Cours } | null>(null);
   const [openKeys, setOpenKeys] = useState<Set<string>>(new Set());
   const [groupeAction, setGroupeAction] =
-    useState<{ type: "desactiver" | "supprimer"; groupe: Groupe } | null>(null);
+    useState<{ type: "desactiver" | "supprimer"; groupe: Groupe; bloque?: string } | null>(null);
   const [busyGroupe, setBusyGroupe] = useState(false);
 
   const groupes = useMemo(() => grouperCours(cours), [cours]);
@@ -361,7 +524,7 @@ function CoursTab({
   }
 
   async function supprimerUn(c: Cours) {
-    if (!confirm("Supprimer ce créneau ? Les affectations liées seront supprimées.")) return;
+    if (!confirm("Supprimer ce créneau ? Les affectations FUTURES liées seront supprimées.")) return;
     const res = await fetch(`/api/admin/planning/cours/${c.id}`, {
       method: "DELETE",
       headers: adminAuthHeaders(),
@@ -369,9 +532,15 @@ function CoursTab({
     if (res.ok) {
       flash("Créneau supprimé");
       onChanged();
-    } else {
-      flash("Échec de la suppression.");
+      return;
     }
+    const d = await res.json().catch(() => ({}));
+    // Garde-fou historique : proposer la désactivation à la place.
+    if (res.status === 409) {
+      if (confirm(`${d.error}\n\nDésactiver ce créneau à la place ?`)) basculerActif(c);
+      return;
+    }
+    flash(d.error || "Échec de la suppression.");
   }
 
   // Actions de GROUPE (tous les créneaux d'un groupe), après confirmation.
@@ -380,23 +549,35 @@ function CoursTab({
     setBusyGroupe(true);
     try {
       const { type, groupe } = groupeAction;
-      for (const c of groupe.creneaux) {
-        if (type === "supprimer") {
-          await fetch(`/api/admin/planning/cours/${c.id}`, {
-            method: "DELETE",
-            headers: adminAuthHeaders(),
-          });
-        } else {
+      if (type === "desactiver") {
+        for (const c of groupe.creneaux) {
           await fetch("/api/admin/planning/cours", {
             method: "PATCH",
             headers: jsonHeaders(),
             body: JSON.stringify({ id: c.id, actif: false }),
           });
         }
+        flash("Cours désactivé");
+        setGroupeAction(null);
+        onChanged();
+        return;
       }
-      flash(type === "supprimer" ? "Groupe supprimé" : "Groupe désactivé");
-      setGroupeAction(null);
-      onChanged();
+      // Suppression tout-ou-rien via l'endpoint dédié (garde-fou historique).
+      const res = await fetch("/api/admin/planning/cours/bulk-delete", {
+        method: "POST",
+        headers: jsonHeaders(),
+        body: JSON.stringify({ ids: groupe.creneaux.map((c) => c.id) }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        flash("Cours supprimé");
+        setGroupeAction(null);
+        onChanged();
+      } else if (res.status === 409) {
+        setGroupeAction({ ...groupeAction, bloque: d.error || MSG_HISTORIQUE_COURS });
+      } else {
+        flash(d.error || "Échec de la suppression.");
+      }
     } finally {
       setBusyGroupe(false);
     }
@@ -540,15 +721,17 @@ function CoursTab({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
           <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
             <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-              {groupeAction.type === "supprimer" ? "Supprimer le cours" : "Désactiver le cours"}
+              {groupeAction.bloque ? "Suppression impossible" : groupeAction.type === "supprimer" ? "Supprimer le cours" : "Désactiver le cours"}
             </h2>
             <p className="mt-3 text-sm text-smoke">
-              {groupeAction.type === "supprimer" ? (
+              {groupeAction.bloque ? (
+                <span className="text-ink">{groupeAction.bloque}</span>
+              ) : groupeAction.type === "supprimer" ? (
                 <>
                   Supprimer les <strong>{groupeAction.groupe.creneaux.length}</strong> créneau
                   {groupeAction.groupe.creneaux.length > 1 ? "x" : ""} de{" "}
-                  <strong className="text-ink">{groupeAction.groupe.libelle}</strong> ? Les affectations
-                  liées (toutes semaines) seront supprimées. Action irréversible.
+                  <strong className="text-ink">{groupeAction.groupe.libelle}</strong> ? Bloqué si un créneau a
+                  un historique (semaine passée ou en cours) ; sinon supprimé avec ses affectations futures.
                 </>
               ) : (
                 <>
@@ -565,17 +748,26 @@ function CoursTab({
                 disabled={busyGroupe}
                 className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
               >
-                Annuler
+                {groupeAction.bloque ? "Fermer" : "Annuler"}
               </button>
-              <button
-                onClick={executerGroupe}
-                disabled={busyGroupe}
-                className={`rounded-full px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${
-                  groupeAction.type === "supprimer" ? "bg-red-600 hover:bg-red-700" : "bg-orange hover:bg-orange-600"
-                }`}
-              >
-                {busyGroupe ? "…" : groupeAction.type === "supprimer" ? "Tout supprimer" : "Tout désactiver"}
-              </button>
+              {groupeAction.bloque ? (
+                <button
+                  onClick={() => setGroupeAction({ type: "desactiver", groupe: groupeAction.groupe })}
+                  className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+                >
+                  Désactiver
+                </button>
+              ) : (
+                <button
+                  onClick={executerGroupe}
+                  disabled={busyGroupe}
+                  className={`rounded-full px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${
+                    groupeAction.type === "supprimer" ? "bg-red-600 hover:bg-red-700" : "bg-orange hover:bg-orange-600"
+                  }`}
+                >
+                  {busyGroupe ? "…" : groupeAction.type === "supprimer" ? "Tout supprimer" : "Tout désactiver"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -885,6 +1077,14 @@ function ProfsTab({
   const [form, setForm] = useState({ ...vide });
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openArchives, setOpenArchives] = useState(false);
+  // Modale d'action (archive / suppression) avec récap chiffré.
+  const [action, setAction] = useState<
+    { prof: Prof; type: "archive" | "delete" | "bloque"; historique: number; futures: number } | null
+  >(null);
+
+  const actifs = profs.filter((p) => p.actif);
+  const archives = profs.filter((p) => !p.actif);
 
   function editer(p: Prof) {
     setEditId(p.id);
@@ -921,31 +1121,57 @@ function ProfsTab({
     }
   }
 
-  async function basculerActif(p: Prof) {
+  async function reactiver(p: Prof) {
     const res = await fetch("/api/admin/planning/profs", {
       method: "PATCH",
       headers: jsonHeaders(),
-      body: JSON.stringify({ id: p.id, actif: !p.actif }),
+      body: JSON.stringify({ id: p.id, actif: true }),
     });
     if (res.ok) {
-      flash(p.actif ? "Prof désactivé" : "Prof réactivé");
+      flash("Prof réactivé");
       onChanged();
     }
   }
 
-  async function supprimer(p: Prof) {
-    const nom = [p.prenom, p.nom].filter(Boolean).join(" ") || "ce prof";
-    if (!confirm(`Supprimer ${nom} ? Ses affectations passées resteront (sans prof).`)) return;
-    const res = await fetch(`/api/admin/planning/profs/${p.id}`, {
-      method: "DELETE",
-      headers: adminAuthHeaders(),
-    });
-    if (res.ok) {
-      flash("Prof supprimé");
-      if (editId === p.id) annuler();
-      onChanged();
+  // Ouvre la modale d'action : récupère l'état (historique / futures) puis décide.
+  async function demander(p: Prof, type: "archive" | "delete") {
+    const res = await fetch(`/api/admin/planning/profs/${p.id}`, { headers: adminAuthHeaders(), cache: "no-store" });
+    const d = await res.json();
+    const historique = d.historique ?? 0;
+    const futures = d.futures ?? 0;
+    // Suppression bloquée si historique → bascule sur l'option archivage.
+    if (type === "delete" && historique > 0) {
+      setAction({ prof: p, type: "bloque", historique, futures });
     } else {
-      flash("Échec de la suppression.");
+      setAction({ prof: p, type, historique, futures });
+    }
+  }
+
+  async function executer() {
+    if (!action) return;
+    setBusy(true);
+    try {
+      const p = action.prof;
+      if (action.type === "archive") {
+        const res = await fetch(`/api/admin/planning/profs/${p.id}`, { method: "POST", headers: adminAuthHeaders() });
+        if (res.ok) flash("Prof archivé");
+        else flash("Échec de l'archivage.");
+      } else if (action.type === "delete") {
+        const res = await fetch(`/api/admin/planning/profs/${p.id}`, { method: "DELETE", headers: adminAuthHeaders() });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok) {
+          flash("Prof supprimé");
+          if (editId === p.id) annuler();
+        } else if (res.status === 409) {
+          // Devenu historique entre-temps → propose l'archivage.
+          setAction({ prof: p, type: "bloque", historique: d.futures ?? 1, futures: d.futures ?? 0 });
+          return;
+        } else flash(d.error || "Échec de la suppression.");
+      }
+      setAction(null);
+      onChanged();
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1009,51 +1235,112 @@ function ProfsTab({
       </div>
 
       <div>
-        {profs.length === 0 ? (
-          <p className="text-sm text-smoke">Aucun prof pour l&apos;instant.</p>
+        {actifs.length === 0 ? (
+          <p className="text-sm text-smoke">Aucun prof actif pour l&apos;instant.</p>
         ) : (
           <ul className="space-y-2">
-            {profs.map((p) => (
-              <li
-                key={p.id}
-                className={`flex items-center justify-between gap-3 rounded-xl border border-line p-3 ${
-                  p.actif ? "bg-white" : "bg-paper-2 opacity-60"
-                }`}
-              >
+            {actifs.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink">
-                    {[p.prenom, p.nom].filter(Boolean).join(" ") || "—"}
-                  </p>
+                  <p className="truncate text-sm font-bold text-ink">{[p.prenom, p.nom].filter(Boolean).join(" ") || "—"}</p>
                   <p className="truncate text-xs text-smoke">
                     {p.email || "sans email"}
                     {p.telephone ? ` · ${p.telephone}` : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <button
-                    onClick={() => editer(p)}
-                    className="text-xs font-semibold text-orange hover:underline"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => basculerActif(p)}
-                    className="text-xs font-semibold text-smoke hover:text-ink"
-                  >
-                    {p.actif ? "Désactiver" : "Réactiver"}
-                  </button>
-                  <button
-                    onClick={() => supprimer(p)}
-                    className="text-xs font-semibold text-red-600 hover:underline"
-                  >
-                    Supprimer
-                  </button>
+                  <button onClick={() => editer(p)} className="text-xs font-semibold text-orange hover:underline">Modifier</button>
+                  <button onClick={() => demander(p, "archive")} className="text-xs font-semibold text-smoke hover:text-ink">Archiver</button>
+                  <button onClick={() => demander(p, "delete")} className="text-xs font-semibold text-red-600 hover:underline">Supprimer</button>
                 </div>
               </li>
             ))}
           </ul>
         )}
+
+        {/* Profs archivés : repliés, atténués */}
+        {archives.length > 0 && (
+          <div className="mt-4">
+            <button
+              onClick={() => setOpenArchives((v) => !v)}
+              className="flex items-center gap-2 text-xs font-semibold text-smoke hover:text-ink"
+            >
+              <span className={`transition-transform ${openArchives ? "rotate-90" : ""}`}>›</span>
+              Profs archivés ({archives.length})
+            </button>
+            {openArchives && (
+              <ul className="mt-2 space-y-2">
+                {archives.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-paper-2 p-3 opacity-70">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-ink">{[p.prenom, p.nom].filter(Boolean).join(" ") || "—"}</p>
+                      <p className="truncate text-xs text-smoke">{p.email || "sans email"}</p>
+                    </div>
+                    <button onClick={() => reactiver(p)} className="shrink-0 text-xs font-semibold text-orange hover:underline">Réactiver</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Modale d'action prof (archive / suppression / blocage) */}
+      {action && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
+            {(() => {
+              const nom = [action.prof.prenom, action.prof.nom].filter(Boolean).join(" ") || "ce prof";
+              if (action.type === "bloque") {
+                return (
+                  <>
+                    <h2 className="font-display text-lg font-extrabold uppercase text-ink">Suppression impossible</h2>
+                    <p className="mt-3 text-sm text-ink">{MSG_PROF_HISTORIQUE}</p>
+                    <div className="mt-5 flex justify-center gap-3">
+                      <button onClick={() => setAction(null)} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
+                      <button
+                        onClick={() => setAction({ ...action, type: "archive" })}
+                        className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+                      >
+                        Archiver
+                      </button>
+                    </div>
+                  </>
+                );
+              }
+              const titre = action.type === "archive" ? "Archiver le prof" : "Supprimer le prof";
+              return (
+                <>
+                  <h2 className="font-display text-lg font-extrabold uppercase text-ink">{titre}</h2>
+                  <p className="mt-3 text-sm text-smoke">
+                    {action.type === "archive" ? (
+                      <>
+                        Archiver <strong className="text-ink">{nom}</strong> : il ne sera plus proposé.{" "}
+                        <strong>{action.futures}</strong> cours à venir {action.futures > 1 ? "seront libérés" : "sera libéré"} ; ses heures passées restent.
+                      </>
+                    ) : (
+                      <>
+                        Supprimer <strong className="text-ink">{nom}</strong> ? Aucun historique.{" "}
+                        {action.futures > 0 ? <><strong>{action.futures}</strong> cours à venir {action.futures > 1 ? "seront libérés" : "sera libéré"}.</> : "Aucune affectation."}
+                      </>
+                    )}
+                  </p>
+                  <div className="mt-5 flex justify-center gap-3">
+                    <button onClick={() => setAction(null)} disabled={busy} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Annuler</button>
+                    <button
+                      onClick={executer}
+                      disabled={busy}
+                      className={`rounded-full px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50 ${action.type === "delete" ? "bg-red-600 hover:bg-red-700" : "bg-orange hover:bg-orange-600"}`}
+                    >
+                      {busy ? "…" : action.type === "archive" ? "Archiver" : "Supprimer"}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
