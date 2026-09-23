@@ -332,6 +332,20 @@ export function estHistoriqueSemaine(semaineISO: string, lundiCourantISO: string
   return semaineISO <= lundiCourantISO;
 }
 
+/** Suppression d'un prof autorisée ? (libre si pas d'historique, sinon confirmation requise) */
+export function suppressionProfAutorisee(historique: number, confirmer: boolean): boolean {
+  return historique === 0 || confirmer === true;
+}
+
+/** Résumé des changements pour l'objet du mail : "1 cours ajouté, 1 retiré, 1 modifié". */
+export function libelleChangements(nAjoutes: number, nRetires: number, nModifies: number): string {
+  const segs: { n: number; mot: string }[] = [];
+  if (nAjoutes) segs.push({ n: nAjoutes, mot: "ajouté" });
+  if (nRetires) segs.push({ n: nRetires, mot: "retiré" });
+  if (nModifies) segs.push({ n: nModifies, mot: "modifié" });
+  return segs.map((s, i) => `${s.n}${i === 0 ? " cours" : ""} ${s.mot}${s.n > 1 ? "s" : ""}`).join(", ");
+}
+
 export type StatutEnvoi = "nouveau" | "maj" | "plus_de_cours" | "identique" | "rien";
 
 /**
@@ -353,4 +367,34 @@ export function diffEnvoiPlanning(
   if (identique) return { statut: "identique", retires: [] };
   if (actuel.length === 0) return { statut: "plus_de_cours", retires };
   return { statut: "maj", retires };
+}
+
+export type DiffDetaille = {
+  statut: StatutEnvoi;
+  ajoutes: CoursEnvoi[];
+  retires: CoursEnvoi[];
+  modifies: { avant: CoursEnvoi; apres: CoursEnvoi }[];
+};
+
+/**
+ * Diff DÉTAILLÉ par cours_id (pour le mail « mise à jour ») :
+ * - ajouté : cours présent maintenant, absent du dernier envoi ;
+ * - retiré : cours présent au dernier envoi, absent maintenant ;
+ * - modifié : même cours_id mais horaire/salle/ville/jour différents (via cleEnvoi).
+ */
+export function diffEnvoiDetaille(actuel: CoursEnvoi[], precedent: CoursEnvoi[] | null): DiffDetaille {
+  if (!precedent) return { statut: actuel.length > 0 ? "nouveau" : "rien", ajoutes: [], retires: [], modifies: [] };
+  const precById = new Map(precedent.map((c) => [c.cours_id, c]));
+  const actById = new Map(actuel.map((c) => [c.cours_id, c]));
+  const ajoutes: CoursEnvoi[] = [];
+  const modifies: { avant: CoursEnvoi; apres: CoursEnvoi }[] = [];
+  for (const c of actuel) {
+    const p = precById.get(c.cours_id);
+    if (!p) ajoutes.push(c);
+    else if (cleEnvoi(p) !== cleEnvoi(c)) modifies.push({ avant: p, apres: c });
+  }
+  const retires = precedent.filter((c) => !actById.has(c.cours_id));
+  const rien = ajoutes.length === 0 && retires.length === 0 && modifies.length === 0;
+  const statut: StatutEnvoi = rien ? "identique" : actuel.length === 0 ? "plus_de_cours" : "maj";
+  return { statut, ajoutes, retires, modifies };
 }

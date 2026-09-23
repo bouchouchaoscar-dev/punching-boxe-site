@@ -471,11 +471,14 @@ export async function sendProfNotification(d: {
 export async function sendPlanningProf(d: {
   email?: string | null;
   prenomProf?: string | null;
+  subject: string; // objet, calculé par l'appelant selon le contenu
+  titre: string; // en-tête du mail ("Mise à jour de votre planning" / …)
   semaineLabel: string; // "3 mars 2026"
-  lignes: string[]; // cours mis en forme, triés
-  retires?: string[]; // cours retirés depuis le dernier envoi (maj)
-  maj?: boolean; // true = "mise à jour"
-  plusDeCours?: boolean; // true = plus aucun cours cette semaine
+  planning: { texte: string; badge?: "nouveau" | "modifie" }[]; // planning complet à jour
+  ajoutes?: string[];
+  retires?: string[];
+  modifies?: { avant: string; apres: string }[];
+  plusDeCours?: boolean;
 }) {
   const email = (d.email || "").trim();
   if (!email) return { skipped: true as const };
@@ -483,42 +486,57 @@ export async function sendPlanningProf(d: {
   if (!client) return { skipped: true as const };
 
   const bonjour = d.prenomProf ? `Bonjour ${formaterPrenom(d.prenomProf)},` : "Bonjour,";
-  const liste = d.lignes
-    .map(
-      (l) =>
-        `<li style="margin:4px 0;line-height:1.5;color:#444">${escapeHtml(l)}</li>`,
-    )
+  const badge = (b?: "nouveau" | "modifie") =>
+    b === "nouveau"
+      ? ` <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:11px;font-weight:700">nouveau</span>`
+      : b === "modifie"
+        ? ` <span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700">modifié</span>`
+        : "";
+
+  const listePlanning = d.planning
+    .map((l) => `<li style="margin:4px 0;line-height:1.5;color:#333">${escapeHtml(l.texte)}${badge(l.badge)}</li>`)
     .join("");
-  const blocRetires =
-    d.retires && d.retires.length > 0
-      ? `<p style="margin:16px 0 4px;font-weight:700;color:#b1480f">Cours retirés</p>
-         <ul style="margin:0;padding-left:18px">${d.retires
-           .map((l) => `<li style="margin:4px 0;line-height:1.5;color:#777;text-decoration:line-through">${escapeHtml(l)}</li>`)
-           .join("")}</ul>`
+
+  // Section « Changements » (même traitement visuel pour tous les cas).
+  const ajoutes = d.ajoutes ?? [];
+  const retires = d.retires ?? [];
+  const modifies = d.modifies ?? [];
+  const changeItems: string[] = [
+    ...ajoutes.map(
+      (l) =>
+        `<li style="margin:6px 0;line-height:1.5"><span style="display:inline-block;padding:1px 7px;border-radius:999px;background:#dcfce7;color:#15803d;font-size:11px;font-weight:700">Cours ajouté</span> <span style="color:#333">${escapeHtml(l)}</span></li>`,
+    ),
+    ...modifies.map(
+      (m) =>
+        `<li style="margin:6px 0;line-height:1.5"><span style="display:inline-block;padding:1px 7px;border-radius:999px;background:#fef3c7;color:#b45309;font-size:11px;font-weight:700">Cours modifié</span> <span style="color:#999;text-decoration:line-through">${escapeHtml(m.avant)}</span> <span style="color:#333">→ ${escapeHtml(m.apres)}</span></li>`,
+    ),
+    ...retires.map(
+      (l) =>
+        `<li style="margin:6px 0;line-height:1.5"><span style="display:inline-block;padding:1px 7px;border-radius:999px;background:#fee2e2;color:#b91c1c;font-size:11px;font-weight:700">Cours retiré</span> <span style="color:#999;text-decoration:line-through">${escapeHtml(l)}</span></li>`,
+    ),
+  ];
+  const blocChangements =
+    changeItems.length > 0
+      ? `<p style="margin:18px 0 4px;font-weight:700;color:#0a0a0a">Changements</p>
+         <ul style="margin:0;padding-left:18px">${changeItems.join("")}</ul>`
       : "";
 
   const corps = d.plusDeCours
     ? `<p style="line-height:1.6;color:#444">${bonjour}</p>
        <p style="line-height:1.6;color:#444">Vous n'avez plus de cours cette semaine du <strong>${d.semaineLabel}</strong>.</p>
-       ${blocRetires}`
+       ${blocChangements}`
     : `<p style="line-height:1.6;color:#444">${bonjour}</p>
-       <p style="line-height:1.6;color:#444">Voici votre planning pour la semaine du <strong>${d.semaineLabel}</strong> :</p>
-       <ul style="margin:8px 0;padding-left:18px">${liste}</ul>
-       ${blocRetires}`;
+       <p style="line-height:1.6;color:#444">Voici votre planning à jour pour la semaine du <strong>${d.semaineLabel}</strong> :</p>
+       <ul style="margin:8px 0;padding-left:18px">${listePlanning}</ul>
+       ${blocChangements}`;
 
   const html = wrap(`
-    <h1 style="font-size:20px;margin:0 0 8px">${d.maj ? "Mise à jour de votre planning" : "Votre planning de la semaine"} 🥊</h1>
+    <h1 style="font-size:20px;margin:0 0 8px">${escapeHtml(d.titre)} 🥊</h1>
     ${corps}
     <p style="line-height:1.6;color:#444;margin-top:14px">À bientôt à la salle !</p>
   `);
 
-  return client.emails.send({
-    from: FROM,
-    to: email,
-    replyTo: REPLY_TO,
-    subject: `${d.maj ? "Mise à jour de votre planning" : "Votre planning"} — semaine du ${d.semaineLabel}`,
-    html,
-  });
+  return client.emails.send({ from: FROM, to: email, replyTo: REPLY_TO, subject: d.subject, html });
 }
 
 /** 3 — Email à l'adhérent : un document a été refusé. */

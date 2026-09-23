@@ -15,7 +15,6 @@ import {
   publicLabel,
   couleurCours,
   MSG_HISTORIQUE_COURS,
-  MSG_PROF_HISTORIQUE,
   DISCIPLINES_COURS,
   JOURS,
   type Prof,
@@ -1080,8 +1079,16 @@ function ProfsTab({
   const [openArchives, setOpenArchives] = useState(false);
   // Modale d'action (archive / suppression) avec récap chiffré.
   const [action, setAction] = useState<
-    { prof: Prof; type: "archive" | "delete" | "bloque"; historique: number; futures: number } | null
+    {
+      prof: Prof;
+      type: "archive" | "delete" | "delete_historique";
+      historique: number;
+      futures: number;
+      heures: number;
+      dejaEnvoye: boolean;
+    } | null
   >(null);
+  const [comprisPerte, setComprisPerte] = useState(false);
 
   const actifs = profs.filter((p) => p.actif);
   const archives = profs.filter((p) => !p.actif);
@@ -1133,17 +1140,26 @@ function ProfsTab({
     }
   }
 
-  // Ouvre la modale d'action : récupère l'état (historique / futures) puis décide.
+  // Ouvre la modale d'action : récupère l'état (historique / futures / heures) puis décide.
   async function demander(p: Prof, type: "archive" | "delete") {
+    setComprisPerte(false);
     const res = await fetch(`/api/admin/planning/profs/${p.id}`, { headers: adminAuthHeaders(), cache: "no-store" });
     const d = await res.json();
     const historique = d.historique ?? 0;
-    const futures = d.futures ?? 0;
-    // Suppression bloquée si historique → bascule sur l'option archivage.
-    if (type === "delete" && historique > 0) {
-      setAction({ prof: p, type: "bloque", historique, futures });
-    } else {
-      setAction({ prof: p, type, historique, futures });
+    const base = { prof: p, historique, futures: d.futures ?? 0, heures: d.heures ?? 0, dejaEnvoye: !!d.dejaEnvoye };
+    // Suppression avec historique → modale renforcée (avertissement + case à cocher).
+    setAction({ ...base, type: type === "delete" && historique > 0 ? "delete_historique" : type });
+  }
+
+  async function archiver(p: Prof) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/planning/profs/${p.id}`, { method: "POST", headers: adminAuthHeaders() });
+      flash(res.ok ? "Prof archivé" : "Échec de l'archivage.");
+      setAction(null);
+      onChanged();
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -1154,19 +1170,21 @@ function ProfsTab({
       const p = action.prof;
       if (action.type === "archive") {
         const res = await fetch(`/api/admin/planning/profs/${p.id}`, { method: "POST", headers: adminAuthHeaders() });
-        if (res.ok) flash("Prof archivé");
-        else flash("Échec de l'archivage.");
-      } else if (action.type === "delete") {
-        const res = await fetch(`/api/admin/planning/profs/${p.id}`, { method: "DELETE", headers: adminAuthHeaders() });
+        flash(res.ok ? "Prof archivé" : "Échec de l'archivage.");
+      } else {
+        // delete ou delete_historique : confirmer explicitement la perte si historique.
+        const res = await fetch(`/api/admin/planning/profs/${p.id}`, {
+          method: "DELETE",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ confirmer_perte_historique: action.type === "delete_historique" }),
+        });
         const d = await res.json().catch(() => ({}));
         if (res.ok) {
           flash("Prof supprimé");
           if (editId === p.id) annuler();
-        } else if (res.status === 409) {
-          // Devenu historique entre-temps → propose l'archivage.
-          setAction({ prof: p, type: "bloque", historique: d.futures ?? 1, futures: d.futures ?? 0 });
-          return;
-        } else flash(d.error || "Échec de la suppression.");
+        } else {
+          flash(d.error || "Échec de la suppression.");
+        }
       }
       setAction(null);
       onChanged();
@@ -1250,7 +1268,7 @@ function ProfsTab({
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <button onClick={() => editer(p)} className="text-xs font-semibold text-orange hover:underline">Modifier</button>
-                  <button onClick={() => demander(p, "archive")} className="text-xs font-semibold text-smoke hover:text-ink">Archiver</button>
+                  <button onClick={() => demander(p, "archive")} className="text-xs font-semibold text-smoke hover:text-ink hover:underline">Archiver</button>
                   <button onClick={() => demander(p, "delete")} className="text-xs font-semibold text-red-600 hover:underline">Supprimer</button>
                 </div>
               </li>
@@ -1285,29 +1303,54 @@ function ProfsTab({
         )}
       </div>
 
-      {/* Modale d'action prof (archive / suppression / blocage) */}
+      {/* Modale d'action prof (archive / suppression simple / suppression avec historique) */}
       {action && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-6 text-center">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 text-center">
             {(() => {
               const nom = [action.prof.prenom, action.prof.nom].filter(Boolean).join(" ") || "ce prof";
-              if (action.type === "bloque") {
+
+              // Suppression avec HISTORIQUE : avertissement fort + case à cocher.
+              if (action.type === "delete_historique") {
                 return (
                   <>
-                    <h2 className="font-display text-lg font-extrabold uppercase text-ink">Suppression impossible</h2>
-                    <p className="mt-3 text-sm text-ink">{MSG_PROF_HISTORIQUE}</p>
-                    <div className="mt-5 flex justify-center gap-3">
-                      <button onClick={() => setAction(null)} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
+                    <h2 className="font-display text-lg font-extrabold uppercase text-ink">Supprimer ou archiver ?</h2>
+                    <p className="mt-3 text-sm text-smoke">
+                      Supprimer <strong className="text-ink">{nom}</strong> efface aussi tout son historique de cours.
+                      L&apos;archiver le retire du planning en gardant ses heures.
+                    </p>
+                    <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-left text-sm text-ink">
+                      <p><strong>{action.historique}</strong> cours donnés (passés et en cours) · <strong>{action.heures}</strong> h</p>
+                      <p><strong>{action.futures}</strong> cours à venir {action.futures > 1 ? "seront libérés" : "sera libéré"}</p>
+                      {action.dejaEnvoye && (
+                        <p className="mt-1 text-xs text-smoke">
+                          Un planning lui a déjà été envoyé pour une semaine en cours ou à venir : il ne recevra pas de mail l&apos;informant de son retrait.
+                        </p>
+                      )}
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-start gap-2 text-left text-xs text-ink">
+                      <input type="checkbox" checked={comprisPerte} onChange={(e) => setComprisPerte(e.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
+                      Je comprends que l&apos;historique sera perdu.
+                    </label>
+                    <div className="mt-5 flex flex-wrap justify-center gap-3">
+                      <button onClick={() => setAction(null)} disabled={busy} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Annuler</button>
+                      <button onClick={() => archiver(action.prof)} disabled={busy} className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">
+                        {busy ? "…" : "Archiver"}
+                      </button>
                       <button
-                        onClick={() => setAction({ ...action, type: "archive" })}
-                        className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+                        onClick={executer}
+                        disabled={busy || !comprisPerte}
+                        title={!comprisPerte ? "Cochez la case pour confirmer la perte de l'historique" : ""}
+                        className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        Archiver
+                        Supprimer définitivement
                       </button>
                     </div>
                   </>
                 );
               }
+
+              // Archivage OU suppression simple (aucun historique).
               const titre = action.type === "archive" ? "Archiver le prof" : "Supprimer le prof";
               return (
                 <>

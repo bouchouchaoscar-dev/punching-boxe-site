@@ -6,7 +6,8 @@ import { sendPlanningProf } from "@/lib/email";
 import {
   planningActif,
   planningProfSemaine,
-  diffEnvoiPlanning,
+  diffEnvoiDetaille,
+  libelleChangements,
   jourLong,
   dateDuJour,
   toISODate,
@@ -16,6 +17,7 @@ import {
   type PeriodeFermeture,
   type CoursEnvoi,
   type StatutEnvoi,
+  type DiffDetaille,
 } from "@/lib/planning";
 
 export const runtime = "nodejs";
@@ -37,8 +39,18 @@ type Ligne = {
   statut: StatutEnvoi;
   nbCours: number;
   actuel: CoursEnvoi[];
-  retires: CoursEnvoi[];
+  diff: DiffDetaille;
 };
+
+// Objet + en-tête selon le contenu du diff.
+function sujetTitre(l: Ligne, semaineLabel: string): { subject: string; titre: string } {
+  if (l.statut === "maj") {
+    const txt = libelleChangements(l.diff.ajoutes.length, l.diff.retires.length, l.diff.modifies.length);
+    return { titre: "Mise à jour de votre planning", subject: `Mise à jour de votre planning : ${txt}` };
+  }
+  // nouveau + plus_de_cours
+  return { titre: "Votre planning de la semaine", subject: `Votre planning — semaine du ${semaineLabel}` };
+}
 
 // Calcule, pour chaque prof concerné cette semaine, son statut d'envoi.
 async function calculer(supabase: SupabaseClient, semaine: string): Promise<Ligne[]> {
@@ -68,15 +80,15 @@ async function calculer(supabase: SupabaseClient, semaine: string): Promise<Lign
     const p = profById.get(id);
     if (!p) continue;
     const actuel = planningProfSemaine(id, cours, affectations, semaine, periodes);
-    const { statut, retires } = diffEnvoiPlanning(actuel, snaps.get(id) ?? null);
+    const diff = diffEnvoiDetaille(actuel, snaps.get(id) ?? null);
     lignes.push({
       prof_id: id,
       nom: [p.prenom, p.nom].filter(Boolean).join(" ") || "Prof",
       email: p.email,
-      statut,
+      statut: diff.statut,
       nbCours: actuel.length,
       actuel,
-      retires,
+      diff,
     });
   }
   return lignes;
@@ -146,13 +158,22 @@ export async function POST(request: Request) {
       continue;
     }
     try {
+      const ajoutesIds = new Set(l.diff.ajoutes.map((c) => c.cours_id));
+      const modifiesIds = new Set(l.diff.modifies.map((m) => m.apres.cours_id));
+      const { subject, titre } = sujetTitre(l, semaineLabel);
       await sendPlanningProf({
         email: l.email,
         prenomProf: l.nom.split(" ")[0],
+        subject,
+        titre,
         semaineLabel,
-        lignes: l.actuel.map(ligneCours),
-        retires: l.retires.map(ligneCours),
-        maj: l.statut === "maj" || l.statut === "plus_de_cours",
+        planning: l.actuel.map((c) => ({
+          texte: ligneCours(c),
+          badge: ajoutesIds.has(c.cours_id) ? "nouveau" : modifiesIds.has(c.cours_id) ? "modifie" : undefined,
+        })),
+        ajoutes: l.diff.ajoutes.map(ligneCours),
+        retires: l.diff.retires.map(ligneCours),
+        modifies: l.diff.modifies.map((m) => ({ avant: ligneCours(m.avant), apres: ligneCours(m.apres) })),
         plusDeCours: l.statut === "plus_de_cours",
       });
       // Snapshot APRÈS envoi réussi → idempotence (re-clic = identique = rien).

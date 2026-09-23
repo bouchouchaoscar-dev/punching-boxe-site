@@ -3,6 +3,9 @@
 import {
   planningProfSemaine,
   diffEnvoiPlanning,
+  diffEnvoiDetaille,
+  libelleChangements,
+  suppressionProfAutorisee,
   calculerReprise,
   choisirSourceReprise,
   semaineFermee,
@@ -82,6 +85,55 @@ console.log("— diffEnvoiPlanning (nouveau / identique / maj / retiré / plus_d
 
   const vide = diffEnvoiPlanning([], a);
   check(vide.statut === "plus_de_cours" && vide.retires.length === 1, "devenu vide → plus_de_cours + retires");
+}
+
+console.log("— diffEnvoiDetaille (ajouté / retiré / modifié par cours_id + combinaisons) —");
+{
+  const c1: CoursEnvoi = { cours_id: "c1", jour: 1, date: "2026-03-02", horaire: "18:00 – 19:30", libelle: "BF", salle: "A", ville: null };
+  const c2: CoursEnvoi = { cours_id: "c2", jour: 3, date: "2026-03-04", horaire: "17:00 – 18:00", libelle: "J", salle: "B", ville: null };
+  const c1mod: CoursEnvoi = { ...c1, horaire: "19:00 – 20:30", salle: "C" }; // même cours_id, horaire+salle changés
+
+  // Premier envoi
+  const prem = diffEnvoiDetaille([c1], null);
+  check(prem.statut === "nouveau" && prem.ajoutes.length === 0 && prem.modifies.length === 0, "premier envoi → nouveau, sans section changements");
+
+  // Ajout d'un cours
+  const dA = diffEnvoiDetaille([c1, c2], [c1]);
+  check(dA.statut === "maj" && dA.ajoutes.length === 1 && dA.ajoutes[0].cours_id === "c2", "cours ajouté détecté");
+
+  // Retrait d'un cours
+  const dR = diffEnvoiDetaille([c1], [c1, c2]);
+  check(dR.statut === "maj" && dR.retires.length === 1 && dR.retires[0].cours_id === "c2", "cours retiré détecté");
+
+  // Modification (même cours_id) — NE doit PAS être vu comme retiré+ajouté
+  const dM = diffEnvoiDetaille([c1mod], [c1]);
+  check(dM.modifies.length === 1 && dM.ajoutes.length === 0 && dM.retires.length === 0, "cours modifié détecté par cours_id (ni ajout ni retrait)");
+  check(dM.modifies[0].avant.horaire === "18:00 – 19:30" && dM.modifies[0].apres.horaire === "19:00 – 20:30", "modif garde avant/après");
+
+  // Combinaison ajouté + retiré + modifié
+  const dCombo = diffEnvoiDetaille([c1mod, c2], [c1]); // c1 modifié, c2 ajouté
+  check(dCombo.modifies.length === 1 && dCombo.ajoutes.length === 1 && dCombo.retires.length === 0, "combinaison ajouté + modifié");
+
+  // Identique
+  check(diffEnvoiDetaille([c1], [c1]).statut === "identique", "identique → identique");
+  // Plus de cours
+  const dVide = diffEnvoiDetaille([], [c1]);
+  check(dVide.statut === "plus_de_cours" && dVide.retires.length === 1, "devenu vide → plus_de_cours");
+}
+
+console.log("— objet du mail (libelleChangements) —");
+{
+  check(libelleChangements(1, 1, 0) === "1 cours ajouté, 1 retiré", "1 ajouté + 1 retiré");
+  check(libelleChangements(0, 0, 1) === "1 cours modifié", "1 modifié seul → 'cours' présent");
+  check(libelleChangements(2, 0, 3) === "2 cours ajoutés, 3 modifiés", "pluriels corrects");
+  check(libelleChangements(1, 2, 1) === "1 cours ajouté, 2 retirés, 1 modifié", "trois catégories");
+}
+
+console.log("— suppression prof : confirmation requise si historique —");
+{
+  check(suppressionProfAutorisee(0, false) === true, "sans historique → autorisée sans confirmation");
+  check(suppressionProfAutorisee(3, false) === false, "avec historique + non confirmé → refusée (409)");
+  check(suppressionProfAutorisee(3, true) === true, "avec historique + confirmé → autorisée");
 }
 
 console.log("— idempotence de l'envoi (après envoi, snapshot = actuel → identique) —");
