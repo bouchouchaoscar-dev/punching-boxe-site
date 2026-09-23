@@ -533,7 +533,7 @@ export async function sendPlanningProf(d: {
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">${escapeHtml(d.titre)} 🥊</h1>
     ${corps}
-    <p style="line-height:1.6;color:#444;margin-top:14px">À bientôt à la salle !</p>
+    <p style="line-height:1.6;color:#444;margin-top:14px">À bientôt à la salle !<br/>Sportivement,<br/>L'équipe ${CLUB.nom}</p>
   `);
 
   return client.emails.send({ from: FROM, to: email, replyTo: REPLY_TO, subject: d.subject, html });

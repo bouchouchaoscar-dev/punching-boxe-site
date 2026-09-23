@@ -52,7 +52,23 @@ export type PersonneEnvoi = {
   saison?: string | null;
   derniere_saison?: string | null;
   disciplines?: string | null;
+  mineur?: boolean; // adhérent mineur → mail reçu par le parent (ouverture adaptée)
 };
+
+/**
+ * Ouverture d'un mail selon les personnes ciblées sur un même email :
+ * - un seul adhérent MAJEUR (destinataire = lui-même) → "Bonjour Lucas,"
+ * - mineur, ou plusieurs personnes (foyer) → "Bonjour," + "Ce message concerne …"
+ */
+export function resoudreOuverture(
+  membres: { prenom?: string | null; mineur?: boolean }[],
+): { salutation: string; concerne: string } {
+  const prenoms = joindrePrenoms(membres.map((m) => m.prenom));
+  const personnel = membres.length === 1 && !membres[0].mineur;
+  return personnel
+    ? { salutation: `Bonjour ${(membres[0].prenom ?? "").trim()},`, concerne: "" }
+    : { salutation: "Bonjour,", concerne: prenoms ? `Ce message concerne ${prenoms}.` : "" };
+}
 
 export type EnvoiGroupe = {
   email: string;
@@ -125,6 +141,9 @@ export function regrouperParEmail(
           .join("\n");
     }
 
+    // Ouverture adaptée (majeur seul / mineur / foyer). {{concerne}} porte son
+    // propre saut de ligne pour s'intégrer proprement dans le corps.
+    const ouv = resoudreOuverture(membres);
     const vars: DestinataireVars = {
       prenom,
       nom: multi ? nomGroupe : rep.nom ?? "",
@@ -134,6 +153,8 @@ export function regrouperParEmail(
       derniere_saison: multi ? "" : rep.derniere_saison ?? "",
       disciplines: multi ? "" : rep.disciplines ?? "",
       recap_reglement,
+      salutation: ouv.salutation,
+      concerne: ouv.concerne ? `${ouv.concerne}\n\n` : "",
     };
     envois.push({ email, personnes: membres, vars });
   }
@@ -475,6 +496,9 @@ export type DestinataireVars = {
   // Récap adaptatif des règlements en attente (montant par personne, liste si
   // famille). Construit par regrouperParEmail à partir des montants réels.
   recap_reglement?: string | null;
+  // Ouverture adaptée majeur / mineur / foyer (cf. resoudreOuverture).
+  salutation?: string | null;
+  concerne?: string | null;
 };
 
 export function remplacerVariables(texte: string, v: DestinataireVars): string {
@@ -486,7 +510,9 @@ export function remplacerVariables(texte: string, v: DestinataireVars): string {
     .replace(/\{\{saison\}\}/g, v.saison ?? "")
     .replace(/\{\{derniere_saison\}\}/g, v.derniere_saison ?? "")
     .replace(/\{\{disciplines\}\}/g, v.disciplines ?? "")
-    .replace(/\{\{recap_reglement\}\}/g, v.recap_reglement ?? "");
+    .replace(/\{\{recap_reglement\}\}/g, v.recap_reglement ?? "")
+    .replace(/\{\{salutation\}\}/g, v.salutation ?? "")
+    .replace(/\{\{concerne\}\}/g, v.concerne ?? "");
 }
 
 // ---- Catégories de templates (4 familles) ----

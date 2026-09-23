@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
+import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PlanningSemaine } from "@/components/admin/PlanningSemaine";
 import {
@@ -16,6 +17,8 @@ import {
   formatDateCours,
   formatLieu,
   lieuAvecPreposition,
+  genererMailPrevenir,
+  prochaineOccurrence,
   disciplineLabel,
   publicLabel,
   couleurCours,
@@ -341,6 +344,7 @@ export default function PlanningPage() {
         <PrevenirPanel
           cours={prevenir}
           semaineISO={semaineISO}
+          periodes={periodes}
           onClose={() => setPrevenir(null)}
           flash={flash}
         />
@@ -1533,11 +1537,13 @@ function FermeturesTab({
 function PrevenirPanel({
   cours,
   semaineISO,
+  periodes,
   onClose,
   flash,
 }: {
   cours: Cours;
   semaineISO: string;
+  periodes: PeriodeFermeture[];
   onClose: () => void;
   flash: (m: string) => void;
 }) {
@@ -1563,7 +1569,7 @@ function PrevenirPanel({
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
   const [contenuEdite, setContenuEdite] = useState(false);
-  const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
+  const [cible, setCible] = useState<{ count: number; emails: number; exemples: string[] } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
   const [resultat, setResultat] = useState<{ emails: number; personnes: number } | null>(null);
@@ -1575,52 +1581,24 @@ function PrevenirPanel({
       body: JSON.stringify({ preview: true }),
     })
       .then((r) => r.json())
-      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0 }))
-      .catch(() => setCible({ count: 0, emails: 0 }));
+      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0, exemples: d.exemples ?? [] }))
+      .catch(() => setCible({ count: 0, emails: 0, exemples: [] }));
   }, [cours.id]);
 
-  // Rappel complet du cours d'origine + lieu (avec préposition si connue).
-  const origLieuPrep = lieuAvecPreposition(origSalle, origVille);
   const origPlage = plageHoraire(cours.heure_debut, cours.heure_fin);
   const origDateFr = formatDateCours(origDateISO);
-
-  // Ce qui change (déplacé/reporté).
   const horaireChange = nvDebut !== origDebut || nvFin !== origFin;
   const lieuChange = formatLieu(nvSalle, nvVille) !== formatLieu(origSalle, origVille);
 
-  // Gabarit auto-généré : rappel d'origine complet + ce qui change.
+  // Gabarit auto-généré (helper partagé, jetons {{salutation}}/{{concerne}}).
   function genererMail(m: Motif): { objet: string; contenu: string } {
-    const verbe = m === "annule" ? "annulé" : m === "deplace" ? "déplacé" : "reporté";
-    const lieuInline = origLieuPrep.connue && origLieuPrep.texte ? ` ${origLieuPrep.texte}` : "";
-    let rappel = `Le cours ${libelle} du ${origDateFr}, prévu ${origPlage}${lieuInline}, est ${verbe}`;
-    if (m === "annule" && raison.trim()) rappel += ` pour la raison suivante : ${raison.trim()}`;
-    rappel += ".";
-    // Lieu sur une ligne à part si la préposition est inconnue.
-    const lieuSepare = !origLieuPrep.connue && formatLieu(origSalle, origVille)
-      ? `\nLieu : ${formatLieu(origSalle, origVille)}`
-      : "";
-
-    let changement = "";
-    const nvPlage = plageHoraire(nvDebut, nvFin);
-    const nvPrep = lieuAvecPreposition(nvSalle, nvVille);
-    const nvLieuTxt = nvPrep.connue && nvPrep.texte ? nvPrep.texte : formatLieu(nvSalle, nvVille);
-    if (m === "deplace") {
-      if (horaireChange && lieuChange) changement = `\n\nNouveau créneau : ${origDateFr}, ${nvPlage}, ${nvLieuTxt}.`;
-      else if (horaireChange) changement = `\n\nMême lieu, nouvel horaire : ${nvPlage}.`;
-      else if (lieuChange) changement = `\n\nMême horaire, nouveau lieu : ${nvLieuTxt}.`;
-    } else if (m === "reporte") {
-      changement = `\n\nNouveau créneau : ${formatDateCours(nvDate || origDateISO)}, ${nvPlage}, ${nvLieuTxt}.`;
-    }
-
-    // Objet court et explicite.
-    let suffixe = "annulé";
-    if (m === "deplace") suffixe = horaireChange ? `déplacé à ${heureFr(nvDebut)}` : "changement de lieu";
-    if (m === "reporte") suffixe = `reporté au ${formatDateCours(nvDate || origDateISO)}`;
-
-    return {
-      objet: `📅 Cours ${libelle} du ${origDateFr} : ${suffixe}`,
-      contenu: `Bonjour {{prenom}},\n\n${rappel}${lieuSepare}${changement}\n\nSportivement,\nL'équipe`,
-    };
+    const origine = { dateISO: origDateISO, heure_debut: origDebut, heure_fin: origFin, salle: origSalle, ville: origVille };
+    const nouveau =
+      m === "annule"
+        ? undefined
+        : { dateISO: m === "reporte" ? nvDate || origDateISO : origDateISO, heure_debut: nvDebut, heure_fin: nvFin, salle: nvSalle, ville: nvVille };
+    const prochainISO = m === "annule" ? prochaineOccurrence(cours.jour_semaine, semaineISO, periodes) : null;
+    return genererMailPrevenir({ libelle, motif: m, origine, nouveau, raison, prochainISO, clubNom: CLUB.nom });
   }
 
   // Aperçu structuré envoyé au serveur (encadré Avant / Désormais).
@@ -1732,6 +1710,14 @@ function PrevenirPanel({
                 {` · ${cours.type_adherent ? publicLabel(cours.type_adherent) : "tous publics"}`}
                 {" "}· adhérents actifs de la saison en cours (désinscrits et adresses invalides exclus à l&apos;envoi).
               </span>
+              {cible && cible.exemples.length > 0 && (
+                <div className="mt-2 border-t border-orange/20 pt-2 text-xs font-normal text-smoke">
+                  <span className="font-semibold text-ink">Ouvertures (exemples) :</span>
+                  {cible.exemples.map((ex, i) => (
+                    <span key={i} className="mt-0.5 block italic">« {ex} »</span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Étape 1 — motif (pré-remplit le mail) */}

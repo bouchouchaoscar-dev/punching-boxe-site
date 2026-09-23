@@ -408,6 +408,91 @@ export function libelleChangements(nAjoutes: number, nRetires: number, nModifies
   return segs.map((s, i) => `${s.n}${i === 0 ? " cours" : ""} ${s.mot}${s.n > 1 ? "s" : ""}`).join(", ");
 }
 
+// ---- Mails « prévenir les adhérents » (PUR, testable) -----------------------
+/** Adhérent mineur (< 18 ans) → mail reçu par le parent. Naissance absente → majeur. */
+export function estMineur(dateNaissance?: string | null, ref: Date = new Date()): boolean {
+  if (!dateNaissance) return false;
+  const d = new Date(dateNaissance);
+  if (Number.isNaN(d.getTime())) return false;
+  let age = ref.getFullYear() - d.getFullYear();
+  const m = ref.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && ref.getDate() < d.getDate())) age--;
+  return age < 18;
+}
+
+/** Prochaine occurrence non fermée d'un cours (même jour) après `apresSemaineISO`. */
+export function prochaineOccurrence(
+  jourSemaine: number | null,
+  apresSemaineISO: string,
+  periodes: PeriodeFermeture[],
+  maxSemaines = 6,
+): string | null {
+  if (!jourSemaine) return null;
+  for (let k = 1; k <= maxSemaines; k++) {
+    const lundi = reculerSemaine(apresSemaineISO, -k); // -k = +k semaines
+    const iso = toISODate(dateDuJour(lundi, jourSemaine));
+    if (!estFerme(iso, periodes)) return iso;
+  }
+  return null;
+}
+
+type CreneauMail = { dateISO: string; heure_debut: string | null; heure_fin: string | null; salle: string | null; ville: string | null };
+
+/**
+ * Gabarit du mail « prévenir les adhérents » (annulé / déplacé / reporté).
+ * Rappelle TOUJOURS le cours d'origine complet, puis ce qui change. Contient les
+ * jetons {{salutation}} et {{concerne}} (résolus à l'envoi selon majeur/mineur/foyer).
+ */
+export function genererMailPrevenir(p: {
+  libelle: string;
+  motif: "annule" | "deplace" | "reporte";
+  origine: CreneauMail;
+  nouveau?: CreneauMail;
+  raison?: string;
+  prochainISO?: string | null;
+  clubNom: string;
+}): { objet: string; contenu: string } {
+  const o = p.origine;
+  const origDateFr = formatDateCours(o.dateISO);
+  const origPlage = plageHoraire(o.heure_debut, o.heure_fin);
+  const origPrep = lieuAvecPreposition(o.salle, o.ville);
+  const lieuInline = origPrep.connue && origPrep.texte ? ` ${origPrep.texte}` : "";
+  const lieuSepare = !origPrep.connue && formatLieu(o.salle, o.ville) ? `\nLieu : ${formatLieu(o.salle, o.ville)}` : "";
+
+  const n = p.nouveau;
+  const horaireChange = !!n && (n.heure_debut !== o.heure_debut || n.heure_fin !== o.heure_fin);
+  const lieuChange = !!n && formatLieu(n.salle, n.ville) !== formatLieu(o.salle, o.ville);
+  const nvPlage = n ? plageHoraire(n.heure_debut, n.heure_fin) : "";
+  const nvPrep = n ? lieuAvecPreposition(n.salle, n.ville) : { texte: null, connue: true };
+  const nvLieuTxt = n ? (nvPrep.connue && nvPrep.texte ? nvPrep.texte : formatLieu(n.salle, n.ville)) : "";
+
+  let corps = "";
+  let suffixe = "";
+  if (p.motif === "annule") {
+    let ph = `Le cours ${p.libelle} du ${origDateFr}, prévu ${origPlage}${lieuInline}, est annulé`;
+    if (p.raison && p.raison.trim()) ph += ` pour la raison suivante : ${p.raison.trim()}`;
+    corps = `${ph}.${lieuSepare}`;
+    if (p.prochainISO) corps += `\n\nProchain cours : ${formatDateCours(p.prochainISO)}, ${origPlage}${lieuInline}.`;
+    suffixe = "annulé";
+  } else if (p.motif === "deplace") {
+    corps = `Le cours ${p.libelle} du ${origDateFr}, prévu ${origPlage}${lieuInline}, est déplacé.${lieuSepare}`;
+    if (horaireChange && lieuChange) corps += `\n\nIl aura lieu ${nvPlage}, ${nvLieuTxt}.`;
+    else if (horaireChange) corps += `\n\nIl aura lieu ${nvPlage}, au même endroit.`;
+    else if (lieuChange) corps += `\n\nIl aura lieu aux mêmes horaires, ${nvLieuTxt}.`;
+    suffixe = horaireChange ? `déplacé à ${heureFr(n?.heure_debut ?? null)}` : "changement de lieu";
+  } else {
+    const nd = n?.dateISO ?? o.dateISO;
+    const lieuPart = lieuChange ? `, ${nvLieuTxt}` : ", au même endroit";
+    corps = `Le cours ${p.libelle} du ${origDateFr}, prévu ${origPlage}${lieuInline}, est reporté au ${formatDateCours(nd)}, ${nvPlage}${lieuPart}.${lieuSepare}`;
+    suffixe = `reporté au ${formatDateCours(nd)}`;
+  }
+
+  return {
+    objet: `📅 Cours ${p.libelle} du ${origDateFr} : ${suffixe}`,
+    contenu: `{{salutation}}\n\n{{concerne}}${corps}\n\nMerci de votre compréhension.\n\nSportivement,\nL'équipe ${p.clubNom}`,
+  };
+}
+
 export type StatutEnvoi = "nouveau" | "maj" | "plus_de_cours" | "identique" | "rien";
 
 /**

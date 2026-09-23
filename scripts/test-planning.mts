@@ -15,10 +15,14 @@ import {
   formatDateCours,
   formatLieu,
   lieuAvecPreposition,
+  estMineur,
+  prochaineOccurrence,
+  genererMailPrevenir,
   type Cours,
   type PeriodeFermeture,
   type CoursEnvoi,
 } from "../lib/planning";
+import { resoudreOuverture } from "../lib/campagnes";
 
 let ok = 0;
 let ko = 0;
@@ -232,6 +236,67 @@ console.log("— estHistoriqueSemaine (garde-fou suppression) —");
   check(estHistoriqueSemaine("2026-02-23", lundiCourant) === true, "semaine passée → historique (bloque)");
   check(estHistoriqueSemaine("2026-03-02", lundiCourant) === true, "semaine en cours → historique (bloque)");
   check(estHistoriqueSemaine("2026-03-09", lundiCourant) === false, "semaine future → non historique (supprimable)");
+}
+
+console.log("— estMineur / prochaineOccurrence —");
+{
+  const ref = new Date(2026, 8, 1);
+  check(estMineur("2015-01-01", ref) === true, "né en 2015 → mineur");
+  check(estMineur("2000-01-01", ref) === false, "né en 2000 → majeur");
+  check(estMineur(null, ref) === false, "naissance absente → majeur (défaut)");
+
+  // Cours le mardi (jour 2). Semaine du 2026-09-28 (lundi). Prochaine = 2026-10-06.
+  const per: PeriodeFermeture[] = [];
+  check(prochaineOccurrence(2, "2026-09-28", per) === "2026-10-06", "prochaine occurrence = mardi suivant");
+  const perFerm: PeriodeFermeture[] = [{ id: "f", libelle: "Vac", date_debut: "2026-10-05", date_fin: "2026-10-11" }];
+  check(prochaineOccurrence(2, "2026-09-28", perFerm) === "2026-10-13", "saute une semaine fermée");
+}
+
+console.log("— resoudreOuverture (majeur / mineur / foyer) —");
+{
+  const maj = resoudreOuverture([{ prenom: "Marie", mineur: false }]);
+  check(maj.salutation === "Bonjour Marie," && maj.concerne === "", "majeur seul → Bonjour Marie,");
+  const min = resoudreOuverture([{ prenom: "Lucas", mineur: true }]);
+  check(min.salutation === "Bonjour," && min.concerne === "Ce message concerne Lucas.", "mineur → Bonjour, + concerne");
+  const foyer = resoudreOuverture([{ prenom: "Lucas", mineur: true }, { prenom: "Inès", mineur: true }]);
+  check(foyer.salutation === "Bonjour," && foyer.concerne === "Ce message concerne Lucas et Inès.", "foyer → concerne Lucas et Inès");
+}
+
+console.log("— genererMailPrevenir (phrases par motif) —");
+{
+  const orig = { dateISO: "2026-09-29", heure_debut: "18:00", heure_fin: "19:00", salle: "Dojo David Douillet", ville: "Nogent" };
+  const club = "Punching Boxe";
+  const lib = "Boxe Française - Enfants";
+
+  const annule = genererMailPrevenir({ libelle: lib, motif: "annule", origine: orig, clubNom: club });
+  check(annule.contenu.includes("prévu de 18h à 19h au Dojo David Douillet (Nogent), est annulé."), "annulé : rappel complet + préposition");
+  check(!annule.contenu.includes("Prochain cours"), "annulé sans prochain → pas de ligne prochain");
+  check(annule.contenu.includes("Merci de votre compréhension.") && annule.contenu.includes("L'équipe Punching Boxe"), "clôture + signature club");
+  check(annule.contenu.startsWith("{{salutation}}\n\n{{concerne}}"), "jetons salutation/concerne en tête");
+
+  const annuleProchain = genererMailPrevenir({ libelle: lib, motif: "annule", origine: orig, prochainISO: "2026-10-06", clubNom: club });
+  check(annuleProchain.contenu.includes("Prochain cours : mardi 6 octobre, de 18h à 19h au Dojo David Douillet (Nogent)."), "annulé avec prochain cours");
+
+  const depH = genererMailPrevenir({ libelle: lib, motif: "deplace", origine: orig, nouveau: { ...orig, heure_debut: "18:30", heure_fin: "19:30" }, clubNom: club });
+  check(depH.contenu.includes("Il aura lieu de 18h30 à 19h30, au même endroit."), "déplacé horaire seul");
+  check(depH.objet.includes("déplacé à 18h30"), "objet déplacé à 18h30");
+
+  const depL = genererMailPrevenir({ libelle: lib, motif: "deplace", origine: orig, nouveau: { ...orig, salle: "Gymnase du Port", ville: "Nogent" }, clubNom: club });
+  check(depL.contenu.includes("Il aura lieu aux mêmes horaires, au Gymnase du Port (Nogent)."), "déplacé lieu seul");
+  check(depL.objet.includes("changement de lieu"), "objet changement de lieu");
+
+  const depB = genererMailPrevenir({ libelle: lib, motif: "deplace", origine: orig, nouveau: { dateISO: orig.dateISO, heure_debut: "18:30", heure_fin: "19:30", salle: "Gymnase du Port", ville: "Nogent" }, clubNom: club });
+  check(depB.contenu.includes("Il aura lieu de 18h30 à 19h30, au Gymnase du Port (Nogent)."), "déplacé horaire + lieu");
+
+  const repMeme = genererMailPrevenir({ libelle: lib, motif: "reporte", origine: orig, nouveau: { ...orig, dateISO: "2026-10-01" }, clubNom: club });
+  check(repMeme.contenu.includes("est reporté au jeudi 1er octobre, de 18h à 19h, au même endroit."), "reporté même lieu (fusionné)");
+
+  const repAutre = genererMailPrevenir({ libelle: lib, motif: "reporte", origine: orig, nouveau: { dateISO: "2026-10-01", heure_debut: "18:00", heure_fin: "19:00", salle: "Gymnase du Port", ville: "Nogent" }, clubNom: club });
+  check(repAutre.contenu.includes("est reporté au jeudi 1er octobre, de 18h à 19h, au Gymnase du Port (Nogent)."), "reporté autre lieu");
+
+  // Lieu non reconnu → pas de préposition devinée, ligne "Lieu : …".
+  const inconnu = genererMailPrevenir({ libelle: lib, motif: "annule", origine: { ...orig, salle: "Terrain municipal" }, clubNom: club });
+  check(inconnu.contenu.includes("prévu de 18h à 19h, est annulé.") && inconnu.contenu.includes("Lieu : Terrain municipal (Nogent)"), "lieu non reconnu → ligne Lieu séparée");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

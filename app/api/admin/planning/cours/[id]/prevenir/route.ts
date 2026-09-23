@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
+import { resoudreOuverture, type PersonneEnvoi } from "@/lib/campagnes";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { saisonCourante } from "@/lib/saison";
 import {
   planningActif,
   adherentDansDiscipline,
   disciplineLabel,
+  estMineur,
   formatDateCours,
   plageHoraire,
   formatLieu,
@@ -98,12 +100,30 @@ export async function POST(request: Request, { params }: Ctx) {
   const cibles = adherentsCibles((adhData ?? []) as Adherent[], cours);
   const emails = [...new Set(cibles.map((a) => (a.email || "").trim().toLowerCase()).filter(Boolean))];
 
-  // Aperçu : comptage seul, aucun envoi.
+  // Regroupement par email (familles) → ouverture adaptée majeur/mineur/foyer.
+  const groupes = new Map<string, Adherent[]>();
+  for (const a of cibles) {
+    const e = (a.email || "").trim().toLowerCase();
+    if (!e) continue;
+    const arr = groupes.get(e);
+    if (arr) arr.push(a);
+    else groupes.set(e, [a]);
+  }
+
+  // Aperçu : comptage + exemples d'ouverture résolus (dont un cas mineur/foyer).
   if (body.preview) {
+    const ex = [...groupes.values()].map((membres) => {
+      const ouv = resoudreOuverture(membres.map((a) => ({ prenom: a.prenom, mineur: estMineur(a.date_naissance) })));
+      const special = membres.length > 1 || membres.some((a) => estMineur(a.date_naissance));
+      return { special, texte: ouv.concerne ? `${ouv.salutation} ${ouv.concerne}` : ouv.salutation };
+    });
+    ex.sort((a, b) => Number(b.special) - Number(a.special)); // met en avant un cas mineur/foyer
+    const exemples = [...new Set(ex.map((e) => e.texte))].slice(0, 3);
     return NextResponse.json({
       count: cibles.length,
       emails: emails.length,
       discipline: disciplineLabel(cours.discipline),
+      exemples,
     });
   }
 
@@ -115,9 +135,23 @@ export async function POST(request: Request, { params }: Ctx) {
   // Encadré « Avant / Désormais » (facultatif, construit serveur depuis l'aperçu).
   const blocHtml = body.apercu ? construireBlocApercu(body.apercu) : "";
 
-  // Envoi via le pipeline campagnes (manualEmails → dédoublonnage familial +
-  // exclusions désinscrits/bounce + pacing + retry 429).
-  const res = await envoyerCampagne(supabase, { objet, contenu, manualEmails: emails, blocHtml });
+  // Personnes ciblées passées DIRECTEMENT → regroupées par email (familles,
+  // ouverture majeur/mineur/foyer) par envoyerCampagne. Anti-doublon par personKey.
+  const saisonRef = saisonCourante(new Date());
+  const manualPersonnes: PersonneEnvoi[] = cibles
+    .filter((a) => (a.email || "").trim())
+    .map((a) => ({
+      personKey: `natif:${a.id}`,
+      email: (a.email || "").trim().toLowerCase(),
+      prenom: a.prenom,
+      nom: a.nom,
+      mineur: estMineur(a.date_naissance),
+      saison: a.saison || saisonRef,
+    }));
+
+  // Envoi via le pipeline campagnes (dédoublonnage familial + exclusions
+  // désinscrits/bounce + pacing + retry 429).
+  const res = await envoyerCampagne(supabase, { objet, contenu, manualPersonnes, blocHtml });
   if (!res.ok && res.emailsEnvoyes === 0 && res.error) {
     const status = /destinataire/i.test(res.error) ? 400 : res.error.includes("RESEND") ? 503 : 400;
     return NextResponse.json({ error: res.error }, { status });

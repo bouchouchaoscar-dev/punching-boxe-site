@@ -29,6 +29,10 @@ export type RecetteCampagne = {
   disciplines?: DisciplineKey[];
   includeContacts?: boolean;
   manualEmails?: string[];
+  // Personnes ajoutées DIRECTEMENT (chacune sa ligne) → regroupées par email
+  // comme les familles (join des prénoms, ouverture adaptée). Utilisé par le
+  // « prévenir les adhérents d'un cours » pour gérer mineurs/foyers.
+  manualPersonnes?: PersonneEnvoi[];
   // HTML de confiance (serveur) inséré après le corps (ex. encadré planning).
   blocHtml?: string;
 };
@@ -182,6 +186,10 @@ export async function envoyerCampagne(
       else addPersonne({ personKey: `email:${e}`, email: e, saison: saisonRef });
     }
   }
+  // Personnes fournies directement (planning) : ajoutées telles quelles, puis
+  // regroupées par email (familles) comme le reste.
+  for (const p of recette.manualPersonnes ?? []) addPersonne(p);
+
   if (recette.includeContacts) {
     const { data } = await supabase
       .from("contacts_mailing")
