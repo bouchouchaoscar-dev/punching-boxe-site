@@ -10,6 +10,9 @@ import {
   toISODate,
   jourLong,
   formatHeure,
+  coursFormuleCle,
+  coursFormuleLabel,
+  FORMULES_COURS,
   JOURS,
   type Prof,
   type Cours,
@@ -21,10 +24,6 @@ type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
 const jsonHeaders = () => ({ "Content-Type": "application/json", ...adminAuthHeaders() });
 
-const PACKAGE_LABEL: Record<string, string> = {
-  boxe_classique: "Boxe française",
-  savate_prepa: "Savate / Prépa",
-};
 const TYPE_LABEL: Record<string, string> = { adulte: "Adultes", jeune: "Jeunes" };
 
 export default function PlanningPage() {
@@ -259,18 +258,24 @@ function CoursTab({
   onChanged: () => void;
   flash: (m: string) => void;
 }) {
-  const vide = { libelle: "", package: "", type_adherent: "", jour_semaine: 1, heure_debut: "18:00", heure_fin: "19:30", salle: "", ville: "" };
-  const [form, setForm] = useState<Record<string, string | number>>({ ...vide });
+  const vide = { libelle: "", formule: "", type_adherent: "", heure_debut: "18:00", heure_fin: "19:30", salle: "", ville: "" };
+  const [form, setForm] = useState({ ...vide });
+  const [jours, setJours] = useState<number[]>([1]); // création : multi-jours
+  const [jourEdit, setJourEdit] = useState(1); // édition : un seul jour
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  function toggleJour(v: number) {
+    setJours((s) => (s.includes(v) ? s.filter((x) => x !== v) : [...s, v].sort((a, b) => a - b)));
+  }
+
   function editer(c: Cours) {
     setEditId(c.id);
+    setJourEdit(c.jour_semaine ?? 1);
     setForm({
       libelle: c.libelle ?? "",
-      package: c.package ?? "",
+      formule: coursFormuleCle(c) ?? "",
       type_adherent: c.type_adherent ?? "",
-      jour_semaine: c.jour_semaine ?? 1,
       heure_debut: formatHeure(c.heure_debut) || "18:00",
       heure_fin: formatHeure(c.heure_fin) || "19:30",
       salle: c.salle ?? "",
@@ -280,22 +285,30 @@ function CoursTab({
   function annuler() {
     setEditId(null);
     setForm({ ...vide });
+    setJours([1]);
+    setJourEdit(1);
   }
+
+  const valide = form.libelle.trim() && form.formule && form.type_adherent && (editId ? true : jours.length > 0);
 
   async function soumettre() {
     setBusy(true);
     try {
+      const body = editId
+        ? { id: editId, ...form, jour_semaine: jourEdit }
+        : { ...form, jours };
       const res = await fetch("/api/admin/planning/cours", {
         method: editId ? "PATCH" : "POST",
         headers: jsonHeaders(),
-        body: JSON.stringify(editId ? { id: editId, ...form } : form),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (!res.ok) {
         flash(d.error || "Échec de l'enregistrement.");
         return;
       }
-      flash(editId ? "Cours modifié ✓" : "Cours ajouté ✓");
+      const n = d.crees ?? 1;
+      flash(editId ? "Cours modifié ✓" : `${n} cours créé${n > 1 ? "s" : ""} ✓`);
       annuler();
       onChanged();
     } finally {
@@ -325,17 +338,19 @@ function CoursTab({
         <div className="mt-3 space-y-3">
           <Field label="Libellé">
             <input
-              value={String(form.libelle)}
+              value={form.libelle}
               onChange={(e) => setForm((f) => ({ ...f, libelle: e.target.value }))}
               placeholder="Ex. Boxe française — Adultes"
               className={inputCls}
             />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Jour(s) : multi-cases en création, sélecteur unique en édition */}
+          {editId ? (
             <Field label="Jour">
               <select
-                value={String(form.jour_semaine)}
-                onChange={(e) => setForm((f) => ({ ...f, jour_semaine: Number(e.target.value) }))}
+                value={String(jourEdit)}
+                onChange={(e) => setJourEdit(Number(e.target.value))}
                 className={inputCls}
               >
                 {JOURS.map((j) => (
@@ -345,44 +360,75 @@ function CoursTab({
                 ))}
               </select>
             </Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="Début">
-                <input
-                  type="time"
-                  value={String(form.heure_debut)}
-                  onChange={(e) => setForm((f) => ({ ...f, heure_debut: e.target.value }))}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Fin">
-                <input
-                  type="time"
-                  value={String(form.heure_fin)}
-                  onChange={(e) => setForm((f) => ({ ...f, heure_fin: e.target.value }))}
-                  className={inputCls}
-                />
-              </Field>
-            </div>
+          ) : (
+            <Field label="Jours (un cours créé par jour coché)">
+              <div className="flex flex-wrap gap-1.5">
+                {JOURS.map((j) => (
+                  <label
+                    key={j.valeur}
+                    className={`cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      jours.includes(j.valeur)
+                        ? "border-orange bg-orange-50 text-orange"
+                        : "border-line text-ink hover:border-orange/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={jours.includes(j.valeur)}
+                      onChange={() => toggleJour(j.valeur)}
+                      className="sr-only"
+                    />
+                    {j.court}
+                  </label>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Début">
+              <input
+                type="time"
+                value={form.heure_debut}
+                onChange={(e) => setForm((f) => ({ ...f, heure_debut: e.target.value }))}
+                className={inputCls}
+              />
+            </Field>
+            <Field label="Fin">
+              <input
+                type="time"
+                value={form.heure_fin}
+                onChange={(e) => setForm((f) => ({ ...f, heure_fin: e.target.value }))}
+                className={inputCls}
+              />
+            </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Formule (option)">
+            <Field label="Formule">
               <select
-                value={String(form.package)}
-                onChange={(e) => setForm((f) => ({ ...f, package: e.target.value }))}
+                value={form.formule}
+                onChange={(e) => setForm((f) => ({ ...f, formule: e.target.value }))}
                 className={inputCls}
               >
-                <option value="">Toutes</option>
-                <option value="boxe_classique">Boxe française</option>
-                <option value="savate_prepa">Savate / Prépa</option>
+                <option value="" disabled>
+                  — Choisir —
+                </option>
+                {FORMULES_COURS.map((f) => (
+                  <option key={f.cle} value={f.cle}>
+                    {f.label}
+                  </option>
+                ))}
               </select>
             </Field>
-            <Field label="Public (option)">
+            <Field label="Public">
               <select
-                value={String(form.type_adherent)}
+                value={form.type_adherent}
                 onChange={(e) => setForm((f) => ({ ...f, type_adherent: e.target.value }))}
                 className={inputCls}
               >
-                <option value="">Tous</option>
+                <option value="" disabled>
+                  — Choisir —
+                </option>
                 <option value="adulte">Adultes</option>
                 <option value="jeune">Jeunes</option>
               </select>
@@ -391,14 +437,14 @@ function CoursTab({
           <div className="grid grid-cols-2 gap-3">
             <Field label="Salle (option)">
               <input
-                value={String(form.salle)}
+                value={form.salle}
                 onChange={(e) => setForm((f) => ({ ...f, salle: e.target.value }))}
                 className={inputCls}
               />
             </Field>
             <Field label="Ville (option)">
               <input
-                value={String(form.ville)}
+                value={form.ville}
                 onChange={(e) => setForm((f) => ({ ...f, ville: e.target.value }))}
                 className={inputCls}
               />
@@ -407,10 +453,10 @@ function CoursTab({
           <div className="flex gap-2">
             <button
               onClick={soumettre}
-              disabled={busy || !String(form.libelle).trim()}
+              disabled={busy || !valide}
               className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
             >
-              {editId ? "Enregistrer" : "Ajouter"}
+              {editId ? "Enregistrer" : jours.length > 1 ? `Ajouter (${jours.length} cours)` : "Ajouter"}
             </button>
             {editId && (
               <button
@@ -441,7 +487,7 @@ function CoursTab({
                   <p className="truncate text-sm font-bold text-ink">{c.libelle}</p>
                   <p className="truncate text-xs text-smoke">
                     {jourLong(c.jour_semaine)} · {formatHeure(c.heure_debut)}–{formatHeure(c.heure_fin)}
-                    {c.package ? ` · ${PACKAGE_LABEL[c.package] ?? c.package}` : ""}
+                    {` · ${coursFormuleLabel(c)}`}
                     {c.type_adherent ? ` · ${TYPE_LABEL[c.type_adherent] ?? c.type_adherent}` : ""}
                     {c.salle ? ` · ${c.salle}` : ""}
                   </p>

@@ -1,22 +1,30 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { planningActif } from "@/lib/planning";
+import { planningActif, formuleVersColonnes } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
-const PACKAGES = ["boxe_classique", "savate_prepa"];
 const TYPES = ["adulte", "jeune"];
 
-// Normalise un champ optionnel (package / type_adherent) : "" → null.
-function optEnum(v: unknown, allowed: string[]): string | null {
-  const s = typeof v === "string" ? v.trim() : "";
-  return allowed.includes(s) ? s : null;
-}
-// Normalise une heure "HH:MM" → "HH:MM"; renvoie null si vide/invalide.
+// Normalise une heure "HH:MM" ; renvoie null si vide/invalide.
 function optHeure(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
   return /^\d{2}:\d{2}$/.test(s) ? s : null;
+}
+// Liste de jours (1..7) dédupliquée à partir de `jours` (tableau) ou `jour_semaine`.
+function lireJours(body: Record<string, unknown>): number[] {
+  const src = Array.isArray(body.jours)
+    ? body.jours
+    : body.jour_semaine !== undefined
+      ? [body.jour_semaine]
+      : [];
+  const set = new Set<number>();
+  for (const j of src) {
+    const n = Number(j);
+    if (n >= 1 && n <= 7) set.add(n);
+  }
+  return [...set].sort((a, b) => a - b);
 }
 
 // GET — liste des cours (tri jour puis heure).
@@ -35,7 +43,8 @@ export async function GET(request: Request) {
   return NextResponse.json({ cours: data ?? [] });
 }
 
-// POST — créer un cours récurrent.
+// POST — créer un ou PLUSIEURS cours récurrents (un par jour coché), même
+// libellé/horaire/formule/public/salle/ville. Formule + public OBLIGATOIRES.
 export async function POST(request: Request) {
   if (!planningActif()) return NextResponse.json({ error: "Module désactivé." }, { status: 404 });
   if (!isAdminRequest(request)) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
@@ -49,34 +58,39 @@ export async function POST(request: Request) {
   }
 
   const libelle = String(body.libelle ?? "").trim();
-  const jour = Number(body.jour_semaine);
+  const jours = lireJours(body);
   const heureDebut = optHeure(body.heure_debut);
   const heureFin = optHeure(body.heure_fin);
+  const type = String(body.type_adherent ?? "").trim();
+  const formule = formuleVersColonnes(String(body.formule ?? ""));
+
   if (!libelle) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
-  if (!(jour >= 1 && jour <= 7)) return NextResponse.json({ error: "Jour invalide." }, { status: 400 });
+  if (!formule) return NextResponse.json({ error: "Formule requise." }, { status: 400 });
+  if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes ou jeunes)." }, { status: 400 });
+  if (jours.length === 0) return NextResponse.json({ error: "Sélectionnez au moins un jour." }, { status: 400 });
   if (!heureDebut || !heureFin) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
   if (heureFin <= heureDebut) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
 
+  const lignes = jours.map((j) => ({
+    libelle,
+    package: formule.package,
+    avec_prepa: formule.avecPrepa,
+    type_adherent: type,
+    jour_semaine: j,
+    heure_debut: heureDebut,
+    heure_fin: heureFin,
+    salle: String(body.salle ?? "").trim() || null,
+    ville: String(body.ville ?? "").trim() || null,
+  }));
+
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("cours")
-    .insert({
-      libelle,
-      package: optEnum(body.package, PACKAGES),
-      type_adherent: optEnum(body.type_adherent, TYPES),
-      jour_semaine: jour,
-      heure_debut: heureDebut,
-      heure_fin: heureFin,
-      salle: String(body.salle ?? "").trim() || null,
-      ville: String(body.ville ?? "").trim() || null,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await supabase.from("cours").insert(lignes).select("*");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ cours: data });
+  return NextResponse.json({ cours: data ?? [], crees: (data ?? []).length });
 }
 
-// PATCH — éditer / (dés)activer un cours (id dans le corps).
+// PATCH — éditer / (dés)activer un cours (id dans le corps). Édition d'un seul
+// cours (un jour) — la création multi-jours reste réservée au POST.
 export async function PATCH(request: Request) {
   if (!planningActif()) return NextResponse.json({ error: "Module désactivé." }, { status: 404 });
   if (!isAdminRequest(request)) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
@@ -92,9 +106,22 @@ export async function PATCH(request: Request) {
   if (!id) return NextResponse.json({ error: "Identifiant requis." }, { status: 400 });
 
   const patch: Record<string, unknown> = {};
-  if (body.libelle !== undefined) patch.libelle = String(body.libelle).trim();
-  if (body.package !== undefined) patch.package = optEnum(body.package, PACKAGES);
-  if (body.type_adherent !== undefined) patch.type_adherent = optEnum(body.type_adherent, TYPES);
+  if (body.libelle !== undefined) {
+    const l = String(body.libelle).trim();
+    if (!l) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
+    patch.libelle = l;
+  }
+  if (body.formule !== undefined) {
+    const f = formuleVersColonnes(String(body.formule));
+    if (!f) return NextResponse.json({ error: "Formule invalide." }, { status: 400 });
+    patch.package = f.package;
+    patch.avec_prepa = f.avecPrepa;
+  }
+  if (body.type_adherent !== undefined) {
+    const t = String(body.type_adherent).trim();
+    if (!TYPES.includes(t)) return NextResponse.json({ error: "Public requis (adultes ou jeunes)." }, { status: 400 });
+    patch.type_adherent = t;
+  }
   if (body.jour_semaine !== undefined) {
     const j = Number(body.jour_semaine);
     if (!(j >= 1 && j <= 7)) return NextResponse.json({ error: "Jour invalide." }, { status: 400 });
