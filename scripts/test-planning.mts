@@ -21,7 +21,7 @@ import {
   type PeriodeFermeture,
   type CoursEnvoi,
 } from "../lib/planning";
-import { resoudreOuverture, regrouperParEmail, remplacerVariables, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
+import { resoudreOuverture, regrouperParEmail, remplacerVariables, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estMineur } from "../lib/pricing";
 
 let ok = 0;
@@ -317,6 +317,16 @@ console.log("— ouverture mineur/foyer dans une CAMPAGNE classique (template) �
   ]);
   check(foyer.startsWith("Bonjour,\n\nCe message concerne Lucas et Inès.\n\n"), "foyer → concerne Lucas et Inès");
   check(tpl.contenu.startsWith("{{salutation}}\n\n{{concerne}}"), "template mis à jour (jetons en tête)");
+}
+
+console.log("— textes suppression historique (annulation si programmée) —");
+{
+  const prog = textesSuppressionHistorique("planifiee");
+  check(prog.annulation === true && prog.titre === "Annuler cette campagne programmée ?" && prog.boutonConfirmer === "Annuler l'envoi" && prog.lienListe === "Annuler", "planifiee → wording d'annulation");
+  for (const s of ["envoye", "partiel", "erreur", "individuel", undefined]) {
+    const t = textesSuppressionHistorique(s as string | undefined);
+    check(t.annulation === false && t.titre === "Supprimer de l'historique" && t.lienListe === "Supprimer", `${s ?? "sans statut"} → wording de suppression`);
+  }
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

@@ -161,6 +161,33 @@ export function regrouperParEmail(
   return { envois, personnesExclues };
 }
 
+/**
+ * Libellés de l'action « retirer de l'historique » selon le statut :
+ * une campagne PROGRAMMÉE (planifiee) = ANNULATION (elle ne partira pas) ;
+ * une campagne déjà partie = simple suppression de la trace.
+ */
+export function textesSuppressionHistorique(statut?: string | null): {
+  titre: string;
+  boutonConfirmer: string;
+  lienListe: string;
+  annulation: boolean;
+} {
+  if (statut === "planifiee") {
+    return {
+      titre: "Annuler cette campagne programmée ?",
+      boutonConfirmer: "Annuler l'envoi",
+      lienListe: "Annuler",
+      annulation: true,
+    };
+  }
+  return {
+    titre: "Supprimer de l'historique",
+    boutonConfirmer: "Supprimer",
+    lienListe: "Supprimer",
+    annulation: false,
+  };
+}
+
 export type TypeEnvoi = "campagne" | "individuel";
 
 export interface Campagne {

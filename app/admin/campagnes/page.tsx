@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import type { Campagne } from "@/lib/campagnes";
+import { textesSuppressionHistorique, type Campagne } from "@/lib/campagnes";
 
 const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
@@ -283,7 +283,7 @@ export default function CampagnesPage() {
                           title={c.statut === "en_cours" ? "Envoi en cours, suppression impossible" : ""}
                           className="text-xs font-semibold text-red-600 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-smoke/50 disabled:no-underline"
                         >
-                          Supprimer
+                          {textesSuppressionHistorique(c.statut).lienListe}
                         </button>
                       </div>
                     </td>
@@ -383,7 +383,7 @@ export default function CampagnesPage() {
                           title={c.statut === "en_cours" ? "Envoi en cours, suppression impossible" : ""}
                           className="text-xs font-semibold text-red-600 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-smoke/50 disabled:no-underline"
                         >
-                          Supprimer
+                          {textesSuppressionHistorique(c.statut).lienListe}
                         </button>
                       </div>
                     </div>
@@ -396,43 +396,47 @@ export default function CampagnesPage() {
       </div>
 
       {/* Confirmation de suppression (masquage de l'historique, pas de rappel des mails) */}
-      {aSupprimer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
-          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
-            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
-              Supprimer de l&apos;historique
-            </h2>
-            <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
-              <p className="font-semibold text-ink">{aSupprimer.objet}</p>
-              <p className="mt-0.5 text-xs text-smoke">
-                {dateHeure(aSupprimer.envoye_at ?? aSupprimer.created_at)}
-                {" · "}
-                {aSupprimer.nb_destinataires ?? 0} destinataire
-                {(aSupprimer.nb_destinataires ?? 0) > 1 ? "s" : ""}
+      {aSupprimer && (() => {
+        const txt = textesSuppressionHistorique(aSupprimer.statut);
+        const nb = aSupprimer.nb_destinataires ?? 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+            <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
+              <h2 className="font-display text-lg font-extrabold uppercase text-ink">{txt.titre}</h2>
+              <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
+                <p className="font-semibold text-ink">{aSupprimer.objet}</p>
+                <p className="mt-0.5 text-xs text-smoke">
+                  {txt.annulation && aSupprimer.scheduled_at
+                    ? `Prévue le ${dateHeure(aSupprimer.scheduled_at)}`
+                    : dateHeure(aSupprimer.envoye_at ?? aSupprimer.created_at)}
+                  {nb > 0 ? ` · ${nb} destinataire${nb > 1 ? "s" : ""}` : ""}
+                </p>
+              </div>
+              <p className="mt-3 text-sm text-smoke">
+                {txt.annulation
+                  ? "Elle ne partira pas."
+                  : "Les mails déjà envoyés ne sont pas rappelés, seule la trace disparaît de l'historique."}
               </p>
-            </div>
-            <p className="mt-3 text-sm text-smoke">
-              Les mails déjà envoyés ne sont pas rappelés, seule la trace disparaît de l&apos;historique.
-            </p>
-            <div className="mt-5 flex justify-end gap-3">
-              <button
-                onClick={() => setASupprimer(null)}
-                disabled={busy === aSupprimer.id}
-                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={executerSuppression}
-                disabled={busy === aSupprimer.id}
-                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {busy === aSupprimer.id ? "Suppression…" : "Supprimer"}
-              </button>
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  onClick={() => setASupprimer(null)}
+                  disabled={busy === aSupprimer.id}
+                  className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+                >
+                  Retour
+                </button>
+                <button
+                  onClick={executerSuppression}
+                  disabled={busy === aSupprimer.id}
+                  className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {busy === aSupprimer.id ? "…" : txt.boutonConfirmer}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
