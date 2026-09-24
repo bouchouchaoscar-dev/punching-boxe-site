@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { hasRole } from "@/lib/admin-guard";
-import { planningActif, type Cours, type Affectation, type PeriodeFermeture, type Prof } from "@/lib/planning";
+import { planningActif, construireReponseCoachPlanning } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
@@ -33,14 +33,13 @@ export async function GET(request: Request) {
     supabase.from("periodes_fermeture").select("id, libelle, date_debut, date_fin"),
   ]);
 
-  // Normalise pour le composant partagé (champs non demandés → neutres/absents).
-  const cours = (coursRows ?? []).map((c) => ({ ...c, package: null, avec_prepa: false })) as Cours[];
-  const profs = (profRows ?? []).map((p) => ({ ...p, actif: true, email: null, telephone: null })) as Prof[];
-  const affectations = (affRows ?? []) as Affectation[];
-  const periodes = (perRows ?? []) as PeriodeFermeture[];
+  // Liste blanche stricte (fonction pure, testée) : aucune donnée sensible.
+  const reponse = construireReponseCoachPlanning({
+    cours: coursRows ?? [],
+    affectations: affRows ?? [],
+    profs: profRows ?? [],
+    periodes: perRows ?? [],
+  });
 
-  return NextResponse.json(
-    { cours, affectations, profs, periodes },
-    { headers: { "Cache-Control": "no-store" } },
-  );
+  return NextResponse.json(reponse, { headers: { "Cache-Control": "no-store" } });
 }

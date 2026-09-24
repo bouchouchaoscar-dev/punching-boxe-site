@@ -28,6 +28,7 @@ import {
   JOURS,
   type StatProf,
   type Prof,
+  type ProfMinimal,
   type Cours,
   type Affectation,
   type PeriodeFermeture,
@@ -505,7 +506,7 @@ function PlanningCoach() {
   const [data, setData] = useState<{
     cours: Cours[];
     affectations: Affectation[];
-    profs: Prof[];
+    profs: ProfMinimal[];
     periodes: PeriodeFermeture[];
   }>({ cours: [], affectations: [], profs: [], periodes: [] });
 

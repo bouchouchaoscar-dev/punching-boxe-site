@@ -19,11 +19,15 @@ import {
   genererMailPrevenir,
   calculerHeuresProfs,
   formatDureeHeures,
+  construireReponseCoachPlanning,
   type Cours,
   type PeriodeFermeture,
   type CoursEnvoi,
   type Prof,
 } from "../lib/planning";
+import { redirectionInterneValide } from "../lib/nav-roles";
+import { toMembrePublic } from "../lib/trombi-server";
+import type { Adherent } from "../lib/types";
 import { resoudreOuverture, regrouperParEmail, remplacerVariables, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estMineur } from "../lib/pricing";
 
@@ -381,6 +385,47 @@ console.log("— calculerHeuresProfs (réalisé/prévu, multi-profs, fermeture, 
   check(rOct.parProf.length === 0, "hors période (octobre) → rien");
 
   check(formatDureeHeures(1.5) === "1h30" && formatDureeHeures(21) === "21h" && formatDureeHeures(2.25) === "2h15", "format durée unique (1h30 / 21h / 2h15)");
+}
+
+console.log("— redirectionInterneValide (next après login) —");
+{
+  check(redirectionInterneValide("/admin/planning", "coach") === true, "coach : /admin/planning autorisé");
+  check(redirectionInterneValide("/admin/trombinoscope", "coach") === true, "coach : /admin/trombinoscope autorisé");
+  check(redirectionInterneValide("/admin/adherents", "coach") === false, "coach : /admin/adherents refusé (retombe défaut)");
+  check(redirectionInterneValide("/admin/adherents", "admin") === true, "admin : /admin/adherents autorisé");
+  check(redirectionInterneValide("/admin/planning", "admin") === true, "admin : /admin/planning autorisé");
+  check(redirectionInterneValide("https://evil.com", "admin") === false, "URL externe refusée");
+  check(redirectionInterneValide("//evil.com", "admin") === false, "//evil.com refusé");
+  check(redirectionInterneValide("javascript:alert(1)", "admin") === false, "javascript: refusé");
+  check(redirectionInterneValide("/\\evil.com", "admin") === false, "backslash refusé");
+  check(redirectionInterneValide("/", "admin") === false, "hors /admin refusé");
+  check(redirectionInterneValide(null, "admin") === false, "next absent → défaut");
+}
+
+console.log("— non-fuite : /api/coach/planning (liste blanche) —");
+{
+  const rep = construireReponseCoachPlanning({
+    cours: [{ id: "c1", actif: true, libelle: "BF", discipline: "boxe_francaise", type_adherent: "adulte", jour_semaine: 1, heure_debut: "18:00", heure_fin: "19:00", salle: "A", ville: "Nogent", secret_montant: 999, adherent_email: "leak@x.fr" }],
+    affectations: [{ cours_id: "c1", prof_id: "p1", semaine: "2026-09-07", statut: "prevu", adherent: "leak" }],
+    profs: [{ id: "p1", prenom: "Alice", nom: "Un", email: "a@a.fr", telephone: "0600000000", adresse: "12 rue X" }],
+    periodes: [{ id: "f1", libelle: "Vac", date_debut: "2026-12-20", date_fin: "2026-12-31", note_interne: "secret" }],
+  });
+  check(Object.keys(rep.cours[0]).sort().join(",") === "actif,avec_prepa,discipline,heure_debut,heure_fin,id,jour_semaine,libelle,package,salle,type_adherent,ville", "cours : liste blanche stricte");
+  check(Object.keys(rep.profs[0]).sort().join(",") === "id,nom,prenom", "profs : uniquement id/prénom/nom");
+  check(Object.keys(rep.affectations[0]).sort().join(",") === "cours_id,prof_id,semaine,statut", "affectations : liste blanche");
+  check(Object.keys(rep.periodes[0]).sort().join(",") === "date_debut,date_fin,id,libelle", "fermetures : liste blanche");
+  check(!/leak@x\.fr|a@a\.fr|0600000000|rue X|secret|999|leak/.test(JSON.stringify(rep)), "aucune valeur sensible dans la réponse coach");
+}
+
+console.log("— non-fuite : trombinoscope (toMembrePublic) —");
+{
+  const adh = {
+    id: "idSecret", nom: "Durand", prenom: "Marie", package: "boxe_classique", option_prepa_physique: false,
+    type_adherent: "adulte", email: "m@m.fr", telephone: "0611111111", adresse: "5 rue Y", code_postal: "94130",
+    date_naissance: "2010-01-01", montant_total: 430, saison: "2025-2026", statut_paiement: "paye",
+  } as unknown as Adherent;
+  const blob = JSON.stringify(toMembrePublic(adh, null));
+  check(!/m@m\.fr|0611111111|rue Y|94130|2010-01-01|430|idSecret/.test(blob), "trombi : aucune donnée sensible (email/tel/adresse/CP/naissance/montant/id)");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

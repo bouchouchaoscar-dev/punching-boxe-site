@@ -492,6 +492,60 @@ export function genererMailPrevenir(p: {
   };
 }
 
+// ---- Réponse coach (LECTURE SEULE) : liste blanche PURE, testable -----------
+// Un prof, côté coach, est réduit à l'identité affichable (aucun contact).
+export type ProfMinimal = { id: string; prenom: string | null; nom: string | null };
+
+type RawRows = {
+  cours: Record<string, unknown>[];
+  affectations: Record<string, unknown>[];
+  profs: Record<string, unknown>[];
+  periodes: Record<string, unknown>[];
+};
+
+/**
+ * Construit la réponse /api/coach/planning en NE gardant QUE la liste blanche :
+ * cours (libellé, discipline, public, jour, horaire, salle, ville), profs
+ * (prénom, nom), fermetures. Tout champ sensible en entrée (email, téléphone,
+ * adresse, montant, adhérents, envois…) est ÉCARTÉ. Fonction pure → testable.
+ */
+export function construireReponseCoachPlanning(input: RawRows): {
+  cours: Cours[];
+  affectations: Affectation[];
+  profs: ProfMinimal[];
+  periodes: PeriodeFermeture[];
+} {
+  const s = (v: unknown): string | null => (typeof v === "string" ? v : null);
+  const cours = input.cours.map((c) => ({
+    id: String(c.id),
+    actif: c.actif !== false,
+    libelle: s(c.libelle),
+    discipline: s(c.discipline),
+    type_adherent: s(c.type_adherent),
+    jour_semaine: typeof c.jour_semaine === "number" ? c.jour_semaine : null,
+    heure_debut: s(c.heure_debut),
+    heure_fin: s(c.heure_fin),
+    salle: s(c.salle),
+    ville: s(c.ville),
+    package: null,
+    avec_prepa: false,
+  })) as Cours[];
+  const profs: ProfMinimal[] = input.profs.map((p) => ({ id: String(p.id), prenom: s(p.prenom), nom: s(p.nom) }));
+  const affectations = input.affectations.map((a) => ({
+    cours_id: String(a.cours_id),
+    prof_id: a.prof_id == null ? null : String(a.prof_id),
+    semaine: String(a.semaine),
+    statut: a.statut === "annule" ? "annule" : "prevu",
+  })) as Affectation[];
+  const periodes = input.periodes.map((pe) => ({
+    id: String(pe.id),
+    libelle: s(pe.libelle),
+    date_debut: String(pe.date_debut),
+    date_fin: String(pe.date_fin),
+  })) as PeriodeFermeture[];
+  return { cours, affectations, profs, periodes };
+}
+
 // ---- Stats d'heures par prof (PUR, testable) — source unique ----------------
 export type OccurrenceProf = {
   prof_id: string;

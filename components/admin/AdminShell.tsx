@@ -8,16 +8,16 @@ import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
 import { planningActif } from "@/lib/planning";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
+// Ordre du menu — SOURCE UNIQUE (desktop + mobile ; le coach en garde le
+// sous-ensemble filtré). Planning à sa place, masqué si le module est inactif
+// (les autres entrées gardent leur ordre, sans trou).
 const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
   { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "camera" },
-  { href: "/admin/anciens", label: "Anciens", icon: "history" },
+  ...(planningActif() ? [{ href: "/admin/planning", label: "Planning", icon: "calendar" }] : []),
   { href: "/admin/campagnes", label: "Mailing", icon: "mail" },
-  // Module OPTIONNEL : masqué si CONFIG_CLUB.modules.planning.actif = false.
-  ...(planningActif()
-    ? [{ href: "/admin/planning", label: "Planning", icon: "calendar" }]
-    : []),
+  { href: "/admin/anciens", label: "Anciens", icon: "history" },
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {

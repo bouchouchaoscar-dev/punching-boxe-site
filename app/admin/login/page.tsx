@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { setAdminSession, setAdminToken, setAdminRole } from "@/lib/admin-auth";
+import { redirectionInterneValide } from "@/lib/nav-roles";
 
 export default function AdminLoginPage() {
   const [username, setUsername] = useState("");
@@ -27,16 +28,18 @@ export default function AdminLoginPage() {
       if (!res.ok) throw new Error(data.error || "Connexion impossible.");
       setAdminSession(true);
       setAdminToken(password);
-      setAdminRole(data.role === "coach" ? "coach" : "admin");
+      const role = data.role === "coach" ? "coach" : "admin";
+      setAdminRole(role);
+      // Redirection : la cible ?next si elle est interne ET permise pour le rôle,
+      // sinon la page par défaut du rôle.
+      const next = new URLSearchParams(window.location.search).get("next");
+      const parDefaut = role === "coach" ? "/admin/trombinoscope" : "/admin";
+      const cible = redirectionInterneValide(next, role) ? (next as string) : parDefaut;
       // Navigation DURE (pas router.replace) : garantit que le cookie de rôle
       // fraîchement écrit est envoyé au middleware et que tout l'état client est
       // relu à neuf. Évite qu'une reconnexion admin après une session coach
-      // hérite de l'ancien rôle via le cache de navigation SPA (le middleware
-      // servait alors /admin depuis le cache et redirigeait vers le
-      // trombinoscope). Un coach n'a accès qu'au trombinoscope.
-      window.location.replace(
-        data.role === "coach" ? "/admin/trombinoscope" : "/admin",
-      );
+      // hérite de l'ancien rôle via le cache de navigation SPA.
+      window.location.replace(cible);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue.");
       setBusy(false);

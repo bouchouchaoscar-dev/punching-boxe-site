@@ -14,7 +14,7 @@ import {
   publicLabel,
   type Cours,
   type Affectation,
-  type Prof,
+  type ProfMinimal,
   type PeriodeFermeture,
 } from "@/lib/planning";
 
@@ -25,7 +25,7 @@ const minutes = (t: string | null) => {
 };
 const bandeDe = (c: Cours) => Math.floor(minutes(c.heure_debut) / 60);
 
-function nomProf(p: Prof): string {
+function nomProf(p: ProfMinimal): string {
   return [p.prenom, p.nom].filter(Boolean).join(" ").trim() || "Prof";
 }
 
@@ -102,7 +102,7 @@ function CarteCours({
   onPrevenir,
 }: {
   c: Cours;
-  profsDuCours: Prof[];
+  profsDuCours: ProfMinimal[];
   readOnly: boolean;
   selectionMode: boolean;
   selected: boolean;
@@ -211,7 +211,7 @@ export function PlanningSemaine({
   semaineISO: string;
   cours: Cours[];
   affectations: Affectation[];
-  profs: Prof[];
+  profs: ProfMinimal[];
   periodes: PeriodeFermeture[];
   onPrev: () => void;
   onNext: () => void;
@@ -250,13 +250,13 @@ export function PlanningSemaine({
   }, [cours]);
 
   const profById = useMemo(() => {
-    const m = new Map<string, Prof>();
+    const m = new Map<string, ProfMinimal>();
     for (const p of profs) m.set(p.id, p);
     return m;
   }, [profs]);
   // profs affectés par cours (pour la semaine affichée), triés par nom.
   const profsParCours = useMemo(() => {
-    const m = new Map<string, Prof[]>();
+    const m = new Map<string, ProfMinimal[]>();
     for (const a of affectations) {
       if (!a.prof_id) continue;
       const p = profById.get(a.prof_id);

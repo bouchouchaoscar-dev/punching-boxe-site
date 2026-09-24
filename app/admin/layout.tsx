@@ -22,7 +22,8 @@ export default function AdminLayout({
       return;
     }
     if (!isAdminLogged()) {
-      router.replace("/admin/login");
+      // Mémorise la page demandée pour y revenir après connexion.
+      router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
     } else {
       setReady(true);
     }

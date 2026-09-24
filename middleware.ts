@@ -1,22 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { coachAutorise } from "@/lib/nav-roles";
 
 // Gating des PAGES /admin par rôle — DÉFENSE EN PROFONDEUR, pas le contrôle
 // primaire. Le cookie de rôle est NON SECRET (posé côté client au login) : un
 // coach qui le trafique en « admin » ne verra AUCUNE donnée, car chaque
 // endpoint /api/admin/* refuse un Bearer ≠ mot de passe admin (isAdminRequest).
-// Ici on se contente de rediriger un coach vers son unique page autorisée pour
+// Ici on se contente de rediriger un coach vers ses pages autorisées pour
 // éviter d'afficher des coquilles de pages qui ne se rempliront pas.
 const ROLE_COOKIE = "pbnp_role";
-
-// Un coach ne voit que le trombinoscope, le planning (lecture seule) et le login.
-function coachAutorise(pathname: string): boolean {
-  return (
-    pathname === "/admin/login" ||
-    pathname.startsWith("/admin/trombinoscope") ||
-    pathname.startsWith("/admin/planning")
-  );
-}
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
