@@ -143,34 +143,17 @@ export default function CampagnesPage() {
       />
 
       {!loading && campagnes.length > 0 && (
-        <>
-          {/* Mobile : sélecteur compact (les pastilles débordaient à droite). */}
-          <div className="mt-6 md:hidden">
-            <SelectMenu
-              value={filtre}
-              onChange={setFiltre}
-              label="Type"
-              variant={filtre === "tous" ? "neutre" : "accent"}
-              options={FILTRES_TYPE.map((f) => ({ value: f.key, label: f.label }))}
-            />
-          </div>
-          {/* Desktop : pastilles inchangées. */}
-          <div className="mt-6 hidden flex-wrap gap-2 md:flex">
-            {FILTRES_TYPE.map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setFiltre(f.key)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  filtre === f.key
-                    ? "bg-ink text-white"
-                    : "border border-line bg-white text-ink/70 hover:border-orange"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </>
+        // Sélecteur de type partagé (desktop + mobile), aligné à gauche au-dessus
+        // du tableau ; style accent dès qu'un type autre que « Tous » est actif.
+        <div className="mt-6">
+          <SelectMenu
+            value={filtre}
+            onChange={setFiltre}
+            label="Type"
+            variant={filtre === "tous" ? "neutre" : "accent"}
+            options={FILTRES_TYPE.map((f) => ({ value: f.key, label: f.label }))}
+          />
+        </div>
       )}
 
       <div className="mt-4">

@@ -27,6 +27,7 @@ import { CONFIG_CLUB } from "@/lib/config-club";
 import { resteParAdherent, type EcheanceRow } from "@/lib/encaissement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { Tooltip as InfoTooltip } from "@/components/ui/Tooltip";
+import { PageHeader } from "./PageHeader";
 import type { ReactNode } from "react";
 
 const ORANGE = CONFIG_CLUB.identite.couleurs.orange;
@@ -244,19 +245,16 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="flex items-end justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-black uppercase text-ink md:text-4xl">Tableau de bord</h1>
-          <p className="mt-1 text-smoke">
+      <PageHeader
+        title="Tableau de bord"
+        count={
+          <>
             {enAll ? "Toutes les saisons" : `Saison ${selectedSaison}`}
             {entry?.enCours ? " (en cours)" : ""}
-          </p>
-          <p className="mt-2 max-w-2xl text-sm text-smoke">
-            Les statistiques du club en temps réel : nombre d&apos;adhérents,
-            formules choisies, chiffre d&apos;affaires et évolution par saison.
-          </p>
-        </div>
-      </div>
+          </>
+        }
+        description="Les statistiques du club en temps réel : nombre d'adhérents, formules choisies, chiffre d'affaires et évolution par saison."
+      />
 
       {error && (
         <div className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">

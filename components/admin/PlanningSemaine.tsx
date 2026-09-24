@@ -215,6 +215,7 @@ export function PlanningSemaine({
   onToday,
   readOnly = false,
   actionsMobile,
+  actionsDesktop,
   selected,
   onToggleSelect,
   onAddProf,
@@ -231,6 +232,7 @@ export function PlanningSemaine({
   onToday: () => void;
   readOnly?: boolean;
   actionsMobile?: ReactNode; // boutons d'action (admin) dans la ligne de nav mobile
+  actionsDesktop?: ReactNode; // boutons d'action (admin) dans la ligne de nav desktop
   selected?: Set<string>;
   onToggleSelect?: (coursId: string) => void;
   onAddProf?: (coursId: string) => void;
@@ -350,12 +352,14 @@ export function PlanningSemaine({
         };
         return (
           <>
-            {/* Navigation semaine — DESKTOP (inchangé) */}
-            <div className="mb-3 hidden items-center justify-between gap-3 md:flex">
-              <button onClick={auj} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
-                Aujourd&apos;hui
-              </button>
+            {/* Navigation semaine — DESKTOP : UNE ligne (repli en 2 lignes si la
+                largeur manque, ~md). Gauche [Aujourd'hui][‹] date [›] ; droite :
+                actions (admin). */}
+            <div className="mb-3 hidden flex-wrap items-center gap-3 md:flex">
               <div className="flex items-center gap-2">
+                <button onClick={auj} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
+                  Aujourd&apos;hui
+                </button>
                 <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
                   <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
                 </button>
@@ -364,6 +368,7 @@ export function PlanningSemaine({
                   <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
                 </button>
               </div>
+              {actionsDesktop && <div className="ml-auto flex items-center gap-2">{actionsDesktop}</div>}
             </div>
 
             {/* Navigation semaine — MOBILE : UNE ligne de commandes.

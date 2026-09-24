@@ -181,21 +181,13 @@ export function AdherentsTable() {
                 + Créer<span className="hidden md:inline"> un adhérent</span>
               </button>
             )}
-            {/* Export : icône (confirmation) sur mobile, bouton texte inchangé sur desktop. */}
+            {/* Export : icône (infobulle + confirmation), desktop comme mobile. */}
             <IconButton
               icon={<Download className="h-5 w-5" />}
               label="Exporter en CSV"
               onClick={() => setConfirmExport(true)}
               disabled={!filtered.length}
-              className="md:hidden"
             />
-            <button
-              onClick={exportCsv}
-              disabled={!filtered.length}
-              className="hidden rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-40 md:inline-flex"
-            >
-              Exporter CSV
-            </button>
           </>
         }
       />
@@ -510,7 +502,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange md:w-auto"
+      className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
     >
       {options.map(([v, l]) => (
         <option key={v} value={v}>

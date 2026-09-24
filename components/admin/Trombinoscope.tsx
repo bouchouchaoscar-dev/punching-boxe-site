@@ -220,7 +220,7 @@ export function Trombinoscope() {
   }
 
   const selCls =
-    "w-full rounded-full border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-orange md:w-auto";
+    "w-full rounded-full border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-orange";
   const filtresActifs =
     (type !== "all" ? 1 : 0) + (statut !== "all" ? 1 : 0) + (formule !== "all" ? 1 : 0);
 
@@ -228,7 +228,6 @@ export function Trombinoscope() {
     <div>
       <PageHeader
         title="Trombinoscope"
-        titleClassName="text-xl font-extrabold md:text-2xl"
         count={
           <>
             {filtres.length} adhérent{filtres.length > 1 ? "s" : ""}
@@ -236,24 +235,14 @@ export function Trombinoscope() {
           </>
         }
         actions={
-          <>
-            {/* Export PDF : icône (confirmation) mobile, bouton texte inchangé desktop. */}
-            <IconButton
-              icon={<FileText className="h-5 w-5" />}
-              label="Exporter en PDF"
-              variant="accent"
-              onClick={() => setConfirmExport(true)}
-              disabled={exporting || filtres.length === 0}
-              className="md:hidden"
-            />
-            <button
-              onClick={exportPdf}
-              disabled={exporting || filtres.length === 0}
-              className="hidden rounded-full bg-orange px-4 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50 md:inline-flex"
-            >
-              {exporting ? "Génération…" : "Exporter en PDF"}
-            </button>
-          </>
+          // Export PDF : icône (infobulle + confirmation), desktop comme mobile,
+          // visuellement cohérent avec l'export CSV d'Adhérents (neutre).
+          <IconButton
+            icon={<FileText className="h-5 w-5" />}
+            label="Exporter en PDF"
+            onClick={() => setConfirmExport(true)}
+            disabled={exporting || filtres.length === 0}
+          />
         }
       />
 

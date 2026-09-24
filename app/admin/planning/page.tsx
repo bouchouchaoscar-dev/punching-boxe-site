@@ -284,67 +284,37 @@ export default function PlanningPage() {
         title="Planning"
         description="Grille hebdomadaire des cours, affectation des profs et périodes de fermeture."
         actions={
-          // Mobile : sélecteur de sous-page à droite du titre (les onglets
-          // pleine ligne débordaient à 360px). Desktop : onglets inchangés.
-          <div className="md:hidden">
-            <SelectMenu
-              value={tab}
-              onChange={(v) => setTab(v as Tab)}
-              options={TABS.map((t) => ({ value: t.key, label: t.label }))}
-              align="right"
-            />
-          </div>
+          // Sous-pages dans l'en-tête, alignées avec le titre.
+          // Grand desktop (≥ lg) : contrôle segmenté. md + mobile : sélecteur.
+          <>
+            <div className="hidden items-center rounded-full border border-line bg-white p-0.5 lg:flex">
+              {TABS.map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    tab === t.key ? "bg-ink text-white" : "text-ink/70 hover:text-ink"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="lg:hidden">
+              <SelectMenu
+                value={tab}
+                onChange={(v) => setTab(v as Tab)}
+                options={TABS.map((t) => ({ value: t.key, label: t.label }))}
+                align="right"
+              />
+            </div>
+          </>
         }
       />
-
-      {/* Onglets — desktop uniquement (mobile : sélecteur dans l'en-tête) */}
-      <div className="mt-6 hidden flex-wrap gap-2 md:flex">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-              tab === t.key
-                ? "bg-ink text-white"
-                : "border border-line bg-white text-ink/70 hover:border-orange"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
 
       <div className="mt-4 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
         {tab === "calendrier" && (
           <>
-            {/* Barre d'outils DESKTOP (≥ md) INCHANGÉE : « Reprendre » (bouton
-                plein) + bloc envoi (badge « Modifications non envoyées » +
-                « Envoyer le planning aux profs »). Sur mobile, ces deux actions
-                passent dans la ligne de nav du calendrier (voir actionsMobile). */}
-            <div className="mb-4 hidden items-center justify-end gap-2 md:flex md:flex-wrap">
-              <button
-                onClick={ouvrirReprise}
-                className="inline-flex rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange"
-              >
-                Reprendre les profs de la semaine passée
-              </button>
-              <div className="ml-auto flex items-center gap-2">
-                {envoiPreview && envoiPreview.aEnvoyer > 0 && (
-                  <span className="rounded-full bg-orange-50 px-3 py-1 text-center text-xs font-semibold text-orange">
-                    Modifications non envoyées à {envoiPreview.aEnvoyer} prof{envoiPreview.aEnvoyer > 1 ? "s" : ""}
-                  </span>
-                )}
-                <button
-                  onClick={() => setEnvoiModal(true)}
-                  disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
-                  title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Aucune modification à envoyer" : "Envoyer le planning aux profs concernés"}
-                  className="rounded-full bg-ink px-4 py-2 text-center text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Envoyer le planning aux profs
-                </button>
-              </div>
-            </div>
-
             <PlanningSemaine
               semaineISO={semaineISO}
               cours={coursActifs}
@@ -374,6 +344,33 @@ export default function PlanningPage() {
                         : flash("Rien à envoyer, le planning est à jour.")
                     }
                   />
+                </>
+              }
+              actionsDesktop={
+                // Desktop : dans la ligne de nav, à droite. Reprendre (secondaire)
+                // + Envoyer (principal accent, badge N, grisé + infobulle si rien).
+                <>
+                  <button
+                    onClick={ouvrirReprise}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Reprendre les profs
+                  </button>
+                  <button
+                    onClick={() => setEnvoiModal(true)}
+                    disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
+                    title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Rien à envoyer, le planning est à jour" : "Envoyer le planning aux profs concernés"}
+                    className="inline-flex items-center gap-2 rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:bg-paper-2 disabled:text-smoke"
+                  >
+                    <Mail className="h-4 w-4" />
+                    Envoyer le planning aux profs
+                    {envoiPreview && envoiPreview.aEnvoyer > 0 && (
+                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/25 px-1 text-xs font-bold">
+                        {envoiPreview.aEnvoyer}
+                      </span>
+                    )}
+                  </button>
                 </>
               }
               selected={selected}
