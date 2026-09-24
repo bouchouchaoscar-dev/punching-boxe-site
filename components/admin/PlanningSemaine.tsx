@@ -49,9 +49,9 @@ function IconeEnveloppe() {
     </svg>
   );
 }
-function IconePersonne() {
+function IconePersonne({ className = "h-3 w-3" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="8" r="3.2" />
       <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
     </svg>
@@ -118,7 +118,7 @@ function CarteCours({
   return (
     <div
       style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
-      className={`relative rounded-lg border border-l-4 border-line/60 px-2 py-1.5 ${
+      className={`relative min-h-[4.25rem] rounded-lg border border-l-4 border-line/60 px-2 py-1.5 ${
         selected ? "ring-2 ring-orange" : ""
       }`}
     >
@@ -149,30 +149,44 @@ function CarteCours({
         {c.salle ? ` · ${c.salle}` : ""}
       </div>
 
-      {/* Profs affectés (chips avec croix de retrait) — inchangés */}
-      {profsDuCours.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {profsDuCours.map((p) => (
-            <span
-              key={p.id}
-              className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
-            >
-              {nomProf(p)}
-              {actionsVisibles && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveProf(c.id, p.id);
-                  }}
-                  aria-label={`Retirer ${nomProf(p)}`}
-                  className="ml-0.5 text-smoke hover:text-red-600"
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          ))}
+      {/* Profs affectés.
+          - Coach (lecture seule) : icône + noms en taille normale (info clé du
+            coach) ; « Prof à définir » en gris discret si aucun.
+          - Admin : chips avec croix de retrait (inchangé). */}
+      {readOnly ? (
+        <div className="mt-1 flex items-start gap-1 text-[11px] font-semibold leading-tight text-ink">
+          <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/60" />
+          {profsDuCours.length > 0 ? (
+            <span>{profsDuCours.map(nomProf).join(", ")}</span>
+          ) : (
+            <span className="font-normal text-smoke">Prof à définir</span>
+          )}
         </div>
+      ) : (
+        profsDuCours.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {profsDuCours.map((p) => (
+              <span
+                key={p.id}
+                className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
+              >
+                {nomProf(p)}
+                {actionsVisibles && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveProf(c.id, p.id);
+                    }}
+                    aria-label={`Retirer ${nomProf(p)}`}
+                    className="ml-0.5 text-smoke hover:text-red-600"
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))}
+          </div>
+        )
       )}
 
       {/* Actions : paire uniformisée (Prof neutre / Prévenir accent) */}
