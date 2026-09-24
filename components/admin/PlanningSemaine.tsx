@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ScrollX } from "@/components/ui/ScrollX";
 import {
@@ -36,6 +36,56 @@ function CaseFermee({ libelle }: { libelle: string | null }) {
       <span className="text-[11px] font-bold uppercase tracking-wide text-smoke">Fermé</span>
       {libelle ? <span className="block text-[10px] text-smoke/80">{libelle}</span> : null}
     </div>
+  );
+}
+
+// Icônes (même famille/ taille que l'enveloppe : h-3 w-3, trait 2).
+function IconeEnveloppe() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+    </svg>
+  );
+}
+function IconePersonne() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  );
+}
+
+// Petit bouton d'action de carte — FACTORISÉ (variante accent / neutre).
+// Même hauteur, arrondi, taille de texte/icône, padding, survol et focus.
+function BoutonCarte({
+  variant,
+  onClick,
+  icon,
+  label,
+  title,
+}: {
+  variant: "accent" | "neutre";
+  onClick: (e: ReactMouseEvent) => void;
+  icon: ReactNode;
+  label: string;
+  title: string;
+}) {
+  const styles =
+    variant === "accent"
+      ? "border-orange/40 bg-orange-50 text-orange hover:border-orange"
+      : "border-line bg-white text-ink/70 hover:border-ink/40";
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`focus-ring inline-flex min-w-16 flex-1 items-center justify-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold transition-all hover:-translate-y-0.5 hover:shadow-sm ${styles}`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 
@@ -83,56 +133,56 @@ function CarteCours({
         {c.salle ? ` · ${c.salle}` : ""}
       </div>
 
-      {/* Profs affectés (chips) + ajout, hors mode sélection */}
-      <div className="mt-1 flex flex-wrap gap-1">
-        {profsDuCours.map((p) => (
-          <span
-            key={p.id}
-            className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
-          >
-            {nomProf(p)}
-            {!selectionMode && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemoveProf(c.id, p.id);
-                }}
-                aria-label={`Retirer ${nomProf(p)}`}
-                className="ml-0.5 text-smoke hover:text-red-600"
-              >
-                ×
-              </button>
-            )}
-          </span>
-        ))}
-        {!selectionMode && (
-          <button
+      {/* Profs affectés (chips avec croix de retrait) — inchangés */}
+      {profsDuCours.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {profsDuCours.map((p) => (
+            <span
+              key={p.id}
+              className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
+            >
+              {nomProf(p)}
+              {!selectionMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveProf(c.id, p.id);
+                  }}
+                  aria-label={`Retirer ${nomProf(p)}`}
+                  className="ml-0.5 text-smoke hover:text-red-600"
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Actions : paire uniformisée (Prof neutre / Prévenir accent) */}
+      {!selectionMode && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          <BoutonCarte
+            variant="neutre"
             onClick={(e) => {
               e.stopPropagation();
               onAddProf(c.id);
             }}
-            className="rounded-full border border-dashed border-smoke/40 px-1.5 py-0.5 text-[10px] font-semibold text-smoke hover:border-orange hover:text-orange"
-          >
-            + prof
-          </button>
-        )}
-      </div>
-
-      {!selectionMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onPrevenir(c);
-          }}
-          aria-label="Prévenir les adhérents de ce cours"
-          title="Prévenir les adhérents de ce cours"
-          className="focus-ring mt-1.5 inline-flex items-center gap-1 rounded-full border border-orange/40 bg-orange-50 px-2 py-1 text-[10px] font-bold text-orange transition-all hover:-translate-y-0.5 hover:border-orange hover:shadow-sm"
-        >
-          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" />
-          </svg>
-          Prévenir
-        </button>
+            icon={<IconePersonne />}
+            label="Prof"
+            title="Ajouter un professeur"
+          />
+          <BoutonCarte
+            variant="accent"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPrevenir(c);
+            }}
+            icon={<IconeEnveloppe />}
+            label="Prévenir"
+            title="Prévenir les adhérents de ce cours"
+          />
+        </div>
       )}
     </div>
   );
