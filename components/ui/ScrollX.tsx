@@ -6,18 +6,19 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 // Conteneur à défilement horizontal avec flèches indicatrices (mobile) :
 // flèche droite seule au début, les deux au milieu, gauche seule à la fin.
 // Mécanisme factorisé (emploi du temps + tableaux admin → 1 source).
-// - `edgeFade` : flèches en chevrons sur un dégradé collé au bord (sans rond),
-//   pour ne pas masquer le contenu (sinon style rond blanc historique).
+// - `chevronNu` : chevron seul (couleur accent), sans fond ni rond, avec une
+//   ombre portée discrète pour rester lisible par-dessus le contenu, et une
+//   zone de tap élargie invisible (sinon style rond blanc historique).
 // - `onScrollEl` : expose l'élément scrollable au parent (centrage programmatique).
 export function ScrollX({
   className = "",
   children,
-  edgeFade = false,
+  chevronNu = false,
   onScrollEl,
 }: {
   className?: string; // classes du conteneur scrollable (overflow-x-auto, marges…)
   children: ReactNode;
-  edgeFade?: boolean;
+  chevronNu?: boolean;
   onScrollEl?: (el: HTMLDivElement | null) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -62,12 +63,17 @@ export function ScrollX({
   const scrollByDir = (dir: 1 | -1) =>
     scrollRef.current?.scrollBy({ left: dir * 200, behavior: "smooth" });
 
-  // Style bord (chevron sur dégradé, sans rond) OU rond blanc historique.
-  const btnBase = "absolute top-0 bottom-0 z-10 flex items-center justify-center text-orange md:hidden";
-  const btnFade = (side: "left" | "right") =>
-    `${btnBase} w-8 ${side === "left" ? "left-0 bg-gradient-to-r" : "right-0 bg-gradient-to-l"} from-white via-white/80 to-transparent`;
+  // Chevron nu (sans fond ni rond, zone de tap élargie invisible) OU rond blanc
+  // historique. Ombre portée discrète sur le chevron nu pour rester lisible.
+  const btnNu = (side: "left" | "right") =>
+    `absolute top-0 bottom-0 z-10 flex w-9 items-center justify-center text-orange md:hidden ${
+      side === "left" ? "left-0" : "right-0"
+    }`;
   const btnRond = (side: "left" | "right") =>
     `absolute ${side === "left" ? "left-1" : "right-1"} top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-white/80 text-orange shadow-md backdrop-blur-sm transition-colors hover:bg-white md:hidden`;
+  const iconCls = chevronNu
+    ? "h-6 w-6 [filter:drop-shadow(0_1px_1.5px_rgba(0,0,0,0.45))]"
+    : "h-5 w-5";
 
   return (
     <div className="relative">
@@ -80,9 +86,9 @@ export function ScrollX({
           type="button"
           aria-label="Jour précédent"
           onClick={() => scrollByDir(-1)}
-          className={edgeFade ? btnFade("left") : btnRond("left")}
+          className={chevronNu ? btnNu("left") : btnRond("left")}
         >
-          <ChevronLeft className="h-5 w-5" strokeWidth={2.4} />
+          <ChevronLeft className={iconCls} strokeWidth={chevronNu ? 2.6 : 2.4} />
         </button>
       )}
       {canRight && (
@@ -90,9 +96,9 @@ export function ScrollX({
           type="button"
           aria-label="Jour suivant"
           onClick={() => scrollByDir(1)}
-          className={edgeFade ? btnFade("right") : btnRond("right")}
+          className={chevronNu ? btnNu("right") : btnRond("right")}
         >
-          <ChevronRight className="h-5 w-5" strokeWidth={2.4} />
+          <ChevronRight className={iconCls} strokeWidth={chevronNu ? 2.6 : 2.4} />
         </button>
       )}
     </div>

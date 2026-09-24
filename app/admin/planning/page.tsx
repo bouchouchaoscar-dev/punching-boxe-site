@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -64,6 +64,24 @@ export default function PlanningPage() {
   const [envoiModal, setEnvoiModal] = useState(false);
   const [reprise, setReprise] = useState<{ source: string; sourceFermee: boolean; reprises: number; ignorees: number } | null>(null);
   const [busyAction, setBusyAction] = useState(false);
+
+  // Barre d'action fixe en bas (mode sélection) : on mesure sa hauteur réelle
+  // pour réserver un padding-bas équivalent sous le contenu, sinon les derniers
+  // cours restent cachés dessous et le scroll ne permet pas de les atteindre.
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [barH, setBarH] = useState(0);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) {
+      setBarH(0);
+      return;
+    }
+    const maj = () => setBarH(el.offsetHeight);
+    maj();
+    const ro = new ResizeObserver(maj);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectionMode, selected.size]);
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -255,7 +273,10 @@ export default function PlanningPage() {
   ];
 
   return (
-    <div className="max-w-5xl">
+    <div
+      className="max-w-5xl"
+      style={barH ? { paddingBottom: `calc(${barH}px + 0.5rem)` } : undefined}
+    >
       <h1 className="font-display text-4xl font-black uppercase text-ink">Planning</h1>
       <p className="mt-2 text-sm text-smoke">
         Grille hebdomadaire des cours, affectation des profs et périodes de fermeture.
@@ -462,26 +483,32 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* Barre d'action de sélection multiple (fixe en bas) */}
+      {/* Barre d'action de sélection multiple (fixe en bas).
+          Mobile = compte sur une ligne puis 3 boutons homogènes sur UNE ligne
+          (libellés courts) ; respect de la zone de sécurité iPhone. */}
       {selectionMode && selected.size > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-[55] border-t border-line bg-white/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2">
+        <div
+          ref={barRef}
+          style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          className="fixed inset-x-0 bottom-0 z-[55] border-t border-line bg-white/95 px-4 pt-3 backdrop-blur"
+        >
+          <div className="mx-auto flex max-w-3xl flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <span className="text-sm font-semibold text-ink">
               {selected.size} cours sélectionné{selected.size > 1 ? "s" : ""}
             </span>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setProfPicker({ kind: "bulk", action: "add" })} className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white hover:bg-orange-600">
-                Affecter un prof
+            <div className="flex gap-2">
+              <button onClick={() => setProfPicker({ kind: "bulk", action: "add" })} className="flex-1 whitespace-nowrap rounded-full bg-orange px-3 py-2 text-sm font-bold text-white hover:bg-orange-600 sm:flex-none sm:px-4">
+                Affecter<span className="hidden sm:inline"> un prof</span>
               </button>
               <button
                 onClick={() => setProfPicker({ kind: "bulk", action: "remove" })}
                 disabled={profsSurSelection.length === 0}
                 title={profsSurSelection.length === 0 ? "Aucun prof à retirer sur la sélection" : ""}
-                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-40"
+                className="flex-1 whitespace-nowrap rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-40 sm:flex-none sm:px-4"
               >
-                Retirer un prof
+                Retirer<span className="hidden sm:inline"> un prof</span>
               </button>
-              <button onClick={() => setSelected(new Set())} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-smoke hover:text-ink">
+              <button onClick={() => setSelected(new Set())} className="flex-1 whitespace-nowrap rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-smoke hover:text-ink sm:flex-none sm:px-4">
                 Annuler
               </button>
             </div>

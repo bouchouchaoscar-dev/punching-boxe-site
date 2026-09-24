@@ -438,7 +438,7 @@ export function PlanningSemaine({
 
           {/* MOBILE : colonnes empilées, swipe avec snap centré */}
           <div className="md:hidden">
-            <ScrollX className="snap-x snap-mandatory overflow-x-auto pb-1" edgeFade onScrollEl={(el) => (mobileScrollEl.current = el)}>
+            <ScrollX className="snap-x snap-mandatory overflow-x-auto pb-1" chevronNu onScrollEl={(el) => (mobileScrollEl.current = el)}>
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 {infosJours.map((it) => {
                   const coursDuJour = cours
