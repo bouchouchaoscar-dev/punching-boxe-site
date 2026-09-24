@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, type ReactNode, type MouseEvent as ReactMouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ScrollX } from "@/components/ui/ScrollX";
 import {
@@ -272,7 +272,25 @@ export function PlanningSemaine({
   const lundi = dateDuJour(semaineISO, 1);
   const dimanche = dateDuJour(semaineISO, 7);
   const libelleSemaine = `${lundi.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${dimanche.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
+  // Libellé COURT (mobile, une ligne) : mois répété seulement si différent ;
+  // année seulement si ≠ année en cours. "21 – 27 sept." / "28 sept. – 4 oct.".
+  const moisCourt = (d: Date) => d.toLocaleDateString("fr-FR", { month: "short" });
+  const memeMois = lundi.getMonth() === dimanche.getMonth();
+  const anneeSuffixe = dimanche.getFullYear() !== new Date().getFullYear() ? ` ${dimanche.getFullYear()}` : "";
+  const libelleSemaineCourt = memeMois
+    ? `${lundi.getDate()} – ${dimanche.getDate()} ${moisCourt(dimanche)}${anneeSuffixe}`
+    : `${lundi.getDate()} ${moisCourt(lundi)} – ${dimanche.getDate()} ${moisCourt(dimanche)}${anneeSuffixe}`;
   const todayISO = toISODate(new Date());
+
+  // Centrage horizontal (mobile) sur la colonne du jour ; sinon début (lundi).
+  const mobileScrollEl = useRef<HTMLDivElement | null>(null);
+  const centrerJour = useCallback((smooth: boolean) => {
+    const el = mobileScrollEl.current;
+    if (!el) return;
+    const cible = el.querySelector<HTMLElement>('[data-today="true"]');
+    const left = cible ? cible.offsetLeft - (el.clientWidth - cible.clientWidth) / 2 : 0;
+    el.scrollTo({ left: Math.max(0, left), behavior: smooth ? "smooth" : "auto" });
+  }, []);
 
   const infosJours = jours.map((jv) => {
     const d = dateDuJour(semaineISO, jv);
@@ -286,6 +304,12 @@ export function PlanningSemaine({
       ferme: estFerme(iso, periodes),
     };
   });
+
+  // Au chargement / changement de semaine / arrivée des données : centrer le jour
+  // (sans animation). Ne touche pas le scroll vertical de la page (scrollLeft only).
+  useEffect(() => {
+    centrerJour(false);
+  }, [semaineISO, cours, affectations, centrerJour]);
 
   const noop = () => {};
   const carte = (c: Cours) => (
@@ -305,24 +329,48 @@ export function PlanningSemaine({
 
   return (
     <div>
-      {/* Navigation semaine */}
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <button
-          onClick={onToday}
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange"
-        >
-          Aujourd&apos;hui
-        </button>
-        <div className="flex items-center gap-2">
-          <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
-            <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
-          </button>
-          <span className="min-w-[9.5rem] text-center text-sm font-bold text-ink">{libelleSemaine}</span>
-          <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
-            <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
-          </button>
-        </div>
-      </div>
+      {(() => {
+        const auj = () => {
+          onToday();
+          // Recentre la colonne du jour en douceur (en plus de revenir à la semaine).
+          setTimeout(() => centrerJour(true), 60);
+        };
+        return (
+          <>
+            {/* Navigation semaine — DESKTOP (inchangé) */}
+            <div className="mb-3 hidden items-center justify-between gap-3 md:flex">
+              <button onClick={auj} className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
+                Aujourd&apos;hui
+              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
+                  <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+                </button>
+                <span className="min-w-[9.5rem] text-center text-sm font-bold text-ink">{libelleSemaine}</span>
+                <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange hover:text-orange">
+                  <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
+                </button>
+              </div>
+            </div>
+
+            {/* Navigation semaine — MOBILE (pleine largeur, rien ne dépasse) */}
+            <div className="mb-3 md:hidden">
+              <button onClick={auj} className="mb-2 rounded-full border border-line bg-white px-4 py-1.5 text-sm font-semibold text-ink hover:border-orange">
+                Aujourd&apos;hui
+              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                  <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+                </button>
+                <span className="min-w-0 flex-1 text-center text-sm font-bold text-ink">{libelleSemaineCourt}</span>
+                <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                  <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {/* Légende */}
       {combos.length > 0 && (
@@ -388,16 +436,20 @@ export function PlanningSemaine({
             </ScrollX>
           </div>
 
-          {/* MOBILE : colonnes empilées */}
+          {/* MOBILE : colonnes empilées, swipe avec snap centré */}
           <div className="md:hidden">
-            <ScrollX className="overflow-x-auto pb-1">
+            <ScrollX className="snap-x snap-mandatory overflow-x-auto pb-1" edgeFade onScrollEl={(el) => (mobileScrollEl.current = el)}>
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 {infosJours.map((it) => {
                   const coursDuJour = cours
                     .filter((c) => c.jour_semaine === it.jv)
                     .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
                   return (
-                    <div key={it.jv} className={`rounded-xl border ${it.isToday ? "border-orange" : "border-line"} bg-paper-2/40`}>
+                    <div
+                      key={it.jv}
+                      data-today={it.isToday ? "true" : undefined}
+                      className={`snap-center rounded-xl border ${it.isToday ? "border-orange" : "border-line"} bg-paper-2/40`}
+                    >
                       <div className={`rounded-t-xl border-b px-2 py-2 text-center ${it.isToday ? "border-orange/40 bg-orange-50" : "border-line"}`}>
                         <div className={`text-xs font-bold uppercase tracking-wide ${it.isToday ? "text-orange" : "text-smoke"}`}>{it.court}</div>
                         <div className={`text-sm font-semibold ${it.isToday ? "text-orange" : "text-ink"}`}>{it.date}</div>

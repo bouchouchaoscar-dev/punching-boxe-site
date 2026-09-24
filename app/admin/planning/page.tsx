@@ -281,14 +281,14 @@ export default function PlanningPage() {
       <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-4 sm:p-6">
         {tab === "calendrier" && (
           <>
-            {/* Barre d'outils : sélection, reprise S-1, envoi planning (+ badge) */}
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            {/* Barre d'outils : mobile = empilé pleine largeur ; desktop = ligne. */}
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
               <button
                 onClick={() => {
                   setSelectionMode((v) => !v);
                   setSelected(new Set());
                 }}
-                className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                className={`w-full rounded-full border px-4 py-2 text-center text-sm font-semibold md:w-auto ${
                   selectionMode ? "border-orange bg-orange-50 text-orange" : "border-line bg-white text-ink hover:border-orange"
                 }`}
               >
@@ -296,13 +296,13 @@ export default function PlanningPage() {
               </button>
               <button
                 onClick={ouvrirReprise}
-                className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange"
+                className="w-full rounded-full border border-line bg-white px-4 py-2 text-center text-sm font-semibold text-ink hover:border-orange md:w-auto"
               >
                 Reprendre les profs de la semaine passée
               </button>
-              <div className="ml-auto flex items-center gap-2">
+              <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center">
                 {envoiPreview && envoiPreview.aEnvoyer > 0 && (
-                  <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange">
+                  <span className="rounded-full bg-orange-50 px-3 py-1 text-center text-xs font-semibold text-orange">
                     Modifications non envoyées à {envoiPreview.aEnvoyer} prof{envoiPreview.aEnvoyer > 1 ? "s" : ""}
                   </span>
                 )}
@@ -310,7 +310,7 @@ export default function PlanningPage() {
                   onClick={() => setEnvoiModal(true)}
                   disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
                   title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Aucune modification à envoyer" : "Envoyer le planning aux profs concernés"}
-                  className="rounded-full bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-full bg-ink px-4 py-2 text-center text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40 md:w-auto"
                 >
                   Envoyer le planning aux profs
                 </button>
