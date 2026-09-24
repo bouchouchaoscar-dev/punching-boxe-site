@@ -312,7 +312,7 @@ export default function PlanningPage() {
         }
       />
 
-      <div className="mt-4 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
+      <div className="mt-3 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
         {tab === "calendrier" && (
           <>
             <PlanningSemaine
@@ -584,7 +584,7 @@ function PlanningCoach() {
         title="Planning"
         description="Les cours de la semaine et les profs affectés (lecture seule)."
       />
-      <div className="mt-4 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
+      <div className="mt-3 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
         <PlanningSemaine
           semaineISO={semaineISO}
           cours={data.cours.filter((c) => c.actif)}

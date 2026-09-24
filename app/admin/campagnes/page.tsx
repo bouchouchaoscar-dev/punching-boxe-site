@@ -109,7 +109,7 @@ export default function CampagnesPage() {
         }
         actions={
           <>
-            {/* Desktop : les deux boutons secondaires inline (inchangés). */}
+            {/* Desktop : boutons secondaires + action principale (inchangés). */}
             <Link
               href="/admin/campagnes/templates"
               className="hidden rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink md:inline-flex"
@@ -122,30 +122,49 @@ export default function CampagnesPage() {
             >
               🕓 Planifier une campagne
             </Link>
-            {/* Action principale — compacte sur mobile. */}
             <Link
               href="/admin/campagnes/nouvelle"
-              className="whitespace-nowrap rounded-full bg-orange px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90 md:px-5 md:py-2.5"
+              className="hidden whitespace-nowrap rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90 md:inline-flex"
             >
-              + Nouvelle<span className="hidden md:inline"> campagne</span>
+              + Nouvelle campagne
             </Link>
-            {/* Mobile : actions secondaires dans le menu « ⋯ ». */}
-            <div className="md:hidden">
-              <OverflowMenu
-                actions={[
-                  { label: "Modèles", icon: <FileText className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/templates") },
-                  { label: "Planifier une campagne", icon: <Clock className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/nouvelle?planifier=1") },
-                ]}
-              />
-            </div>
+            {/* Mobile : sélecteur de type compact à droite du titre. */}
+            {campagnes.length > 0 && (
+              <div className="md:hidden">
+                <SelectMenu
+                  value={filtre}
+                  onChange={setFiltre}
+                  label="Type"
+                  compact
+                  align="right"
+                  variant={filtre === "tous" ? "neutre" : "accent"}
+                  options={FILTRES_TYPE.map((f) => ({ value: f.key, label: f.label }))}
+                />
+              </div>
+            )}
           </>
         }
       />
 
+      {/* Mobile : ligne 2 — « + Nouvelle campagne » pleine largeur + « ⋯ » (même hauteur). */}
+      <div className="mt-3 flex items-stretch gap-2 md:hidden">
+        <Link
+          href="/admin/campagnes/nouvelle"
+          className="flex h-11 flex-1 items-center justify-center whitespace-nowrap rounded-full bg-orange text-sm font-bold text-white transition-colors hover:bg-orange/90"
+        >
+          + Nouvelle campagne
+        </Link>
+        <OverflowMenu
+          actions={[
+            { label: "Modèles", icon: <FileText className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/templates") },
+            { label: "Planifier une campagne", icon: <Clock className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/nouvelle?planifier=1") },
+          ]}
+        />
+      </div>
+
       {!loading && campagnes.length > 0 && (
-        // Sélecteur de type partagé (desktop + mobile), aligné à gauche au-dessus
-        // du tableau ; style accent dès qu'un type autre que « Tous » est actif.
-        <div className="mt-6">
+        // Desktop : sélecteur de type au-dessus du tableau (le mobile l'a dans l'en-tête).
+        <div className="mt-6 hidden md:block">
           <SelectMenu
             value={filtre}
             onChange={setFiltre}

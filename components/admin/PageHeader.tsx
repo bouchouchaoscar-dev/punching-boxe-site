@@ -20,15 +20,17 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 md:gap-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
+    <div>
+      {/* Titre + actions sur la MÊME ligne → actions centrées verticalement sur
+          la ligne du titre (align center). Le compteur passe dessous. */}
+      <div className="flex items-center justify-between gap-3 md:gap-4">
+        <div className="flex min-w-0 items-center gap-2">
           <h1 className={`font-display uppercase leading-tight text-ink ${titleClassName}`}>{title}</h1>
           {description && <InfoHint content={description} className="shrink-0" />}
         </div>
-        {count != null && <p className="mt-1 text-sm text-smoke">{count}</p>}
+        {actions && <div className="flex shrink-0 items-center gap-2 md:gap-3">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2 md:gap-3">{actions}</div>}
+      {count != null && <p className="mt-1 text-sm text-smoke">{count}</p>}
     </div>
   );
 }

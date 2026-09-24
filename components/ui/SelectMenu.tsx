@@ -15,6 +15,7 @@ export function SelectMenu({
   label,
   variant = "neutre",
   align = "left",
+  compact = false,
   className = "",
 }: {
   value: string;
@@ -23,6 +24,7 @@ export function SelectMenu({
   label?: string; // préfixe optionnel, ex. « Type »
   variant?: "accent" | "neutre";
   align?: "left" | "right";
+  compact?: boolean; // pastille visuellement plus basse (zone de tap 44px conservée)
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -48,20 +50,40 @@ export function SelectMenu({
       ? "border-orange bg-orange-50 text-orange"
       : "border-line bg-white text-ink hover:border-orange";
 
+  const contenu = (
+    <>
+      <span className="truncate">
+        {label ? `${label} : ` : ""}
+        {current?.label}
+      </span>
+      <ChevronDown className="h-4 w-4 shrink-0" strokeWidth={2.2} />
+    </>
+  );
+
   return (
     <div ref={ref} className={`relative ${className}`}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`flex h-11 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors ${styles}`}
-      >
-        <span className="truncate">
-          {label ? `${label} : ` : ""}
-          {current?.label}
-        </span>
-        <ChevronDown className="h-4 w-4 shrink-0" strokeWidth={2.2} />
-      </button>
+      {compact ? (
+        // Zone de tap 44px (bouton transparent) + pastille visible plus basse.
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex h-11 max-w-full items-center"
+        >
+          <span className={`flex h-9 max-w-full items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${styles}`}>
+            {contenu}
+          </span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className={`flex h-11 max-w-full items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors ${styles}`}
+        >
+          {contenu}
+        </button>
+      )}
       {open && (
         <div
           role="menu"
