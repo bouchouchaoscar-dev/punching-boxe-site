@@ -465,7 +465,9 @@ export function filtrerAnciens<
 
 // ---- Variables de personnalisation (texte) ----
 export const VARIABLES: { token: string; label: string }[] = [
-  { token: "{{prenom}}", label: "Prénom" },
+  { token: "{{salutation}}", label: "Ouverture (Bonjour Marie, / Bonjour, — adaptée mineur & foyer)" },
+  { token: "{{concerne}}", label: "Précision destinataire (Ce message concerne … — si mineur ou foyer)" },
+  { token: "{{prenom}}", label: "Prénom (usage libre ; joint les prénoms d'un foyer)" },
   { token: "{{nom}}", label: "Nom" },
   { token: "{{formule}}", label: "Formule" },
   { token: "{{montant}}", label: "Montant" },
@@ -558,9 +560,9 @@ export const DEFAULT_TEMPLATES: {
     nom: "Mail de rentrée septembre",
     categorie: "informatif",
     objet: `C'est la rentrée au ${CLUB.nomCourt} ! ${CLUB.emoji}`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver au club !
+{{concerne}}La nouvelle saison {{saison}} commence bientôt et nous avons hâte de vous retrouver au club !
 
 Les activités reprennent en septembre.
 Retrouvez tous les horaires sur notre site.
@@ -572,9 +574,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Mail de fin de saison juin",
     categorie: "informatif",
     objet: `Fin de saison — Merci et à l'année prochaine ! ${CLUB.emoji}`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-La saison se termine bientôt et nous tenions à vous remercier pour votre fidélité cette année.
+{{concerne}}La saison se termine bientôt et nous tenions à vous remercier pour votre fidélité cette année.
 
 Les inscriptions pour la saison prochaine ouvriront en juin. Restez connectés !
 
@@ -585,9 +587,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Annonce modification horaires",
     categorie: "informatif",
     objet: "📅 Modification des horaires",
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Nous vous informons d'une modification des horaires.
+{{concerne}}Nous vous informons d'une modification des horaires.
 
 [Détaillez ici les changements.]
 
@@ -600,9 +602,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Fermeture pendant les vacances scolaires",
     categorie: "informatif",
     objet: "🗓️ Pas de cours pendant les vacances",
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas d'activité sur cette période.
+{{concerne}}Petit rappel : le club sera fermé pendant les vacances scolaires, il n'y aura pas d'activité sur cette période.
 
 Tout reprendra normalement à la fin des vacances. Profitez-en pour récupérer, et on se retrouve en pleine forme au club !
 
@@ -613,9 +615,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Événement / stage / compétition à venir",
     categorie: "informatif",
     objet: `${CLUB.emoji} Un événement à ne pas manquer`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Un événement se prépare au club et on aimerait vous y voir !
+{{concerne}}Un événement se prépare au club et on aimerait vous y voir !
 
 [Précisez ici : date, lieu, type (stage, compétition, gala), horaires et modalités.]
 
@@ -630,9 +632,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Relance certificat médical manquant",
     categorie: "relance_admin",
     objet: "⚠️ Document manquant — Certificat médical",
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Votre dossier d'inscription est presque complet ! Il nous manque votre certificat médical pour finaliser votre inscription.
+{{concerne}}Votre dossier d'inscription est presque complet ! Il nous manque votre certificat médical pour finaliser votre inscription.
 
 Connectez-vous à votre espace adhérent pour le déposer en quelques clics.
 
@@ -645,9 +647,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Relance paiement espèces en attente",
     categorie: "relance_admin",
     objet: `💰 Règlement en attente — ${CLUB.nomCourt}`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Nous n'avons pas encore reçu votre règlement de {{montant}}€ pour la saison {{saison}}.
+{{concerne}}Nous n'avons pas encore reçu votre règlement de {{montant}}€ pour la saison {{saison}}.
 
 Pensez à régler en espèces à l'accueil du club lors de votre prochaine venue.
 
@@ -658,9 +660,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Relance dossier incomplet (pièce manquante)",
     categorie: "relance_admin",
     objet: "📄 Une pièce manque à votre dossier",
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Votre inscription est presque finalisée : il manque une pièce à votre dossier pour qu'il soit complet.
+{{concerne}}Votre inscription est presque finalisée : il manque une pièce à votre dossier pour qu'il soit complet.
 
 Connectez-vous à votre espace adhérent pour voir les documents manquants et les déposer en quelques clics.
 
@@ -675,9 +677,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Mail de lancement des inscriptions",
     categorie: "reinscription",
     objet: `Les inscriptions {{saison}} sont ouvertes ! ${CLUB.emoji}`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-La nouvelle saison approche, et on a une bonne nouvelle : le ${CLUB.nomCourt} passe au tout numérique pour vous simplifier la vie.
+{{concerne}}La nouvelle saison approche, et on a une bonne nouvelle : le ${CLUB.nomCourt} passe au tout numérique pour vous simplifier la vie.
 
 Fini les papiers à remplir sur place : votre inscription se fait désormais 100% en ligne, en quelques minutes, depuis votre canapé.
 
@@ -702,9 +704,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Réinscription — saison dernière",
     categorie: "reinscription",
     objet: `${CLUB.emoji} On vous attend pour la saison {{saison}} !`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver au club cette année !
+{{concerne}}Vous étiez des nôtres la saison dernière, et on espère bien vous retrouver au club cette année !
 
 Les inscriptions pour la saison {{saison}} sont ouvertes. La réinscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement en une ou plusieurs fois, ou en espèces à l'accueil du club, comme vous préférez.
 
@@ -717,9 +719,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Réinscription — tièdes",
     categorie: "reinscription",
     objet: `${CLUB.emoji} Votre place vous attend pour la saison {{saison}}`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Cela fait quelque temps qu'on ne vous a pas vu au club, et on aimerait beaucoup vous retrouver pour la saison {{saison}}.
+{{concerne}}Cela fait quelque temps qu'on ne vous a pas vu au club, et on aimerait beaucoup vous retrouver pour la saison {{saison}}.
 
 L'inscription se fait désormais en ligne, en quelques minutes, depuis votre espace adhérent : paiement par carte (en une ou plusieurs fois) ou en espèces à l'accueil du club.
 
@@ -738,9 +740,9 @@ L'équipe du ${CLUB.nomCourt}`,
     nom: "Réactivation — anciens (revenez au club)",
     categorie: "reactivation",
     objet: `${CLUB.emoji} Et si vous repreniez le chemin du club ?`,
-    contenu: `Bonjour {{prenom}},
+    contenu: `{{salutation}}
 
-Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le ${CLUB.nomCourt} a évolué depuis, et on serait ravis de vous revoir parmi nous.
+{{concerne}}Cela fait un moment qu'on ne vous a pas croisé au club (votre dernière saison remonte à {{derniere_saison}}). Le ${CLUB.nomCourt} a évolué depuis, et on serait ravis de vous revoir parmi nous.
 
 Tout est désormais en ligne : vous pouvez vous réinscrire en quelques minutes depuis votre espace adhérent, régler par carte (en une ou plusieurs fois) ou en espèces à l'accueil du club.
 

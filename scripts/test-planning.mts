@@ -21,7 +21,7 @@ import {
   type PeriodeFermeture,
   type CoursEnvoi,
 } from "../lib/planning";
-import { resoudreOuverture } from "../lib/campagnes";
+import { resoudreOuverture, regrouperParEmail, remplacerVariables, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estMineur } from "../lib/pricing";
 
 let ok = 0;
@@ -297,6 +297,26 @@ console.log("— genererMailPrevenir (phrases par motif) —");
   // Lieu non reconnu → pas de préposition devinée, ligne "Lieu : …".
   const inconnu = genererMailPrevenir({ libelle: lib, motif: "annule", origine: { ...orig, salle: "Terrain municipal" }, clubNom: club });
   check(inconnu.contenu.includes("prévu de 18h à 19h, est annulé.") && inconnu.contenu.includes("Lieu : Terrain municipal (Nogent)"), "lieu non reconnu → ligne Lieu séparée");
+}
+
+console.log("— ouverture mineur/foyer dans une CAMPAGNE classique (template) —");
+{
+  const saison = "2025-2026";
+  const tpl = DEFAULT_TEMPLATES[0]; // ouverture {{salutation}}\n\n{{concerne}}
+  const rendre = (membres: PersonneEnvoi[]) => {
+    const { envois } = regrouperParEmail(membres, new Set<string>(), saison);
+    return remplacerVariables(tpl.contenu, envois[0].vars);
+  };
+  const maj = rendre([{ personKey: "a1", email: "m@x.fr", prenom: "Marie", mineur: false, saison }]);
+  check(maj.startsWith("Bonjour Marie,\n\n") && !maj.includes("{{"), "majeur → 'Bonjour Marie,' (jetons résolus)");
+  const min = rendre([{ personKey: "a2", email: "p@x.fr", prenom: "Lucas", mineur: true, saison }]);
+  check(min.startsWith("Bonjour,\n\nCe message concerne Lucas.\n\n"), "mineur → 'Bonjour,' + concerne");
+  const foyer = rendre([
+    { personKey: "a3", email: "f@x.fr", prenom: "Lucas", mineur: true, saison },
+    { personKey: "a4", email: "f@x.fr", prenom: "Inès", mineur: true, saison },
+  ]);
+  check(foyer.startsWith("Bonjour,\n\nCe message concerne Lucas et Inès.\n\n"), "foyer → concerne Lucas et Inès");
+  check(tpl.contenu.startsWith("{{salutation}}\n\n{{concerne}}"), "template mis à jour (jetons en tête)");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

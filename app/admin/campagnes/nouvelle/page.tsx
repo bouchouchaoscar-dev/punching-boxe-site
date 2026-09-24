@@ -416,6 +416,8 @@ export default function NouvelleCampagnePage() {
     nom: "Durand",
     formule: "Boxe Française",
     montant: "430",
+    salutation: "Bonjour Marie,",
+    concerne: "",
   };
 
   const filteredAdherents = adherents.filter(

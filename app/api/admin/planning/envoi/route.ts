@@ -149,10 +149,13 @@ export async function POST(request: Request) {
 
   let envoyes = 0;
   let sansEmail = 0;
+  let echecs = 0;
+  const destinataires: { nom: string; email: string | null; statut: string; envoi: string }[] = [];
   for (const l of lignes) {
     if (!aEnvoyer(l.statut)) continue;
     if (!l.email) {
       sansEmail++;
+      destinataires.push({ nom: l.nom, email: null, statut: l.statut, envoi: "sans_email" });
       // On enregistre quand même le snapshot pour ne pas re-signaler indéfiniment.
       await supabase
         .from("envois_planning")
@@ -189,10 +192,46 @@ export async function POST(request: Request) {
           { onConflict: "prof_id,semaine" },
         );
       envoyes++;
+      destinataires.push({ nom: l.nom, email: l.email, statut: l.statut, envoi: "envoye" });
     } catch (e) {
       console.error("sendPlanningProf:", e);
+      echecs++;
+      destinataires.push({ nom: l.nom, email: l.email, statut: l.statut, envoi: "echec" });
     }
   }
 
-  return NextResponse.json({ success: true, envoyes, sansEmail });
+  // Trace dans l'historique du Mailing (affichage ; le diff reste dans
+  // envois_planning). Insert tolérant aux colonnes optionnelles.
+  if (destinataires.length > 0) {
+    const objet = `Planning profs — semaine du ${semaineLabel}`;
+    const nb = destinataires.map((d) => d.statut);
+    const resume = `${nb.filter((s) => s === "nouveau").length} planning, ${nb.filter((s) => s === "maj").length} mise à jour, ${nb.filter((s) => s === "plus_de_cours").length} sans cours`;
+    const payload: Record<string, unknown> = {
+      titre: objet.slice(0, 200),
+      objet,
+      contenu: resume,
+      type: "planning_profs",
+      cible: `Semaine du ${semaineLabel}`,
+      liste_type: "planning_profs",
+      liste_filtre: { semaine },
+      nb_destinataires: destinataires.length,
+      nb_envoyes: envoyes,
+      nb_exclus: sansEmail,
+      statut: envoyes > 0 ? (echecs > 0 ? "partiel" : "envoye") : "erreur",
+      envoye_at: new Date().toISOString(),
+      destinataires_liste: destinataires,
+    };
+    const opt = ["destinataires_liste", "type", "cible", "nb_envoyes", "nb_exclus"];
+    let insErr: { message: string } | null = null;
+    for (;;) {
+      ({ error: insErr } = await supabase.from("campagnes").insert(payload));
+      if (!insErr) break;
+      const bad = opt.find((k) => insErr!.message.includes(k));
+      if (!bad) break;
+      delete payload[bad];
+    }
+    if (insErr) console.error("Insert campagne (planning profs):", insErr);
+  }
+
+  return NextResponse.json({ success: true, envoyes, sansEmail, echecs });
 }

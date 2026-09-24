@@ -18,7 +18,18 @@ const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
 const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
   campagne: { label: "Campagne", cls: "bg-orange-50 text-orange" },
   individuel: { label: "Individuel", cls: "bg-paper-2 text-ink/70" },
+  planning_cours: { label: "Planning : prévenir", cls: "bg-blue-50 text-blue-700" },
+  planning_profs: { label: "Planning profs", cls: "bg-indigo-50 text-indigo-700" },
 };
+
+// Filtres par type (barre au-dessus de l'historique).
+const FILTRES_TYPE: { key: string; label: string }[] = [
+  { key: "tous", label: "Tous" },
+  { key: "campagne", label: "Campagnes" },
+  { key: "planning_cours", label: "Planning : prévenir" },
+  { key: "planning_profs", label: "Planning profs" },
+  { key: "individuel", label: "Individuels" },
+];
 
 function dateHeure(iso: string): string {
   const d = new Date(iso);
@@ -33,6 +44,8 @@ export default function CampagnesPage() {
   const [campagnes, setCampagnes] = useState<Campagne[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [filtre, setFiltre] = useState("tous");
+  const [aSupprimer, setASupprimer] = useState<Campagne | null>(null);
 
   const load = useCallback(() => {
     fetch("/api/admin/campagnes", { headers: adminAuthHeaders(), cache: "no-store" })
@@ -58,19 +71,23 @@ export default function CampagnesPage() {
       setBusy(null);
     }
   }
-  async function supprimer(c: Campagne) {
-    if (!confirm(`Supprimer la campagne planifiée « ${c.objet} » ?`)) return;
+  async function executerSuppression() {
+    const c = aSupprimer;
+    if (!c) return;
     setBusy(c.id);
     try {
       await fetch(`/api/admin/campagnes/${c.id}`, {
         method: "DELETE",
         headers: adminAuthHeaders(),
       });
+      setASupprimer(null);
       load();
     } finally {
       setBusy(null);
     }
   }
+
+  const filtered = campagnes.filter((c) => filtre === "tous" || (c.type ?? "campagne") === filtre);
 
   return (
     <div>
@@ -112,7 +129,25 @@ export default function CampagnesPage() {
         </div>
       </div>
 
-      <div className="mt-8">
+      {!loading && campagnes.length > 0 && (
+        <div className="mt-6 flex flex-wrap gap-2">
+          {FILTRES_TYPE.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFiltre(f.key)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                filtre === f.key
+                  ? "bg-ink text-white"
+                  : "border border-line bg-white text-ink/70 hover:border-orange"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4">
         {loading ? (
           // Skeleton calqué sur le tableau (mêmes colonnes) → pas de layout
           // shift, attente perçue courte. Le reste de la page est déjà affiché.
@@ -141,7 +176,7 @@ export default function CampagnesPage() {
             </tbody>
           </table>
           </div>
-        ) : campagnes.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <div className="rounded-[1.5rem] border border-line bg-white p-12 text-center text-smoke">
             Aucun envoi pour le moment.
           </div>
@@ -161,7 +196,7 @@ export default function CampagnesPage() {
               </tr>
             </thead>
             <tbody>
-              {campagnes.map((c) => {
+              {filtered.map((c) => {
                 const planifiee =
                   c.statut === "planifiee" || c.statut === "en_cours";
                 const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
@@ -229,27 +264,28 @@ export default function CampagnesPage() {
                       )}
                     </td>
                     <td className="p-4 text-right">
-                      {c.statut === "planifiee" && (
-                        <div
-                          className="flex justify-end gap-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                      <div
+                        className="flex items-center justify-end gap-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {c.statut === "planifiee" && (
                           <button
                             onClick={() => togglePause(c)}
                             disabled={busy === c.id}
-                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                            className="text-xs font-semibold text-ink transition-colors hover:text-orange hover:underline disabled:opacity-50"
                           >
                             {c.etat === "pause" ? "Reprendre" : "Pause"}
                           </button>
-                          <button
-                            onClick={() => supprimer(c)}
-                            disabled={busy === c.id}
-                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        <button
+                          onClick={() => setASupprimer(c)}
+                          disabled={busy === c.id || c.statut === "en_cours"}
+                          title={c.statut === "en_cours" ? "Envoi en cours, suppression impossible" : ""}
+                          className="text-xs font-semibold text-red-600 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-smoke/50 disabled:no-underline"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -261,7 +297,7 @@ export default function CampagnesPage() {
             {/* Mobile (< lg) : cartes empilées, mêmes données/badges que le
                 tableau, lisibles sans scroll horizontal. */}
             <ul className="space-y-3 lg:hidden">
-              {campagnes.map((c) => {
+              {filtered.map((c) => {
                 const planifiee =
                   c.statut === "planifiee" || c.statut === "en_cours";
                 const b = STATUT_BADGE[c.statut] ?? STATUT_BADGE.brouillon;
@@ -328,27 +364,28 @@ export default function CampagnesPage() {
                         </span>
                       </div>
 
-                      {c.statut === "planifiee" && (
-                        <div
-                          className="mt-3 flex gap-2"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                      <div
+                        className="mt-3 flex gap-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {c.statut === "planifiee" && (
                           <button
                             onClick={() => togglePause(c)}
                             disabled={busy === c.id}
-                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-ink transition-colors hover:border-orange hover:text-orange disabled:opacity-50"
+                            className="text-xs font-semibold text-ink transition-colors hover:text-orange hover:underline disabled:opacity-50"
                           >
                             {c.etat === "pause" ? "Reprendre" : "Pause"}
                           </button>
-                          <button
-                            onClick={() => supprimer(c)}
-                            disabled={busy === c.id}
-                            className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-red-600 transition-colors hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        <button
+                          onClick={() => setASupprimer(c)}
+                          disabled={busy === c.id || c.statut === "en_cours"}
+                          title={c.statut === "en_cours" ? "Envoi en cours, suppression impossible" : ""}
+                          className="text-xs font-semibold text-red-600 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-smoke/50 disabled:no-underline"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );
@@ -357,6 +394,45 @@ export default function CampagnesPage() {
           </>
         )}
       </div>
+
+      {/* Confirmation de suppression (masquage de l'historique, pas de rappel des mails) */}
+      {aSupprimer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
+          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
+            <h2 className="font-display text-lg font-extrabold uppercase text-ink">
+              Supprimer de l&apos;historique
+            </h2>
+            <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
+              <p className="font-semibold text-ink">{aSupprimer.objet}</p>
+              <p className="mt-0.5 text-xs text-smoke">
+                {dateHeure(aSupprimer.envoye_at ?? aSupprimer.created_at)}
+                {" · "}
+                {aSupprimer.nb_destinataires ?? 0} destinataire
+                {(aSupprimer.nb_destinataires ?? 0) > 1 ? "s" : ""}
+              </p>
+            </div>
+            <p className="mt-3 text-sm text-smoke">
+              Les mails déjà envoyés ne sont pas rappelés, seule la trace disparaît de l&apos;historique.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setASupprimer(null)}
+                disabled={busy === aSupprimer.id}
+                className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={executerSuppression}
+                disabled={busy === aSupprimer.id}
+                className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {busy === aSupprimer.id ? "Suppression…" : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

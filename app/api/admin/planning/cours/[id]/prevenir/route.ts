@@ -163,7 +163,7 @@ export async function POST(request: Request, { params }: Ctx) {
     titre: objet.slice(0, 200),
     objet,
     contenu,
-    type: "campagne",
+    type: "planning_cours",
     cible,
     liste_type: "planning_cours",
     liste_filtre: { cours_id: id, discipline: cours.discipline, public: cours.type_adherent },
