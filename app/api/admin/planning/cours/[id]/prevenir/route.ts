@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
-import { resoudreOuverture, type PersonneEnvoi } from "@/lib/campagnes";
+import { resoudreOuverture, joindrePrenoms, type PersonneEnvoi, type DestinataireVars } from "@/lib/campagnes";
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { estMineur } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
@@ -110,20 +110,38 @@ export async function POST(request: Request, { params }: Ctx) {
     else groupes.set(e, [a]);
   }
 
-  // Aperçu : comptage + exemples d'ouverture résolus (dont un cas mineur/foyer).
+  // Aperçu : comptage + jusqu'à 3 destinataires RÉELS avec variables résolues
+  // (mêmes valeurs qu'à l'envoi : salutation/concerne/prénom/saison), un cas
+  // mineur/foyer mis en avant. Sert à l'aperçu « Aperçu pour … » de l'étape 2.
   if (body.preview) {
-    const ex = [...groupes.values()].map((membres) => {
+    const saisonRef = saisonCourante(new Date());
+    const raw = [...groupes.values()].map((membres) => {
       const ouv = resoudreOuverture(membres.map((a) => ({ prenom: a.prenom, mineur: estMineur(a.date_naissance) })));
       const special = membres.length > 1 || membres.some((a) => estMineur(a.date_naissance));
-      return { special, texte: ouv.concerne ? `${ouv.salutation} ${ouv.concerne}` : ouv.salutation };
+      const prenom = joindrePrenoms(membres.map((a) => a.prenom));
+      const vars: DestinataireVars = {
+        prenom,
+        nom: membres[0]?.nom ?? "",
+        saison: saisonRef,
+        salutation: ouv.salutation,
+        concerne: ouv.concerne,
+      };
+      return { special, label: prenom || membres[0]?.prenom || "adhérent", vars };
     });
-    ex.sort((a, b) => Number(b.special) - Number(a.special)); // met en avant un cas mineur/foyer
-    const exemples = [...new Set(ex.map((e) => e.texte))].slice(0, 3);
+    raw.sort((a, b) => Number(b.special) - Number(a.special)); // met en avant un cas mineur/foyer
+    const apercus: { label: string; vars: DestinataireVars }[] = [];
+    const vus = new Set<string>();
+    for (const r of raw) {
+      if (vus.has(r.label)) continue;
+      vus.add(r.label);
+      apercus.push({ label: r.label, vars: r.vars });
+      if (apercus.length >= 3) break;
+    }
     return NextResponse.json({
       count: cibles.length,
       emails: emails.length,
       discipline: disciplineLabel(cours.discipline),
-      exemples,
+      apercus,
     });
   }
 

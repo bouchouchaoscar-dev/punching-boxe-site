@@ -28,7 +28,7 @@ import {
 import { redirectionInterneValide } from "../lib/nav-roles";
 import { toMembrePublic } from "../lib/trombi-server";
 import type { Adherent } from "../lib/types";
-import { resoudreOuverture, regrouperParEmail, remplacerVariables, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
+import { resoudreOuverture, regrouperParEmail, remplacerVariables, jetonsInconnus, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estMineur } from "../lib/pricing";
 
 let ok = 0;
@@ -426,6 +426,41 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
   } as unknown as Adherent;
   const blob = JSON.stringify(toMembrePublic(adh, null));
   check(!/m@m\.fr|0611111111|rue Y|94130|2010-01-01|430|idSecret/.test(blob), "trombi : aucune donnée sensible (email/tel/adresse/CP/naissance/montant/id)");
+}
+
+// ---- Aperçu « Prévenir » : résolution des variables + jetons inconnus ----
+{
+  const vars = {
+    prenom: "Marie et Paul",
+    nom: "Durand",
+    saison: "2026-2027",
+    salutation: "Bonjour,",
+    concerne: "Ce message concerne Marie et Paul.",
+  };
+  // Résolution : tous les jetons connus sont remplacés (dont saison).
+  const objet = "Cours {{prenom}} — saison {{saison}}";
+  check(
+    remplacerVariables(objet, vars) === "Cours Marie et Paul — saison 2026-2027",
+    "aperçu : objet résolu (prenom + saison)",
+  );
+  const corps = "{{salutation}}\n\n{{concerne}}Le cours est annulé.";
+  check(
+    remplacerVariables(corps, vars) === "Bonjour,\n\nCe message concerne Marie et Paul.Le cours est annulé.",
+    "aperçu : corps résolu (salutation + concerne)",
+  );
+  // Une variable connue sans valeur → chaîne vide (jamais le jeton brut).
+  check(remplacerVariables("{{formule}}", vars) === "", "aperçu : variable connue vide → \"\"");
+
+  // Détection de jetons inconnus.
+  check(jetonsInconnus("Bonjour {{prenom}}, saison {{saison}}").length === 0, "jetons : aucun inconnu sur texte valide");
+  check(
+    JSON.stringify(jetonsInconnus("Salut {{prnom}} et {{club}}")) === JSON.stringify(["{{prnom}}", "{{club}}"]),
+    "jetons : détecte {{prnom}} et {{club}} (inconnus)",
+  );
+  check(
+    JSON.stringify(jetonsInconnus("{{prenom}} {{xxx}} {{xxx}}")) === JSON.stringify(["{{xxx}}"]),
+    "jetons : déduplique et ignore les connus",
+  );
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

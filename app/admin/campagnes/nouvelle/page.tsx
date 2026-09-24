@@ -11,6 +11,7 @@ import {
   filtrerAdherents,
   filtrerAnciens,
   remplacerVariables,
+  jetonsInconnus,
   type SmartListKey,
   type SegmentAncienKey,
   type DisciplineKey,
@@ -419,6 +420,9 @@ export default function NouvelleCampagnePage() {
     salutation: "Bonjour Marie,",
     concerne: "",
   };
+
+  // Garde-fou : jetons {{xxx}} non reconnus (jamais résolus à l'envoi).
+  const jetonsKo = jetonsInconnus(`${objet}\n${contenu}`);
 
   const filteredAdherents = adherents.filter(
     (a) =>
@@ -1051,6 +1055,11 @@ export default function NouvelleCampagnePage() {
                     </>
                   )}
                 </p>
+                {jetonsKo.length > 0 && (
+                  <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-600">
+                    ⚠️ Variable{jetonsKo.length > 1 ? "s" : ""} non résolue{jetonsKo.length > 1 ? "s" : ""} : {jetonsKo.join(", ")} — partira telle quelle dans le mail. Vérifiez l&apos;objet et le message.
+                  </p>
+                )}
                 <div className="mt-5 flex justify-center gap-3">
                   <button
                     onClick={() => setConfirmOpen(false)}

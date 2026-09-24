@@ -544,6 +544,39 @@ export function remplacerVariables(texte: string, v: DestinataireVars): string {
     .replace(/\{\{concerne\}\}/g, v.concerne ?? "");
 }
 
+// Noms des variables RECONNUES (résolues par remplacerVariables). Source unique
+// pour la détection des jetons inconnus (aperçu + garde-fou avant envoi).
+export const VARIABLES_CONNUES = [
+  "prenom",
+  "nom",
+  "formule",
+  "montant",
+  "saison",
+  "derniere_saison",
+  "disciplines",
+  "recap_reglement",
+  "salutation",
+  "concerne",
+] as const;
+
+// Jetons {{xxx}} présents dans le texte mais NON reconnus (donc jamais résolus
+// à l'envoi → partiraient tels quels ou vides). Renvoie la liste dédupliquée,
+// sous forme « {{xxx}} », dans l'ordre d'apparition.
+export function jetonsInconnus(texte: string): string[] {
+  const connus = new Set<string>(VARIABLES_CONNUES);
+  const out: string[] = [];
+  const vus = new Set<string>();
+  const re = /\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(texte)) !== null) {
+    const nom = m[1];
+    if (connus.has(nom) || vus.has(nom)) continue;
+    vus.add(nom);
+    out.push(`{{${nom}}}`);
+  }
+  return out;
+}
+
 // ---- Catégories de templates (4 familles) ----
 export type CategorieTemplate =
   | "informatif"

@@ -37,6 +37,7 @@ import {
   type Affectation,
   type PeriodeFermeture,
 } from "@/lib/planning";
+import { remplacerVariables, jetonsInconnus, type DestinataireVars } from "@/lib/campagnes";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -1867,7 +1868,12 @@ function PrevenirPanel({
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
   const [contenuEdite, setContenuEdite] = useState(false);
-  const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
+  const [cible, setCible] = useState<{
+    count: number;
+    emails: number;
+    apercus: { label: string; vars: DestinataireVars }[];
+  } | null>(null);
+  const [apercuIdx, setApercuIdx] = useState(0);
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
   const [resultat, setResultat] = useState<{ emails: number; personnes: number } | null>(null);
@@ -1879,9 +1885,13 @@ function PrevenirPanel({
       body: JSON.stringify({ preview: true }),
     })
       .then((r) => r.json())
-      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0 }))
-      .catch(() => setCible({ count: 0, emails: 0 }));
+      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0, apercus: d.apercus ?? [] }))
+      .catch(() => setCible({ count: 0, emails: 0, apercus: [] }));
   }, [cours.id]);
+
+  // Jetons non résolus (inconnus) présents dans l'objet ou le message.
+  const jetonsKo = jetonsInconnus(`${objet}\n${contenu}`);
+  const apercuActif = cible?.apercus?.[apercuIdx] ?? cible?.apercus?.[0] ?? null;
 
   const origPlage = plageHoraire(cours.heure_debut, cours.heure_fin);
   const origDateFr = formatDateCours(origDateISO);
@@ -2125,6 +2135,43 @@ function PrevenirPanel({
               </span>
             </label>
 
+            {/* Aperçu en lecture seule : objet + texte avec TOUTES les variables
+                résolues pour un destinataire réel de la cible (mineur/foyer en
+                priorité). Mis à jour en direct. Sélecteur si plusieurs exemples. */}
+            {apercuActif && (
+              <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wide text-smoke">
+                    Aperçu pour {apercuActif.label}
+                  </span>
+                  {(cible?.apercus.length ?? 0) > 1 && (
+                    <select
+                      value={apercuIdx}
+                      onChange={(e) => setApercuIdx(Number(e.target.value))}
+                      className="rounded-full border border-line bg-white px-2 py-1 text-xs text-ink outline-none focus:border-orange"
+                    >
+                      {cible!.apercus.map((a, i) => (
+                        <option key={i} value={i}>
+                          {a.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {jetonsKo.length > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-red-600">
+                    Variable inconnue : {jetonsKo.join(", ")}
+                  </p>
+                )}
+                <p className="mt-2 text-sm font-bold text-ink">
+                  {remplacerVariables(objet, apercuActif.vars) || <span className="text-smoke">(objet vide)</span>}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-ink/80">
+                  {remplacerVariables(contenu, apercuActif.vars)}
+                </p>
+              </div>
+            )}
+
             {confirm ? (
               <div className="mt-4 rounded-xl border border-orange/30 bg-orange-50 p-3">
                 <p className="text-sm text-ink">
@@ -2132,6 +2179,11 @@ function PrevenirPanel({
                   {(cible?.count ?? 0) > 1 ? "s" : ""} ? Les désinscrits sont exclus. Action
                   irréversible.
                 </p>
+                {jetonsKo.length > 0 && (
+                  <p className="mt-2 text-sm font-semibold text-red-600">
+                    ⚠️ Variable{jetonsKo.length > 1 ? "s" : ""} non résolue{jetonsKo.length > 1 ? "s" : ""} : {jetonsKo.join(", ")} — partira telle quelle. Vérifiez le texte.
+                  </p>
+                )}
                 <div className="mt-3 flex gap-2">
                   <button
                     onClick={() => setConfirm(false)}
