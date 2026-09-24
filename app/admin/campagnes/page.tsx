@@ -8,6 +8,7 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 import { textesSuppressionHistorique, type Campagne } from "@/lib/campagnes";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { OverflowMenu } from "@/components/ui/OverflowMenu";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 
 const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
@@ -142,21 +143,34 @@ export default function CampagnesPage() {
       />
 
       {!loading && campagnes.length > 0 && (
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
-          {FILTRES_TYPE.map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFiltre(f.key)}
-              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                filtre === f.key
-                  ? "bg-ink text-white"
-                  : "border border-line bg-white text-ink/70 hover:border-orange"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        <>
+          {/* Mobile : sélecteur compact (les pastilles débordaient à droite). */}
+          <div className="mt-6 md:hidden">
+            <SelectMenu
+              value={filtre}
+              onChange={setFiltre}
+              label="Type"
+              variant={filtre === "tous" ? "neutre" : "accent"}
+              options={FILTRES_TYPE.map((f) => ({ value: f.key, label: f.label }))}
+            />
+          </div>
+          {/* Desktop : pastilles inchangées. */}
+          <div className="mt-6 hidden flex-wrap gap-2 md:flex">
+            {FILTRES_TYPE.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setFiltre(f.key)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  filtre === f.key
+                    ? "bg-ink text-white"
+                    : "border border-line bg-white text-ink/70 hover:border-orange"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
 
       <div className="mt-4">

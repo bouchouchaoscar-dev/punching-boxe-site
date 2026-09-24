@@ -7,6 +7,7 @@ import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { OverflowMenu } from "@/components/ui/OverflowMenu";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import { PlanningSemaine } from "@/components/admin/PlanningSemaine";
 import {
   planningActif,
@@ -282,15 +283,27 @@ export default function PlanningPage() {
       <PageHeader
         title="Planning"
         description="Grille hebdomadaire des cours, affectation des profs et périodes de fermeture."
+        actions={
+          // Mobile : sélecteur de sous-page à droite du titre (les onglets
+          // pleine ligne débordaient à 360px). Desktop : onglets inchangés.
+          <div className="md:hidden">
+            <SelectMenu
+              value={tab}
+              onChange={(v) => setTab(v as Tab)}
+              options={TABS.map((t) => ({ value: t.key, label: t.label }))}
+              align="right"
+            />
+          </div>
+        }
       />
 
-      {/* Onglets — une seule ligne compacte (défilement horizontal si besoin) */}
-      <div className="mt-6 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
+      {/* Onglets — desktop uniquement (mobile : sélecteur dans l'en-tête) */}
+      <div className="mt-6 hidden flex-wrap gap-2 md:flex">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
               tab === t.key
                 ? "bg-ink text-white"
                 : "border border-line bg-white text-ink/70 hover:border-orange"

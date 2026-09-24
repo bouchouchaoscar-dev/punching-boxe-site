@@ -246,7 +246,7 @@ export function Dashboard() {
     <div>
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-display text-4xl font-black uppercase text-ink">Tableau de bord</h1>
+          <h1 className="font-display text-2xl font-black uppercase text-ink md:text-4xl">Tableau de bord</h1>
           <p className="mt-1 text-smoke">
             {enAll ? "Toutes les saisons" : `Saison ${selectedSaison}`}
             {entry?.enCours ? " (en cours)" : ""}
