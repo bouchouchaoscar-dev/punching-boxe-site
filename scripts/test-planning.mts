@@ -467,11 +467,19 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
 
 // ---- Validation du format email (source unique) ----
 {
-  const valides = ["a@b.fr", "marie.durand@gmail.com", "x+tag@sous.domaine.co.uk", "MARIE@GMAIL.COM", "  jean@club.fr  "];
+  const valides = [
+    "a@b.fr", "marie.durand@gmail.com", "x+tag@sous.domaine.co.uk", "MARIE@GMAIL.COM", "  jean@club.fr  ",
+    // Non-régression inscription en ligne (un faux refus = une adhésion perdue).
+    "prenom.nom+club@gmail.com", "jean-marc@mail.univ-paris.fr", "o'brien@free.fr",
+    "contact@asso.photography", "ANNE@Orange.FR", "a_b@sub.domaine.co.uk", "123@chiffres.fr", "x@y.io",
+  ];
   for (const e of valides) check(estEmailValide(e), `email valide : ${JSON.stringify(e)}`);
   const invalides = [
     "", " ", "a@b", "a@b.", "a@.fr", "@b.fr", "no-at.fr",
     "jean dupont@club.fr", "jean@ club.fr", "prénom@club.fr", "a@b_c.fr", "deux@@b.fr",
+    // Cas de refus explicitement contrôlés.
+    "sans-at.fr", "deux@@b.fr", "espace interne@club.fr", "domaine@sanspoint",
+    "fin@point.", "@premier.fr", "vide@",
   ];
   for (const e of invalides) check(!estEmailValide(e), `email invalide : ${JSON.stringify(e)}`);
   // Normalisation : trim + minuscules.
