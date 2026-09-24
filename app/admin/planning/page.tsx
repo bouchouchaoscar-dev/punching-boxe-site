@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { adminAuthHeaders } from "@/lib/admin-auth";
+import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { PlanningSemaine } from "@/components/admin/PlanningSemaine";
@@ -22,9 +22,11 @@ import {
   disciplineLabel,
   publicLabel,
   couleurCours,
+  formatDureeHeures,
   MSG_HISTORIQUE_COURS,
   DISCIPLINES_COURS,
   JOURS,
+  type StatProf,
   type Prof,
   type Cours,
   type Affectation,
@@ -37,6 +39,8 @@ const jsonHeaders = () => ({ "Content-Type": "application/json", ...adminAuthHea
 
 export default function PlanningPage() {
   const actif = planningActif();
+  const [role, setRole] = useState<string | null>(null);
+  useEffect(() => setRole(getAdminRole()), []);
   const [tab, setTab] = useState<Tab>("calendrier");
   const [profs, setProfs] = useState<Prof[]>([]);
   const [cours, setCours] = useState<Cours[]>([]);
@@ -66,7 +70,7 @@ export default function PlanningPage() {
   }, []);
 
   const chargerBase = useCallback(() => {
-    if (!actif) return;
+    if (!actif || role === "coach") return; // le coach a sa propre vue lecture seule
     fetch("/api/admin/planning/profs", { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setProfs(d.profs ?? []))
@@ -79,10 +83,10 @@ export default function PlanningPage() {
       .then((r) => r.json())
       .then((d) => setPeriodes(d.periodes ?? []))
       .catch(() => {});
-  }, [actif]);
+  }, [actif, role]);
 
   const chargerAffectations = useCallback(() => {
-    if (!actif) return;
+    if (!actif || role === "coach") return;
     fetch(`/api/admin/planning/affectations?semaine=${semaineISO}`, {
       headers: adminAuthHeaders(),
       cache: "no-store",
@@ -95,7 +99,7 @@ export default function PlanningPage() {
       .then((r) => r.json())
       .then((d) => setEnvoiPreview({ aEnvoyer: d.aEnvoyer ?? 0, profs: d.profs ?? [] }))
       .catch(() => setEnvoiPreview(null));
-  }, [actif, semaineISO]);
+  }, [actif, semaineISO, role]);
 
   useEffect(() => chargerBase(), [chargerBase]);
   useEffect(() => chargerAffectations(), [chargerAffectations]);
@@ -238,6 +242,9 @@ export default function PlanningPage() {
       </div>
     );
   }
+
+  // Coach : vue LECTURE SEULE (données via /api/coach/planning, aucune action).
+  if (role === "coach") return <PlanningCoach />;
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "calendrier", label: "Calendrier" },
@@ -486,6 +493,55 @@ export default function PlanningPage() {
           {toast}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Vue COACH — planning en lecture seule (aucune action)
+// ============================================================================
+function PlanningCoach() {
+  const [semaineISO, setSemaineISO] = useState(() => toISODate(lundiDeLaSemaine(new Date())));
+  const [data, setData] = useState<{
+    cours: Cours[];
+    affectations: Affectation[];
+    profs: Prof[];
+    periodes: PeriodeFermeture[];
+  }>({ cours: [], affectations: [], profs: [], periodes: [] });
+
+  useEffect(() => {
+    fetch(`/api/coach/planning?semaine=${semaineISO}`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) =>
+        setData({ cours: d.cours ?? [], affectations: d.affectations ?? [], profs: d.profs ?? [], periodes: d.periodes ?? [] }),
+      )
+      .catch(() => {});
+  }, [semaineISO]);
+
+  function decaler(deltaJours: number) {
+    const [y, m, d] = semaineISO.split("-").map(Number);
+    const base = new Date(y, m - 1, d);
+    base.setDate(base.getDate() + deltaJours);
+    setSemaineISO(toISODate(lundiDeLaSemaine(base)));
+  }
+
+  return (
+    <div className="max-w-5xl">
+      <h1 className="font-display text-4xl font-black uppercase text-ink">Planning</h1>
+      <p className="mt-2 text-sm text-smoke">Les cours de la semaine et les profs affectés (lecture seule).</p>
+      <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-4 sm:p-6">
+        <PlanningSemaine
+          semaineISO={semaineISO}
+          cours={data.cours.filter((c) => c.actif)}
+          affectations={data.affectations}
+          profs={data.profs}
+          periodes={data.periodes}
+          onPrev={() => decaler(-7)}
+          onNext={() => decaler(7)}
+          onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
+          readOnly
+        />
+      </div>
     </div>
   );
 }
@@ -1082,6 +1138,7 @@ function ProfsTab({
   flash: (m: string) => void;
 }) {
   const vide = { nom: "", prenom: "", email: "", telephone: "" };
+  const [vue, setVue] = useState<"profs" | "heures">("profs");
   const [form, setForm] = useState({ ...vide });
   const [editId, setEditId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -1203,6 +1260,23 @@ function ProfsTab({
   }
 
   return (
+    <div>
+      <div className="mb-4 flex gap-2">
+        {(["profs", "heures"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setVue(v)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+              vue === v ? "bg-ink text-white" : "border border-line bg-white text-ink/70 hover:border-orange"
+            }`}
+          >
+            {v === "profs" ? "Profs" : "Heures"}
+          </button>
+        ))}
+      </div>
+      {vue === "heures" ? (
+        <StatsHeures />
+      ) : (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
       <div className="rounded-xl border border-line p-4">
         <h3 className="font-display text-base font-extrabold uppercase text-ink">
@@ -1392,6 +1466,175 @@ function ProfsTab({
             })()}
           </div>
         </div>
+      )}
+    </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Stats d'heures profs (ADMIN uniquement) — sous-vue de l'onglet Profs
+// ============================================================================
+type StatsData = {
+  parProf: StatProf[];
+  totalHeuresRealisees: number;
+  totalHeuresPrevues: number;
+  totalRealises: number;
+  totalPrevus: number;
+};
+function StatsHeures() {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const [mode, setMode] = useState<"mois" | "saison">("mois");
+  const [annee, setAnnee] = useState(now.getFullYear());
+  const [mois, setMois] = useState(now.getMonth());
+  const [data, setData] = useState<StatsData | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const { debut, fin, label, fichier } = useMemo(() => {
+    if (mode === "saison") {
+      const startY = now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1;
+      return { debut: `${startY}-09-01`, fin: `${startY + 1}-06-30`, label: `Saison ${startY}-${startY + 1}`, fichier: `heures-profs-saison-${startY}-${startY + 1}` };
+    }
+    const dernier = new Date(annee, mois + 1, 0).getDate();
+    return {
+      debut: `${annee}-${pad(mois + 1)}-01`,
+      fin: `${annee}-${pad(mois + 1)}-${pad(dernier)}`,
+      label: new Date(annee, mois, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+      fichier: `heures-profs-${annee}-${pad(mois + 1)}`,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, annee, mois]);
+
+  useEffect(() => {
+    fetch(`/api/admin/planning/stats?debut=${debut}&fin=${fin}`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setData(d?.parProf ? d : null))
+      .catch(() => setData(null));
+  }, [debut, fin]);
+
+  function decalerMois(delta: number) {
+    const d = new Date(annee, mois + delta, 1);
+    setAnnee(d.getFullYear());
+    setMois(d.getMonth());
+  }
+  function toggle(id: string) {
+    setOpen((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  const csvCell = (s: string) => (/[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  function exportCSV() {
+    if (!data) return;
+    const sep = ";";
+    const lignes = [["Prof", "Date", "Jour", "Horaire", "Libellé", "Discipline", "Durée (h)", "Statut"].join(sep)];
+    for (const p of data.parProf)
+      for (const o of p.occurrences)
+        lignes.push(
+          [p.nom, o.date, jourLong(o.jour), `${heureFr(o.heure_debut)}-${heureFr(o.heure_fin)}`, o.libelle, disciplineLabel(o.discipline), String(o.dureeH).replace(".", ","), o.realise ? "réalisé" : "prévu"]
+            .map(csvCell)
+            .join(sep),
+        );
+    const blob = new Blob(["﻿" + lignes.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${fichier}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  const vide = !data || data.parProf.length === 0;
+
+  return (
+    <div>
+      {/* Contrôles de période */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1">
+          {(["mois", "saison"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mode === m ? "bg-ink text-white" : "border border-line bg-white text-ink/70 hover:border-orange"}`}
+            >
+              {m === "mois" ? "Par mois" : "Saison entière"}
+            </button>
+          ))}
+        </div>
+        {mode === "mois" && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => decalerMois(-1)} aria-label="Mois précédent" className="flex h-8 w-8 items-center justify-center rounded-full border border-line hover:border-orange">‹</button>
+            <span className="min-w-[9rem] text-center text-sm font-bold capitalize text-ink">{label}</span>
+            <button onClick={() => decalerMois(1)} aria-label="Mois suivant" className="flex h-8 w-8 items-center justify-center rounded-full border border-line hover:border-orange">›</button>
+          </div>
+        )}
+        {mode === "saison" && <span className="text-sm font-bold text-ink">{label}</span>}
+        <button
+          onClick={exportCSV}
+          disabled={vide}
+          title={vide ? "Aucune donnée à exporter" : "Exporter en CSV (Excel)"}
+          className="ml-auto rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {vide ? (
+        <p className="rounded-xl border border-dashed border-line bg-paper-2/40 py-8 text-center text-sm text-smoke">
+          Aucune heure sur cette période.
+        </p>
+      ) : (
+        <>
+          <ul className="space-y-2">
+            {data!.parProf.map((p) => {
+              const ouvert = open.has(p.prof_id);
+              return (
+                <li key={p.prof_id} className={`rounded-xl border border-line ${p.actif ? "bg-white" : "bg-paper-2 opacity-70"}`}>
+                  <button onClick={() => toggle(p.prof_id)} className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-paper-2/50">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-ink">
+                        {p.nom}
+                        {!p.actif && <span className="ml-2 rounded-full bg-paper-2 px-2 py-0.5 text-[10px] font-semibold text-smoke">archivé</span>}
+                      </p>
+                      <p className="truncate text-xs text-smoke">
+                        Réalisé : <strong className="text-ink">{p.nbRealises}</strong> cours · {formatDureeHeures(p.heuresRealisees)}
+                        {p.nbPrevus > 0 && (
+                          <> · à venir : {p.nbPrevus} cours · {formatDureeHeures(p.heuresPrevues)}</>
+                        )}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 text-smoke transition-transform ${ouvert ? "rotate-90" : ""}`}>›</span>
+                  </button>
+                  {ouvert && (
+                    <ul className="divide-y divide-line/60 border-t border-line">
+                      {p.occurrences.map((o, i) => (
+                        <li key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                          <span className="text-ink">
+                            {formatDateCours(o.date)} · {heureFr(o.heure_debut)}–{heureFr(o.heure_fin)} · {o.libelle}
+                          </span>
+                          <span className={`shrink-0 font-semibold ${o.realise ? "text-green-700" : "text-blue-600"}`}>
+                            {formatDureeHeures(o.dureeH)} · {o.realise ? "réalisé" : "prévu"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3 flex justify-between rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white">
+            <span>Total</span>
+            <span>
+              Réalisé {formatDureeHeures(data!.totalHeuresRealisees)} ({data!.totalRealises} cours)
+              {data!.totalPrevus > 0 && <> · à venir {formatDureeHeures(data!.totalHeuresPrevues)} ({data!.totalPrevus})</>}
+            </span>
+          </div>
+        </>
       )}
     </div>
   );

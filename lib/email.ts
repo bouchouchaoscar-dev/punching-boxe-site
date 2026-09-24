@@ -5,6 +5,7 @@ import { formaterPrenom, formaterNom } from "./noms";
 import { euro, formuleLabel, type ModePaiement, type PackageType } from "./pricing";
 import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
+import { planningActif } from "./planning";
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -530,9 +531,14 @@ export async function sendPlanningProf(d: {
        <ul style="margin:8px 0;padding-left:18px">${listePlanning}</ul>
        ${blocChangements}`;
 
+  // Lien vers le planning complet (vue coach lecture seule). Non connecté → login.
+  const lienPlanning = planningActif()
+    ? `<p style="margin:14px 0 4px">${button(`${SITE_URL}/admin/planning`, "Voir le planning complet")}</p>`
+    : "";
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">${escapeHtml(d.titre)} 🥊</h1>
     ${corps}
+    ${lienPlanning}
     <p style="line-height:1.6;color:#444;margin-top:14px">À bientôt à la salle !<br/>Sportivement,<br/>L'équipe ${CLUB.nom}</p>
   `);
 

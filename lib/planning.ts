@@ -267,6 +267,14 @@ export function lieuAvecPreposition(salle?: string | null, ville?: string | null
   return { texte: null, connue: false };
 }
 
+/** Durée formatée unique pour l'affichage des heures profs : "21h" / "21h30". */
+export function formatDureeHeures(h: number): string {
+  const total = Math.round(h * 60);
+  const heures = Math.floor(total / 60);
+  const min = total % 60;
+  return min ? `${heures}h${String(min).padStart(2, "0")}` : `${heures}h`;
+}
+
 /** Durée d'un cours en heures décimales (pour d'éventuelles stats V2). */
 export function dureeHeures(debut: string | null, fin: string | null): number {
   if (!debut || !fin) return 0;
@@ -481,6 +489,122 @@ export function genererMailPrevenir(p: {
   return {
     objet: `📅 Cours ${p.libelle} du ${origDateFr} : ${suffixe}`,
     contenu: `{{salutation}}\n\n{{concerne}}${corps}\n\nMerci de votre compréhension.\n\nSportivement,\nL'équipe ${p.clubNom}`,
+  };
+}
+
+// ---- Stats d'heures par prof (PUR, testable) — source unique ----------------
+export type OccurrenceProf = {
+  prof_id: string;
+  date: string; // ISO de l'occurrence
+  jour: number;
+  heure_debut: string | null;
+  heure_fin: string | null;
+  libelle: string;
+  discipline: string | null;
+  dureeH: number; // heures décimales
+  realise: boolean; // occurrence passée (date+fin ≤ maintenant)
+};
+export type StatProf = {
+  prof_id: string;
+  nom: string; // "Prénom Nom"
+  actif: boolean;
+  nbRealises: number;
+  heuresRealisees: number;
+  nbPrevus: number;
+  heuresPrevues: number;
+  occurrences: OccurrenceProf[];
+};
+
+/**
+ * Heures par prof sur une période [debutISO, finISO] (bornes sur la DATE de
+ * l'occurrence). Une affectation = une occurrence à sa date ; durée = fin−début ;
+ * chaque prof compte la durée entière (multi-profs) ; jours fermés exclus ; les
+ * cours désactivés comptent quand même leurs occurrences passées (historique).
+ * « Réalisé » = date+heure_fin ≤ maintenant ; sinon « prévu ».
+ */
+export function calculerHeuresProfs(params: {
+  cours: Cours[];
+  affectations: { cours_id: string; prof_id: string | null; semaine: string }[];
+  profs: Prof[];
+  periodes: PeriodeFermeture[];
+  debutISO: string;
+  finISO: string;
+  now?: Date;
+}): { parProf: StatProf[]; totalHeuresRealisees: number; totalHeuresPrevues: number; totalRealises: number; totalPrevus: number } {
+  const now = params.now ?? new Date();
+  const coursById = new Map(params.cours.map((c) => [c.id, c]));
+  const profById = new Map(params.profs.map((p) => [p.id, p]));
+  const acc = new Map<string, StatProf>();
+
+  for (const a of params.affectations) {
+    if (!a.prof_id) continue;
+    const c = coursById.get(a.cours_id);
+    if (!c || !c.jour_semaine) continue;
+    const dISO = toISODate(dateDuJour(a.semaine, c.jour_semaine));
+    if (dISO < params.debutISO || dISO > params.finISO) continue; // hors période
+    if (estFerme(dISO, params.periodes)) continue; // jour fermé
+    const dureeH = dureeHeures(c.heure_debut, c.heure_fin);
+
+    // Réalisé si la fin de l'occurrence est passée (minuit=00 valide, pas 59).
+    const [Y, M, D] = dISO.split("-").map(Number);
+    let finOcc: Date;
+    if (c.heure_fin) {
+      const [hf, mf] = c.heure_fin.split(":").map(Number);
+      finOcc = new Date(Y, M - 1, D, hf, mf || 0);
+    } else {
+      finOcc = new Date(Y, M - 1, D, 23, 59);
+    }
+    const realise = finOcc.getTime() <= now.getTime();
+
+    const p = profById.get(a.prof_id);
+    let st = acc.get(a.prof_id);
+    if (!st) {
+      st = {
+        prof_id: a.prof_id,
+        nom: p ? [p.prenom, p.nom].filter(Boolean).join(" ").trim() || "Prof" : "Prof supprimé",
+        actif: p ? p.actif : false,
+        nbRealises: 0,
+        heuresRealisees: 0,
+        nbPrevus: 0,
+        heuresPrevues: 0,
+        occurrences: [],
+      };
+      acc.set(a.prof_id, st);
+    }
+    st.occurrences.push({
+      prof_id: a.prof_id,
+      date: dISO,
+      jour: c.jour_semaine,
+      heure_debut: c.heure_debut,
+      heure_fin: c.heure_fin,
+      libelle: c.libelle ?? "Cours",
+      discipline: c.discipline,
+      dureeH,
+      realise,
+    });
+    if (realise) {
+      st.nbRealises++;
+      st.heuresRealisees += dureeH;
+    } else {
+      st.nbPrevus++;
+      st.heuresPrevues += dureeH;
+    }
+  }
+
+  const parProf = [...acc.values()];
+  for (const st of parProf) {
+    st.occurrences.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.heure_debut ?? "").localeCompare(b.heure_debut ?? "")));
+    st.heuresRealisees = Math.round(st.heuresRealisees * 100) / 100;
+    st.heuresPrevues = Math.round(st.heuresPrevues * 100) / 100;
+  }
+  parProf.sort((a, b) => a.nom.localeCompare(b.nom));
+
+  return {
+    parProf,
+    totalHeuresRealisees: Math.round(parProf.reduce((s, p) => s + p.heuresRealisees, 0) * 100) / 100,
+    totalHeuresPrevues: Math.round(parProf.reduce((s, p) => s + p.heuresPrevues, 0) * 100) / 100,
+    totalRealises: parProf.reduce((s, p) => s + p.nbRealises, 0),
+    totalPrevus: parProf.reduce((s, p) => s + p.nbPrevus, 0),
   };
 }
 

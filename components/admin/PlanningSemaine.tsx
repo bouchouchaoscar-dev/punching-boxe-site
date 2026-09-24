@@ -93,6 +93,7 @@ function BoutonCarte({
 function CarteCours({
   c,
   profsDuCours,
+  readOnly,
   selectionMode,
   selected,
   onToggleSelect,
@@ -102,6 +103,7 @@ function CarteCours({
 }: {
   c: Cours;
   profsDuCours: Prof[];
+  readOnly: boolean;
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: (coursId: string) => void;
@@ -110,6 +112,7 @@ function CarteCours({
   onPrevenir: (c: Cours) => void;
 }) {
   const col = couleurCours(c.discipline, c.type_adherent);
+  const actionsVisibles = !readOnly && !selectionMode;
   return (
     <div
       style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
@@ -142,7 +145,7 @@ function CarteCours({
               className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
             >
               {nomProf(p)}
-              {!selectionMode && (
+              {actionsVisibles && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -160,7 +163,7 @@ function CarteCours({
       )}
 
       {/* Actions : paire uniformisée (Prof neutre / Prévenir accent) */}
-      {!selectionMode && (
+      {actionsVisibles && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           <BoutonCarte
             variant="neutre"
@@ -197,7 +200,8 @@ export function PlanningSemaine({
   onPrev,
   onNext,
   onToday,
-  selectionMode,
+  readOnly = false,
+  selectionMode = false,
   selected,
   onToggleSelect,
   onAddProf,
@@ -212,12 +216,13 @@ export function PlanningSemaine({
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
-  selectionMode: boolean;
-  selected: Set<string>;
-  onToggleSelect: (coursId: string) => void;
-  onAddProf: (coursId: string) => void;
-  onRemoveProf: (coursId: string, profId: string) => void;
-  onPrevenir: (c: Cours) => void;
+  readOnly?: boolean;
+  selectionMode?: boolean;
+  selected?: Set<string>;
+  onToggleSelect?: (coursId: string) => void;
+  onAddProf?: (coursId: string) => void;
+  onRemoveProf?: (coursId: string, profId: string) => void;
+  onPrevenir?: (c: Cours) => void;
 }) {
   // Jours affichés : Lun→Ven, + Sam/Dim si des cours actifs y existent.
   const jours = useMemo(() => {
@@ -282,17 +287,19 @@ export function PlanningSemaine({
     };
   });
 
+  const noop = () => {};
   const carte = (c: Cours) => (
     <CarteCours
       key={c.id}
       c={c}
       profsDuCours={profsParCours.get(c.id) ?? []}
+      readOnly={readOnly}
       selectionMode={selectionMode}
-      selected={selected.has(c.id)}
-      onToggleSelect={onToggleSelect}
-      onAddProf={onAddProf}
-      onRemoveProf={onRemoveProf}
-      onPrevenir={onPrevenir}
+      selected={selected?.has(c.id) ?? false}
+      onToggleSelect={onToggleSelect ?? noop}
+      onAddProf={onAddProf ?? noop}
+      onRemoveProf={onRemoveProf ?? noop}
+      onPrevenir={onPrevenir ?? noop}
     />
   );
 

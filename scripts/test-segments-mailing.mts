@@ -78,6 +78,14 @@ async function main() {
   const cibleTiede = filtrerAnciens(rows, ["anciens_tiedes"], [], ref).find((r) => r.has_email)!;
   // id de la cible
   const cibleId = [...byId.entries()].find(([, v]) => v === cibleTiede)?.[0];
+  const idDe = (r: unknown) => [...byId.entries()].find(([, v]) => v === r)?.[0];
+  // Segment "tièdes" NON migrés = même exclusion que le serveur. On mesure la
+  // baseline AVANT insertion, indépendante du nombre d'anciens déjà réinscrits
+  // en prod (invariant, pas comptage absolu).
+  const migr0 = await paginate("adherents", "ancien_id");
+  const migresAvant = new Set(migr0.map((m) => m.ancien_id).filter(Boolean));
+  const baseline = filtrerAnciens(rows, ["anciens_tiedes"], [], ref).filter((r) => !migresAvant.has(idDe(r)));
+  check("la cible est présente dans le segment AVANT réinscription", baseline.some((r) => r === cibleTiede), cibleId);
   let inséré = false;
   try {
     const { error } = await supabase.from("adherents").insert({
@@ -87,15 +95,14 @@ async function main() {
     });
     inséré = !error;
     check("insertion dossier natif lié (migré) OK", !error, error?.message);
-    // Reproduit l'exclusion serveur : migres = adherents.ancien_id non null.
+    // migres après = migrés préexistants + la cible.
     const migr = await paginate("adherents", "ancien_id");
     const migres = new Set(migr.map((m) => m.ancien_id).filter(Boolean));
     check("la cible est bien marquée migrée", migres.has(cibleId), cibleId);
-    const restants = filtrerAnciens(rows, ["anciens_tiedes"], [], ref).filter((r) => {
-      const id = [...byId.entries()].find(([, v]) => v === r)?.[0];
-      return !migres.has(id);
-    });
-    check("ancien réinscrit exclu du segment (−1)", restants.length === nTiedes - 1, { avant: nTiedes, apres: restants.length });
+    const restants = filtrerAnciens(rows, ["anciens_tiedes"], [], ref).filter((r) => !migres.has(idDe(r)));
+    // Invariant : exactement 1 de moins que la baseline, et la cible a disparu.
+    check("ancien réinscrit exclu du segment (baseline −1)", restants.length === baseline.length - 1, { baseline: baseline.length, apres: restants.length });
+    check("la cible est ABSENTE du segment APRÈS réinscription", !restants.some((r) => r === cibleTiede), cibleId);
   } finally {
     if (inséré) await supabase.from("adherents").delete().like("nom", "ZZTEST_%");
   }

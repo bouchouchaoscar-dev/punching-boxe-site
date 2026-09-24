@@ -17,9 +17,12 @@ import {
   lieuAvecPreposition,
   prochaineOccurrence,
   genererMailPrevenir,
+  calculerHeuresProfs,
+  formatDureeHeures,
   type Cours,
   type PeriodeFermeture,
   type CoursEnvoi,
+  type Prof,
 } from "../lib/planning";
 import { resoudreOuverture, regrouperParEmail, remplacerVariables, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estMineur } from "../lib/pricing";
@@ -327,6 +330,57 @@ console.log("— textes suppression historique (annulation si programmée) —")
     const t = textesSuppressionHistorique(s as string | undefined);
     check(t.annulation === false && t.titre === "Supprimer de l'historique" && t.lienListe === "Supprimer", `${s ?? "sans statut"} → wording de suppression`);
   }
+}
+
+console.log("— calculerHeuresProfs (réalisé/prévu, multi-profs, fermeture, désactivé, archivé, période) —");
+{
+  const profsS: Prof[] = [
+    { id: "p1", actif: true, nom: "Un", prenom: "Alice", email: null, telephone: null },
+    { id: "p2", actif: true, nom: "Deux", prenom: "Bob", email: null, telephone: null },
+    { id: "p3", actif: false, nom: "Trois", prenom: "Carla", email: null, telephone: null }, // archivé
+  ];
+  const coursS: Cours[] = [
+    mkCours({ id: "cx", jour_semaine: 1, heure_debut: "18:00", heure_fin: "19:30", libelle: "BF", discipline: "boxe_francaise" }), // 1h30
+    mkCours({ id: "cy", actif: false, jour_semaine: 3, heure_debut: "17:00", heure_fin: "18:00", libelle: "Désactivé", discipline: "savate" }), // 1h, cours désactivé
+  ];
+  const now = new Date(2026, 8, 15, 12, 0); // 15 sept 2026, midi
+  // Semaine du 2026-09-07 (lundi) : lundi cx = 2026-09-07 (passé), mercredi cy = 2026-09-09 (passé)
+  // Semaine du 2026-09-21 : lundi cx = 2026-09-21 (futur)
+  const aff = [
+    { cours_id: "cx", prof_id: "p1", semaine: "2026-09-07" }, // réalisé (passé) p1
+    { cours_id: "cx", prof_id: "p2", semaine: "2026-09-07" }, // même cours, 2e prof → chacun 1h30
+    { cours_id: "cy", prof_id: "p3", semaine: "2026-09-07" }, // cours désactivé, passé, prof archivé → compté
+    { cours_id: "cx", prof_id: "p1", semaine: "2026-09-21" }, // futur → prévu p1
+  ];
+  const periodes: PeriodeFermeture[] = [];
+  const r = calculerHeuresProfs({ cours: coursS, affectations: aff, profs: profsS, periodes, debutISO: "2026-09-01", finISO: "2026-09-30", now });
+
+  const p1 = r.parProf.find((x) => x.prof_id === "p1")!;
+  check(p1.nbRealises === 1 && Math.abs(p1.heuresRealisees - 1.5) < 1e-9, "p1 : 1 réalisé (1h30)");
+  check(p1.nbPrevus === 1 && Math.abs(p1.heuresPrevues - 1.5) < 1e-9, "p1 : 1 prévu (occurrence future)");
+  const p2 = r.parProf.find((x) => x.prof_id === "p2")!;
+  check(p2.nbRealises === 1 && Math.abs(p2.heuresRealisees - 1.5) < 1e-9, "multi-profs : p2 compte aussi 1h30 sur le même cours");
+  const p3 = r.parProf.find((x) => x.prof_id === "p3")!;
+  check(!!p3 && p3.actif === false && p3.nbRealises === 1, "prof archivé + cours désactivé : occurrence passée comptée");
+
+  // Fermeture : ferme la semaine du 07 → cx du lundi 07 exclu.
+  const rFerm = calculerHeuresProfs({ cours: coursS, affectations: aff, profs: profsS, periodes: [{ id: "f", libelle: "V", date_debut: "2026-09-07", date_fin: "2026-09-09" }], debutISO: "2026-09-01", finISO: "2026-09-30", now });
+  const p1f = rFerm.parProf.find((x) => x.prof_id === "p1")!;
+  check(p1f.nbRealises === 0 && p1f.nbPrevus === 1, "jour fermé exclu (p1 n'a plus que le prévu)");
+
+  // Frontière réalisé/prévu : occurrence aujourd'hui, fin passée vs future.
+  const coursJour: Cours[] = [mkCours({ id: "cj", jour_semaine: 2, heure_debut: "10:00", heure_fin: "11:00" })]; // mardi
+  const affJour = [{ cours_id: "cj", prof_id: "p1", semaine: "2026-09-14" }]; // mardi 2026-09-15
+  const rAvant = calculerHeuresProfs({ cours: coursJour, affectations: affJour, profs: profsS, periodes: [], debutISO: "2026-09-01", finISO: "2026-09-30", now: new Date(2026, 8, 15, 10, 30) }); // pendant le cours
+  check(rAvant.parProf[0].nbPrevus === 1, "occurrence du jour non terminée → prévu");
+  const rApres = calculerHeuresProfs({ cours: coursJour, affectations: affJour, profs: profsS, periodes: [], debutISO: "2026-09-01", finISO: "2026-09-30", now: new Date(2026, 8, 15, 11, 30) }); // après le cours
+  check(rApres.parProf[0].nbRealises === 1, "occurrence du jour terminée → réalisé");
+
+  // Changement de mois : le cx du 07 sept n'est pas compté en octobre.
+  const rOct = calculerHeuresProfs({ cours: coursS, affectations: aff, profs: profsS, periodes: [], debutISO: "2026-10-01", finISO: "2026-10-31", now });
+  check(rOct.parProf.length === 0, "hors période (octobre) → rien");
+
+  check(formatDureeHeures(1.5) === "1h30" && formatDureeHeures(21) === "21h" && formatDureeHeures(2.25) === "2h15", "format durée unique (1h30 / 21h / 2h15)");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

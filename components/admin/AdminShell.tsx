@@ -26,11 +26,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
 
-  // Un coach ne voit QUE le trombinoscope (défense en profondeur : le
-  // middleware redirige aussi les URLs tapées à la main).
+  // Un coach ne voit que le trombinoscope et le planning (lecture seule).
+  // Défense en profondeur : le middleware redirige aussi les URLs tapées à la main.
   const nav =
     role === "coach"
-      ? NAV.filter((n) => n.href === "/admin/trombinoscope")
+      ? NAV.filter((n) => n.href === "/admin/trombinoscope" || n.href === "/admin/planning")
       : NAV;
 
   function logout() {

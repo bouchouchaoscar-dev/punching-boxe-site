@@ -9,10 +9,12 @@ import type { NextRequest } from "next/server";
 // éviter d'afficher des coquilles de pages qui ne se rempliront pas.
 const ROLE_COOKIE = "pbnp_role";
 
-// Un coach ne peut voir que le trombinoscope (et la page de login).
+// Un coach ne voit que le trombinoscope, le planning (lecture seule) et le login.
 function coachAutorise(pathname: string): boolean {
   return (
-    pathname === "/admin/login" || pathname.startsWith("/admin/trombinoscope")
+    pathname === "/admin/login" ||
+    pathname.startsWith("/admin/trombinoscope") ||
+    pathname.startsWith("/admin/planning")
   );
 }
 
