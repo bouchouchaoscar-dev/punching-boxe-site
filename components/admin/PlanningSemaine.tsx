@@ -7,6 +7,7 @@ import {
   JOURS,
   dateDuJour,
   toISODate,
+  lundiDeLaSemaine,
   formatHeure,
   estFerme,
   couleurCours,
@@ -53,14 +54,6 @@ function IconePersonne() {
     <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="8" r="3.2" />
       <path d="M5.5 20a6.5 6.5 0 0 1 13 0" />
-    </svg>
-  );
-}
-function IconeCalendrier() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9">
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <path d="M3 10h18M8 2v4M16 2v4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -221,6 +214,7 @@ export function PlanningSemaine({
   onNext,
   onToday,
   readOnly = false,
+  actionsMobile,
   selected,
   onToggleSelect,
   onAddProf,
@@ -236,6 +230,7 @@ export function PlanningSemaine({
   onNext: () => void;
   onToday: () => void;
   readOnly?: boolean;
+  actionsMobile?: ReactNode; // boutons d'action (admin) dans la ligne de nav mobile
   selected?: Set<string>;
   onToggleSelect?: (coursId: string) => void;
   onAddProf?: (coursId: string) => void;
@@ -299,6 +294,7 @@ export function PlanningSemaine({
     ? `${lundi.getDate()} – ${dimanche.getDate()} ${moisCourt(dimanche)}${anneeSuffixe}`
     : `${lundi.getDate()} ${moisCourt(lundi)} – ${dimanche.getDate()} ${moisCourt(dimanche)}${anneeSuffixe}`;
   const todayISO = toISODate(new Date());
+  const estSemaineCourante = semaineISO === toISODate(lundiDeLaSemaine(new Date()));
 
   // Centrage horizontal (mobile) sur la colonne du jour ; sinon début (lundi).
   const mobileScrollEl = useRef<HTMLDivElement | null>(null);
@@ -370,19 +366,30 @@ export function PlanningSemaine({
               </div>
             </div>
 
-            {/* Navigation semaine — MOBILE : une seule ligne, rien ne dépasse à
-                360px. « Aujourd'hui » devient une icône calendrier (aria-label). */}
-            <div className="mb-3 flex items-center gap-2 md:hidden">
-              <button onClick={auj} aria-label="Revenir à aujourd'hui" title="Aujourd'hui" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange">
-                <IconeCalendrier />
-              </button>
-              <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
-                <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
-              </button>
-              <span className="min-w-0 flex-1 text-center text-sm font-bold text-ink">{libelleSemaineCourt}</span>
-              <button onClick={onNext} aria-label="Semaine suivante" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
-                <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
-              </button>
+            {/* Navigation semaine — MOBILE : UNE ligne de commandes.
+                Gauche : [‹] date [›] (+ lien contextuel « Revenir à aujourd'hui »
+                sous la date). Droite : boutons d'action (admin) alignés avec la
+                date. Tout tient à 360px sans retour à la ligne. */}
+            <div className="mb-3 flex items-start gap-2 md:hidden">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex items-center gap-1">
+                  <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                    <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+                  </button>
+                  <span className="min-w-0 flex-1 truncate text-center text-sm font-bold text-ink">{libelleSemaineCourt}</span>
+                  <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                    <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
+                  </button>
+                </div>
+                {!estSemaineCourante && (
+                  <button onClick={auj} className="mt-1 self-center text-xs font-semibold text-orange hover:underline">
+                    Revenir à aujourd&apos;hui
+                  </button>
+                )}
+              </div>
+              {actionsMobile && (
+                <div className="flex h-9 shrink-0 items-center gap-2">{actionsMobile}</div>
+              )}
             </div>
           </>
         );
