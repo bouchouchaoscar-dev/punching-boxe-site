@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { FileText } from "lucide-react";
 import { useSaisonAdmin } from "./SaisonContext";
+import { PageHeader } from "./PageHeader";
+import { FiltresBar } from "./FiltresBar";
+import { IconButton } from "@/components/ui/IconButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import {
   statutTrombi,
@@ -124,6 +129,7 @@ export function Trombinoscope() {
   const isCoach = role === "coach";
 
   const [exporting, setExporting] = useState(false);
+  const [confirmExport, setConfirmExport] = useState(false);
 
   // Filtres combinables.
   const [q, setQ] = useState("");
@@ -214,38 +220,75 @@ export function Trombinoscope() {
   }
 
   const selCls =
-    "rounded-full border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-orange";
+    "w-full rounded-full border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-orange md:w-auto";
+  const filtresActifs =
+    (type !== "all" ? 1 : 0) + (statut !== "all" ? 1 : 0) + (formule !== "all" ? 1 : 0);
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-extrabold uppercase text-ink">
-            Trombinoscope
-          </h1>
-          <p className="mt-1 text-sm text-smoke">
+      <PageHeader
+        title="Trombinoscope"
+        titleClassName="text-xl font-extrabold md:text-2xl"
+        count={
+          <>
             {filtres.length} adhérent{filtres.length > 1 ? "s" : ""}
             {filtres.length !== actifs.length ? ` / ${actifs.length}` : ""}
-          </p>
-        </div>
-        <button
-          onClick={exportPdf}
-          disabled={exporting || filtres.length === 0}
-          className="rounded-full bg-orange px-4 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50"
-        >
-          {exporting ? "Génération…" : "Exporter en PDF"}
-        </button>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            {/* Export PDF : icône (confirmation) mobile, bouton texte inchangé desktop. */}
+            <IconButton
+              icon={<FileText className="h-5 w-5" />}
+              label="Exporter en PDF"
+              variant="accent"
+              onClick={() => setConfirmExport(true)}
+              disabled={exporting || filtres.length === 0}
+              className="md:hidden"
+            />
+            <button
+              onClick={exportPdf}
+              disabled={exporting || filtres.length === 0}
+              className="hidden rounded-full bg-orange px-4 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:opacity-50 md:inline-flex"
+            >
+              {exporting ? "Génération…" : "Exporter en PDF"}
+            </button>
+          </>
+        }
+      />
 
-      {/* Filtres combinables — mobile : recherche pleine largeur puis selects
-          2 par ligne (grid-cols-2). Desktop (lg) inchangé : flex sur une ligne. */}
-      <div className="mt-5 grid grid-cols-2 gap-2 lg:flex lg:flex-wrap">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher un nom…"
-          className={`${selCls} col-span-2 min-w-[180px] lg:col-auto lg:flex-1`}
+      {confirmExport && (
+        <ConfirmDialog
+          title="Exporter le trombinoscope en PDF ?"
+          message={
+            <>
+              {filtres.length} adhérent{filtres.length > 1 ? "s" : ""}, filtres actuels
+              appliqués.
+            </>
+          }
+          confirmLabel="Exporter"
+          busy={exporting}
+          onCancel={() => setConfirmExport(false)}
+          onConfirm={() => {
+            setConfirmExport(false);
+            exportPdf();
+          }}
         />
+      )}
+
+      {/* Recherche + filtres — mobile : feuille de filtres ; desktop : inline. */}
+      <FiltresBar
+        className="mt-5"
+        q={q}
+        onQ={setQ}
+        placeholder="Rechercher un nom…"
+        activeCount={filtresActifs}
+        onReset={() => {
+          setType("all");
+          setStatut("all");
+          setFormule("all");
+        }}
+      >
         <select value={type} onChange={(e) => setType(e.target.value)} className={selCls}>
           <option value="all">Tous types</option>
           <option value="adulte">Adultes</option>
@@ -265,7 +308,7 @@ export function Trombinoscope() {
             </option>
           ))}
         </select>
-      </div>
+      </FiltresBar>
 
       {loading ? (
         <div className="mt-10 flex justify-center">

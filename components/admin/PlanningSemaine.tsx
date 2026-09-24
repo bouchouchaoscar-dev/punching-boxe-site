@@ -56,6 +56,14 @@ function IconePersonne() {
     </svg>
   );
 }
+function IconeCalendrier() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M3 10h18M8 2v4M16 2v4" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 // Petit bouton d'action de carte — FACTORISÉ (variante accent / neutre).
 // Même hauteur, arrondi, taille de texte/icône, padding, survol et focus.
@@ -90,11 +98,13 @@ function BoutonCarte({
 }
 
 // Carte d'un cours — multi-profs, look identique desktop/mobile.
+// Case à cocher PERMANENTE en haut à droite (admin) : discrète tant que non
+// cochée, zone de tap ≥ 44px. Les boutons d'action (Prof / Prévenir) restent
+// affichés en permanence (plus de « mode sélection » qui les masquait).
 function CarteCours({
   c,
   profsDuCours,
   readOnly,
-  selectionMode,
   selected,
   onToggleSelect,
   onAddProf,
@@ -104,7 +114,6 @@ function CarteCours({
   c: Cours;
   profsDuCours: ProfMinimal[];
   readOnly: boolean;
-  selectionMode: boolean;
   selected: boolean;
   onToggleSelect: (coursId: string) => void;
   onAddProf: (coursId: string) => void;
@@ -112,23 +121,34 @@ function CarteCours({
   onPrevenir: (c: Cours) => void;
 }) {
   const col = couleurCours(c.discipline, c.type_adherent);
-  const actionsVisibles = !readOnly && !selectionMode;
+  const actionsVisibles = !readOnly;
   return (
     <div
       style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
       className={`relative rounded-lg border border-l-4 border-line/60 px-2 py-1.5 ${
-        selectionMode ? "cursor-pointer" : ""
-      } ${selected ? "ring-2 ring-orange" : ""}`}
-      onClick={selectionMode ? () => onToggleSelect(c.id) : undefined}
+        selected ? "ring-2 ring-orange" : ""
+      }`}
     >
-      {selectionMode && (
-        <span
-          className={`absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
-            selected ? "border-orange bg-orange text-white" : "border-smoke/40 bg-white"
-          }`}
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(c.id);
+          }}
+          role="checkbox"
+          aria-checked={selected}
+          aria-label={`Sélectionner ${c.libelle}`}
+          className="absolute right-0 top-0 flex h-11 w-11 items-start justify-end p-1.5"
         >
-          {selected ? "✓" : ""}
-        </span>
+          <span
+            className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] ${
+              selected ? "border-orange bg-orange text-white" : "border-smoke/40 bg-white/80"
+            }`}
+          >
+            {selected ? "✓" : ""}
+          </span>
+        </button>
       )}
       <div className="pr-5 text-[12px] font-bold leading-tight text-ink">{c.libelle}</div>
       <div className="text-[11px] leading-tight text-ink/70">
@@ -201,7 +221,6 @@ export function PlanningSemaine({
   onNext,
   onToday,
   readOnly = false,
-  selectionMode = false,
   selected,
   onToggleSelect,
   onAddProf,
@@ -217,7 +236,6 @@ export function PlanningSemaine({
   onNext: () => void;
   onToday: () => void;
   readOnly?: boolean;
-  selectionMode?: boolean;
   selected?: Set<string>;
   onToggleSelect?: (coursId: string) => void;
   onAddProf?: (coursId: string) => void;
@@ -318,7 +336,6 @@ export function PlanningSemaine({
       c={c}
       profsDuCours={profsParCours.get(c.id) ?? []}
       readOnly={readOnly}
-      selectionMode={selectionMode}
       selected={selected?.has(c.id) ?? false}
       onToggleSelect={onToggleSelect ?? noop}
       onAddProf={onAddProf ?? noop}
@@ -353,34 +370,33 @@ export function PlanningSemaine({
               </div>
             </div>
 
-            {/* Navigation semaine — MOBILE (pleine largeur, rien ne dépasse) */}
-            <div className="mb-3 md:hidden">
-              <button onClick={auj} className="mb-2 rounded-full border border-line bg-white px-4 py-1.5 text-sm font-semibold text-ink hover:border-orange">
-                Aujourd&apos;hui
+            {/* Navigation semaine — MOBILE : une seule ligne, rien ne dépasse à
+                360px. « Aujourd'hui » devient une icône calendrier (aria-label). */}
+            <div className="mb-3 flex items-center gap-2 md:hidden">
+              <button onClick={auj} aria-label="Revenir à aujourd'hui" title="Aujourd'hui" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink hover:border-orange">
+                <IconeCalendrier />
               </button>
-              <div className="flex items-center gap-2">
-                <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
-                  <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
-                </button>
-                <span className="min-w-0 flex-1 text-center text-sm font-bold text-ink">{libelleSemaineCourt}</span>
-                <button onClick={onNext} aria-label="Semaine suivante" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
-                  <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
-                </button>
-              </div>
+              <button onClick={onPrev} aria-label="Semaine précédente" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                <ChevronLeft className="h-5 w-5" strokeWidth={2.2} />
+              </button>
+              <span className="min-w-0 flex-1 text-center text-sm font-bold text-ink">{libelleSemaineCourt}</span>
+              <button onClick={onNext} aria-label="Semaine suivante" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-white text-ink">
+                <ChevronRight className="h-5 w-5" strokeWidth={2.2} />
+              </button>
             </div>
           </>
         );
       })()}
 
-      {/* Légende */}
+      {/* Légende — compacte (texte plus petit, puces resserrées sur mobile) */}
       {combos.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 md:gap-x-3 md:gap-y-1.5">
           {combos.map((cb) => {
             const col = couleurCours(cb.discipline, cb.type);
             const label = `${disciplineLabel(cb.discipline)}${cb.type ? ` · ${publicLabel(cb.type)}` : ""}`;
             return (
-              <span key={`${cb.discipline}:${cb.type}`} className="flex items-center gap-1.5 text-xs text-smoke">
-                <span className="inline-block h-3 w-3 rounded-sm border" style={{ backgroundColor: col.bg, borderColor: col.bar }} />
+              <span key={`${cb.discipline}:${cb.type}`} className="flex items-center gap-1 text-[11px] text-smoke md:gap-1.5 md:text-xs">
+                <span className="inline-block h-2.5 w-2.5 rounded-sm border md:h-3 md:w-3" style={{ backgroundColor: col.bg, borderColor: col.bar }} />
                 {label}
               </span>
             );

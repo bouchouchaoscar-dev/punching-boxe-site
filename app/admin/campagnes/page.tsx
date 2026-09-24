@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Clock, FileText } from "lucide-react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { textesSuppressionHistorique, type Campagne } from "@/lib/campagnes";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { OverflowMenu } from "@/components/ui/OverflowMenu";
 
 const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
@@ -91,51 +94,60 @@ export default function CampagnesPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl font-black uppercase text-ink">
-            Mailing
-          </h1>
-          <p className="mt-1 text-smoke">
-            Campagnes, mails individuels et envois planifiés, du plus récent au
-            plus ancien.
-          </p>
-          <p className="mt-2 max-w-2xl text-sm text-smoke">
-            Envoyez une campagne en quelques clics grâce aux listes
-            intelligentes, écrivez librement ou partez d&apos;un modèle,
-            planifiez pour plus tard. Tout l&apos;historique des envois est
-            conservé ici.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/admin/campagnes/templates"
-            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink"
-          >
-            Modèles
-          </Link>
-          <Link
-            href="/admin/campagnes/nouvelle?planifier=1"
-            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange"
-          >
-            🕓 Planifier une campagne
-          </Link>
-          <Link
-            href="/admin/campagnes/nouvelle"
-            className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange/90"
-          >
-            + Nouvelle campagne
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Mailing"
+        description={
+          <>
+            Campagnes, mails individuels et envois planifiés, du plus récent au plus ancien.
+            <span className="mt-2 block">
+              Envoyez une campagne en quelques clics grâce aux listes intelligentes, écrivez
+              librement ou partez d&apos;un modèle, planifiez pour plus tard. Tout
+              l&apos;historique des envois est conservé ici.
+            </span>
+          </>
+        }
+        actions={
+          <>
+            {/* Desktop : les deux boutons secondaires inline (inchangés). */}
+            <Link
+              href="/admin/campagnes/templates"
+              className="hidden rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink md:inline-flex"
+            >
+              Modèles
+            </Link>
+            <Link
+              href="/admin/campagnes/nouvelle?planifier=1"
+              className="hidden rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-orange hover:text-orange md:inline-flex"
+            >
+              🕓 Planifier une campagne
+            </Link>
+            {/* Action principale — compacte sur mobile. */}
+            <Link
+              href="/admin/campagnes/nouvelle"
+              className="whitespace-nowrap rounded-full bg-orange px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90 md:px-5 md:py-2.5"
+            >
+              + Nouvelle<span className="hidden md:inline"> campagne</span>
+            </Link>
+            {/* Mobile : actions secondaires dans le menu « ⋯ ». */}
+            <div className="md:hidden">
+              <OverflowMenu
+                actions={[
+                  { label: "Modèles", icon: <FileText className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/templates") },
+                  { label: "Planifier une campagne", icon: <Clock className="h-4 w-4" />, onClick: () => router.push("/admin/campagnes/nouvelle?planifier=1") },
+                ]}
+              />
+            </div>
+          </>
+        }
+      />
 
       {!loading && campagnes.length > 0 && (
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
           {FILTRES_TYPE.map((f) => (
             <button
               key={f.key}
               onClick={() => setFiltre(f.key)}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
                 filtre === f.key
                   ? "bg-ink text-white"
                   : "border border-line bg-white text-ink/70 hover:border-orange"

@@ -6,7 +6,12 @@ import Link from "next/link";
 import { useSaisonAdmin } from "./SaisonContext";
 import { PaiementStatut } from "./StatutBadge";
 import { CreerAdherentModal } from "./CreerAdherentModal";
+import { PageHeader } from "./PageHeader";
+import { FiltresBar } from "./FiltresBar";
 import { ScrollX } from "@/components/ui/ScrollX";
+import { IconButton } from "@/components/ui/IconButton";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Download } from "lucide-react";
 import { getAdminRole } from "@/lib/admin-auth";
 import { euro, formuleLabel, formuleCle, FORMULE_FILTRE_OPTIONS } from "@/lib/pricing";
 import {
@@ -38,7 +43,10 @@ export function AdherentsTable() {
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
   const [creerOpen, setCreerOpen] = useState(false);
+  const [confirmExport, setConfirmExport] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
+  const filtresActifs =
+    (type !== "all" ? 1 : 0) + (statut !== "all" ? 1 : 0) + (formule !== "all" ? 1 : 0);
   const [encaisseMap, setEncaisseMap] = useState<Record<string, number>>({});
   const [paidEcheancesMap, setPaidEcheancesMap] = useState<
     Record<string, number>
@@ -154,40 +162,61 @@ export function AdherentsTable() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-4xl font-black uppercase text-ink">
-            Adhérents
-          </h1>
-          <p className="mt-1 text-smoke">
+      <PageHeader
+        title="Adhérents"
+        count={
+          <>
             {filtered.length} / {adherents.length} adhérent
             {adherents.length > 1 ? "s" : ""}
-          </p>
-          <p className="mt-2 max-w-2xl text-sm text-smoke">
-            Suivez l&apos;avancée des dossiers, validez ou refusez les pièces,
-            contrôlez les paiements. Depuis une fiche, envoyez un mail (message
-            libre ou modèle), gérez un remboursement ou mettez fin à une
-            inscription.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {role === "admin" && (
+          </>
+        }
+        description="Suivez l'avancée des dossiers, validez ou refusez les pièces, contrôlez les paiements. Depuis une fiche, envoyez un mail (message libre ou modèle), gérez un remboursement ou mettez fin à une inscription."
+        actions={
+          <>
+            {role === "admin" && (
+              <button
+                onClick={() => setCreerOpen(true)}
+                className="whitespace-nowrap rounded-full bg-orange px-3 py-2 text-sm font-bold text-white transition-colors hover:brightness-95 md:px-5 md:py-2.5"
+              >
+                + Créer<span className="hidden md:inline"> un adhérent</span>
+              </button>
+            )}
+            {/* Export : icône (confirmation) sur mobile, bouton texte inchangé sur desktop. */}
+            <IconButton
+              icon={<Download className="h-5 w-5" />}
+              label="Exporter en CSV"
+              onClick={() => setConfirmExport(true)}
+              disabled={!filtered.length}
+              className="md:hidden"
+            />
             <button
-              onClick={() => setCreerOpen(true)}
-              className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white transition-colors hover:brightness-95"
+              onClick={exportCsv}
+              disabled={!filtered.length}
+              className="hidden rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-40 md:inline-flex"
             >
-              + Créer un adhérent
+              Exporter CSV
             </button>
-          )}
-          <button
-            onClick={exportCsv}
-            disabled={!filtered.length}
-            className="rounded-full border border-line bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-ink disabled:opacity-40"
-          >
-            Exporter CSV
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
+
+      {confirmExport && (
+        <ConfirmDialog
+          title="Exporter en CSV ?"
+          message={
+            <>
+              {filtered.length} adhérent{filtered.length > 1 ? "s" : ""} (filtres actuels
+              appliqués) seront exportés dans un fichier CSV.
+            </>
+          }
+          confirmLabel="Exporter"
+          onCancel={() => setConfirmExport(false)}
+          onConfirm={() => {
+            exportCsv();
+            setConfirmExport(false);
+          }}
+        />
+      )}
 
       {flash && (
         <div className="mt-4 rounded-xl bg-green-50 p-4 text-sm font-semibold text-green-700">
@@ -208,19 +237,24 @@ export function AdherentsTable() {
         />
       )}
 
-      {/* Filtres — mobile : recherche pleine largeur puis selects 2 par ligne
-          (grid-cols-2). Desktop (lg) inchangé : tout sur une ligne de 4. */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher un nom, email…"
-          className="focus-ring col-span-2 rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange lg:col-span-1"
-        />
+      {/* Recherche + filtres — mobile : recherche pleine largeur + feuille de
+          filtres ; desktop (md+) : filtres inline. */}
+      <FiltresBar
+        className="mt-6"
+        q={q}
+        onQ={setQ}
+        placeholder="Rechercher un nom, email…"
+        activeCount={filtresActifs}
+        onReset={() => {
+          setType("all");
+          setStatut("all");
+          setFormule("all");
+        }}
+      >
         <Select value={type} onChange={setType} options={[["all", "Tous types"], ["adulte", "Adultes"], ["jeune", "Jeunes"]]} />
         <Select value={statut} onChange={(v) => setStatut(v as StatutFiltre)} options={STATUT_FILTRE_OPTIONS} />
         <Select value={formule} onChange={setFormule} options={FORMULE_FILTRE_OPTIONS} />
-      </div>
+      </FiltresBar>
 
       {error && (
         <div className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
@@ -476,7 +510,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="focus-ring rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange"
+      className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange md:w-auto"
     >
       {options.map(([v, l]) => (
         <option key={v} value={v}>

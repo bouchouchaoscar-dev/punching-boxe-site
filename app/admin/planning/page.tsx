@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RotateCcw } from "lucide-react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { OverflowMenu } from "@/components/ui/OverflowMenu";
 import { PlanningSemaine } from "@/components/admin/PlanningSemaine";
 import {
   planningActif,
@@ -52,8 +55,8 @@ export default function PlanningPage() {
 
   // Cours pour lequel on prévient les adhérents (mailing ciblé par discipline).
   const [prevenir, setPrevenir] = useState<Cours | null>(null);
-  // Mode sélection multiple (cases à cocher) + cours sélectionnés (semaine courante).
-  const [selectionMode, setSelectionMode] = useState(false);
+  // Cours cochés (cases permanentes) pour la semaine affichée. Cocher au moins
+  // un cours fait apparaître la barre d'action ; « Annuler » vide la sélection.
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Choix d'un prof : soit pour un cours précis (coursId), soit en masse (action).
   const [profPicker, setProfPicker] = useState<
@@ -81,7 +84,7 @@ export default function PlanningPage() {
     const ro = new ResizeObserver(maj);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [selectionMode, selected.size]);
+  }, [selected.size]);
 
   const flash = useCallback((m: string) => {
     setToast(m);
@@ -125,7 +128,6 @@ export default function PlanningPage() {
   // Changer de semaine vide la sélection (elle est propre à la semaine affichée).
   useEffect(() => {
     setSelected(new Set());
-    setSelectionMode(false);
   }, [semaineISO]);
 
   const profsActifs = useMemo(() => profs.filter((p) => p.actif), [profs]);
@@ -277,18 +279,18 @@ export default function PlanningPage() {
       className="max-w-5xl"
       style={barH ? { paddingBottom: `calc(${barH}px + 0.5rem)` } : undefined}
     >
-      <h1 className="font-display text-4xl font-black uppercase text-ink">Planning</h1>
-      <p className="mt-2 text-sm text-smoke">
-        Grille hebdomadaire des cours, affectation des profs et périodes de fermeture.
-      </p>
+      <PageHeader
+        title="Planning"
+        description="Grille hebdomadaire des cours, affectation des profs et périodes de fermeture."
+      />
 
-      {/* Onglets */}
-      <div className="mt-6 flex flex-wrap gap-2">
+      {/* Onglets — une seule ligne compacte (défilement horizontal si besoin) */}
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
               tab === t.key
                 ? "bg-ink text-white"
                 : "border border-line bg-white text-ink/70 hover:border-orange"
@@ -302,26 +304,23 @@ export default function PlanningPage() {
       <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-4 sm:p-6">
         {tab === "calendrier" && (
           <>
-            {/* Barre d'outils : mobile = empilé pleine largeur ; desktop = ligne. */}
-            <div className="mb-4 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
-              <button
-                onClick={() => {
-                  setSelectionMode((v) => !v);
-                  setSelected(new Set());
-                }}
-                className={`w-full rounded-full border px-4 py-2 text-center text-sm font-semibold md:w-auto ${
-                  selectionMode ? "border-orange bg-orange-50 text-orange" : "border-line bg-white text-ink hover:border-orange"
-                }`}
-              >
-                {selectionMode ? "Quitter la sélection" : "Sélectionner"}
-              </button>
+            {/* Barre d'outils.
+                Desktop (≥ md) INCHANGÉ : « Reprendre » (bouton plein) + bloc
+                envoi (badge « Modifications non envoyées » + « Envoyer le
+                planning aux profs »). Le bouton « Sélectionner » disparaît des
+                deux car les cases sont désormais permanentes (voir compte rendu).
+                Mobile (< md) : « Envoyer » compact (badge N intégré, accent si
+                actif / grisé + infobulle sinon) + « Reprendre » dans le menu ⋯. */}
+            <div className="mb-4 flex items-center justify-end gap-2 md:flex-wrap">
+              {/* Reprendre — desktop uniquement (sur mobile : dans ⋯) */}
               <button
                 onClick={ouvrirReprise}
-                className="w-full rounded-full border border-line bg-white px-4 py-2 text-center text-sm font-semibold text-ink hover:border-orange md:w-auto"
+                className="hidden rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange md:inline-flex"
               >
                 Reprendre les profs de la semaine passée
               </button>
-              <div className="flex w-full flex-col gap-2 md:ml-auto md:w-auto md:flex-row md:items-center">
+              {/* Bloc envoi — desktop (inchangé) */}
+              <div className="hidden md:ml-auto md:flex md:items-center md:gap-2">
                 {envoiPreview && envoiPreview.aEnvoyer > 0 && (
                   <span className="rounded-full bg-orange-50 px-3 py-1 text-center text-xs font-semibold text-orange">
                     Modifications non envoyées à {envoiPreview.aEnvoyer} prof{envoiPreview.aEnvoyer > 1 ? "s" : ""}
@@ -331,10 +330,36 @@ export default function PlanningPage() {
                   onClick={() => setEnvoiModal(true)}
                   disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
                   title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Aucune modification à envoyer" : "Envoyer le planning aux profs concernés"}
-                  className="w-full rounded-full bg-ink px-4 py-2 text-center text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40 md:w-auto"
+                  className="rounded-full bg-ink px-4 py-2 text-center text-sm font-bold text-white hover:bg-orange disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Envoyer le planning aux profs
                 </button>
+              </div>
+              {/* Envoyer compact — mobile uniquement (badge N intégré) */}
+              <button
+                onClick={() => setEnvoiModal(true)}
+                disabled={!envoiPreview || envoiPreview.aEnvoyer === 0}
+                title={!envoiPreview || envoiPreview.aEnvoyer === 0 ? "Aucune modification à envoyer" : "Envoyer le planning aux profs concernés"}
+                className="inline-flex items-center gap-2 rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:bg-paper-2 disabled:text-smoke md:hidden"
+              >
+                <span className="whitespace-nowrap">Envoyer le planning</span>
+                {envoiPreview && envoiPreview.aEnvoyer > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/25 px-1 text-xs font-bold">
+                    {envoiPreview.aEnvoyer}
+                  </span>
+                )}
+              </button>
+              {/* Menu ⋯ — mobile uniquement (Reprendre) */}
+              <div className="md:hidden">
+                <OverflowMenu
+                  actions={[
+                    {
+                      label: "Reprendre les profs de la semaine passée",
+                      icon: <RotateCcw className="h-4 w-4" />,
+                      onClick: ouvrirReprise,
+                    },
+                  ]}
+                />
               </div>
             </div>
 
@@ -347,7 +372,6 @@ export default function PlanningPage() {
               onPrev={() => decalerSemaine(-7)}
               onNext={() => decalerSemaine(7)}
               onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
-              selectionMode={selectionMode}
               selected={selected}
               onToggleSelect={toggleSelect}
               onAddProf={(coursId) => setProfPicker({ kind: "single", coursId })}
@@ -486,7 +510,7 @@ export default function PlanningPage() {
       {/* Barre d'action de sélection multiple (fixe en bas).
           Mobile = compte sur une ligne puis 3 boutons homogènes sur UNE ligne
           (libellés courts) ; respect de la zone de sécurité iPhone. */}
-      {selectionMode && selected.size > 0 && (
+      {selected.size > 0 && (
         <div
           ref={barRef}
           style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
@@ -555,8 +579,10 @@ function PlanningCoach() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="font-display text-4xl font-black uppercase text-ink">Planning</h1>
-      <p className="mt-2 text-sm text-smoke">Les cours de la semaine et les profs affectés (lecture seule).</p>
+      <PageHeader
+        title="Planning"
+        description="Les cours de la semaine et les profs affectés (lecture seule)."
+      />
       <div className="mt-6 rounded-[1.5rem] border border-line bg-white p-4 sm:p-6">
         <PlanningSemaine
           semaineISO={semaineISO}
