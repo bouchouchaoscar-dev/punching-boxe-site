@@ -1867,7 +1867,7 @@ function PrevenirPanel({
   const [objet, setObjet] = useState("");
   const [contenu, setContenu] = useState("");
   const [contenuEdite, setContenuEdite] = useState(false);
-  const [cible, setCible] = useState<{ count: number; emails: number; exemples: string[] } | null>(null);
+  const [cible, setCible] = useState<{ count: number; emails: number } | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [sending, setSending] = useState(false);
   const [resultat, setResultat] = useState<{ emails: number; personnes: number } | null>(null);
@@ -1879,8 +1879,8 @@ function PrevenirPanel({
       body: JSON.stringify({ preview: true }),
     })
       .then((r) => r.json())
-      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0, exemples: d.exemples ?? [] }))
-      .catch(() => setCible({ count: 0, emails: 0, exemples: [] }));
+      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0 }))
+      .catch(() => setCible({ count: 0, emails: 0 }));
   }, [cours.id]);
 
   const origPlage = plageHoraire(cours.heure_debut, cours.heure_fin);
@@ -2008,14 +2008,6 @@ function PrevenirPanel({
                 {` · ${cours.type_adherent ? publicLabel(cours.type_adherent) : "tous publics"}`}
                 {" "}· adhérents actifs de la saison en cours (désinscrits et adresses invalides exclus à l&apos;envoi).
               </span>
-              {cible && cible.exemples.length > 0 && (
-                <div className="mt-2 border-t border-orange/20 pt-2 text-xs font-normal text-smoke">
-                  <span className="font-semibold text-ink">Ouvertures (exemples) :</span>
-                  {cible.exemples.map((ex, i) => (
-                    <span key={i} className="mt-0.5 block italic">« {ex} »</span>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Étape 1 — motif (pré-remplit le mail) */}
