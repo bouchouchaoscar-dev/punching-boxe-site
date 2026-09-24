@@ -82,7 +82,7 @@ async function envoyerCampagnesPlanifiees() {
         cible: res.cible,
         nb_destinataires: res.personnesCiblees,
         nb_envoyes: res.emailsEnvoyes,
-        nb_exclus: res.exclus + res.exclusSansEmail,
+        nb_exclus: res.exclus + res.exclusSansEmail + res.exclusInvalides,
         destinataires_liste: res.destinatairesListe,
       })
       .eq("id", c.id);

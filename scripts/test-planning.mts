@@ -28,7 +28,9 @@ import {
 import { redirectionInterneValide } from "../lib/nav-roles";
 import { toMembrePublic } from "../lib/trombi-server";
 import type { Adherent } from "../lib/types";
-import { resoudreOuverture, regrouperParEmail, remplacerVariables, jetonsInconnus, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
+import { resoudreOuverture, regrouperParEmail, remplacerVariables, jetonsInconnus, objetAffiche, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
+import { estEmailValide, normaliserEmail } from "../lib/email-format";
+import { statutCampagne, type ResultatEnvoi } from "../lib/envoi-campagne";
 import { estMineur } from "../lib/pricing";
 
 let ok = 0;
@@ -461,6 +463,47 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
     JSON.stringify(jetonsInconnus("{{prenom}} {{xxx}} {{xxx}}")) === JSON.stringify(["{{xxx}}"]),
     "jetons : déduplique et ignore les connus",
   );
+}
+
+// ---- Validation du format email (source unique) ----
+{
+  const valides = ["a@b.fr", "marie.durand@gmail.com", "x+tag@sous.domaine.co.uk", "MARIE@GMAIL.COM", "  jean@club.fr  "];
+  for (const e of valides) check(estEmailValide(e), `email valide : ${JSON.stringify(e)}`);
+  const invalides = [
+    "", " ", "a@b", "a@b.", "a@.fr", "@b.fr", "no-at.fr",
+    "jean dupont@club.fr", "jean@ club.fr", "prénom@club.fr", "a@b_c.fr", "deux@@b.fr",
+  ];
+  for (const e of invalides) check(!estEmailValide(e), `email invalide : ${JSON.stringify(e)}`);
+  // Normalisation : trim + minuscules.
+  check(normaliserEmail("  Jean@Club.FR ") === "jean@club.fr", "normaliserEmail : trim + minuscules");
+}
+
+// ---- Exclusion avant envoi → statut Envoyé vs Partiel ----
+{
+  const base: ResultatEnvoi = {
+    ok: true, emailsEnvoyes: 0, emailsEchoues: 0, personnesCiblees: 0,
+    doublons: 0, exclus: 0, exclusSansEmail: 0, exclusInvalides: 0,
+    destinatairesListe: [], resultats: [], cible: "",
+  };
+  // Que des invalides exclus (aucun échec réel) → « Envoyé », pas « Partiel ».
+  check(statutCampagne({ ...base, emailsEnvoyes: 10, exclusInvalides: 3 }) === "envoye",
+    "statut : invalides exclus (0 échec) → Envoyé");
+  // Un échec réel après retry → « Partiel ».
+  check(statutCampagne({ ...base, emailsEnvoyes: 9, emailsEchoues: 1 }) === "partiel",
+    "statut : un échec réel → Partiel");
+  // Zéro envoyé → « erreur ».
+  check(statutCampagne({ ...base, emailsEnvoyes: 0, exclusInvalides: 2 }) === "erreur",
+    "statut : aucun envoyé → erreur");
+}
+
+// ---- Objet « tel qu'envoyé » (affichage historique) ----
+{
+  check(objetAffiche("Inscriptions {{saison}} ouvertes", "2026-08-31") === "Inscriptions 2026-2027 ouvertes",
+    "objetAffiche : {{saison}} résolu via la date d'envoi (31/08/2026 → 2026-2027)");
+  check(objetAffiche("Bonjour {{prenom}} !", "2026-08-31") === "Bonjour [prénom] !",
+    "objetAffiche : variable personnelle → lisible [prénom]");
+  check(objetAffiche("{{salutation}} {{concerne}}", "2026-08-31") === "[bonjour] [destinataire]",
+    "objetAffiche : salutation/concerne → lisibles");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

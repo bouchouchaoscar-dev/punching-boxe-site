@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     },
     nb_destinataires: res.personnesCiblees,
     nb_envoyes: res.emailsEnvoyes,
-    nb_exclus: res.exclus + res.exclusSansEmail,
+    nb_exclus: res.exclus + res.exclusSansEmail + res.exclusInvalides,
     // Statut RÉEL : partiel si des emails ont échoué, erreur si 0 envoyé.
     statut: statutCampagne(res),
     envoye_at: new Date().toISOString(),
@@ -110,5 +110,6 @@ export async function POST(request: Request) {
     doublons: res.doublons,
     exclus: res.exclus,
     exclusSansEmail: res.exclusSansEmail,
+    exclusInvalides: res.exclusInvalides,
   });
 }

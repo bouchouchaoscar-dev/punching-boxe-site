@@ -4,6 +4,7 @@ import { signerDocsAdherents } from "@/lib/storage-url";
 import { sendDocumentActionRequired } from "@/lib/email";
 import { evaluerDossier } from "@/lib/dossier";
 import { notifierSiDossierComplet } from "@/lib/dossier-complet";
+import { estEmailValide, normaliserEmail } from "@/lib/email-format";
 
 export const runtime = "nodejs";
 
@@ -85,6 +86,15 @@ export async function PATCH(request: Request, { params }: Ctx) {
       }
       update[k] = v;
     }
+  }
+
+  // Email : si modifié, doit rester valide (normalisé en minuscules).
+  if ("email" in update) {
+    const e = normaliserEmail(typeof update.email === "string" ? update.email : "");
+    if (!estEmailValide(e)) {
+      return NextResponse.json({ error: "Adresse email invalide" }, { status: 400 });
+    }
+    update.email = e;
   }
 
   if (body.action === "confirmer_especes") {

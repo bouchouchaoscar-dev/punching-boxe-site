@@ -6,6 +6,7 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import { formatTelephone } from "@/lib/telephone";
+import { estEmailValide } from "@/lib/email-format";
 import { EnvoiMailModal } from "./EnvoiMailModal";
 import { HistoriqueSaisons } from "./HistoriqueSaisons";
 
@@ -79,6 +80,7 @@ export function AnciensTable() {
   const [q, setQ] = useState("");
   const [segments, setSegments] = useState<string[]>([]);
   const [disciplines, setDisciplines] = useState<string[]>([]);
+  const [emailsKo, setEmailsKo] = useState(false); // filtre « emails invalides / vides »
   const [openId, setOpenId] = useState<string | null>(null);
   // Rendu progressif : on ne rend qu'un lot au départ (le filtrage/recherche
   // porte toujours sur TOUS les anciens chargés, pas sur les lignes visibles).
@@ -110,15 +112,16 @@ export function AnciensTable() {
       if (segments.length && (!a.classe || !segments.includes(a.classe))) return false;
       if (disciplines.length && !disciplines.some((d) => a.disciplines.includes(d)))
         return false;
+      if (emailsKo && estEmailValide(a.email)) return false; // ne garder que les invalides/vides
       return true;
     });
-  }, [anciens, q, segments, disciplines]);
+  }, [anciens, q, segments, disciplines, emailsKo]);
 
   // Recherche/filtre changé → on repart du 1er lot sur le nouveau résultat.
   useEffect(() => {
     setVisible(PAGE);
     setShowAll(false);
-  }, [q, segments, disciplines]);
+  }, [q, segments, disciplines, emailsKo]);
 
   // Sous-ensemble RÉELLEMENT rendu (le "Afficher plus" ne limite que le rendu).
   const shown = showAll ? filtered : filtered.slice(0, visible);
@@ -174,9 +177,13 @@ export function AnciensTable() {
               {d.label}
             </Chip>
           ))}
-          {(segments.length > 0 || disciplines.length > 0) && (
+          <span className="mx-1 self-center text-line">|</span>
+          <Chip active={emailsKo} onClick={() => setEmailsKo((v) => !v)}>
+            Emails invalides / vides
+          </Chip>
+          {(segments.length > 0 || disciplines.length > 0 || emailsKo) && (
             <button
-              onClick={() => { setSegments([]); setDisciplines([]); }}
+              onClick={() => { setSegments([]); setDisciplines([]); setEmailsKo(false); }}
               className="self-center text-xs font-semibold text-smoke underline-offset-2 hover:underline"
             >
               réinitialiser

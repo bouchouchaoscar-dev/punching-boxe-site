@@ -4,6 +4,7 @@ import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
 import { resoudreOuverture, joindrePrenoms, type PersonneEnvoi, type DestinataireVars } from "@/lib/campagnes";
 import { estActifCompte } from "@/lib/adherents-actifs";
+import { estEmailValide } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import {
@@ -137,9 +138,11 @@ export async function POST(request: Request, { params }: Ctx) {
       apercus.push({ label: r.label, vars: r.vars });
       if (apercus.length >= 3) break;
     }
+    const invalides = emails.filter((e) => !estEmailValide(e)).length;
     return NextResponse.json({
       count: cibles.length,
       emails: emails.length,
+      invalides,
       discipline: disciplineLabel(cours.discipline),
       apercus,
     });
@@ -187,7 +190,7 @@ export async function POST(request: Request, { params }: Ctx) {
     liste_filtre: { cours_id: id, discipline: cours.discipline, public: cours.type_adherent },
     nb_destinataires: res.personnesCiblees,
     nb_envoyes: res.emailsEnvoyes,
-    nb_exclus: res.exclus + res.exclusSansEmail,
+    nb_exclus: res.exclus + res.exclusSansEmail + res.exclusInvalides,
     statut: statutCampagne(res),
     envoye_at: new Date().toISOString(),
     destinataires_liste: res.destinatairesListe,
@@ -212,5 +215,6 @@ export async function POST(request: Request, { params }: Ctx) {
     personnes: res.personnesCiblees,
     exclus: res.exclus,
     exclusSansEmail: res.exclusSansEmail,
+    exclusInvalides: res.exclusInvalides,
   });
 }

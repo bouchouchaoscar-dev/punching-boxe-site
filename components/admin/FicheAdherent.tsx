@@ -13,6 +13,7 @@ import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
 import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
+import { estEmailValide } from "@/lib/email-format";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { estPaiementSolde } from "@/lib/paiement";
 import { estEngage } from "@/lib/engagement";
@@ -692,7 +693,11 @@ export function FicheAdherent({ id }: { id: string }) {
                     Annuler
                   </button>
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      if (!estEmailValide(form.email)) {
+                        showToast("Adresse email invalide");
+                        return;
+                      }
                       patch({
                         prenom: form.prenom,
                         nom: form.nom,
@@ -701,8 +706,8 @@ export function FicheAdherent({ id }: { id: string }) {
                         adresse: form.adresse,
                         ville: form.ville,
                         code_postal: form.code_postal,
-                      })
-                    }
+                      });
+                    }}
                     disabled={saving}
                     className="text-sm font-bold text-orange"
                   >
@@ -729,7 +734,7 @@ export function FicheAdherent({ id }: { id: string }) {
                 label="Date de naissance"
                 value={a.date_naissance ? formatDateFr(a.date_naissance) : "—"}
               />
-              <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} />
+              <EditableInfo label="Email" editing={editing} value={form.email ?? ""} onChange={(v) => setForm({ ...form, email: v })} display={a.email} error={editing && !!(form.email ?? "").trim() && !estEmailValide(form.email) ? "Adresse email invalide" : ""} />
               <EditableInfo label="Téléphone" editing={editing} value={form.telephone ?? ""} onChange={(v) => setForm({ ...form, telephone: v })} display={a.telephone ? formatTelephone(a.telephone) : "—"} />
               <EditableInfo label="Adresse" editing={editing} value={form.adresse ?? ""} onChange={(v) => setForm({ ...form, adresse: v })} display={a.adresse ?? "—"} />
               <EditableInfo label="Code postal" editing={editing} value={form.code_postal ?? ""} onChange={(v) => setForm({ ...form, code_postal: v })} display={a.code_postal ?? "—"} />
@@ -1603,6 +1608,7 @@ function EditableInfo({
   display,
   onChange,
   hint,
+  error,
 }: {
   label: string;
   editing: boolean;
@@ -1610,6 +1616,7 @@ function EditableInfo({
   display: string;
   onChange: (v: string) => void;
   hint?: string;
+  error?: string;
 }) {
   return (
     <div className="min-w-0">
@@ -1621,9 +1628,13 @@ function EditableInfo({
           <input
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="focus-ring mt-1 w-full rounded-lg border border-line bg-paper-2 px-3 py-1.5 text-sm outline-none focus:border-orange"
+            className={`focus-ring mt-1 w-full rounded-lg border bg-paper-2 px-3 py-1.5 text-sm outline-none focus:border-orange ${error ? "border-red-400" : "border-line"}`}
           />
-          {hint && <span className="mt-1 block text-xs text-smoke">{hint}</span>}
+          {error ? (
+            <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>
+          ) : (
+            hint && <span className="mt-1 block text-xs text-smoke">{hint}</span>
+          )}
         </>
       ) : (
         <dd className="mt-1 font-medium text-ink [overflow-wrap:anywhere]">{display}</dd>

@@ -4,6 +4,7 @@ import { isAdminRequest } from "@/lib/admin-guard";
 import { TARIFS, PACKAGE_LABEL, type PackageType } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import { envoyerLienActivation } from "@/lib/activation";
+import { estEmailValide } from "@/lib/email-format";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -22,7 +23,6 @@ type Body = {
 };
 
 const PACKAGES = Object.keys(PACKAGE_LABEL) as PackageType[];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(Date.parse(s));
 
 // Retrouve l'id d'un compte auth par email (pagination). supabase-js n'expose
@@ -88,8 +88,8 @@ export async function POST(request: Request) {
   if (!nom || !prenom) {
     return NextResponse.json({ error: "Nom et prénom requis." }, { status: 400 });
   }
-  if (!EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: "Email invalide." }, { status: 400 });
+  if (!estEmailValide(email)) {
+    return NextResponse.json({ error: "Adresse email invalide" }, { status: 400 });
   }
   if (!PACKAGES.includes(pkg)) {
     return NextResponse.json({ error: "Formule invalide." }, { status: 400 });

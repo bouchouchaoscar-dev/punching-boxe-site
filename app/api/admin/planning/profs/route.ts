@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { planningActif } from "@/lib/planning";
+import { estEmailValide, normaliserEmail } from "@/lib/email-format";
 
 export const runtime = "nodejs";
 
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
   if (!nom && !prenom) {
     return NextResponse.json({ error: "Nom ou prénom requis." }, { status: 400 });
   }
+  const email = normaliserEmail(body.email) || null;
+  if (email && !estEmailValide(email)) {
+    return NextResponse.json({ error: "Adresse email invalide" }, { status: 400 });
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -44,7 +49,7 @@ export async function POST(request: Request) {
     .insert({
       nom,
       prenom,
-      email: (body.email || "").trim() || null,
+      email,
       telephone: (body.telephone || "").trim() || null,
     })
     .select("*")
@@ -78,7 +83,13 @@ export async function PATCH(request: Request) {
   const patch: Record<string, unknown> = {};
   if (body.nom !== undefined) patch.nom = body.nom.trim();
   if (body.prenom !== undefined) patch.prenom = body.prenom.trim();
-  if (body.email !== undefined) patch.email = body.email.trim() || null;
+  if (body.email !== undefined) {
+    const email = normaliserEmail(body.email) || null;
+    if (email && !estEmailValide(email)) {
+      return NextResponse.json({ error: "Adresse email invalide" }, { status: 400 });
+    }
+    patch.email = email;
+  }
   if (body.telephone !== undefined) patch.telephone = body.telephone.trim() || null;
   if (body.actif !== undefined) patch.actif = !!body.actif;
 

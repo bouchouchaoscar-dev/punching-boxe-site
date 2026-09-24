@@ -12,6 +12,7 @@ import { ScrollX } from "@/components/ui/ScrollX";
 import { IconButton } from "@/components/ui/IconButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Download } from "lucide-react";
+import { estEmailValide } from "@/lib/email-format";
 import { getAdminRole } from "@/lib/admin-auth";
 import { euro, formuleLabel, formuleCle, FORMULE_FILTRE_OPTIONS } from "@/lib/pricing";
 import {
@@ -38,6 +39,7 @@ export function AdherentsTable() {
   const [type, setType] = useState("all");
   const [statut, setStatut] = useState<StatutFiltre>("all");
   const [formule, setFormule] = useState("all");
+  const [emailFiltre, setEmailFiltre] = useState("all"); // all | invalides
   const [confirming, setConfirming] = useState<string | null>(null);
   // Création admin (tarif/durée libres) — bouton réservé à l'admin.
   const [role, setRole] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function AdherentsTable() {
   const [confirmExport, setConfirmExport] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const filtresActifs =
-    (type !== "all" ? 1 : 0) + (statut !== "all" ? 1 : 0) + (formule !== "all" ? 1 : 0);
+    (type !== "all" ? 1 : 0) + (statut !== "all" ? 1 : 0) + (formule !== "all" ? 1 : 0) + (emailFiltre !== "all" ? 1 : 0);
   const [encaisseMap, setEncaisseMap] = useState<Record<string, number>>({});
   const [paidEcheancesMap, setPaidEcheancesMap] = useState<
     Record<string, number>
@@ -101,9 +103,11 @@ export function AdherentsTable() {
       const matchFormule =
         formule === "all" ||
         formuleCle(a.package, a.option_prepa_physique) === formule;
-      return matchQ && matchType && matchStatut && matchFormule;
+      // Emails invalides / vides (liste intelligente pour correction).
+      const matchEmail = emailFiltre === "all" || !estEmailValide(a.email);
+      return matchQ && matchType && matchStatut && matchFormule && matchEmail;
     });
-  }, [adherents, q, type, statut, formule]);
+  }, [adherents, q, type, statut, formule, emailFiltre]);
 
   async function confirmCash(id: string) {
     setConfirming(id);
@@ -241,11 +245,13 @@ export function AdherentsTable() {
           setType("all");
           setStatut("all");
           setFormule("all");
+          setEmailFiltre("all");
         }}
       >
         <Select value={type} onChange={setType} options={[["all", "Tous types"], ["adulte", "Adultes"], ["jeune", "Jeunes"]]} />
         <Select value={statut} onChange={(v) => setStatut(v as StatutFiltre)} options={STATUT_FILTRE_OPTIONS} />
         <Select value={formule} onChange={setFormule} options={FORMULE_FILTRE_OPTIONS} />
+        <Select value={emailFiltre} onChange={setEmailFiltre} options={[["all", "Tous emails"], ["invalides", "Emails invalides / vides"]]} />
       </FiltresBar>
 
       {error && (

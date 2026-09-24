@@ -102,6 +102,7 @@ export default function NouvelleCampagnePage() {
     exclus: number;
     doublons: number;
     exclusSansEmail: number;
+    exclusInvalides: number;
   } | null>(null);
 
   useEffect(() => {
@@ -378,7 +379,7 @@ export default function NouvelleCampagnePage() {
         });
         const d = await res.json();
         if (res.ok && d.success) {
-          setResult({ planifie: true, emails: 0, personnes: 0, exclus: 0, doublons: 0, exclusSansEmail: 0 });
+          setResult({ planifie: true, emails: 0, personnes: 0, exclus: 0, doublons: 0, exclusSansEmail: 0, exclusInvalides: 0 });
         } else {
           setConfirmOpen(false);
           setToast(d.error || "La planification a échoué.");
@@ -401,6 +402,7 @@ export default function NouvelleCampagnePage() {
           exclus: d.exclus ?? 0,
           doublons: d.doublons ?? 0,
           exclusSansEmail: d.exclusSansEmail ?? 0,
+          exclusInvalides: d.exclusInvalides ?? 0,
         });
       } else {
         setConfirmOpen(false);
@@ -1022,6 +1024,12 @@ export default function NouvelleCampagnePage() {
                     <Row
                       label="Anciens sans email (exclus)"
                       value={String(result.exclusSansEmail)}
+                    />
+                  )}
+                  {result.exclusInvalides > 0 && (
+                    <Row
+                      label="Adresses invalides (exclues)"
+                      value={String(result.exclusInvalides)}
                     />
                   )}
                 </dl>

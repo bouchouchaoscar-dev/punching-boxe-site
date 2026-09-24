@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro, formuleLabel, TARIFS, type PackageType } from "@/lib/pricing";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { estEmailValide } from "@/lib/email-format";
 
 // Formules RÉELLES (mêmes qu'à l'inscription) : package + option prépa.
 // L'option prépa ne qualifie que la Boxe Française (pas un 3e package).
@@ -14,7 +15,6 @@ const FORMULES = [
 ] as const;
 type FormuleId = (typeof FORMULES)[number]["id"];
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Hauteur EXPLICITE (h-11) : un <select> natif rend plus court qu'un <input>
 // avec un simple padding vertical → une hauteur fixe garantit des champs
 // identiques (input + select) et alignés, cohérents avec les DatePicker.
@@ -78,7 +78,7 @@ export function CreerAdherentModal({
     setError("");
     // Validation client (le serveur revalide, autoritaire).
     if (!nom.trim() || !prenom.trim()) return setError("Nom et prénom requis.");
-    if (!EMAIL_RE.test(email.trim())) return setError("Email invalide.");
+    if (!estEmailValide(email)) return setError("Adresse email invalide");
     if (!Number.isFinite(cotisationNum) || cotisationNum <= 0)
       return setError("Montant de cotisation invalide.");
     if (!dateDebut || !dateFin) return setError("Dates de début et de fin requises.");
@@ -147,6 +147,9 @@ export function CreerAdherentModal({
               Email
             </span>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={champCls} />
+            {email.trim().length > 3 && !estEmailValide(email) && (
+              <span className="mt-1 block text-xs font-semibold text-red-600">Adresse email invalide</span>
+            )}
           </label>
           <label className="block">
             <span className="text-xs font-bold uppercase tracking-wide text-smoke">

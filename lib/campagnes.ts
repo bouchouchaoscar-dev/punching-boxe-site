@@ -559,6 +559,26 @@ export const VARIABLES_CONNUES = [
   "concerne",
 ] as const;
 
+// Objet « tel qu'envoyé » pour l'HISTORIQUE (affichage seul, aucune donnée
+// modifiée). Résout les variables NON personnelles avec les valeurs du moment de
+// l'envoi ({{saison}} via saisonCourante(dateEnvoi)) ; les variables PERSONNELLES
+// sont rendues lisibles ([prénom], [bonjour]…) au lieu du jeton brut.
+export function objetAffiche(objet: string, dateEnvoi?: string | null): string {
+  const d = dateEnvoi ? new Date(dateEnvoi) : new Date();
+  const saison = saisonCourante(isNaN(d.getTime()) ? new Date() : d);
+  return (objet ?? "")
+    .replace(/\{\{saison\}\}/g, saison)
+    .replace(/\{\{prenom\}\}/g, "[prénom]")
+    .replace(/\{\{nom\}\}/g, "[nom]")
+    .replace(/\{\{formule\}\}/g, "[formule]")
+    .replace(/\{\{montant\}\}/g, "[montant]")
+    .replace(/\{\{derniere_saison\}\}/g, "[dernière saison]")
+    .replace(/\{\{disciplines\}\}/g, "[disciplines]")
+    .replace(/\{\{recap_reglement\}\}/g, "[récap règlement]")
+    .replace(/\{\{salutation\}\}/g, "[bonjour]")
+    .replace(/\{\{concerne\}\}/g, "[destinataire]");
+}
+
 // Jetons {{xxx}} présents dans le texte mais NON reconnus (donc jamais résolus
 // à l'envoi → partiraient tels quels ou vides). Renvoie la liste dédupliquée,
 // sous forme « {{xxx}} », dans l'ordre d'apparition.

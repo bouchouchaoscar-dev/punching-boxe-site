@@ -10,6 +10,7 @@ import { FileDrop, type FileFieldKey } from "./FileDrop";
 import { StripePayment, type StripePlan } from "./StripePayment";
 import { PostalCityFields } from "./PostalCityFields";
 import { AttestationModal } from "./AttestationModal";
+import { estEmailValide } from "@/lib/email-format";
 import { formatPhone, normalizePhone } from "@/lib/format";
 import {
   calculerTarif,
@@ -438,7 +439,7 @@ export function InscriptionForm({
     };
   }
 
-  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  const emailOk = estEmailValide(email);
   const step1Ok =
     !!lienParente &&
     nom.trim() &&
@@ -730,7 +731,7 @@ export function InscriptionForm({
                     onChange={setEmail}
                     required
                     disabled={!!lockedEmail}
-                    error={email.length > 3 && !emailOk ? "Email invalide" : ""}
+                    error={email.length > 3 && !emailOk ? "Adresse email invalide" : ""}
                   />
                   {lockedEmail && (
                     <p className="mt-1.5 text-xs text-smoke">

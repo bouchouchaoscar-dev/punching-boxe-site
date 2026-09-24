@@ -1,6 +1,7 @@
 import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
 import { matchKey } from "./anciennete";
+import { estEmailValide } from "./email-format";
 import type { NewAdherent, Adherent } from "./types";
 import type { FicheData, ReglementData } from "./pdf/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -98,8 +99,7 @@ export function validatePayload(p: Partial<InscriptionPayload>): string | null {
   if (!p.nom?.trim()) return "Le nom est requis.";
   if (!p.prenom?.trim()) return "Le prénom est requis.";
   if (!p.date_naissance) return "La date de naissance est requise.";
-  if (!p.email?.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email))
-    return "Un email valide est requis.";
+  if (!estEmailValide(p.email)) return "Un email valide est requis.";
   if (!p.telephone?.trim()) return "Le téléphone est requis.";
   if (!p.adresse?.trim()) return "L'adresse postale est requise.";
   if (!p.code_postal?.trim()) return "Le code postal est requis.";

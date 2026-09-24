@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Clock, FileText } from "lucide-react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import { textesSuppressionHistorique, type Campagne } from "@/lib/campagnes";
+import { textesSuppressionHistorique, objetAffiche, type Campagne } from "@/lib/campagnes";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { OverflowMenu } from "@/components/ui/OverflowMenu";
 import { SelectMenu } from "@/components/ui/SelectMenu";
@@ -256,7 +256,7 @@ export default function CampagnesPage() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <span className="font-semibold text-ink">{c.objet}</span>
+                      <span className="font-semibold text-ink">{objetAffiche(c.objet, c.envoye_at ?? c.scheduled_at ?? c.created_at)}</span>
                       {c.cible && (
                         <span className="mt-0.5 block text-xs text-smoke">
                           {c.cible}
@@ -358,7 +358,7 @@ export default function CampagnesPage() {
                       </div>
 
                       <p className="mt-2 font-semibold text-ink [overflow-wrap:anywhere]">
-                        {c.objet}
+                        {objetAffiche(c.objet, c.envoye_at ?? c.scheduled_at ?? c.created_at)}
                       </p>
                       {c.cible && (
                         <p className="mt-0.5 text-xs text-smoke">{c.cible}</p>
@@ -432,7 +432,7 @@ export default function CampagnesPage() {
             <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
               <h2 className="font-display text-lg font-extrabold uppercase text-ink">{txt.titre}</h2>
               <div className="mt-3 rounded-xl border border-line bg-paper-2 p-3 text-sm">
-                <p className="font-semibold text-ink">{aSupprimer.objet}</p>
+                <p className="font-semibold text-ink">{objetAffiche(aSupprimer.objet, aSupprimer.envoye_at ?? aSupprimer.scheduled_at ?? aSupprimer.created_at)}</p>
                 <p className="mt-0.5 text-xs text-smoke">
                   {txt.annulation && aSupprimer.scheduled_at
                     ? `Prévue le ${dateHeure(aSupprimer.scheduled_at)}`

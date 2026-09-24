@@ -38,6 +38,7 @@ import {
   type PeriodeFermeture,
 } from "@/lib/planning";
 import { remplacerVariables, jetonsInconnus, type DestinataireVars } from "@/lib/campagnes";
+import { estEmailValide } from "@/lib/email-format";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -1363,6 +1364,9 @@ function ProfsTab({
               placeholder="Pour recevoir les mails d'affectation"
               className={inputCls}
             />
+            {form.email.trim() && !estEmailValide(form.email) && (
+              <span className="mt-1 block text-xs font-semibold text-red-600">Adresse email invalide</span>
+            )}
           </Field>
           <Field label="Téléphone (option)">
             <input
@@ -1374,7 +1378,7 @@ function ProfsTab({
           <div className="flex gap-2">
             <button
               onClick={soumettre}
-              disabled={busy || (!form.nom.trim() && !form.prenom.trim())}
+              disabled={busy || (!form.nom.trim() && !form.prenom.trim()) || (!!form.email.trim() && !estEmailValide(form.email))}
               className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
             >
               {editId ? "Enregistrer" : "Ajouter"}
@@ -1871,6 +1875,7 @@ function PrevenirPanel({
   const [cible, setCible] = useState<{
     count: number;
     emails: number;
+    invalides: number;
     apercus: { label: string; vars: DestinataireVars }[];
   } | null>(null);
   const [apercuIdx, setApercuIdx] = useState(0);
@@ -1885,8 +1890,8 @@ function PrevenirPanel({
       body: JSON.stringify({ preview: true }),
     })
       .then((r) => r.json())
-      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0, apercus: d.apercus ?? [] }))
-      .catch(() => setCible({ count: 0, emails: 0, apercus: [] }));
+      .then((d) => setCible({ count: d.count ?? 0, emails: d.emails ?? 0, invalides: d.invalides ?? 0, apercus: d.apercus ?? [] }))
+      .catch(() => setCible({ count: 0, emails: 0, invalides: 0, apercus: [] }));
   }, [cours.id]);
 
   // Jetons non résolus (inconnus) présents dans l'objet ou le message.
@@ -2018,6 +2023,11 @@ function PrevenirPanel({
                 {` · ${cours.type_adherent ? publicLabel(cours.type_adherent) : "tous publics"}`}
                 {" "}· adhérents actifs de la saison en cours (désinscrits et adresses invalides exclus à l&apos;envoi).
               </span>
+              {cible && cible.invalides > 0 && (
+                <span className="mt-1 block text-xs font-semibold text-orange/90">
+                  {cible.invalides} adresse{cible.invalides > 1 ? "s" : ""} invalide{cible.invalides > 1 ? "s" : ""} exclue{cible.invalides > 1 ? "s" : ""} (à corriger dans les fiches).
+                </span>
+              )}
             </div>
 
             {/* Étape 1 — motif (pré-remplit le mail) */}

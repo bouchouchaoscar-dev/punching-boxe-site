@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import type { Campagne } from "@/lib/campagnes";
+import { objetAffiche, type Campagne } from "@/lib/campagnes";
 
 const STATUT_BADGE: Record<string, { label: string; cls: string }> = {
   envoye: { label: "✅ Envoyé", cls: "bg-green-50 text-green-700" },
@@ -131,7 +131,7 @@ export default function CampagneDetailPage({
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-black uppercase text-ink sm:text-4xl">
-            {campagne.objet || "(sans objet)"}
+            {objetAffiche(campagne.objet, campagne.envoye_at ?? campagne.scheduled_at ?? campagne.created_at) || "(sans objet)"}
           </h1>
           <p className="mt-2 text-sm text-smoke">
             {dateEnvoi.toLocaleDateString("fr-FR", {
@@ -206,9 +206,11 @@ export default function CampagneDetailPage({
         <h2 className="font-display text-lg font-extrabold uppercase text-ink">
           Message
         </h2>
-        <p className="mt-3 text-sm font-bold text-ink">{campagne.objet}</p>
+        <p className="mt-3 text-sm font-bold text-ink">
+          {objetAffiche(campagne.objet, campagne.envoye_at ?? campagne.scheduled_at ?? campagne.created_at)}
+        </p>
         <div className="mt-2 whitespace-pre-wrap rounded-xl border border-line bg-paper-2 p-4 text-sm text-ink">
-          {campagne.contenu}
+          {objetAffiche(campagne.contenu, campagne.envoye_at ?? campagne.scheduled_at ?? campagne.created_at)}
         </div>
       </div>
 

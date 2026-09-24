@@ -17,6 +17,7 @@ import {
   type PersonneEnvoi,
 } from "./campagnes";
 import { saisonCourante } from "./saison";
+import { estEmailValide } from "./email-format";
 import type { Adherent } from "./types";
 
 // Recette d'une campagne : la cible (segments/listes) + le message. C'est ce qui
@@ -54,6 +55,7 @@ export type ResultatEnvoi = {
   doublons: number;
   exclus: number; // désinscrits (personnes)
   exclusSansEmail: number;
+  exclusInvalides: number; // adresses au format invalide (exclues avant Resend)
   destinatairesListe: {
     email: string;
     personnes: { prenom: string | null; nom: string | null }[];
@@ -131,6 +133,7 @@ export async function envoyerCampagne(
     doublons: 0,
     exclus: 0,
     exclusSansEmail: 0,
+    exclusInvalides: 0,
     destinatairesListe: [],
     resultats: [],
     cible,
@@ -236,6 +239,19 @@ export async function envoyerCampagne(
 
   const doublons = totalAvant - personnes.size;
 
+  // Exclusion des adresses au FORMAT INVALIDE, AVANT tout envoi (même logique
+  // que désinscrits/bouncés). Comptées à part (adresses distinctes), jamais
+  // présentées comme des échecs. Une campagne dont seuls des emails invalides
+  // sont exclus reste « Envoyé » (ils ne sont pas tentés).
+  const personnesValides = new Map<string, PersonneEnvoi>();
+  const emailsInvalides = new Set<string>();
+  for (const [k, p] of personnes) {
+    if (estEmailValide(p.email)) personnesValides.set(k, p);
+    else emailsInvalides.add((p.email || "").trim().toLowerCase());
+  }
+  emailsInvalides.delete("");
+  const exclusInvalides = emailsInvalides.size;
+
   // Exclusion au niveau email — PORTE D'ENVOI UNIQUE. Réunit deux motifs :
   // désinscrits RGPD + adresses bouncées (rejetées). Couvre TOUTES les sources
   // (adhérents, anciens, contacts, emails manuels) : aucune campagne ne peut
@@ -253,7 +269,7 @@ export async function envoyerCampagne(
 
   // ---- Étage 2 : regroupement par EMAIL (familles préservées) ----
   const { envois, personnesExclues } = regrouperParEmail(
-    [...personnes.values()],
+    [...personnesValides.values()],
     desinscrits,
     saisonRef,
   );
@@ -264,6 +280,7 @@ export async function envoyerCampagne(
       doublons,
       exclus: personnesExclues,
       exclusSansEmail,
+      exclusInvalides,
       error: "Aucun destinataire (liste vide ou tous désinscrits).",
     };
   }
@@ -327,6 +344,7 @@ export async function envoyerCampagne(
     doublons,
     exclus: personnesExclues,
     exclusSansEmail,
+    exclusInvalides,
     destinatairesListe,
     resultats,
     cible,
