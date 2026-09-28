@@ -44,6 +44,19 @@ type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
 const jsonHeaders = () => ({ "Content-Type": "application/json", ...adminAuthHeaders() });
 
+// Semaine à ouvrir : ?semaine=YYYY-MM-DD (lundi) dans l'URL, sinon semaine en
+// cours. Toute date valide est ramenée à son lundi ; paramètre absent/invalide
+// → semaine courante (comportement actuel). Lecture client-only.
+function semaineInitiale(): string {
+  const parDefaut = toISODate(lundiDeLaSemaine(new Date()));
+  if (typeof window === "undefined") return parDefaut;
+  const p = new URLSearchParams(window.location.search).get("semaine");
+  if (!p || !/^\d{4}-\d{2}-\d{2}$/.test(p)) return parDefaut;
+  const d = new Date(`${p}T00:00:00`);
+  if (isNaN(d.getTime())) return parDefaut;
+  return toISODate(lundiDeLaSemaine(d));
+}
+
 export default function PlanningPage() {
   const actif = planningActif();
   const [role, setRole] = useState<string | null>(null);
@@ -52,7 +65,7 @@ export default function PlanningPage() {
   const [profs, setProfs] = useState<Prof[]>([]);
   const [cours, setCours] = useState<Cours[]>([]);
   const [periodes, setPeriodes] = useState<PeriodeFermeture[]>([]);
-  const [semaineISO, setSemaineISO] = useState(() => toISODate(lundiDeLaSemaine(new Date())));
+  const [semaineISO, setSemaineISO] = useState(semaineInitiale);
   const [affectations, setAffectations] = useState<Affectation[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -199,10 +212,14 @@ export default function PlanningPage() {
           body: JSON.stringify({ semaine: semaineISO, prof_id: profId, cours_ids: [...selected], action: profPicker.action }),
         });
         const d = await res.json();
-        if (!res.ok) flash(d.error || "Échec de l'opération.");
-        else {
+        if (!res.ok) {
+          // Échec : on CONSERVE la sélection pour pouvoir réessayer.
+          flash(d.error || "Échec de l'opération.");
+        } else {
           flash(profPicker.action === "add" ? "Prof affecté à la sélection ✓" : "Prof retiré de la sélection ✓");
           chargerAffectations();
+          // Succès : on décoche tout → la barre d'action disparaît (padding remis à 0).
+          setSelected(new Set());
         }
       }
     } finally {
@@ -556,7 +573,7 @@ export default function PlanningPage() {
 // Vue COACH — planning en lecture seule (aucune action)
 // ============================================================================
 function PlanningCoach() {
-  const [semaineISO, setSemaineISO] = useState(() => toISODate(lundiDeLaSemaine(new Date())));
+  const [semaineISO, setSemaineISO] = useState(semaineInitiale);
   const [data, setData] = useState<{
     cours: Cours[];
     affectations: Affectation[];

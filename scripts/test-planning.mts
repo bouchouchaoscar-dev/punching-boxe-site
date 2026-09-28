@@ -402,6 +402,16 @@ console.log("— redirectionInterneValide (next après login) —");
   check(redirectionInterneValide("/\\evil.com", "admin") === false, "backslash refusé");
   check(redirectionInterneValide("/", "admin") === false, "hors /admin refusé");
   check(redirectionInterneValide(null, "admin") === false, "next absent → défaut");
+  // Query string sur un chemin interne autorisé (lien mail planning) : acceptée.
+  check(redirectionInterneValide("/admin/planning?semaine=2026-09-28", "coach") === true, "coach : /admin/planning?semaine=… accepté");
+  check(redirectionInterneValide("/admin/planning?semaine=2026-09-28", "admin") === true, "admin : /admin/planning?semaine=… accepté");
+  check(redirectionInterneValide("/admin/planning#section", "coach") === true, "coach : fragment #… accepté");
+  // Cas malveillants TOUJOURS refusés, même avec une query string.
+  check(redirectionInterneValide("/admin/adherents?semaine=2026-09-28", "coach") === false, "coach : /admin/adherents?… toujours refusé");
+  check(redirectionInterneValide("//evil.com?x=1", "admin") === false, "//evil.com?x=1 refusé (malgré query)");
+  check(redirectionInterneValide("/\\evil.com?a=b", "admin") === false, "backslash + query refusé");
+  check(redirectionInterneValide("https://evil.com/admin/planning?semaine=2026-09-28", "admin") === false, "schéma http + query refusé");
+  check(redirectionInterneValide("javascript:alert(1)?x=1", "coach") === false, "javascript: + query refusé");
 }
 
 console.log("— non-fuite : /api/coach/planning (liste blanche) —");

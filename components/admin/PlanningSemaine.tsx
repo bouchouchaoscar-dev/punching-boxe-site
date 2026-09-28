@@ -314,6 +314,11 @@ export function PlanningSemaine({
 
   // Centrage horizontal (mobile) sur la colonne du jour ; sinon début (lundi).
   const mobileScrollEl = useRef<HTMLDivElement | null>(null);
+  // Référence STABLE : évite que ScrollX ne remette le ref à null à chaque rendu
+  // (une fonction inline changerait d'identité → cleanup/re-set en boucle).
+  const setScrollEl = useCallback((el: HTMLDivElement | null) => {
+    mobileScrollEl.current = el;
+  }, []);
   const centrerJour = useCallback((smooth: boolean) => {
     const el = mobileScrollEl.current;
     if (!el) return;
@@ -337,9 +342,21 @@ export function PlanningSemaine({
 
   // Au chargement / changement de semaine / arrivée des données : centrer le jour
   // (sans animation). Ne touche pas le scroll vertical de la page (scrollLeft only).
+  // Déps PRIMITIVES (pas les tableaux, dont l'identité change à chaque rendu côté
+  // coach) : ne se relance que quand la grille change réellement (semaine, données
+  // arrivées → bandes/colonnes). Double rAF : on attend que la grille soit
+  // réellement peinte (cas des données qui arrivent après le 1er rendu).
   useEffect(() => {
-    centrerJour(false);
-  }, [semaineISO, cours, affectations, centrerJour]);
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => centrerJour(false));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [semaineISO, bandes.length, jours.length, centrerJour]);
 
   const noop = () => {};
   const carte = (c: Cours) => (
@@ -480,7 +497,7 @@ export function PlanningSemaine({
 
           {/* MOBILE : colonnes empilées, swipe avec snap centré */}
           <div className="md:hidden">
-            <ScrollX className="snap-x snap-mandatory overflow-x-auto pb-1" chevronNu onScrollEl={(el) => (mobileScrollEl.current = el)}>
+            <ScrollX className="snap-x snap-mandatory overflow-x-auto pb-1" chevronNu onScrollEl={setScrollEl}>
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 {infosJours.map((it) => {
                   const coursDuJour = cours

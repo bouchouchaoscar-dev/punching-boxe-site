@@ -475,6 +475,7 @@ export async function sendPlanningProf(d: {
   subject: string; // objet, calculé par l'appelant selon le contenu
   titre: string; // en-tête du mail ("Mise à jour de votre planning" / …)
   semaineLabel: string; // "3 mars 2026"
+  semaineISO?: string; // lundi ISO (ex. "2026-09-28") → lien vers la semaine concernée
   planning: { texte: string; badge?: "nouveau" | "modifie" }[]; // planning complet à jour
   ajoutes?: string[];
   retires?: string[];
@@ -531,9 +532,14 @@ export async function sendPlanningProf(d: {
        <ul style="margin:8px 0;padding-left:18px">${listePlanning}</ul>
        ${blocChangements}`;
 
-  // Lien vers le planning complet (vue coach lecture seule). Non connecté → login.
+  // Lien vers le planning complet (vue coach lecture seule) sur la SEMAINE
+  // concernée (?semaine=lundi). Non connecté → login (le paramètre est conservé
+  // via ?next=). Semaine absente → comportement actuel (semaine en cours).
+  const urlPlanning = d.semaineISO
+    ? `${SITE_URL}/admin/planning?semaine=${encodeURIComponent(d.semaineISO)}`
+    : `${SITE_URL}/admin/planning`;
   const lienPlanning = planningActif()
-    ? `<p style="margin:14px 0 4px">${button(`${SITE_URL}/admin/planning`, "Voir le planning complet")}</p>`
+    ? `<p style="margin:14px 0 4px">${button(urlPlanning, "Voir le planning complet")}</p>`
     : "";
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">${escapeHtml(d.titre)} 🥊</h1>

@@ -175,6 +175,7 @@ export async function POST(request: Request) {
         subject,
         titre,
         semaineLabel,
+        semaineISO: semaine,
         planning: l.actuel.map((c) => ({
           texte: ligneCours(c),
           badge: ajoutesIds.has(c.cours_id) ? "nouveau" : modifiesIds.has(c.cours_id) ? "modifie" : undefined,
