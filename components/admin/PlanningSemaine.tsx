@@ -11,6 +11,7 @@ import {
   formatHeure,
   estFerme,
   couleurCours,
+  COULEUR_PROF_AFFECTE,
   disciplineLabel,
   publicLabel,
   type Cours,
@@ -154,22 +155,34 @@ function CarteCours({
             coach) ; « Prof à définir » en gris discret si aucun.
           - Admin : chips avec croix de retrait (inchangé). */}
       {readOnly ? (
-        <div className="mt-1 flex items-start gap-1 text-[11px] font-semibold leading-tight text-ink">
-          <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink/60" />
-          {profsDuCours.length > 0 ? (
+        // Coach : icône + noms en accent foncé (même teinte que la pastille
+        // admin) ; « Prof à définir » gris discret.
+        profsDuCours.length > 0 ? (
+          <div
+            className="mt-1 flex items-start gap-1 text-[11px] font-bold leading-tight"
+            style={{ color: COULEUR_PROF_AFFECTE }}
+          >
+            <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>{profsDuCours.map(nomProf).join(", ")}</span>
-          ) : (
-            <span className="font-normal text-smoke">Prof à définir</span>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="mt-1 flex items-start gap-1 text-[11px] font-normal leading-tight text-smoke">
+            <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>Prof à définir</span>
+          </div>
+        )
       ) : (
         profsDuCours.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
             {profsDuCours.map((p) => (
+              // Pastille « prof affecté » : fond accent foncé, texte blanc gras,
+              // icône + croix blanches (zone de tap ≥ 44px sur la croix).
               <span
                 key={p.id}
-                className="inline-flex items-center gap-0.5 rounded-full bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-ink"
+                style={{ backgroundColor: COULEUR_PROF_AFFECTE }}
+                className="inline-flex items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[10px] font-bold text-white"
               >
+                <IconePersonne className="h-3 w-3 shrink-0" />
                 {nomProf(p)}
                 {actionsVisibles && (
                   <button
@@ -178,9 +191,9 @@ function CarteCours({
                       onRemoveProf(c.id, p.id);
                     }}
                     aria-label={`Retirer ${nomProf(p)}`}
-                    className="ml-0.5 text-smoke hover:text-red-600"
+                    className="-my-3 -mr-1 flex h-11 w-9 items-center justify-center text-white/90 hover:text-white"
                   >
-                    ×
+                    <span aria-hidden className="text-sm leading-none">×</span>
                   </button>
                 )}
               </span>

@@ -19,6 +19,9 @@ import {
   genererMailPrevenir,
   calculerHeuresProfs,
   formatDureeHeures,
+  COULEUR_PROF_AFFECTE,
+  contrasteAvecBlanc,
+  accentPourTexteBlanc,
   construireReponseCoachPlanning,
   type Cours,
   type PeriodeFermeture,
@@ -522,6 +525,16 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
     "objetAffiche : variable personnelle → lisible [prénom]");
   check(objetAffiche("{{salutation}} {{concerne}}", "2026-08-31") === "[bonjour] [destinataire]",
     "objetAffiche : salutation/concerne → lisibles");
+}
+
+// ---- Couleur « prof affecté » : contraste AA avec le blanc (source unique) ----
+{
+  check(contrasteAvecBlanc(COULEUR_PROF_AFFECTE) >= 4.5,
+    `prof affecté : contraste blanc ≥ 4.5:1 (=${contrasteAvecBlanc(COULEUR_PROF_AFFECTE).toFixed(2)})`);
+  check(/^#[0-9a-f]{6}$/.test(COULEUR_PROF_AFFECTE), "prof affecté : hex valide");
+  // Le blanc pur ne passe évidemment pas ; un ton foncé oui (garde-fou du helper).
+  check(contrasteAvecBlanc("#ffffff") < 4.5, "contrasteAvecBlanc : blanc < 4.5");
+  check(contrasteAvecBlanc(accentPourTexteBlanc("#FF6B00", 4.6)) >= 4.6, "accentPourTexteBlanc : atteint la cible 4.6");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

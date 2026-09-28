@@ -83,6 +83,45 @@ export function couleurCours(discipline: string | null, publicType: string | nul
   return conf?.disciplines?.[disc] ?? COULEUR_REPLI;
 }
 
+// -- Couleur « prof affecté » (SOURCE UNIQUE) --------------------------------
+// Dérivée de l'accent du club (CONFIG_CLUB.charte.couleurs.orange), assombrie
+// jusqu'à un contraste ≥ 4.5:1 avec le texte blanc (WCAG AA). Utilisée par la
+// pastille admin (fond) ET le nom côté coach (texte). Aucune couleur en dur.
+function hexEnRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+}
+function rgbEnHex(r: number, g: number, b: number): string {
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function luminance(r: number, g: number, b: number): number {
+  const f = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+// Contraste de la couleur avec le BLANC (blanc = luminance 1).
+export function contrasteAvecBlanc(hex: string): number {
+  const [r, g, b] = hexEnRgb(hex);
+  return 1.05 / (luminance(r, g, b) + 0.05);
+}
+// Assombrit une couleur (facteur multiplicatif) jusqu'à atteindre le contraste
+// visé avec le blanc. Déterministe.
+export function accentPourTexteBlanc(hex: string, cible = 4.5): string {
+  let [r, g, b] = hexEnRgb(hex);
+  let f = 1;
+  while (f > 0.05 && contrasteAvecBlanc(rgbEnHex(r * f, g * f, b * f)) < cible) f -= 0.02;
+  return rgbEnHex(r * f, g * f, b * f);
+}
+// Teinte unique « prof affecté » (calculée une fois depuis l'accent du club).
+export const COULEUR_PROF_AFFECTE = accentPourTexteBlanc(
+  CONFIG_CLUB.identite?.couleurs?.orange ?? "#FF6B00",
+  4.6, // marge au-dessus du seuil AA 4.5:1
+);
+
 /**
  * CIBLAGE MAILING — un adhérent (défini par sa FORMULE : package +
  * option_prepa_physique) est-il concerné par la discipline d'un cours ?
