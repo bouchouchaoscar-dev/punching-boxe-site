@@ -12,6 +12,7 @@ import {
   estFerme,
   couleurCours,
   COULEUR_PROF_AFFECTE,
+  nomCourtProf,
   disciplineLabel,
   publicLabel,
   type Cours,
@@ -98,6 +99,7 @@ function BoutonCarte({
 function CarteCours({
   c,
   profsDuCours,
+  courtNom,
   readOnly,
   selected,
   onToggleSelect,
@@ -107,6 +109,7 @@ function CarteCours({
 }: {
   c: Cours;
   profsDuCours: ProfMinimal[];
+  courtNom: (p: ProfMinimal) => string;
   readOnly: boolean;
   selected: boolean;
   onToggleSelect: (coursId: string) => void;
@@ -155,35 +158,37 @@ function CarteCours({
             coach) ; « Prof à définir » en gris discret si aucun.
           - Admin : chips avec croix de retrait (inchangé). */}
       {readOnly ? (
-        // Coach : icône + noms en accent foncé (même teinte que la pastille
-        // admin) ; « Prof à définir » gris discret.
+        // Coach : icône + nom court sur une ligne (items-center), accent foncé,
+        // gras ; « Prof à définir » même alignement, gris discret.
         profsDuCours.length > 0 ? (
-          <div
-            className="mt-1 flex items-start gap-1 text-[11px] font-bold leading-tight"
-            style={{ color: COULEUR_PROF_AFFECTE }}
-          >
-            <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{profsDuCours.map(nomProf).join(", ")}</span>
+          <div className="mt-1 space-y-0.5" style={{ color: COULEUR_PROF_AFFECTE }}>
+            {profsDuCours.map((p) => (
+              <div key={p.id} className="flex items-center gap-1 text-[11px] font-bold leading-tight">
+                <IconePersonne className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate" title={nomProf(p)} aria-label={nomProf(p)}>{courtNom(p)}</span>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="mt-1 flex items-start gap-1 text-[11px] font-normal leading-tight text-smoke">
-            <IconePersonne className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="mt-1 flex items-center gap-1 text-[11px] font-normal leading-tight text-smoke">
+            <IconePersonne className="h-3.5 w-3.5 shrink-0" />
             <span>Prof à définir</span>
           </div>
         )
       ) : (
         profsDuCours.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
+          // Pastilles empilées, MÊME hauteur/arrondi/largeur que les boutons
+          // Prof/Prévenir (rounded-full, border, px, py, text). Fond accent foncé,
+          // texte blanc gras ; icône + nom centrés ; croix au bord droit.
+          <div className="mt-1 flex flex-col gap-1">
             {profsDuCours.map((p) => (
-              // Pastille « prof affecté » : fond accent foncé, texte blanc gras,
-              // icône + croix blanches (zone de tap ≥ 44px sur la croix).
               <span
                 key={p.id}
                 style={{ backgroundColor: COULEUR_PROF_AFFECTE }}
-                className="inline-flex items-center gap-1 rounded-full py-0.5 pl-2 pr-1 text-[10px] font-bold text-white"
+                className="relative inline-flex items-center justify-center gap-1 rounded-full border border-transparent px-6 py-1 text-[10px] font-bold text-white"
               >
                 <IconePersonne className="h-3 w-3 shrink-0" />
-                {nomProf(p)}
+                <span className="truncate" title={nomProf(p)} aria-label={nomProf(p)}>{courtNom(p)}</span>
                 {actionsVisibles && (
                   <button
                     onClick={(e) => {
@@ -191,7 +196,7 @@ function CarteCours({
                       onRemoveProf(c.id, p.id);
                     }}
                     aria-label={`Retirer ${nomProf(p)}`}
-                    className="-my-3 -mr-1 flex h-11 w-9 items-center justify-center text-white/90 hover:text-white"
+                    className="absolute right-0 top-1/2 flex h-11 w-8 -translate-y-1/2 items-center justify-center text-white/90 hover:text-white"
                   >
                     <span aria-hidden className="text-sm leading-none">×</span>
                   </button>
@@ -371,11 +376,16 @@ export function PlanningSemaine({
     };
   }, [semaineISO, bandes.length, jours.length, centrerJour]);
 
+  // Nom court désambiguïsé sur le contexte = tous les profs fournis (actifs /
+  // affectés de la semaine). Source unique nomCourtProf.
+  const courtNom = useCallback((p: ProfMinimal) => nomCourtProf(p, profs), [profs]);
+
   const noop = () => {};
   const carte = (c: Cours) => (
     <CarteCours
       key={c.id}
       c={c}
+      courtNom={courtNom}
       profsDuCours={profsParCours.get(c.id) ?? []}
       readOnly={readOnly}
       selected={selected?.has(c.id) ?? false}

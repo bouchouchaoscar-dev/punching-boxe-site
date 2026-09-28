@@ -22,6 +22,7 @@ import {
   COULEUR_PROF_AFFECTE,
   contrasteAvecBlanc,
   accentPourTexteBlanc,
+  nomCourtProf,
   construireReponseCoachPlanning,
   type Cours,
   type PeriodeFermeture,
@@ -535,6 +536,32 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
   // Le blanc pur ne passe évidemment pas ; un ton foncé oui (garde-fou du helper).
   check(contrasteAvecBlanc("#ffffff") < 4.5, "contrasteAvecBlanc : blanc < 4.5");
   check(contrasteAvecBlanc(accentPourTexteBlanc("#FF6B00", 4.6)) >= 4.6, "accentPourTexteBlanc : atteint la cible 4.6");
+}
+
+// ---- nomCourtProf (cartes du calendrier) ----
+{
+  const oscar = { id: "1", prenom: "Oscar", nom: "Bouchoucha" };
+  const marie = { id: "2", prenom: "Marie", nom: "Durand" };
+  const jm = { id: "3", prenom: "Jean-Marc", nom: "Petit" };
+  const particule = { id: "4", prenom: "Léa", nom: "de la Fontaine" };
+  // Cas simple.
+  check(nomCourtProf(oscar, [oscar, marie]) === "Oscar B.", "nomCourt : cas simple → Oscar B.");
+  // Prénom composé conservé entier.
+  check(nomCourtProf(jm, [jm, marie]) === "Jean-Marc P.", "nomCourt : prénom composé → Jean-Marc P.");
+  // Nom à particule : initiale du 1er caractère alphanumérique.
+  check(nomCourtProf(particule, [particule]) === "Léa D.", "nomCourt : particule → Léa D.");
+  // Désambiguïsation : même prénom + même initiale → nom complet pour les 2.
+  const oscarB2 = { id: "5", prenom: "Oscar", nom: "Bernard" };
+  check(nomCourtProf(oscar, [oscar, oscarB2]) === "Oscar Bouchoucha", "nomCourt : collision → nom complet");
+  check(nomCourtProf(oscarB2, [oscar, oscarB2]) === "Oscar Bernard", "nomCourt : collision (2e) → nom complet");
+  // Pas de collision si initiale différente.
+  const oscarM = { id: "6", prenom: "Oscar", nom: "Martin" };
+  check(nomCourtProf(oscar, [oscar, oscarM]) === "Oscar B.", "nomCourt : initiale différente → court");
+  // Insensible aux accents/casse pour la collision.
+  const oscarBAccent = { id: "7", prenom: "óscar", nom: "Béatrix" };
+  check(nomCourtProf(oscar, [oscar, oscarBAccent]) === "Oscar Bouchoucha", "nomCourt : collision insensible accents/casse");
+  // Sans nom : prénom seul.
+  check(nomCourtProf({ id: "8", prenom: "Zoé", nom: null }, []) === "Zoé", "nomCourt : sans nom → prénom seul");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

@@ -535,6 +535,35 @@ export function genererMailPrevenir(p: {
 // Un prof, côté coach, est réduit à l'identité affichable (aucun contact).
 export type ProfMinimal = { id: string; prenom: string | null; nom: string | null };
 
+// Nom complet d'un prof (prénom + nom), repli "Prof". Source unique.
+export function nomCompletProf(p: ProfMinimal): string {
+  return [p.prenom, p.nom].map((s) => (s ?? "").trim()).filter(Boolean).join(" ") || "Prof";
+}
+
+// Nom COURT pour les cartes du calendrier : "Prénom N." (prénom + initiale du
+// nom). Désambiguïsation : si un AUTRE prof du contexte (profs actifs/affectés)
+// partage le même prénom ET la même initiale, on renvoie le nom complet pour
+// ceux-là seulement. Utilisé UNIQUEMENT sur les cartes (ailleurs : nom complet).
+function normProf(s: string | null | undefined): string {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
+}
+export function nomCourtProf(prof: ProfMinimal, contexte: ProfMinimal[] = []): string {
+  const prenom = (prof.prenom ?? "").trim();
+  const nom = (prof.nom ?? "").trim();
+  if (!prenom) return nom || "Prof";
+  const lettres = nom.replace(/[^\p{L}\p{N}]/gu, "");
+  if (!lettres) return prenom;
+  const initiale = lettres.charAt(0).toUpperCase();
+  const cle = (p: ProfMinimal) => `${normProf(p.prenom)}|${normProf(p.nom).charAt(0)}`;
+  const moi = cle(prof);
+  const collision = contexte.some((p) => p.id !== prof.id && cle(p) === moi);
+  return collision ? `${prenom} ${nom}`.trim() : `${prenom} ${initiale}.`;
+}
+
 type RawRows = {
   cours: Record<string, unknown>[];
   affectations: Record<string, unknown>[];
