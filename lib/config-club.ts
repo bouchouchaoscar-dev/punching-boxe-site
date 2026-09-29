@@ -32,6 +32,14 @@ export const CONFIG_CLUB = {
       titre: "Directeur Sportif",
       ville: "Nogent-sur-Marne",
     },
+    // Identification légale — imprimée dans le pied de page des DOCUMENTS DE
+    // PAIEMENT (facture/attestation). Champs optionnels vides = non affichés.
+    legal: {
+      siret: "44793778000032", // 14 chiffres (SIREN + NIC), clé de Luhn valide
+      rna: "", // numéro RNA de l'association (ex. "W941234567")
+      agrementSport: "", // numéro d'agrément sport (ex. "94 S 123")
+      affiliationFederale: "", // fédération + n° (ex. "FFSbf&DA n° 12345")
+    },
     // Charte couleur pour les graphes (JS/Recharts). Miroir des tokens de
     // app/globals.css @theme (--color-orange / --color-ink) — un nouveau club
     // change les deux endroits (CSS pour l'UI, ici pour les graphes).

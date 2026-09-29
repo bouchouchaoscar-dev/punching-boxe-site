@@ -34,6 +34,8 @@ import { toMembrePublic } from "../lib/trombi-server";
 import type { Adherent } from "../lib/types";
 import { resoudreOuverture, regrouperParEmail, remplacerVariables, jetonsInconnus, objetAffiche, textesSuppressionHistorique, DEFAULT_TEMPLATES, type PersonneEnvoi } from "../lib/campagnes";
 import { estEmailValide, normaliserEmail } from "../lib/email-format";
+import { formatSiret, siretValide, lignesMentionsLegales } from "../lib/siret";
+import { CONFIG_CLUB } from "../lib/config-club";
 import { statutCampagne, type ResultatEnvoi } from "../lib/envoi-campagne";
 import { estMineur } from "../lib/pricing";
 
@@ -562,6 +564,31 @@ console.log("— non-fuite : trombinoscope (toMembrePublic) —");
   check(nomCourtProf(oscar, [oscar, oscarBAccent]) === "Oscar Bouchoucha", "nomCourt : collision insensible accents/casse");
   // Sans nom : prénom seul.
   check(nomCourtProf({ id: "8", prenom: "Zoé", nom: null }, []) === "Zoé", "nomCourt : sans nom → prénom seul");
+}
+
+// ---- SIRET : formatage + Luhn + mentions légales du pied de page ----
+{
+  check(formatSiret("44793778000032") === "447 937 780 00032", "formatSiret : 3+3+3+5");
+  check(formatSiret("447 937 780 00032") === "447 937 780 00032", "formatSiret : ignore les séparateurs");
+  check(formatSiret("123") === "123", "formatSiret : non conforme → nettoyé tel quel (n'affiche pas faux)");
+  // Le SIRET CONFIGURÉ doit être valide (Luhn) — sinon ce test échoue (pas l'affichage).
+  check(siretValide(CONFIG_CLUB.identite.legal.siret), `siretValide : SIRET configuré valide (${CONFIG_CLUB.identite.legal.siret})`);
+  check(!siretValide("44793778000033"), "siretValide : 1 chiffre changé → invalide");
+  check(!siretValide("447937780"), "siretValide : ≠ 14 chiffres → invalide");
+
+  // Pied de page : ligne SIRET présente à partir de la config.
+  const l1 = lignesMentionsLegales(CONFIG_CLUB.identite.legal);
+  check(l1.length >= 1 && l1[0] === "SIRET 447 937 780 00032", "mentions : ligne SIRET présente");
+  // Champs optionnels renseignés → ajoutés (même ligne, séparés par " · ").
+  const l2 = lignesMentionsLegales({ siret: "44793778000032", rna: "W941234567", agrementSport: "94 S 12" });
+  check(l2.join("\n").includes("RNA W941234567"), "mentions : RNA ajouté quand renseigné");
+  check(l2.join("\n").includes("Agrément sport n° 94 S 12"), "mentions : agrément ajouté quand renseigné");
+  check(l2[0].startsWith("SIRET 447 937 780 00032 · "), "mentions : champs joints par ' · '");
+  // Trop long → 2e ligne.
+  const l3 = lignesMentionsLegales({ siret: "44793778000032", rna: "W941234567", agrementSport: "94 S 123456", affiliationFederale: "Fédération Française de Savate n° 123456" });
+  check(l3.length >= 2, "mentions : bascule sur une 2e ligne si trop long");
+  // Aucun champ → aucune ligne.
+  check(lignesMentionsLegales({}).length === 0, "mentions : config vide → aucune ligne");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

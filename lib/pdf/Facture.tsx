@@ -199,7 +199,7 @@ export function FactureDoc({ data }: { data: FactureData }) {
           <Text style={s.signRole}>{CONFIG_CLUB.identite.signataire.titre} — {CLUB.nomCourt}</Text>
         </View>
 
-        <PdfFooter />
+        <PdfFooter mentionsLegales />
       </Page>
     </Document>
   );

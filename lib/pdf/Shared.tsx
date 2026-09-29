@@ -2,6 +2,8 @@ import { Image, Polyline, Svg, Text, View } from "@react-pdf/renderer";
 import { getLogoDataUri, styles } from "./theme";
 import { formatDateFr } from "@/lib/tarifs";
 import { CLUB } from "@/lib/constants";
+import { CONFIG_CLUB } from "@/lib/config-club";
+import { lignesMentionsLegales } from "@/lib/siret";
 import type { SignatureVect } from "./types";
 
 export function PdfHeader({
@@ -87,10 +89,19 @@ export function SignatureBlock({
   );
 }
 
-export function PdfFooter() {
+// `mentionsLegales` (documents de PAIEMENT uniquement) : ajoute sous le nom du
+// club la/les ligne(s) SIRET (+ RNA / agrément / affiliation si renseignés).
+// Partie droite (téléphone/mail) inchangée. Documents d'inscription : sans.
+export function PdfFooter({ mentionsLegales = false }: { mentionsLegales?: boolean }) {
+  const legales = mentionsLegales ? lignesMentionsLegales(CONFIG_CLUB.identite.legal) : [];
   return (
     <View style={styles.footer} fixed>
-      <Text>{CLUB.nom} · {CLUB.formeJuridique}</Text>
+      <View>
+        <Text>{CLUB.nom} · {CLUB.formeJuridique}</Text>
+        {legales.map((l, i) => (
+          <Text key={i}>{l}</Text>
+        ))}
+      </View>
       <Text>{CLUB.telephone} · {CLUB.email}</Text>
     </View>
   );
