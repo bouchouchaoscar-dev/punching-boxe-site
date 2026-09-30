@@ -108,6 +108,14 @@ console.log("[Présence — fenêtre & rattachement]");
   check(idsOuverts(tous).join(",") === "A,B", "deux salles : les deux ouvertes sans filtre", idsOuverts(tous));
   const filtre = coursOuverts(now, { cours: [a, b], periodes: [], salle: slugSalle("Dojo David Douillet"), fenetre: F });
   check(idsOuverts(filtre).join(",") === "A", "filtre salle : seul le Dojo", idsOuverts(filtre));
+  // Slug inconnu (salle renommée après impression) → comme le QR générique.
+  const inconnu = coursOuverts(now, { cours: [a, b], periodes: [], salle: "salle-supprimee-2019", fenetre: F });
+  const generique = coursOuverts(now, { cours: [a, b], periodes: [], fenetre: F });
+  check(
+    idsOuverts(inconnu).join(",") === idsOuverts(generique).join(",") && inconnu.length === 2,
+    "slug inconnu → mêmes cours ouverts que sans salle (générique)",
+    idsOuverts(inconnu),
+  );
 }
 
 // ---- Formule sans la discipline → jamais bloqué (choix parmi tous) ----

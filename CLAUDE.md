@@ -96,3 +96,7 @@ unique), `estMineur`, `estEmailValide`, `signerUrls`/`photoDataUri`.
 **Déploiement** : appliquer `supabase/migrations/015_presence.sql` ; `NEXT_PUBLIC_SITE_URL`
 doit être l'URL absolue de prod (QR des affiches) ; imprimer les affiches via
 Admin → Présence → icône affiches (une par salle + générique).
+
+**Slug de salle** : renommer une salle dans le planning rend ses affiches déjà
+imprimées **génériques** (slug inconnu → tous les cours ouverts, sans erreur) ;
+réimprimer l'affiche de la salle si l'on veut conserver le filtrage par salle.

@@ -110,6 +110,12 @@ export function coursOuverts(
   const now = partiesParis(maintenant);
   if (estFerme(now.iso, periodes)) return []; // jour de fermeture → pas de pointage
 
+  // Slug de salle DURCI : on ne filtre que si le slug correspond à une salle
+  // réelle du planning. Un slug inconnu (salle renommée après impression du QR)
+  // se comporte comme le QR générique (tous les cours ouverts), sans erreur.
+  const salleConnue =
+    !!opts.salle && cours.some((c) => c.salle && slugSalle(c.salle) === opts.salle);
+
   const out: CoursOuvert[] = [];
   for (const c of cours) {
     if (!c.actif) continue;
@@ -118,7 +124,7 @@ export function coursOuverts(
     if (startMin == null) continue;
     if (now.minutes < startMin - fen.ouvertureMinutesAvant) continue;
     if (now.minutes > startMin + fen.fermetureMinutesApres) continue;
-    if (opts.salle && slugSalle(c.salle) !== opts.salle) continue;
+    if (salleConnue && slugSalle(c.salle) !== opts.salle) continue;
     out.push({
       cours: c,
       startMin,
