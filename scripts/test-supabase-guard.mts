@@ -61,5 +61,64 @@ check("cron: erreurs de passe remontées dans la réponse (champ `erreurs`)", cr
 const presence = read("app/api/cron/presence/route.ts");
 check("cron présence: select essais via exigerData", presence.includes("exigerData("));
 
+console.log("\n== Cas D liés à l'argent : interruption propre sur erreur ==");
+// Faux client Supabase : toute requête (quel que soit le chaînage) se résout sur
+// le `result` fourni. Permet de simuler une requête EN ÉCHEC (error renseigné).
+function fakeClient(result: { data: unknown; error: { message: string } | null }) {
+  const q: Record<string, unknown> = {};
+  const methods = ["from", "select", "eq", "in", "or", "is", "not", "order", "limit", "gte", "lte", "like", "maybeSingle", "single"];
+  for (const m of methods) q[m] = () => q;
+  (q as { then: unknown }).then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve);
+  return { from: () => q } as unknown as import("@supabase/supabase-js").SupabaseClient;
+}
+const echecRes = { data: null, error: { message: "réseau coupé" } };
+const okVide = { data: [], error: null };
+
+const { evaluerAnciennete } = await import("../lib/anciennete");
+const { trouverDossierDoublon } = await import("../lib/inscription");
+
+// anciennete : une lecture en échec ne doit JAMAIS renvoyer « nouveau » (= adhésion
+// facturée). Elle doit LEVER pour interrompre l'inscription.
+let ancThrow = false;
+try {
+  await evaluerAnciennete(fakeClient(echecRes), { nom: "Doe", prenom: "Jane", date_naissance: "2000-01-01" }, "2026-2027");
+} catch { ancThrow = true; }
+check("evaluerAnciennete : erreur → lève (ne facture pas l'adhésion à tort)", ancThrow);
+// Sanité : sans erreur, elle renvoie normalement (pas de throw parasite).
+let ancOk = false;
+try {
+  const r = await evaluerAnciennete(fakeClient(okVide), { nom: "Doe", prenom: "Jane", date_naissance: "2000-01-01" }, "2026-2027");
+  ancOk = typeof r.paieAdhesion === "boolean";
+} catch { ancOk = false; }
+check("evaluerAnciennete : sans erreur → renvoie normalement", ancOk);
+
+// inscription : une lecture en échec ne doit JAMAIS renvoyer null (= « pas de
+// doublon »). Elle doit LEVER.
+let dupThrow = false;
+try {
+  await trouverDossierDoublon(fakeClient(echecRes), {
+    titulaire_id: "u1", saison: "2026-2027", match_key: "doe|jane|2000-01-01",
+    nom: "Doe", prenom: "Jane", date_naissance: "2000-01-01",
+  });
+} catch { dupThrow = true; }
+check("trouverDossierDoublon : erreur → lève (ne conclut pas « pas de doublon »)", dupThrow);
+// Sanité : pas de titulaire → null immédiat (aucune requête, aucun throw).
+const dupNull = await trouverDossierDoublon(fakeClient(echecRes), {
+  titulaire_id: null, saison: "2026-2027", match_key: null, nom: "", prenom: "", date_naissance: "",
+});
+check("trouverDossierDoublon : sans titulaire → null (pas de requête)", dupNull === null);
+
+// facture-gen : lecture en échec → erreur LISIBLE (ok:false, 500), jamais un PDF faux.
+const facture = read("lib/pdf/facture-gen.tsx");
+const cf = slice(facture, "export async function construireFacturePdf", "");
+check("facture : lectures adhérent/échéances via exigerData", (cf.match(/exigerData\(/g) ?? []).length >= 2);
+check("facture : erreur → renvoie ok:false status 500 (pas de PDF faux)", cf.includes("status: 500") && cf.includes("Merci de réessayer"));
+
+// Les routes d'inscription/tarif interrompent avec un message « réessayer ».
+const rAnc = read("app/api/inscription/anciennete/route.ts");
+check("route ancienneté : message clair « réessayer » sur erreur", rAnc.includes("réessayer") && rAnc.includes("evaluerAnciennete"));
+const rCpi = read("app/api/create-payment-intent/route.ts");
+check("create-payment-intent : ancienneté en try/catch → 503 « réessayer »", rCpi.includes("Ancienneté (create-payment-intent)"));
+
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

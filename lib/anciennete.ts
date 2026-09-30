@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CONFIG_CLUB } from "./config-club";
+import { exigerData } from "./supabase";
 
 // Ancienneté : matching d'identité (natif ↔ ancien importé) + règle des 30€.
 // Le SERVEUR est seule autorité : décide l'adhésion via la dernière saison active
@@ -137,19 +138,21 @@ export async function evaluerAnciennete(
     };
   }
 
-  // 1) Anciens importés de même clé.
-  const { data: anciens } = await supabase
-    .from("anciens_adherents")
-    .select("id")
-    .eq("match_key", key);
+  // 1) Anciens importés de même clé. CRITIQUE (tarif) : une lecture EN ÉCHEC ne
+  // doit JAMAIS conclure « pas ancien » → l'adhésion serait facturée à tort.
+  // exigerData lève ; l'inscription s'interrompt proprement (cf. appelant).
+  const anciens = exigerData(
+    await supabase.from("anciens_adherents").select("id").eq("match_key", key),
+    "ancienneté: anciens importés (match_key)",
+  );
   const ancienIds = (anciens ?? []).map((a) => a.id as string);
 
   let maxAncien: string | null = null;
   if (ancienIds.length > 0) {
-    const { data: hist } = await supabase
-      .from("historique_saisons")
-      .select("saison")
-      .in("ancien_id", ancienIds);
+    const hist = exigerData(
+      await supabase.from("historique_saisons").select("saison").in("ancien_id", ancienIds),
+      "ancienneté: historique_saisons",
+    );
     for (const h of hist ?? []) {
       const s = h.saison as string;
       if (!maxAncien || s > maxAncien) maxAncien = s;
@@ -157,11 +160,14 @@ export async function evaluerAnciennete(
   }
 
   // 2) Dossiers natifs ACTIFS (payés / confirmés espèces / engagés) de même clé.
-  const { data: natifs } = await supabase
-    .from("adherents")
-    .select("saison")
-    .eq("match_key", key)
-    .or("statut_paiement.in.(paye,confirme_especes),engage_at.not.is.null");
+  const natifs = exigerData(
+    await supabase
+      .from("adherents")
+      .select("saison")
+      .eq("match_key", key)
+      .or("statut_paiement.in.(paye,confirme_especes),engage_at.not.is.null"),
+    "ancienneté: dossiers natifs actifs (match_key)",
+  );
   let maxNatif: string | null = null;
   for (const n of natifs ?? []) {
     const s = n.saison as string | null;

@@ -2,6 +2,7 @@ import { calculerTarif, type ModePaiement, type PackageType } from "./pricing";
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "./saison";
 import { matchKey } from "./anciennete";
 import { estEmailValide } from "./email-format";
+import { exigerData } from "./supabase";
 import type { NewAdherent, Adherent } from "./types";
 import type { FicheData, ReglementData } from "./pdf/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -36,7 +37,13 @@ export async function trouverDossierDoublon(
         .eq("nom", crit.nom)
         .eq("prenom", crit.prenom)
         .eq("date_naissance", crit.date_naissance);
-  const { data } = await q.order("created_at", { ascending: true }).limit(1);
+  // CRITIQUE : une lecture EN ÉCHEC ne doit JAMAIS conclure « pas de doublon »
+  // (ce qui créerait un 2e dossier sur un rejeu réseau). exigerData lève → la
+  // route appelante interrompt proprement plutôt que de dédoubler.
+  const data = exigerData(
+    await q.order("created_at", { ascending: true }).limit(1),
+    "dédoublonnage: recherche dossier existant",
+  );
   return (data?.[0] as Adherent) ?? null;
 }
 

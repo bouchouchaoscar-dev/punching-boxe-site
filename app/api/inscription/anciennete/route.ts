@@ -39,15 +39,27 @@ export async function POST(request: Request) {
     ? saisonQuiSeTermine(now)
     : saisonCourante(now);
 
-  const anc = await evaluerAnciennete(
-    getSupabaseAdmin(),
-    {
-      nom: body.nom,
-      prenom: body.prenom,
-      date_naissance: body.date_naissance,
-    },
-    saisonInscription,
-  );
+  // Le tarif dépend de l'ancienneté : une lecture Supabase en échec ne doit
+  // JAMAIS conclure « nouveau » (adhésion facturée à tort). On interrompt avec
+  // un message clair invitant à réessayer plutôt que de calculer un faux tarif.
+  let anc;
+  try {
+    anc = await evaluerAnciennete(
+      getSupabaseAdmin(),
+      {
+        nom: body.nom,
+        prenom: body.prenom,
+        date_naissance: body.date_naissance,
+      },
+      saisonInscription,
+    );
+  } catch (e) {
+    console.error("Ancienneté (tarif):", e);
+    return NextResponse.json(
+      { error: "Impossible de vérifier votre ancienneté pour le moment. Merci de réessayer dans un instant." },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({ paieAdhesion: anc.paieAdhesion, motif: anc.motif });
 }

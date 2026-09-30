@@ -157,7 +157,19 @@ export async function POST(request: Request) {
   const saisonInscription = saisonEnCours
     ? saisonQuiSeTermine(now)
     : saisonCourante(now);
-  const anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  // Autorité serveur sur l'adhésion 30€ : une lecture Supabase en échec ne doit
+  // JAMAIS conclure « nouveau » (adhésion facturée à tort) ni calculer un tarif
+  // sur une donnée manquante → on interrompt avec un message « réessayer ».
+  let anc;
+  try {
+    anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  } catch (e) {
+    console.error("Ancienneté (create-payment-intent):", e);
+    return NextResponse.json(
+      { error: "Impossible de vérifier votre ancienneté pour calculer le tarif. Merci de réessayer dans un instant." },
+      { status: 503 },
+    );
+  }
   // On écrase la valeur client : le serveur décide qui paie les 30€.
   payloadAuto.nouveau_membre = anc.paieAdhesion;
 

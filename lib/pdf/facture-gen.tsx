@@ -1,5 +1,5 @@
 import { renderToBuffer } from "@react-pdf/renderer";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, exigerData } from "@/lib/supabase";
 import { estPaiementSolde, paiementIncoherent } from "@/lib/paiement";
 import { TARIFS } from "@/lib/pricing";
 import {
@@ -25,30 +25,50 @@ export async function construireFacturePdf(
   if (!adherentId) return { ok: false, status: 400, error: "adherentId requis." };
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("adherents")
-    .select("*")
-    .eq("id", adherentId)
-    .maybeSingle();
-  if (!data) return { ok: false, status: 404, error: "Dossier introuvable." };
-  const a = data as Adherent;
 
-  // Autorisation (avant tout rendu) : politique fournie par l'appelant.
-  if (authorize && !authorize(a)) {
-    return { ok: false, status: 403, error: "Accès refusé." };
-  }
-
-  // Échéances numérotées (détail fractionné).
-  const { data: pRows } = await supabase
-    .from("paiements")
-    .select("montant, statut, numero_echeance, date_prevue, date_paiement")
-    .eq("adherent_id", adherentId)
-    .not("numero_echeance", "is", null)
-    .order("numero_echeance", { ascending: true });
-  const paiements = (pRows ?? []) as Pick<
+  // Chargement autoritaire (montants/état relus en base). Une lecture EN ÉCHEC ne
+  // doit JAMAIS produire une facture incomplète ou à montant faux : exigerData
+  // lève, et on renvoie une erreur LISIBLE (500) au lieu d'un PDF erroné.
+  let a: Adherent;
+  let paiements: Pick<
     Paiement,
     "montant" | "statut" | "numero_echeance" | "date_prevue" | "date_paiement"
   >[];
+  try {
+    const data = exigerData(
+      await supabase.from("adherents").select("*").eq("id", adherentId).maybeSingle(),
+      "facture: lecture adhérent",
+    );
+    if (!data) return { ok: false, status: 404, error: "Dossier introuvable." };
+    a = data as Adherent;
+
+    // Autorisation (avant tout rendu) : politique fournie par l'appelant.
+    if (authorize && !authorize(a)) {
+      return { ok: false, status: 403, error: "Accès refusé." };
+    }
+
+    // Échéances numérotées (détail fractionné).
+    const pRows = exigerData(
+      await supabase
+        .from("paiements")
+        .select("montant, statut, numero_echeance, date_prevue, date_paiement")
+        .eq("adherent_id", adherentId)
+        .not("numero_echeance", "is", null)
+        .order("numero_echeance", { ascending: true }),
+      "facture: lecture échéances",
+    );
+    paiements = (pRows ?? []) as Pick<
+      Paiement,
+      "montant" | "statut" | "numero_echeance" | "date_prevue" | "date_paiement"
+    >[];
+  } catch (e) {
+    console.error("Facture PDF:", e);
+    return {
+      ok: false,
+      status: 500,
+      error: "Impossible de générer le document pour le moment. Merci de réessayer dans un instant.",
+    };
+  }
 
   const echeancesReglees: FactureEcheance[] = paiements
     .filter((p) => p.statut === "paye")

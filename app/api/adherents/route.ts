@@ -104,7 +104,18 @@ export async function POST(request: Request) {
   const saisonInscription = saisonEnCours
     ? saisonQuiSeTermine(now)
     : saisonCourante(now);
-  const anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  // Une lecture Supabase en échec ne doit JAMAIS conclure « nouveau » (adhésion
+  // facturée à tort) → on interrompt proprement avec un message « réessayer ».
+  let anc;
+  try {
+    anc = await evaluerAnciennete(supabase, payload, saisonInscription);
+  } catch (e) {
+    console.error("Ancienneté (adhérents):", e);
+    return NextResponse.json(
+      { error: "Impossible de vérifier votre ancienneté pour le moment. Merci de réessayer dans un instant." },
+      { status: 503 },
+    );
+  }
   payloadAuto.nouveau_membre = anc.paieAdhesion; // on n'écoute plus le client
 
   // Espèces → en_attente ; paiement carte traité via create-payment-intent.
