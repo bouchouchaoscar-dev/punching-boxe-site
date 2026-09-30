@@ -7,7 +7,10 @@ import { PageHeader } from "./PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanningSemaine } from "./PlanningSemaine";
 import { IconButton } from "@/components/ui/IconButton";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { Download } from "lucide-react";
+import { estEmailValide } from "@/lib/email-format";
+import { estMineur } from "@/lib/pricing";
 import {
   toISODate,
   lundiDeLaSemaine,
@@ -395,6 +398,34 @@ function DetailEssaiModal({ ligne, onClose }: { ligne: Ligne; onClose: () => voi
 }
 
 function AjouterPresentModal({ bloc, onClose, onAjoute }: { bloc: Bloc; onClose: () => void; onAjoute: () => void }) {
+  const [mode, setMode] = useState<"adherent" | "essai">("adherent");
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
+      <div className="max-h-[85vh] w-full max-w-sm overflow-y-auto rounded-[1.5rem] bg-white p-5" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-display text-lg font-extrabold uppercase text-ink">Ajouter un présent</h3>
+        <p className="text-sm text-smoke">{bloc.libelle} · {bloc.horaire}</p>
+
+        <div className="mt-3 inline-flex rounded-full border border-line bg-white p-0.5">
+          {(["adherent", "essai"] as const).map((m) => (
+            <button key={m} onClick={() => setMode(m)} className={`rounded-full px-3 py-1.5 text-sm font-semibold ${mode === m ? "bg-ink text-white" : "text-ink/70"}`}>
+              {m === "adherent" ? "Un adhérent" : "Une séance d'essai"}
+            </button>
+          ))}
+        </div>
+
+        {mode === "adherent" ? (
+          <AjoutAdherent bloc={bloc} onAjoute={onAjoute} />
+        ) : (
+          <AjoutEssai bloc={bloc} onAjoute={onAjoute} />
+        )}
+
+        <button onClick={onClose} className="mt-4 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
+      </div>
+    </div>
+  );
+}
+
+function AjoutAdherent({ bloc, onAjoute }: { bloc: Bloc; onAjoute: () => void }) {
   const [q, setQ] = useState("");
   const [res, setRes] = useState<{ id: string; prenom: string; nom: string; annee?: number }[]>([]);
   const [busy, setBusy] = useState(false);
@@ -419,22 +450,64 @@ function AjouterPresentModal({ bloc, onClose, onAjoute }: { bloc: Bloc; onClose:
     }
   }
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-5" onClick={(e) => e.stopPropagation()}>
-        <h3 className="font-display text-lg font-extrabold uppercase text-ink">Ajouter un présent</h3>
-        <p className="text-sm text-smoke">{bloc.libelle} · {bloc.horaire}</p>
-        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="3 lettres du nom…" className="focus-ring mt-3 w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange" />
-        <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-          {res.map((r) => (
-            <li key={r.id}>
-              <button disabled={busy} onClick={() => ajouter(r.id)} className="w-full rounded-lg border border-line px-3 py-2 text-left text-sm hover:border-orange disabled:opacity-50">
-                {r.prenom} {r.nom.toUpperCase()}{r.annee ? ` · ${r.annee}` : ""}
-              </button>
-            </li>
-          ))}
-        </ul>
-        <button onClick={onClose} className="mt-4 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
+    <>
+      <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="3 lettres du nom…" className="focus-ring mt-3 w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange" />
+      <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto">
+        {res.map((r) => (
+          <li key={r.id}>
+            <button disabled={busy} onClick={() => ajouter(r.id)} className="w-full rounded-lg border border-line px-3 py-2 text-left text-sm hover:border-orange disabled:opacity-50">
+              {r.prenom} {r.nom.toUpperCase()}{r.annee ? ` · ${r.annee}` : ""}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+function AjoutEssai({ bloc, onAjoute }: { bloc: Bloc; onAjoute: () => void }) {
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
+  const [dob, setDob] = useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [erreur, setErreur] = useState("");
+  const mineur = dob ? estMineur(dob) : false;
+  const emailLabel = mineur ? "Email d'un parent ou du représentant légal" : "Email";
+  const emailOk = email.length > 3 ? estEmailValide(email) : true;
+  const pret = prenom.trim() && nom.trim() && dob && estEmailValide(email);
+
+  async function valider() {
+    setBusy(true);
+    setErreur("");
+    try {
+      const r = await fetch("/api/admin/presence/essai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...adminAuthHeaders() },
+        body: JSON.stringify({ coursId: bloc.id, date: bloc.dateISO, prenom, nom, date_naissance: dob, email }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErreur(d.error || "Enregistrement impossible."); return; }
+      onAjoute();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <input value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Prénom" className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange" />
+      <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom" className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange" />
+      <DatePicker label="Date de naissance" value={dob} onChange={setDob} />
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wide text-smoke">{emailLabel}</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemple.fr" className="focus-ring mt-1 w-full rounded-xl border border-line bg-white px-4 py-2.5 text-sm outline-none focus:border-orange" />
+        {!emailOk && <p className="mt-1 text-xs font-semibold text-red-600">Adresse email invalide</p>}
       </div>
+      {erreur && <p className="rounded-xl bg-red-50 p-2.5 text-sm text-red-700">{erreur}</p>}
+      <button onClick={valider} disabled={busy || !pret} className="w-full rounded-full bg-orange py-2.5 text-sm font-bold text-white disabled:opacity-40">
+        {busy ? "…" : "Ajouter la séance d'essai"}
+      </button>
     </div>
   );
 }
@@ -451,9 +524,14 @@ function AffichesModal({ onClose }: { onClose: () => void }) {
       })
       .catch(() => {});
   }, []);
+  const [err, setErr] = useState("");
   async function ouvrir(slug: string) {
+    setErr("");
     const r = await fetch(`/api/admin/presence/affiche${slug ? `?salle=${encodeURIComponent(slug)}` : ""}`, { headers: adminAuthHeaders() });
-    if (!r.ok) return;
+    if (!r.ok) {
+      setErr((await r.text().catch(() => "")) || "Génération impossible.");
+      return;
+    }
     const blob = await r.blob();
     window.open(URL.createObjectURL(blob), "_blank");
   }
@@ -472,6 +550,7 @@ function AffichesModal({ onClose }: { onClose: () => void }) {
             Affiche générique (sans salle)
           </button>
         </div>
+        {err && <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{err}</p>}
         <button onClick={onClose} className="mt-4 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
       </div>
     </div>

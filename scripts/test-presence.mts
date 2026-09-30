@@ -13,6 +13,7 @@ import {
   type CoursOuvert,
 } from "../lib/presence";
 import { MSG_PRESENCES_COURS, type Cours, type PeriodeFermeture } from "../lib/planning";
+import { siteUrl, urlPresence } from "../lib/site-url";
 
 let ok = 0;
 let ko = 0;
@@ -220,8 +221,9 @@ console.log("[Présence — garde-fous routes]");
   check(/hasRole\(request, \["coach", "admin"\]\)/.test(read("app/api/coach/presence/route.ts")), "route coach : hasRole strict");
   // Idempotence : le pointage et l'essai traitent le doublon (code 23505) en succès.
   check(/23505/.test(read("app/api/presence/pointer/route.ts")), "pointer : doublon (23505) toléré (idempotent)");
-  check(/23505/.test(read("app/api/presence/essai/route.ts")), "essai : doublon (23505) toléré (idempotent)");
-  check(/from\("essais"\)[\s\S]*\.eq\("email"[\s\S]*\.eq\("cours_id"[\s\S]*\.eq\("date_seance"/.test(read("app/api/presence/essai/route.ts")), "essai : anti-doublon email+cours+date");
+  // La logique essai (idempotence + anti-doublon) est factorisée dans le helper partagé.
+  check(/23505/.test(read("lib/presence-server.ts")), "essai (helper) : doublon (23505) toléré (idempotent)");
+  check(/from\("essais"\)[\s\S]*\.eq\("email"[\s\S]*\.eq\("cours_id"[\s\S]*\.eq\("date_seance"/.test(read("lib/presence-server.ts")), "essai (helper) : anti-doublon email+cours+date");
   // Cron relances : claim atomique + exclusions + purge.
   const cron = read("app/api/cron/presence/route.ts");
   check(/\.is\(colClaim, null\)/.test(cron), "cron : claim atomique (relance non re-envoyée)");
@@ -241,6 +243,48 @@ console.log("[Présence — suppression de cours]");
     // Cas 2 : filet 23503 → 409 (jamais 500).
     check(/error\.code === "23503"[\s\S]*MSG_PRESENCES_COURS[\s\S]*status: 409/.test(src), `${p.split("/").slice(-2)[0]} : 23503 traduit en 409 lisible`);
   }
+}
+
+// ---- URL du QR / liens : depuis NEXT_PUBLIC_SITE_URL, fail-closed ----
+console.log("[Présence — URL canonique]");
+{
+  const CANON = "https://www.punching-boxe.com";
+  process.env.NEXT_PUBLIC_SITE_URL = CANON;
+  const u = urlPresence("dojo-david-douillet");
+  check(u === `${CANON}/presence?salle=dojo-david-douillet`, "urlPresence : commence par NEXT_PUBLIC_SITE_URL + slug", u);
+  check((urlPresence() ?? "").startsWith(CANON), "urlPresence sans slug : base canonique", urlPresence());
+  check(!/vercel\.app/.test(u ?? ""), "urlPresence : jamais une URL de déploiement Vercel");
+  // Fail-closed : variable absente → null (l'appelant échoue proprement).
+  process.env.NEXT_PUBLIC_SITE_URL = "";
+  check(siteUrl() === null && urlPresence("x") === null, "fail-closed : NEXT_PUBLIC_SITE_URL absente → null");
+  process.env.NEXT_PUBLIC_SITE_URL = CANON; // restore
+}
+
+// ---- Affiche : URL canonique + fail-closed ; plus d'URL sous le QR ----
+{
+  const src = readFileSync("app/api/admin/presence/affiche/route.tsx", "utf8");
+  check(/urlPresence\(/.test(src), "affiche : construit l'URL via urlPresence (NEXT_PUBLIC_SITE_URL)");
+  check(/if \(!url\)[\s\S]*status: 503/.test(src), "affiche : fail-closed 503 si URL canonique absente");
+  const doc = readFileSync("lib/pdf/AfficheQR.tsx", "utf8");
+  check(!/s\.url|styles?\.url|\{data\.url\}/.test(doc), "affiche : plus d'URL affichée sous le QR");
+  check(/signale ta présence en 2 clics/.test(doc), "affiche : nouveau titre");
+  check(/Clique sur/.test(doc), "affiche : « Clique sur … »");
+}
+
+// ---- Ajout d'un essai depuis l'admin (source unique + garde-fous) ----
+console.log("[Présence — essai admin]");
+{
+  const admin = readFileSync("app/api/admin/presence/essai/route.ts", "utf8");
+  check(/isAdminRequest\(request\)/.test(admin), "essai admin : garde isAdminRequest (refusé sans rôle)");
+  check(/attacherPresenceEssai\(/.test(admin), "essai admin : réutilise attacherPresenceEssai (source unique)");
+  check(/source: "manuel"/.test(admin) && /createdBy: "admin"/.test(admin), "essai admin : source 'manuel' + created_by");
+  check(/estEmailValide\(email\)/.test(admin), "essai admin : validation email serveur");
+  const pub = readFileSync("app/api/presence/essai/route.ts", "utf8");
+  check(/attacherPresenceEssai\(/.test(pub), "essai public : même logique partagée (attacherPresenceEssai)");
+  // La logique partagée : dossier correspondant → présence dossier (pas d'essai).
+  const srv = readFileSync("lib/presence-server.ts", "utf8");
+  check(/trouverDossierCorrespondant[\s\S]*dossier_id: dossier\.id/.test(srv), "attacherPresenceEssai : correspondance dossier → présence sur le dossier");
+  check(/from\("essais"\)[\s\S]*eq\("email"[\s\S]*eq\("cours_id"[\s\S]*eq\("date_seance"/.test(srv), "attacherPresenceEssai : anti-doublon email+cours+date");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

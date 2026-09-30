@@ -6,12 +6,13 @@ import {
   dossiersSaison,
   profilDossier,
   trouverDossierCorrespondant,
+  attacherPresenceEssai,
+  coursPublic,
 } from "@/lib/presence-server";
 import { estEmailValide, normaliserEmail } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import { autoriser, ipDe } from "@/lib/rate-limit";
-import { coursPublic } from "@/lib/presence-server";
 
 export const runtime = "nodejs";
 
@@ -55,63 +56,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Aucun cours en ce moment." }, { status: 400 });
   const nowMin = partiesParis(now).minutes;
 
-  // Correspond déjà à un dossier de la saison ? → présence sur le dossier.
+  // Rattachement au cours ouvert : profil du dossier si correspondance (public +
+  // discipline), sinon profil essayeur (par l'âge, toutes disciplines).
   const dossiers = await dossiersSaison(supabase, saisonCourante(new Date()));
   const dossier = trouverDossierCorrespondant(dossiers, { email, nom, prenom, date_naissance });
-  if (dossier) {
-    let cible = body.coursId ? ouverts.find((o) => o.cours.id === body.coursId) : undefined;
-    if (!cible) {
-      const r = rattacherCours(ouverts, profilDossier(dossier), nowMin);
-      if (r.mode === "choix") return NextResponse.json({ choix: r.cours.map(coursPublic), selectionId: r.selectionId });
-      cible = r.cours[0];
-    }
-    if (!cible) return NextResponse.json({ error: "Cours indisponible." }, { status: 400 });
-    const { error } = await supabase.from("presences").insert({
-      cours_id: cible.cours.id,
-      date_seance: cible.dateISO,
-      dossier_id: dossier.id,
-      source: "qr",
-    });
-    if (error && error.code !== "23505") return NextResponse.json({ error: "Enregistrement impossible." }, { status: 500 });
-    return NextResponse.json({ ok: true, coursLabel: cible.cours.libelle, surDossier: true });
-  }
+  const profil = dossier ? profilDossier(dossier) : { mineur: estMineur(date_naissance), essai: true };
 
-  // Essayeur : rattachement par l'âge (toutes disciplines).
   let cible = body.coursId ? ouverts.find((o) => o.cours.id === body.coursId) : undefined;
   if (!cible) {
-    const r = rattacherCours(ouverts, { mineur: estMineur(date_naissance), essai: true }, nowMin);
+    const r = rattacherCours(ouverts, profil, nowMin);
     if (r.mode === "choix") return NextResponse.json({ choix: r.cours.map(coursPublic), selectionId: r.selectionId });
     cible = r.cours[0];
   }
   if (!cible) return NextResponse.json({ error: "Cours indisponible." }, { status: 400 });
 
-  // Anti-doublon : essai existant (même email + cours + date) → réutilisé.
-  const { data: existant } = await supabase
-    .from("essais")
-    .select("id")
-    .eq("email", email)
-    .eq("cours_id", cible.cours.id)
-    .eq("date_seance", cible.dateISO)
-    .maybeSingle();
-
-  let essaiId = existant?.id as string | undefined;
-  if (!essaiId) {
-    const { data: cree, error: eEssai } = await supabase
-      .from("essais")
-      .insert({ nom, prenom, date_naissance, email, cours_id: cible.cours.id, date_seance: cible.dateISO })
-      .select("id")
-      .single();
-    if (eEssai || !cree) return NextResponse.json({ error: "Enregistrement impossible." }, { status: 500 });
-    essaiId = cree.id;
-  }
-
-  const { error } = await supabase.from("presences").insert({
-    cours_id: cible.cours.id,
-    date_seance: cible.dateISO,
-    essai_id: essaiId,
+  // Insertion (dossier ou essai) via la logique partagée (source unique).
+  const res = await attacherPresenceEssai(supabase, {
+    coursId: cible.cours.id,
+    dateSeance: cible.dateISO,
+    prenom,
+    nom,
+    date_naissance,
+    email,
     source: "qr",
+    dossiers,
   });
-  if (error && error.code !== "23505") return NextResponse.json({ error: "Enregistrement impossible." }, { status: 500 });
-
-  return NextResponse.json({ ok: true, coursLabel: cible.cours.libelle, essai: true });
+  if (!res.ok) return NextResponse.json({ error: res.error }, { status: 500 });
+  return NextResponse.json({ ok: true, coursLabel: cible.cours.libelle, surDossier: res.surDossier, essai: !res.surDossier });
 }

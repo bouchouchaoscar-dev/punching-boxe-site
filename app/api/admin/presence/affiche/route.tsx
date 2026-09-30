@@ -6,7 +6,7 @@ import { presenceActif, slugSalle } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
 import { pdfHeaders } from "@/lib/pdf/render";
 import { AfficheQRDoc } from "@/lib/pdf/AfficheQR";
-import { SITE_URL } from "@/lib/constants";
+import { urlPresence } from "@/lib/site-url";
 
 export const runtime = "nodejs";
 
@@ -28,12 +28,18 @@ export async function GET(request: Request) {
     if (!salleNom) return new Response("Salle inconnue.", { status: 404 });
   }
 
-  const url = slug
-    ? `${SITE_URL}/presence?salle=${encodeURIComponent(slug)}`
-    : `${SITE_URL}/presence`;
+  // URL absolue canonique (NEXT_PUBLIC_SITE_URL) — fail-closed si absente : on
+  // n'imprime JAMAIS un QR vers une URL de déploiement Vercel.
+  const url = urlPresence(slug || null);
+  if (!url) {
+    return new Response(
+      "Configuration manquante : NEXT_PUBLIC_SITE_URL doit être définie (URL canonique du site) pour générer le QR.",
+      { status: 503 },
+    );
+  }
   const qrDataUri = await QRCode.toDataURL(url, { margin: 1, width: 520, errorCorrectionLevel: "M" });
 
-  const buffer = await renderToBuffer(<AfficheQRDoc data={{ salle: salleNom, url, qrDataUri }} />);
+  const buffer = await renderToBuffer(<AfficheQRDoc data={{ salle: salleNom, qrDataUri }} />);
   const nom = slug ? `affiche-presence-${slug}.pdf` : "affiche-presence.pdf";
   return new Response(new Uint8Array(buffer), { headers: pdfHeaders(nom) });
 }

@@ -7,6 +7,7 @@ import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
 import { planningActif } from "./planning";
 import { mailRelanceEssai } from "./presence";
+import { siteUrl } from "./site-url";
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -983,11 +984,14 @@ export async function sendRelanceEssai(d: {
 
   const m = mailRelanceEssai({ prenom: d.prenom, mineur: d.mineur, coursLabel: d.coursLabel, numero: d.numero });
   const paras = m.corps.map((p) => `<p style="line-height:1.6;color:#444">${escapeHtml(p)}</p>`).join("");
+  // Lien d'inscription depuis l'URL canonique (NEXT_PUBLIC_SITE_URL), jamais une
+  // URL de déploiement ; repli sur SITE_URL (déjà canonique) si non définie.
+  const base = siteUrl() ?? SITE_URL;
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(m.objet)} 🥊</h1>
     <p style="line-height:1.6;color:#444">${escapeHtml(m.salutation)}</p>
     ${paras}
-    <p style="margin:16px 0 4px">${button(`${SITE_URL}/inscription`, m.boutonLabel)}</p>
+    <p style="margin:16px 0 4px">${button(`${base}/inscription`, m.boutonLabel)}</p>
     <p style="font-size:12px;color:#999;margin-top:22px">
       <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
     </p>
