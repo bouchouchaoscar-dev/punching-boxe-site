@@ -111,6 +111,19 @@ export async function GET(request: Request) {
   if (secret && auth !== `Bearer ${secret}` && !isVercelCron) {
     return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
   }
+  // Mode SIMULATION (?dryRun=true) : même auth, AUCUN effet de bord (aucun mail,
+  // aucune écriture). Ne lit que la table adhérents → Supabase suffit (Stripe non
+  // requis, la simulation reste utilisable en maquette). Renvoie la liste des
+  // dossiers qui SERAIENT relancés.
+  const dryRun = new URL(request.url).searchParams.get("dryRun") === "true";
+  if (dryRun) {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ error: "Non configuré." }, { status: 503 });
+    }
+    const relancesDossier = await relancerDossiersSansPaiement(true);
+    return NextResponse.json({ dryRun: true, relancesDossier });
+  }
+
   if (!isStripeConfigured() || !isSupabaseConfigured()) {
     return NextResponse.json({ error: "Non configuré." }, { status: 503 });
   }
@@ -309,13 +322,13 @@ async function chargerExclusionsMail(supabase: ReturnType<typeof getSupabaseAdmi
 // mode null). NE touche PAS aux cartes non finalisées (mode stripe → paniers).
 // Relance 1 : >= dossier1Jours après création. Relance 2 : >= dossier2Jours après
 // la relance 1. Ensuite plus rien (l'admin prend le relais). Claim idempotent.
-async function relancerDossiersSansPaiement() {
+async function relancerDossiersSansPaiement(dryRun = false) {
   const supabase = getSupabaseAdmin();
   const now = Date.now();
   const exclusions = await chargerExclusionsMail(supabase);
   const champs =
     "id, prenom, nom, email, date_naissance, created_at, mode_paiement, statut_paiement, nb_echeances, echeances_payees, engage_at, annule_at, titulaire_id, relance_dossier_1_at, relance_dossier_2_at, fiche_valide, reglement_valide, photo_valide, certificat_valide, certificat_medical_url, fiche_signee_at, reglement_signee_at, fiche_inscription_url, reglement_url, photo_url";
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("adherents")
     .select(champs)
     .eq("saison", saisonCourante(new Date()))
@@ -323,27 +336,50 @@ async function relancerDossiersSansPaiement() {
     .is("engage_at", null)
     .is("annule_at", null)
     .not("titulaire_id", "is", null);
+  // IMPORTANT : ne JAMAIS avaler l'erreur en `data ?? []`. Un échec de requête
+  // (ex. migration 016 non appliquée → colonnes absentes) doit remonter, pas se
+  // faire passer pour « 0 dossier » (cause du faux « aucun éligible » précédent).
+  if (error) throw new Error(`relancerDossiersSansPaiement: ${error.message}`);
+
   // Règle SOURCE UNIQUE : statutTrombi === "a_finaliser" (mode null, rien encaissé).
   const candidats = (data ?? []).filter((a) => estDossierARelancer(a as Parameters<typeof estDossierARelancer>[0]));
 
+  // Liste des dossiers qui SERAIENT relancés (numéro dû + email valide + non exclu),
+  // calculée sans aucun effet de bord. En dryRun on la renvoie et on s'arrête là.
+  const eligibles = candidats
+    .map((a) => {
+      const numero = numeroRelanceDossier({
+        createdAt: a.created_at as string,
+        relance1At: a.relance_dossier_1_at as string | null,
+        relance2At: a.relance_dossier_2_at as string | null,
+        now,
+        jours1: CONFIG_CLUB.seuils.relances.dossier1Jours,
+        jours2: CONFIG_CLUB.seuils.relances.dossier2Jours,
+      });
+      const email = normaliserEmail(a.email as string);
+      const exclu = !email || !estEmailValide(email) || exclusions.has(email);
+      return { a, numero, email, exclu };
+    })
+    .filter((x) => x.numero !== null && !x.exclu);
+
+  if (dryRun) {
+    return {
+      dryRun: true as const,
+      candidats: candidats.length,
+      aRelancer: eligibles.map((x) => ({
+        id: x.a.id as string,
+        nom: `${x.a.prenom ?? ""} ${x.a.nom ?? ""}`.trim(),
+        numero: x.numero as 1 | 2,
+        created_at: x.a.created_at as string,
+        etat: etatDossierRelance(x.a as Parameters<typeof etatDossierRelance>[0]).etat,
+      })),
+    };
+  }
+
   let relance1 = 0;
   let relance2 = 0;
-  for (const a of candidats) {
-    const numero = numeroRelanceDossier({
-      createdAt: a.created_at as string,
-      relance1At: a.relance_dossier_1_at as string | null,
-      relance2At: a.relance_dossier_2_at as string | null,
-      now,
-      jours1: CONFIG_CLUB.seuils.relances.dossier1Jours,
-      jours2: CONFIG_CLUB.seuils.relances.dossier2Jours,
-    });
-    if (!numero) continue;
+  for (const { a, numero, email } of eligibles) {
     const col = numero === 1 ? "relance_dossier_1_at" : "relance_dossier_2_at";
-
-    // Exclusions (désinscrits, bounces, email invalide) : comme les campagnes,
-    // avant toute réservation de créneau.
-    const email = normaliserEmail(a.email as string);
-    if (!email || !estEmailValide(email) || exclusions.has(email)) continue;
 
     // Claim atomique : jamais deux envois.
     const { data: claimed } = await supabase
@@ -357,7 +393,7 @@ async function relancerDossiersSansPaiement() {
 
     const { etat, manques } = etatDossierRelance(a as Parameters<typeof etatDossierRelance>[0]);
     try {
-      await sendRelanceDossier({ email, prenom: (a.prenom as string) ?? "", mineur: estMineur(a.date_naissance as string), numero, etat, manques });
+      await sendRelanceDossier({ email, prenom: (a.prenom as string) ?? "", mineur: estMineur(a.date_naissance as string), numero: numero as 1 | 2, etat, manques });
       if (numero === 1) relance1++;
       else relance2++;
     } catch (e) {

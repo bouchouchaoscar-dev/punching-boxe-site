@@ -87,6 +87,17 @@ check("charge les exclusions (désinscrits + bounces)", fn.includes("chargerExcl
 check("filtre les emails invalides (estEmailValide)", fn.includes("estEmailValide"));
 check("claim atomique .is(col, null)", fn.includes(".is(col, null)"));
 check("exclusions vérifiées AVANT le claim", fn.indexOf("exclusions.has(email)") < fn.indexOf(".is(col, null)"));
+// L'erreur de requête NE doit JAMAIS être avalée en `data ?? []` (cause du faux 0).
+check("erreur de select remontée (throw), pas avalée", fn.includes("if (error) throw"));
+check("signature accepte dryRun", fn.includes("relancerDossiersSansPaiement(dryRun = false)"));
+check("dryRun n'écrit/n'envoie rien (return avant claim/send)", fn.indexOf("if (dryRun)") < fn.indexOf(".update({ [col]"));
+
+console.log("\n== Mode simulation (dryRun) du GET ==");
+const get = cron.slice(cron.indexOf("export async function GET"), cron.indexOf("async function relancerEchecs48h"));
+check("dryRun lu depuis ?dryRun=true", get.includes('searchParams.get("dryRun") === "true"'));
+check("dryRun court-circuite AVANT les échéances/envois", get.indexOf("if (dryRun)") < get.indexOf("const today ="));
+check("dryRun appelle la relance en simulation", get.includes("relancerDossiersSansPaiement(true)"));
+check("même auth (pas de contrôle d'auth séparé pour dryRun)", get.indexOf("Non autorisé") < get.indexOf("dryRun"));
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);
