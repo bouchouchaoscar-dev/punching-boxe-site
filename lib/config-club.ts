@@ -91,6 +91,8 @@ export const CONFIG_CLUB = {
       panier2H: 48, // 2e relance panier : au moins N h APRÈS la 1ère
       echecH: 48, // rappel unique après un échec de prélèvement
       compteSansInscriptionH: 24, // relance compte Auth sans aucun dossier
+      dossier1Jours: 3, // relance 1 dossier sans mode de paiement : >= N jours après création
+      dossier2Jours: 7, // relance 2 : >= N jours après la relance 1
     },
   },
 

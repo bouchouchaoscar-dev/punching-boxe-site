@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { sendRelancePanier } from "@/lib/email";
+import { estPaiementAFinaliser } from "@/lib/paiement";
 import type { Adherent } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -33,16 +34,12 @@ export async function POST(request: Request, { params }: Ctx) {
   }
   const a = data as Adherent;
 
-  // GARDE SERVEUR : uniquement CARTE (stripe%, jamais espèces) + en attente +
-  // non engagé + non annulé. Un dossier hors cible est refusé (409).
-  const cible =
-    (a.mode_paiement ?? "").startsWith("stripe") &&
-    a.statut_paiement === "en_attente" &&
-    !a.engage_at &&
-    !a.annule_at;
-  if (!cible) {
+  // GARDE SERVEUR : dossier « à finaliser » (SOURCE UNIQUE statutTrombi). Couvre
+  // la carte non finalisée ET le dossier sans mode de paiement choisi. Espèces /
+  // payés / échecs / engagés / annulés → exclus. Hors cible = refusé (409).
+  if (!estPaiementAFinaliser(a)) {
     return NextResponse.json(
-      { error: "Ce dossier n'est pas un paiement carte en attente." },
+      { error: "Ce dossier n'est pas un paiement à finaliser." },
       { status: 409 },
     );
   }

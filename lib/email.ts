@@ -7,6 +7,7 @@ import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
 import { planningActif } from "./planning";
 import { mailRelanceEssai } from "./presence";
+import { mailRelanceDossier, type EtatRelance } from "./relance-dossier";
 import { siteUrl } from "./site-url";
 
 let resend: Resend | null = null;
@@ -995,6 +996,41 @@ export async function sendRelanceEssai(d: {
     ${paras}
     <p style="margin:16px 0 4px">${button(`${base}/inscription`, m.boutonLabel)}</p>
     ${apres}
+    ${signature}
+    <p style="font-size:12px;color:#999;margin-top:22px">
+      <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
+    </p>
+  `);
+  return client.emails.send({ from: FROM, to: email, replyTo: REPLY_TO, subject: m.objet, html });
+}
+
+/**
+ * Relance d'un DOSSIER sans mode de paiement (statut « à finaliser », mode null).
+ * Contenu adaptatif (documents manquants / paiement), vouvoiement, parent si
+ * mineur. Bouton vers l'espace adhérent (compléter + payer). Lien de désinscription.
+ */
+export async function sendRelanceDossier(d: {
+  email: string;
+  prenom: string;
+  mineur: boolean;
+  numero: 1 | 2;
+  etat: EtatRelance;
+  manques: string[];
+}) {
+  const email = (d.email || "").trim();
+  if (!email) return { skipped: true as const };
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+
+  const m = mailRelanceDossier({ prenom: d.prenom, mineur: d.mineur, numero: d.numero, etat: d.etat, manques: d.manques, clubNom: CLUB.nomCourt });
+  const paras = m.corps.map((p) => `<p style="line-height:1.6;color:#444">${escapeHtml(p)}</p>`).join("");
+  const signature = `<p style="line-height:1.6;color:#444;margin-top:16px">${escapeHtml(m.signature).replace(/\n/g, "<br>")}</p>`;
+  const base = siteUrl() ?? SITE_URL;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(m.objet)} 🥊</h1>
+    <p style="line-height:1.6;color:#444">${escapeHtml(m.salutation)}</p>
+    ${paras}
+    <p style="margin:16px 0 4px">${button(`${base}/mon-espace`, m.boutonLabel)}</p>
     ${signature}
     <p style="font-size:12px;color:#999;margin-top:22px">
       <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>

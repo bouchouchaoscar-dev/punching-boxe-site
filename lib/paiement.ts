@@ -41,19 +41,16 @@ export function paiementIncoherent(
 // puis refusée) et des espèces en attente (mode especes). Réutilisé aux 4
 // endroits (filtre liste, filtre trombi, statutTrombi, carte dashboard) — ne
 // jamais recopier la condition.
+// « Paiement à finaliser » — SOURCE UNIQUE : délègue à statutTrombi (plus de
+// double définition). Couvre donc AUSSI les dossiers sans mode choisi (mode null,
+// rien encaissé), pas seulement les cartes stripe non finalisées.
 export function estPaiementAFinaliser(
   a: Pick<
     Adherent,
-    "mode_paiement" | "statut_paiement" | "engage_at" | "echeances_payees" | "annule_at"
+    "mode_paiement" | "statut_paiement" | "engage_at" | "echeances_payees" | "annule_at" | "nb_echeances"
   >,
 ): boolean {
-  return (
-    (a.mode_paiement ?? "").startsWith("stripe") &&
-    a.statut_paiement === "en_attente" &&
-    a.engage_at == null &&
-    (a.echeances_payees ?? 0) === 0 &&
-    a.annule_at == null
-  );
+  return statutTrombi(a as Parameters<typeof statutTrombi>[0]).code === "a_finaliser";
 }
 
 // SOURCE UNIQUE « espèces en attente » : mode espèces, non confirmé, non fermé.

@@ -12,7 +12,13 @@ import {
   sendRelancePanier2,
   sendCommencerInscription,
   sendPaiementEchec,
+  sendRelanceDossier,
 } from "@/lib/email";
+import { statutTrombi } from "@/lib/paiement";
+import { estMineur } from "@/lib/pricing";
+import { estEmailValide, normaliserEmail } from "@/lib/email-format";
+import { saisonCourante } from "@/lib/saison";
+import { etatDossierRelance, estDossierARelancer, numeroRelanceDossier } from "@/lib/relance-dossier";
 import {
   envoyerCampagne,
   statutCampagne,
@@ -151,6 +157,9 @@ export async function GET(request: Request) {
   // toujours non régularisée.
   const rappelsEchec = await relancerEchecs48h();
 
+  // Dossiers sans mode de paiement choisi (statut « à finaliser », mode null).
+  const relancesDossier = await relancerDossiersSansPaiement();
+
   return NextResponse.json({
     traitees: results.length,
     results,
@@ -159,6 +168,7 @@ export async function GET(request: Request) {
     relances2,
     relancesComptes,
     rappelsEchec,
+    relancesDossier,
   });
 }
 
@@ -283,6 +293,81 @@ async function relancerComptesSansInscription() {
  * paiement n'a jamais été finalisé (non engagés), depuis plus de 24h, non
  * clôturés, jamais relancés. Envoi UNIQUE (pose relance_panier_envoyee_at).
  */
+// Exclusions RGPD (désinscrits + bounces), comme les campagnes.
+async function chargerExclusionsMail(supabase: ReturnType<typeof getSupabaseAdmin>): Promise<Set<string>> {
+  const [{ data: opt }, { data: bnc }] = await Promise.all([
+    supabase.from("desinscriptions_mailing").select("email"),
+    supabase.from("emails_bounced").select("email"),
+  ]);
+  return new Set([
+    ...(opt ?? []).map((o) => normaliserEmail(o.email as string)),
+    ...(bnc ?? []).map((b) => normaliserEmail(b.email as string)),
+  ]);
+}
+
+// Relance des DOSSIERS sans mode de paiement choisi (statut « à finaliser » +
+// mode null). NE touche PAS aux cartes non finalisées (mode stripe → paniers).
+// Relance 1 : >= dossier1Jours après création. Relance 2 : >= dossier2Jours après
+// la relance 1. Ensuite plus rien (l'admin prend le relais). Claim idempotent.
+async function relancerDossiersSansPaiement() {
+  const supabase = getSupabaseAdmin();
+  const now = Date.now();
+  const exclusions = await chargerExclusionsMail(supabase);
+  const champs =
+    "id, prenom, nom, email, date_naissance, created_at, mode_paiement, statut_paiement, nb_echeances, echeances_payees, engage_at, annule_at, titulaire_id, relance_dossier_1_at, relance_dossier_2_at, fiche_valide, reglement_valide, photo_valide, certificat_valide, certificat_medical_url, fiche_signee_at, reglement_signee_at, fiche_inscription_url, reglement_url, photo_url";
+  const { data } = await supabase
+    .from("adherents")
+    .select(champs)
+    .eq("saison", saisonCourante(new Date()))
+    .is("mode_paiement", null)
+    .is("engage_at", null)
+    .is("annule_at", null)
+    .not("titulaire_id", "is", null);
+  // Règle SOURCE UNIQUE : statutTrombi === "a_finaliser" (mode null, rien encaissé).
+  const candidats = (data ?? []).filter((a) => estDossierARelancer(a as Parameters<typeof estDossierARelancer>[0]));
+
+  let relance1 = 0;
+  let relance2 = 0;
+  for (const a of candidats) {
+    const numero = numeroRelanceDossier({
+      createdAt: a.created_at as string,
+      relance1At: a.relance_dossier_1_at as string | null,
+      relance2At: a.relance_dossier_2_at as string | null,
+      now,
+      jours1: CONFIG_CLUB.seuils.relances.dossier1Jours,
+      jours2: CONFIG_CLUB.seuils.relances.dossier2Jours,
+    });
+    if (!numero) continue;
+    const col = numero === 1 ? "relance_dossier_1_at" : "relance_dossier_2_at";
+
+    // Exclusions (désinscrits, bounces, email invalide) : comme les campagnes,
+    // avant toute réservation de créneau.
+    const email = normaliserEmail(a.email as string);
+    if (!email || !estEmailValide(email) || exclusions.has(email)) continue;
+
+    // Claim atomique : jamais deux envois.
+    const { data: claimed } = await supabase
+      .from("adherents")
+      .update({ [col]: new Date().toISOString() })
+      .eq("id", a.id)
+      .is(col, null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue;
+
+    const { etat, manques } = etatDossierRelance(a as Parameters<typeof etatDossierRelance>[0]);
+    try {
+      await sendRelanceDossier({ email, prenom: (a.prenom as string) ?? "", mineur: estMineur(a.date_naissance as string), numero, etat, manques });
+      if (numero === 1) relance1++;
+      else relance2++;
+    } catch (e) {
+      console.error("Relance dossier:", a.id, e);
+    }
+    await new Promise((r) => setTimeout(r, 300)); // pacing Resend
+  }
+  return { candidats: candidats.length, relance1, relance2 };
+}
+
 async function relancerPaniersAbandonnes() {
   const supabase = getSupabaseAdmin();
   const seuil = new Date(Date.now() - RELANCES.panierH * H).toISOString();

@@ -15,8 +15,7 @@ import { formatDateFr } from "@/lib/tarifs";
 import { formatTelephone } from "@/lib/telephone";
 import { estEmailValide } from "@/lib/email-format";
 import { urlAvecVersion } from "@/lib/doc-version";
-import { estPaiementSolde } from "@/lib/paiement";
-import { estEngage } from "@/lib/engagement";
+import { estPaiementSolde, estPaiementAFinaliser } from "@/lib/paiement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { evaluerDossier, type DossierStatut } from "@/lib/dossier";
 import { familleEchec, libelleEchecAdmin } from "@/lib/stripe-erreurs";
@@ -1262,12 +1261,11 @@ function PaiementsCard({
   relancePaiementBusy: boolean;
   onRelancerPaiement: () => void;
 }) {
-  // Dossier CARTE dont le paiement n'a jamais été finalisé (jamais engagé) :
-  // cible de la relance manuelle. Espèces / payés / échecs / engagés → exclus.
-  const carteEnAttente =
-    (adherent.mode_paiement ?? "").startsWith("stripe") &&
-    adherent.statut_paiement === "en_attente" &&
-    !estEngage(adherent);
+  // Dossier « à finaliser » (SOURCE UNIQUE statutTrombi) : cible de la relance
+  // manuelle. Couvre la carte non finalisée ET le dossier sans mode de paiement
+  // choisi (créé par l'admin). Espèces / payés / échecs / engagés → exclus.
+  const carteEnAttente = estPaiementAFinaliser(adherent);
+  const sansMode = !adherent.mode_paiement;
   // Encaissé NET = payé − remboursé (carte + espèces), depuis les paiements.
   const collectees = paiements.filter(
     (p) => p.statut === "paye" || p.statut === "rembourse",
@@ -1335,10 +1333,13 @@ function PaiementsCard({
 
       {carteEnAttente && (
         <div className="mt-4 rounded-xl border border-line bg-paper-2 p-4">
-          <p className="text-sm font-bold text-ink">Paiement carte non finalisé</p>
+          <p className="text-sm font-bold text-ink">
+            {sansMode ? "Paiement à finaliser" : "Paiement carte non finalisé"}
+          </p>
           <p className="mt-1 text-xs text-smoke">
-            L&apos;adhérent a choisi la carte mais n&apos;a pas réglé en ligne. On
-            peut lui renvoyer le lien de paiement.
+            {sansMode
+              ? "L'adhérent n'a pas encore choisi de mode de paiement. On peut lui renvoyer le lien pour finaliser."
+              : "L'adhérent a choisi la carte mais n'a pas réglé en ligne. On peut lui renvoyer le lien de paiement."}
           </p>
           <button
             onClick={onRelancerPaiement}

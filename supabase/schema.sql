@@ -112,6 +112,8 @@ create table if not exists public.adherents (
   relance_panier_envoyee_at timestamptz,                      -- relance panier abandonné (1ère, unique)
   relance_panier_2_envoyee_at timestamptz,                    -- [008] 2e relance panier (J+3, unique)
   relance_paiement_manuelle_at timestamptz,                   -- [008] renvoi manuel admin du lien de paiement
+  relance_dossier_1_at timestamptz,                           -- [016] relance dossier sans mode de paiement (1)
+  relance_dossier_2_at timestamptz,                           -- [016] relance dossier sans mode de paiement (2)
   mail_inscription_envoye   boolean not null default false,   -- [003] anti-doublon mails d'inscription (claim atomique)
   cree_par_admin            boolean not null default false,   -- [010] dossier dont le compte a été créé par l'admin
   -- Re-signature de documents (fiche / règlement) demandée par l'admin [004_resignature]
