@@ -253,6 +253,7 @@ export function PlanningSemaine({
   onAddProf,
   onRemoveProf,
   onPrevenir,
+  renderCarte,
 }: {
   semaineISO: string;
   cours: Cours[];
@@ -270,6 +271,9 @@ export function PlanningSemaine({
   onAddProf?: (coursId: string) => void;
   onRemoveProf?: (coursId: string, profId: string) => void;
   onPrevenir?: (c: Cours) => void;
+  // Remplace le rendu d'une carte de cours (réutilisé par l'Historique Présence
+  // pour afficher un compteur cliquable à la place de la carte de prof).
+  renderCarte?: (c: Cours) => ReactNode;
 }) {
   // Jours affichés : Lun→Ven, + Sam/Dim si des cours actifs y existent.
   const jours = useMemo(() => {
@@ -381,7 +385,10 @@ export function PlanningSemaine({
   const courtNom = useCallback((p: ProfMinimal) => nomCourtProf(p, profs), [profs]);
 
   const noop = () => {};
-  const carte = (c: Cours) => (
+  const carte = (c: Cours) =>
+    renderCarte ? (
+      <div key={c.id}>{renderCarte(c)}</div>
+    ) : (
     <CarteCours
       key={c.id}
       c={c}

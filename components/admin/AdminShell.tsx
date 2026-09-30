@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
 import { planningActif } from "@/lib/planning";
+import { presenceActif } from "@/lib/presence";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 // Ordre du menu — SOURCE UNIQUE (desktop + mobile ; le coach en garde le
@@ -15,6 +16,7 @@ const NAV = [
   { href: "/admin", label: "Tableau de bord", icon: "grid" },
   { href: "/admin/adherents", label: "Adhérents", icon: "users" },
   { href: "/admin/trombinoscope", label: "Trombinoscope", icon: "camera" },
+  ...(presenceActif() ? [{ href: "/admin/presence", label: "Présence", icon: "presence" }] : []),
   ...(planningActif() ? [{ href: "/admin/planning", label: "Planning", icon: "calendar" }] : []),
   { href: "/admin/campagnes", label: "Mailing", icon: "mail" },
   { href: "/admin/anciens", label: "Anciens", icon: "history" },
@@ -30,7 +32,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // Défense en profondeur : le middleware redirige aussi les URLs tapées à la main.
   const nav =
     role === "coach"
-      ? NAV.filter((n) => n.href === "/admin/trombinoscope" || n.href === "/admin/planning")
+      ? NAV.filter(
+          (n) =>
+            n.href === "/admin/trombinoscope" ||
+            n.href === "/admin/planning" ||
+            n.href === "/admin/presence",
+        )
       : NAV;
 
   function logout() {
@@ -170,6 +177,13 @@ function Icon({ name }: { name: string }) {
       <svg {...common}>
         <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.7" />
         <path d="M3 10h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (name === "presence")
+    return (
+      <svg {...common}>
+        <path d="M9 11l2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.7" />
       </svg>
     );
   return (

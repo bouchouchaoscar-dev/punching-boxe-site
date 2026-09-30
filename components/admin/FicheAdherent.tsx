@@ -382,6 +382,15 @@ export function FicheAdherent({ id }: { id: string }) {
     }).catch(() => {});
   }, [id]);
 
+  // Module Présence : séance d'essai éventuellement liée à ce dossier.
+  const [essai, setEssai] = useState<{ date_seance: string; coursLabel: string | null } | null>(null);
+  useEffect(() => {
+    fetch(`/api/admin/presence/essai-dossier?id=${id}`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setEssai(d.essai ?? null))
+      .catch(() => {});
+  }, [id]);
+
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
     try {
@@ -549,6 +558,12 @@ export function FicheAdherent({ id }: { id: string }) {
               <div className="mt-3">
                 <PaiementStatut adherent={a} paidEcheances={paidEcheances} />
               </div>
+              {essai && (
+                <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                  Séance d&apos;essai le {new Date(essai.date_seance).toLocaleDateString("fr-FR")}
+                  {essai.coursLabel ? ` · ${essai.coursLabel}` : ""}
+                </p>
+              )}
               {/* Reflet remboursement / litige / annulation */}
               {(a.annule_at || (a.montant_rembourse ?? 0) > 0 || a.litige) && (
                 <div className="mt-3 space-y-1.5">

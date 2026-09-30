@@ -435,6 +435,49 @@ insert into storage.buckets (id, name, public)
 values ('adherents-documents', 'adherents-documents', false)
 on conflict (id) do nothing;
 
+-- ---------------------------------------------------------------------------
+-- 10) MODULE PRÉSENCE (migration 015) — pointage QR + séances d'essai.
+--   RLS activée, AUCUN grant anon/authenticated : tout passe par service_role.
+-- ---------------------------------------------------------------------------
+create table if not exists public.essais (
+  id                   uuid primary key default gen_random_uuid(),
+  nom                  text,
+  prenom               text,
+  date_naissance       date,
+  email                text,
+  cours_id             uuid references public.cours(id) on delete set null,
+  date_seance          date not null,
+  created_at           timestamptz not null default now(),
+  relance_1_at         timestamptz,
+  relance_2_at         timestamptz,
+  converti_dossier_id  uuid references public.adherents(id) on delete set null,
+  desinscrit           boolean not null default false
+);
+create index if not exists essais_email_idx on public.essais (email);
+create index if not exists essais_created_idx on public.essais (created_at);
+alter table public.essais enable row level security;
+grant all on public.essais to service_role;
+
+create table if not exists public.presences (
+  id           uuid primary key default gen_random_uuid(),
+  cours_id     uuid not null references public.cours(id) on delete restrict,
+  date_seance  date not null,
+  dossier_id   uuid references public.adherents(id) on delete cascade,
+  essai_id     uuid references public.essais(id) on delete cascade,
+  source       text not null check (source in ('qr', 'manuel')),
+  created_at   timestamptz not null default now(),
+  created_by   text,
+  constraint presences_un_seul_ref
+    check (((dossier_id is not null)::int + (essai_id is not null)::int) = 1)
+);
+create unique index if not exists presences_dossier_uidx
+  on public.presences (cours_id, date_seance, dossier_id) where dossier_id is not null;
+create unique index if not exists presences_essai_uidx
+  on public.presences (cours_id, date_seance, essai_id) where essai_id is not null;
+create index if not exists presences_seance_idx on public.presences (date_seance, cours_id);
+alter table public.presences enable row level security;
+grant all on public.presences to service_role;
+
 -- ============================================================================
 -- FIN. Modèles d'emails : seedés automatiquement au 1er chargement de l'espace
 -- admin (route /api/admin/templates). Étape suivante : import éventuel des

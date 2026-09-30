@@ -6,6 +6,7 @@ import { euro, formuleLabel, type ModePaiement, type PackageType } from "./prici
 import { formatDateFr } from "./tarifs";
 import { familleEchec } from "./stripe-erreurs";
 import { planningActif } from "./planning";
+import { mailRelanceEssai } from "./presence";
 
 let resend: Resend | null = null;
 function getResend(): Resend | null {
@@ -961,4 +962,35 @@ export async function sendContactConfirmation(d: { nom: string; email: string })
     subject: "Nous avons bien reçu votre message",
     html,
   });
+}
+
+/**
+ * Relance de séance d'essai (1 = J+1, 2 = J+7). Ton chaleureux, adapté au parent
+ * pour un mineur (via mailRelanceEssai). Bouton vers la création d'espace/inscription.
+ * Inclut le lien de désinscription.
+ */
+export async function sendRelanceEssai(d: {
+  email: string;
+  prenom: string;
+  mineur: boolean;
+  coursLabel?: string | null;
+  numero: 1 | 2;
+}) {
+  const email = (d.email || "").trim();
+  if (!email) return { skipped: true as const };
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+
+  const m = mailRelanceEssai({ prenom: d.prenom, mineur: d.mineur, coursLabel: d.coursLabel, numero: d.numero });
+  const paras = m.corps.map((p) => `<p style="line-height:1.6;color:#444">${escapeHtml(p)}</p>`).join("");
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(m.objet)} 🥊</h1>
+    <p style="line-height:1.6;color:#444">${escapeHtml(m.salutation)}</p>
+    ${paras}
+    <p style="margin:16px 0 4px">${button(`${SITE_URL}/inscription`, m.boutonLabel)}</p>
+    <p style="font-size:12px;color:#999;margin-top:22px">
+      <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
+    </p>
+  `);
+  return client.emails.send({ from: FROM, to: email, replyTo: REPLY_TO, subject: m.objet, html });
 }

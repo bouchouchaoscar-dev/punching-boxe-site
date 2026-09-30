@@ -6,7 +6,8 @@ export function coachAutorise(pathname: string): boolean {
   return (
     pathname === "/admin/login" ||
     pathname.startsWith("/admin/trombinoscope") ||
-    pathname.startsWith("/admin/planning")
+    pathname.startsWith("/admin/planning") ||
+    pathname.startsWith("/admin/presence")
   );
 }
 

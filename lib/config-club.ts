@@ -68,6 +68,15 @@ export const CONFIG_CLUB = {
         } as Record<string, { bg: string; bar: string }>,
       },
     },
+    // Module PRÉSENCE : pointage par QR + séances d'essai avec relances.
+    // Fenêtre de pointage relative au début du cours ; relances J+1/J+7 ;
+    // conservation = saison en cours + N saison(s) puis purge.
+    presence: {
+      actif: true,
+      fenetre: { ouvertureMinutesAvant: 30, fermetureMinutesApres: 40 },
+      relancesEssai: { premiereHeures: 24, secondeJours: 7 },
+      conservationSaisons: 1,
+    },
   },
 
   // -- SEUILS COMPORTEMENTAUX ---------------------------------------------

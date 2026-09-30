@@ -55,3 +55,44 @@ Vitrine + SEO (301 de l'ancien WP) · inscription 100 % en ligne (1 compte = N d
 - Resend : domaine `punching-boxe.com` (SPF/DKIM OVH)
 - Cron : cron-job.org → `GET /api/cron/charge-echeances` (header `Authorization: Bearer CRON_SECRET`)
 - GitHub : `bouchouchaoscar-dev/punching-boxe-site` · Docs agence : `bouchouchaoscar-dev/assopilotagence-digitale`
+
+## Module Présence (pointage QR + séances d'essai)
+
+Module OPTIONNEL et duplicable, piloté par `CONFIG_CLUB.modules.presence` :
+`actif`, `fenetre { ouvertureMinutesAvant:30, fermetureMinutesApres:40 }`,
+`relancesEssai { premiereHeures:24, secondeJours:7 }`, `conservationSaisons:1`.
+Si `actif:false` → onglet masqué, routes publiques/cron neutralisées (404/no-op).
+
+**Tables (migration 015)** : `essais` (séances d'essai + relance_1_at/relance_2_at +
+converti_dossier_id + desinscrit) et `presences` (cours_id, date_seance, dossier_id
+XOR essai_id, source 'qr'|'manuel', unicité partielle par séance). RLS activée,
+service_role uniquement (aucun grant anon).
+
+**Logique pure** (`lib/presence.ts`, testée `scripts/test-presence.mts`, fuseau
+Europe/Paris + DST) : `coursOuverts`, `rattacherCours`, `chercherAdherentsPublic`
+(liste blanche), `mailRelanceEssai` (ton parent si mineur), `construireLignesCoachPresence`.
+Réutilise Planning (`estFerme`, `adherentDansDiscipline`, `couleurCours`,
+`PlanningSemaine` via prop `renderCarte`), le statut trombi (`statutTrombi` = source
+unique), `estMineur`, `estEmailValide`, `signerUrls`/`photoDataUri`.
+
+**Routes publiques** (gate `presenceActif`, rate-limit par IP) :
+- `GET /api/presence/cours-ouverts?salle=<slug>`
+- `GET /api/presence/recherche?q=` (≥3 car, 8 max, aucune fuite)
+- `POST /api/presence/pointer` `{dossierId, coursId?, salle?}` (idempotent)
+- `POST /api/presence/essai` `{prenom,nom,date_naissance,email,coursId?,salle?}`
+
+**Routes admin** (`isAdminRequest`) : `GET .../presence/jour?date=`,
+`.../semaine?semaine=`, `POST .../ajouter`, `.../retirer`, `.../affiche?salle=<slug>`
+(PDF QR, dép. `qrcode`), `.../essai-dossier?id=`. **Coach** (liste blanche) :
+`GET /api/coach/presence?date=`.
+
+**Pages** : `/presence` (publique, mobile-first, QR `?salle=<slug>`), `/admin/presence`
+(Aujourd'hui + Historique + affiches ; coach = Aujourd'hui lecture seule).
+
+**Crons à planifier** (cron-job.org, header `Authorization: Bearer CRON_SECRET`) :
+- `GET /api/cron/presence` — relances d'essai (J+1 / J+7) + purge RGPD. **1×/jour**
+  (aussi dans `vercel.json`, 08:30 UTC).
+
+**Déploiement** : appliquer `supabase/migrations/015_presence.sql` ; `NEXT_PUBLIC_SITE_URL`
+doit être l'URL absolue de prod (QR des affiches) ; imprimer les affiches via
+Admin → Présence → icône affiches (une par salle + générique).

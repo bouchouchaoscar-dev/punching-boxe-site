@@ -47,6 +47,28 @@ export default function ConfidentialitePage() {
         </p>
       </LegalSection>
 
+      <LegalSection title="Présence aux cours et séances d'essai">
+        <p>
+          Lorsqu&apos;un adhérent pointe sa présence à un cours (scan d&apos;un QR
+          code affiché dans les salles), le club enregistre sa présence à la
+          séance concernée. Les personnes qui viennent en séance d&apos;essai
+          laissent leur prénom, nom, date de naissance et une adresse email.
+        </p>
+        <p>
+          Finalité : organisation des cours et suivi des inscriptions. Les
+          coordonnées d&apos;une séance d&apos;essai servent à envoyer au maximum
+          deux emails d&apos;invitation à s&apos;inscrire ; ces envois cessent
+          immédiatement en cas d&apos;inscription ou de désinscription.
+        </p>
+        <p>
+          Conservation : les présences et les coordonnées des séances d&apos;essai
+          non converties sont conservées pendant la saison en cours et la saison
+          suivante, puis supprimées automatiquement. Vous pouvez à tout moment
+          vous opposer à ces traitements ou demander la suppression de vos
+          données en nous contactant.
+        </p>
+      </LegalSection>
+
       <LegalSection title="Hébergement des données">
         <p>
           Les données sont hébergées par Supabase, sur des serveurs situés dans
