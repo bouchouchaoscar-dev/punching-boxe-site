@@ -7,7 +7,7 @@ import { Logo } from "@/components/ui/Logo";
 import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
 import { planningActif } from "@/lib/planning";
 import { presenceActif } from "@/lib/presence";
-import { prechargerOnglet } from "@/lib/admin-cache";
+import { prechargerOnglet, purgerCache } from "@/lib/admin-cache";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 // Ordre du menu — SOURCE UNIQUE (desktop + mobile ; le coach en garde le
@@ -52,6 +52,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       : NAV;
 
   function logout() {
+    // Purge des données personnelles en cache (noms/photos/paiements) AVANT de
+    // libérer la session : rien ne doit rester sur un appareil partagé.
+    purgerCache();
     setAdminSession(false);
     // Navigation DURE : garantit que le cookie de rôle expiré et le localStorage
     // purgé sont bien pris en compte avant toute reconnexion (sinon une

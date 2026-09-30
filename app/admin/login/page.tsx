@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonAction } from "@/components/ui/Button";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { setAdminSession, setAdminToken, setAdminRole } from "@/lib/admin-auth";
+import { purgerCache } from "@/lib/admin-cache";
 import { redirectionInterneValide } from "@/lib/nav-roles";
 
 export default function AdminLoginPage() {
@@ -13,6 +14,14 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // On atterrit ici après une déconnexion OU une session invalidée/expirée
+  // (redirection middleware). Dans tous les cas, on purge le cache de session :
+  // aucune donnée personnelle d'une session précédente ne doit subsister avant
+  // qu'un (autre) rôle ne se connecte sur le même appareil.
+  useEffect(() => {
+    purgerCache();
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +35,9 @@ export default function AdminLoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Connexion impossible.");
+      // Changement de rôle sur le même appareil : on repurge juste avant d'ouvrir
+      // la nouvelle session (défense en profondeur, en plus de la purge au montage).
+      purgerCache();
       setAdminSession(true);
       setAdminToken(password);
       const role = data.role === "coach" ? "coach" : "admin";

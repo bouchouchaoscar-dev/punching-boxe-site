@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
-import { lireCache, ecrireCache } from "@/lib/admin-cache";
+import { lireCache, ecrireCache, purgerCache } from "@/lib/admin-cache";
 
 // Hook de chargement des onglets admin avec CACHE DE SESSION (Planning, Présence,
 // vues coach). Même esprit que SaisonProvider pour les adhérents :
@@ -29,6 +29,12 @@ export function useDonneesAdmin<T>(
     setRefreshing(true);
     try {
       const r = await fetch(url, { headers: adminAuthHeaders(), cache: "no-store" });
+      // Session invalidée / expirée côté serveur → on purge le cache (données
+      // personnelles) avant même de traiter la réponse.
+      if (r.status === 401 || r.status === 403) {
+        purgerCache();
+        throw new Error("Session expirée. Reconnectez-vous.");
+      }
       const d = await r.json();
       if (!r.ok) throw new Error((d as { error?: string })?.error || "Erreur de chargement.");
       const val = extraireRef.current(d);
