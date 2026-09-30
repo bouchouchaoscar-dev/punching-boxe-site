@@ -87,29 +87,46 @@ console.log("provision   :", sp.text);
 console.log("carte_morte :", sc.text);
 console.log("autre       :", sa.text);
 
-// ---- 4) Préfixe "docs incomplets + fractionné engagé" reflète X/N ----
-console.log("\n[syntheseDossier — certif manquant + fractionné 3/4]");
-const baseCertif = {
+// ---- 4) Préfixe "paiement acquis + docs incomplets" reflète le nb réel (X/N) ----
+// On force une pièce OBLIGATOIRE manquante (la photo) : c'est la branche qui
+// affiche le préfixe X/N. NB : le certificat SEUL manquant ne bloque pas
+// l'inscription et mène à une autre branche (cf. section 5).
+console.log("\n[syntheseDossier — obligatoire (photo) manquant + fractionné 3/4]");
+const baseOblig = {
   mode_paiement: "stripe_4x",
   nb_echeances: 4,
   echeances_payees: 3,
   statut_paiement: "en_attente",
-  // docs oblig OK mais certificat manquant
   fiche_inscription_url: "x", fiche_valide: true,
   reglement_url: "x", reglement_valide: true,
-  photo_url: "x", photo_valide: true,
-  certificat_medical_url: null, certificat_valide: false,
+  photo_url: null, photo_valide: false, // pièce obligatoire manquante
+  certificat_medical_url: "x", certificat_valide: true,
 } as unknown as Adherent;
-const sCertif = syntheseDossier(baseCertif, 3);
-check("tone action", sCertif.tone === "action", sCertif.tone);
-check("dit '3/4 échéances'", /3\/4 échéances sont réglées/.test(sCertif.text), sCertif.text);
-check("ne dit PAS '1ère échéance'", !/1ère échéance/.test(sCertif.text), sCertif.text);
-check("mentionne le certificat", /certificat médical/.test(sCertif.text), sCertif.text);
-console.log("texte :", sCertif.text);
+const sOblig = syntheseDossier(baseOblig, 3);
+check("tone action", sOblig.tone === "action", sOblig.tone);
+check("préfixe reflète le nb réel d'échéances (3/4)", /3\/4 échéances sont réglées/.test(sOblig.text), sOblig.text);
+check("ne dit PAS '1ère échéance' quand 3 sont payées", !/1ère échéance/.test(sOblig.text), sOblig.text);
+check("réclame la pièce manquante (photo)", /photo/i.test(sOblig.text), sOblig.text);
+console.log("texte :", sOblig.text);
 
-// Et le même cas avec 1 seule échéance payée garde "1ère échéance".
-const sCertif1 = syntheseDossier({ ...baseCertif, echeances_payees: 1 } as Adherent, 1);
-check("1 payée → '1ère échéance'", /1ère échéance est bien passée/.test(sCertif1.text), sCertif1.text);
+// Même cas avec 1 seule échéance payée → préfixe "1ère échéance".
+const sOblig1 = syntheseDossier({ ...baseOblig, echeances_payees: 1 } as Adherent, 1);
+check("1 payée → '1ère échéance'", /1ère échéance est bien passée/.test(sOblig1.text), sOblig1.text);
+
+// ---- 5) Certificat SEUL manquant, obligatoires OK + paiement acquis ----
+// Comportement VOLONTAIRE (commit 151dd20, libellé affiné en 0364745) : le
+// certificat dépend d'un médecin et ne bloque PAS l'inscription → l'inscription
+// est validée, message rassurant mais qui rappelle l'obligation.
+console.log("\n[syntheseDossier — certif seul manquant + fractionné 3/4]");
+const sCertif = syntheseDossier(
+  { ...baseOblig, photo_url: "x", photo_valide: true, certificat_medical_url: null, certificat_valide: false } as Adherent,
+  3,
+);
+check("tone success (inscription validée)", sCertif.tone === "success", sCertif.tone);
+check("dit que l'inscription est validée", /inscription est validée/i.test(sCertif.text), sCertif.text);
+check("mentionne le certificat médical", /certificat médical/.test(sCertif.text), sCertif.text);
+check("rappelle l'obligation (n'invalide pas le dossier)", /obligatoire/i.test(sCertif.text), sCertif.text);
+console.log("texte :", sCertif.text);
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);
