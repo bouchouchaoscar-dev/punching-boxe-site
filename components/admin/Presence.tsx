@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
+import { CLES } from "@/lib/admin-cache";
+import { useDonneesAdmin } from "./useDonneesAdmin";
 import { PageHeader } from "./PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanningSemaine } from "./PlanningSemaine";
@@ -114,7 +116,6 @@ function PresenceAdmin() {
 // Vue « Aujourd'hui » partagée admin/coach (readOnly). Le coach n'a ni
 // ajout/retrait, ni lien fiche, ni détail essai (email).
 function PresenceVue({ readOnly = false }: { readOnly?: boolean }) {
-  const [blocs, setBlocs] = useState<Bloc[] | null>(null);
   const [filtres, setFiltres] = useState<Record<string, Categorie | null>>({});
   const [ouverts, setOuverts] = useState<Record<string, boolean>>({});
   const [detailEssai, setDetailEssai] = useState<Ligne | null>(null);
@@ -122,18 +123,18 @@ function PresenceVue({ readOnly = false }: { readOnly?: boolean }) {
   const [ajout, setAjout] = useState<Bloc | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Cache de session : paint instantané des derniers présents, puis
+  // rafraîchissement IMMÉDIAT (dans la seconde) + auto toutes les 30 s. Le
+  // compteur affiché depuis le cache est donc réactualisé aussitôt (jamais
+  // présenté comme « à jour » alors qu'il serait périmé).
   const url = readOnly ? "/api/coach/presence" : "/api/admin/presence/jour";
-  const charger = useCallback(() => {
-    fetch(url, { headers: adminAuthHeaders(), cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setBlocs(d.cours ?? []))
-      .catch(() => {});
-  }, [url]);
-  useEffect(() => {
-    charger();
-    const t = setInterval(charger, 30_000); // refresh auto, sans perdre l'état d'ouverture/filtre
-    return () => clearInterval(t);
-  }, [charger]);
+  const cle = readOnly ? CLES.presenceCoach : CLES.presenceJour;
+  const { data: blocs, error, refresh: charger } = useDonneesAdmin<Bloc[]>(
+    cle,
+    url,
+    (d) => ((d as { cours?: Bloc[] }).cours ?? []),
+    { intervalMs: 30_000 },
+  );
 
   function setFiltre(coursId: string, cat: Categorie | null) {
     setFiltres((f) => ({ ...f, [coursId]: cat }));
@@ -159,12 +160,17 @@ function PresenceVue({ readOnly = false }: { readOnly?: boolean }) {
     }
   }
 
-  if (blocs === null) return <Squelette />;
-  if (blocs.length === 0) return <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-smoke">Aucun cours aujourd&apos;hui.</p>;
+  // Pas encore de données : erreur → on AFFICHE l'erreur (jamais un état vide
+  // trompeur) ; sinon squelette. Données en cache + erreur au rafraîchissement →
+  // on garde les données et on signale l'erreur en tête (note discrète).
+  if (blocs === null) return error ? <ErreurPresence message={error} onRetry={charger} /> : <Squelette />;
 
   return (
     <div className="space-y-4">
-      {blocs.map((b) => (
+      {error && <ErreurPresence message={error} onRetry={charger} inline />}
+      {blocs.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-line bg-white p-8 text-center text-sm text-smoke">Aucun cours aujourd&apos;hui.</p>
+      ) : blocs.map((b) => (
         <BlocCours
           key={b.id}
           bloc={b}
@@ -548,4 +554,18 @@ function AffichesModal({ onClose }: { onClose: () => void }) {
 
 function Squelette() {
   return <div className="space-y-4">{[0, 1].map((i) => <div key={i} className="h-40 animate-pulse rounded-[1.5rem] border border-line bg-white" />)}</div>;
+}
+
+// Erreur de chargement affichée COMME une erreur (jamais un état vide trompeur).
+// `inline` : bandeau discret en tête quand des données (cache) restent affichées.
+function ErreurPresence({ message, onRetry, inline = false }: { message: string; onRetry: () => void; inline?: boolean }) {
+  return (
+    <div className={`rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 ${inline ? "" : "text-center"}`}>
+      <p className="font-semibold">Impossible de charger les présences.</p>
+      <p className="mt-1 text-red-600/90">{message}</p>
+      <button onClick={onRetry} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">
+        Réessayer
+      </button>
+    </div>
+  );
 }

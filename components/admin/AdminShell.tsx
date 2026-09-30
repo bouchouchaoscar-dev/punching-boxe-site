@@ -7,6 +7,7 @@ import { Logo } from "@/components/ui/Logo";
 import { setAdminSession, getAdminRole } from "@/lib/admin-auth";
 import { planningActif } from "@/lib/planning";
 import { presenceActif } from "@/lib/presence";
+import { prechargerOnglet } from "@/lib/admin-cache";
 import { SaisonProvider, SaisonSelect } from "./SaisonContext";
 
 // Ordre du menu — SOURCE UNIQUE (desktop + mobile ; le coach en garde le
@@ -27,6 +28,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
+
+  // Préchargement des données Planning + Présence dès l'ouverture de l'espace
+  // admin (comme SaisonProvider précharge les adhérents) : le cache de session est
+  // réchauffé en arrière-plan, l'ouverture réelle de l'onglet peint alors
+  // instantanément. Rejoué au survol/appui de l'entrée de menu (voir plus bas).
+  useEffect(() => {
+    const r = getAdminRole();
+    if (presenceActif()) prechargerOnglet("/admin/presence", r);
+    if (planningActif()) prechargerOnglet("/admin/planning", r);
+  }, []);
 
   // Un coach ne voit que le trombinoscope et le planning (lecture seule).
   // Défense en profondeur : le middleware redirige aussi les URLs tapées à la main.
@@ -75,6 +86,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 key={n.href}
                 href={n.href}
                 onClick={() => setOpen(false)}
+                onMouseEnter={() => prechargerOnglet(n.href, role)}
+                onPointerDown={() => prechargerOnglet(n.href, role)}
+                onFocus={() => prechargerOnglet(n.href, role)}
                 className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
                   active
                     ? "bg-ink text-white"

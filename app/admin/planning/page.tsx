@@ -39,6 +39,8 @@ import {
 } from "@/lib/planning";
 import { remplacerVariables, jetonsInconnus, type DestinataireVars } from "@/lib/campagnes";
 import { estEmailValide } from "@/lib/email-format";
+import { lireCache, ecrireCache, CLES } from "@/lib/admin-cache";
+import { useDonneesAdmin } from "@/components/admin/useDonneesAdmin";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -62,12 +64,18 @@ export default function PlanningPage() {
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
   const [tab, setTab] = useState<Tab>("calendrier");
-  const [profs, setProfs] = useState<Prof[]>([]);
-  const [cours, setCours] = useState<Cours[]>([]);
-  const [periodes, setPeriodes] = useState<PeriodeFermeture[]>([]);
+  // Hydratation depuis le CACHE DE SESSION : paint instantané des dernières
+  // données connues (comme SaisonProvider pour les adhérents), puis
+  // rafraîchissement en arrière-plan (chargerBase / chargerAffectations).
+  const [profs, setProfs] = useState<Prof[]>(() => lireCache<Prof[]>(CLES.planningProfs) ?? []);
+  const [cours, setCours] = useState<Cours[]>(() => lireCache<Cours[]>(CLES.planningCours) ?? []);
+  const [periodes, setPeriodes] = useState<PeriodeFermeture[]>(() => lireCache<PeriodeFermeture[]>(CLES.planningPeriodes) ?? []);
   const [semaineISO, setSemaineISO] = useState(semaineInitiale);
-  const [affectations, setAffectations] = useState<Affectation[]>([]);
+  const [affectations, setAffectations] = useState<Affectation[]>(() => lireCache<Affectation[]>(CLES.planningAff(semaineInitiale())) ?? []);
   const [toast, setToast] = useState<string | null>(null);
+  // Chargement initial (squelette) : seulement si AUCUN cache disponible.
+  const [baseChargee, setBaseChargee] = useState(() => lireCache<Cours[]>(CLES.planningCours) !== null);
+  const [erreur, setErreur] = useState("");
 
   // Cours pour lequel on prévient les adhérents (mailing ciblé par discipline).
   const [prevenir, setPrevenir] = useState<Cours | null>(null);
@@ -107,31 +115,51 @@ export default function PlanningPage() {
     window.setTimeout(() => setToast(null), 3200);
   }, []);
 
-  const chargerBase = useCallback(() => {
+  // Charge les données de base. Requêtes PARALLÈLES, écriture du cache de session
+  // sur succès, et REMONTÉE de l'erreur (jamais une liste vide silencieuse) :
+  // une seule des trois qui échoue suffit à signaler l'erreur.
+  const chargerBase = useCallback(async () => {
     if (!actif || role === "coach") return; // le coach a sa propre vue lecture seule
-    fetch("/api/admin/planning/profs", { headers: adminAuthHeaders(), cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setProfs(d.profs ?? []))
-      .catch(() => {});
-    fetch("/api/admin/planning/cours", { headers: adminAuthHeaders(), cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setCours(d.cours ?? []))
-      .catch(() => {});
-    fetch("/api/admin/planning/fermetures", { headers: adminAuthHeaders(), cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setPeriodes(d.periodes ?? []))
-      .catch(() => {});
+    const j = async <T,>(url: string, cle: string, extraire: (d: unknown) => T): Promise<T> => {
+      const r = await fetch(url, { headers: adminAuthHeaders(), cache: "no-store" });
+      const d = await r.json();
+      if (!r.ok) throw new Error((d as { error?: string })?.error || "Erreur de chargement.");
+      const val = extraire(d);
+      ecrireCache(cle, val);
+      return val;
+    };
+    try {
+      const [p, c, f] = await Promise.all([
+        j<Prof[]>("/api/admin/planning/profs", CLES.planningProfs, (d) => (d as { profs?: Prof[] }).profs ?? []),
+        j<Cours[]>("/api/admin/planning/cours", CLES.planningCours, (d) => (d as { cours?: Cours[] }).cours ?? []),
+        j<PeriodeFermeture[]>("/api/admin/planning/fermetures", CLES.planningPeriodes, (d) => (d as { periodes?: PeriodeFermeture[] }).periodes ?? []),
+      ]);
+      setProfs(p); setCours(c); setPeriodes(f); setErreur("");
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Erreur de chargement.");
+    } finally {
+      setBaseChargee(true);
+    }
   }, [actif, role]);
 
   const chargerAffectations = useCallback(() => {
     if (!actif || role === "coach") return;
+    // Paint instantané depuis le cache de la semaine, puis rafraîchissement.
+    const enCache = lireCache<Affectation[]>(CLES.planningAff(semaineISO));
+    if (enCache) setAffectations(enCache);
     fetch(`/api/admin/planning/affectations?semaine=${semaineISO}`, {
       headers: adminAuthHeaders(),
       cache: "no-store",
     })
-      .then((r) => r.json())
-      .then((d) => setAffectations(d.affectations ?? []))
-      .catch(() => {});
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d?.error || "Erreur de chargement.");
+        const aff = (d.affectations ?? []) as Affectation[];
+        setAffectations(aff);
+        ecrireCache(CLES.planningAff(semaineISO), aff);
+        setErreur("");
+      })
+      .catch((e) => setErreur(e instanceof Error ? e.message : "Erreur de chargement."));
     // Aperçu d'envoi (badge « modifications non envoyées » + bouton).
     fetch(`/api/admin/planning/envoi?semaine=${semaineISO}`, { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
@@ -139,7 +167,9 @@ export default function PlanningPage() {
       .catch(() => setEnvoiPreview(null));
   }, [actif, semaineISO, role]);
 
-  useEffect(() => chargerBase(), [chargerBase]);
+  useEffect(() => {
+    chargerBase();
+  }, [chargerBase]);
   useEffect(() => chargerAffectations(), [chargerAffectations]);
   // Changer de semaine vide la sélection (elle est propre à la semaine affichée).
   useEffect(() => {
@@ -333,7 +363,13 @@ export default function PlanningPage() {
 
       <div className="mt-3 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
         {tab === "calendrier" && (
+          !baseChargee && cours.length === 0 && !erreur ? (
+            <SquelettePlanning />
+          ) : erreur && cours.length === 0 ? (
+            <ErreurPlanning message={erreur} onRetry={chargerBase} />
+          ) : (
           <>
+            {erreur && <ErreurPlanning message={erreur} onRetry={chargerBase} inline />}
             <PlanningSemaine
               semaineISO={semaineISO}
               cours={coursActifs}
@@ -399,6 +435,7 @@ export default function PlanningPage() {
               onPrevenir={(c) => setPrevenir(c)}
             />
           </>
+          )
         )}
 
         {tab === "cours" && (
@@ -569,26 +606,52 @@ export default function PlanningPage() {
   );
 }
 
+// Squelette calendrier (paint instantané au tout premier chargement, sans cache).
+function SquelettePlanning() {
+  return (
+    <div className="space-y-3">
+      <div className="h-9 w-48 animate-pulse rounded-full bg-paper-2" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="h-[4.5rem] animate-pulse rounded-lg border border-line bg-paper-2" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Erreur de chargement affichée COMME une erreur (jamais un calendrier vide
+// trompeur). `inline` : bandeau discret quand des données (cache) restent visibles.
+function ErreurPlanning({ message, onRetry, inline = false }: { message: string; onRetry: () => void; inline?: boolean }) {
+  return (
+    <div className={`rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 ${inline ? "mb-3" : "text-center"}`}>
+      <p className="font-semibold">Impossible de charger le planning.</p>
+      <p className="mt-1 text-red-600/90">{message}</p>
+      <button onClick={onRetry} className="mt-3 rounded-full border border-red-300 bg-white px-4 py-1.5 text-xs font-bold text-red-700 hover:bg-red-100">
+        Réessayer
+      </button>
+    </div>
+  );
+}
+
 // ============================================================================
 // Vue COACH — planning en lecture seule (aucune action)
 // ============================================================================
 function PlanningCoach() {
   const [semaineISO, setSemaineISO] = useState(semaineInitiale);
-  const [data, setData] = useState<{
-    cours: Cours[];
-    affectations: Affectation[];
-    profs: ProfMinimal[];
-    periodes: PeriodeFermeture[];
-  }>({ cours: [], affectations: [], profs: [], periodes: [] });
-
-  useEffect(() => {
-    fetch(`/api/coach/planning?semaine=${semaineISO}`, { headers: adminAuthHeaders(), cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) =>
-        setData({ cours: d.cours ?? [], affectations: d.affectations ?? [], profs: d.profs ?? [], periodes: d.periodes ?? [] }),
-      )
-      .catch(() => {});
-  }, [semaineISO]);
+  // Cache de session : paint instantané de la dernière semaine consultée, puis
+  // rafraîchissement immédiat (même mécanisme que la vue admin).
+  const { data: brut, error, refresh } = useDonneesAdmin<{
+    cours: Cours[]; affectations: Affectation[]; profs: ProfMinimal[]; periodes: PeriodeFermeture[];
+  }>(
+    CLES.planningCoach(semaineISO),
+    `/api/coach/planning?semaine=${semaineISO}`,
+    (d) => {
+      const o = d as { cours?: Cours[]; affectations?: Affectation[]; profs?: ProfMinimal[]; periodes?: PeriodeFermeture[] };
+      return { cours: o.cours ?? [], affectations: o.affectations ?? [], profs: o.profs ?? [], periodes: o.periodes ?? [] };
+    },
+  );
+  const data = brut ?? { cours: [], affectations: [], profs: [], periodes: [] };
 
   function decaler(deltaJours: number) {
     const [y, m, d] = semaineISO.split("-").map(Number);
@@ -604,17 +667,26 @@ function PlanningCoach() {
         description="Les cours de la semaine et les profs affectés (lecture seule)."
       />
       <div className="mt-3 rounded-[1.5rem] border border-line bg-white p-4 sm:mt-6 sm:p-6">
-        <PlanningSemaine
-          semaineISO={semaineISO}
-          cours={data.cours.filter((c) => c.actif)}
-          affectations={data.affectations}
-          profs={data.profs}
-          periodes={data.periodes}
-          onPrev={() => decaler(-7)}
-          onNext={() => decaler(7)}
-          onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
-          readOnly
-        />
+        {error && data.cours.length === 0 ? (
+          <ErreurPlanning message={error} onRetry={refresh} />
+        ) : brut === null ? (
+          <SquelettePlanning />
+        ) : (
+          <>
+            {error && <ErreurPlanning message={error} onRetry={refresh} inline />}
+            <PlanningSemaine
+              semaineISO={semaineISO}
+              cours={data.cours.filter((c) => c.actif)}
+              affectations={data.affectations}
+              profs={data.profs}
+              periodes={data.periodes}
+              onPrev={() => decaler(-7)}
+              onNext={() => decaler(7)}
+              onToday={() => setSemaineISO(toISODate(lundiDeLaSemaine(new Date())))}
+              readOnly
+            />
+          </>
+        )}
       </div>
     </div>
   );
