@@ -265,10 +265,26 @@ console.log("[Présence — URL canonique]");
   const src = readFileSync("app/api/admin/presence/affiche/route.tsx", "utf8");
   check(/urlPresence\(/.test(src), "affiche : construit l'URL via urlPresence (NEXT_PUBLIC_SITE_URL)");
   check(/if \(!url\)[\s\S]*status: 503/.test(src), "affiche : fail-closed 503 si URL canonique absente");
+  // Anti-cache : route dynamique + no-store + nom de fichier horodaté.
+  check(/dynamic = "force-dynamic"/.test(src) && /revalidate = 0/.test(src), "affiche : route dynamique (force-dynamic, revalidate 0)");
+  check(/Cache-Control": "no-store/.test(src), "affiche : Cache-Control no-store");
+  check(/horodatage\(\)/.test(src) && /affiche-presence-\$\{slug \|\| "generique"\}-\$\{horodatage\(\)\}/.test(src), "affiche : nom de fichier horodaté");
+  // Générateur UNIQUE : le PDF est rendu depuis AfficheQR (source 67f01b0).
+  check(/AfficheQRDoc/.test(src), "affiche : un seul générateur (AfficheQRDoc)");
   const doc = readFileSync("lib/pdf/AfficheQR.tsx", "utf8");
   check(!/s\.url|styles?\.url|\{data\.url\}/.test(doc), "affiche : plus d'URL affichée sous le QR");
   check(/signale ta présence en 2 clics/.test(doc), "affiche : nouveau titre");
   check(/Clique sur/.test(doc), "affiche : « Clique sur … »");
+  check(!/Touche|10 secondes/.test(doc), "affiche : plus de « Touche » ni « 10 secondes »");
+}
+
+// ---- Rendu réel de l'affiche : produit bien un PDF (générateur courant) ----
+{
+  const { renderToBuffer } = await import("@react-pdf/renderer");
+  const { AfficheQRDoc } = await import("../lib/pdf/AfficheQR");
+  const qr = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+  const buf = await renderToBuffer(AfficheQRDoc({ data: { salle: "Dojo David Douillet", qrDataUri: qr } }));
+  check(buf.length > 1000 && buf.subarray(0, 5).toString("latin1") === "%PDF-", "affiche : rendu réel → PDF valide");
 }
 
 // ---- Ajout d'un essai depuis l'admin (source unique + garde-fous) ----

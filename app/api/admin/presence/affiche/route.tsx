@@ -4,11 +4,20 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif, slugSalle } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
-import { pdfHeaders } from "@/lib/pdf/render";
 import { AfficheQRDoc } from "@/lib/pdf/AfficheQR";
 import { urlPresence } from "@/lib/site-url";
 
 export const runtime = "nodejs";
+// Toujours régénérée (jamais servie depuis un cache statique/CDN) : le PDF change
+// quand l'affiche évolue, et le nom de fichier est horodaté (voir plus bas).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+// Horodatage AAAAMMJJ-HHmm (pour un nom de fichier unique à chaque téléchargement).
+function horodatage(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
 
 // GET /api/admin/presence/affiche?salle=<slug> — PDF A4 avec le QR de pointage.
 // Sans `salle` → affiche générique (QR vers /presence sans salle).
@@ -40,6 +49,14 @@ export async function GET(request: Request) {
   const qrDataUri = await QRCode.toDataURL(url, { margin: 1, width: 520, errorCorrectionLevel: "M" });
 
   const buffer = await renderToBuffer(<AfficheQRDoc data={{ salle: salleNom, qrDataUri }} />);
-  const nom = slug ? `affiche-presence-${slug}.pdf` : "affiche-presence.pdf";
-  return new Response(new Uint8Array(buffer), { headers: pdfHeaders(nom) });
+  const nom = `affiche-presence-${slug || "generique"}-${horodatage()}.pdf`;
+  // no-store : jamais mis en cache (navigateur ni CDN Vercel) → toujours la
+  // dernière version de l'affiche.
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `inline; filename="${nom}"`,
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    },
+  });
 }

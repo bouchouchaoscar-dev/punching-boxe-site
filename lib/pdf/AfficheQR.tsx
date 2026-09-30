@@ -1,3 +1,4 @@
+import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { PDF_COLORS, getLogoDataUri } from "./theme";
 import { CLUB } from "@/lib/constants";
