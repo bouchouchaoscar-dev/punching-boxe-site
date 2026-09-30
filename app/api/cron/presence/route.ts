@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { CONFIG_CLUB } from "@/lib/config-club";
-import { presenceActif } from "@/lib/presence";
+import { presenceActif, partiesParis } from "@/lib/presence";
 import { dossiersSaison, trouverDossierCorrespondant } from "@/lib/presence-server";
 import { saisonCourante } from "@/lib/saison";
 import { estMineur } from "@/lib/pricing";
@@ -52,10 +52,18 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
   const cfg = CONFIG_CLUB.modules.presence;
-  const H = 3600 * 1000;
-  const now = Date.now();
-  const seuil1 = new Date(now - cfg.relancesEssai.premiereHeures * H).toISOString();
-  const seuil2 = new Date(now - cfg.relancesEssai.secondeJours * 24 * H).toISOString();
+  // Timing basé sur la DATE DE SÉANCE (heure de Paris), pas sur created_at :
+  // relance 1 = dès le lendemain (date_seance + 1 j) ; relance 2 = date_seance +
+  // N jours. Au premier passage du cron ce jour-là, quelle que soit l'heure de la
+  // séance. On compare des dates (YYYY-MM-DD).
+  const ajoutJours = (iso: string, n: number) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + n));
+    return dt.toISOString().slice(0, 10);
+  };
+  const aujourdhui = partiesParis(new Date()).iso;
+  const seuilRelance1 = ajoutJours(aujourdhui, -1); // date_seance <= hier
+  const seuilRelance2 = ajoutJours(aujourdhui, -cfg.relancesEssai.secondeJours);
 
   const [exclusions, dossiers, { data: coursRows }] = await Promise.all([
     chargerExclusions(supabase),
@@ -91,7 +99,10 @@ export async function GET(request: Request) {
       .is(colClaim, null)
       .eq("desinscrit", false)
       .is("converti_dossier_id", null);
-    q = numero === 1 ? q.lte("created_at", seuil1) : q.not("relance_1_at", "is", null).lte("created_at", seuil2);
+    q =
+      numero === 1
+        ? q.lte("date_seance", seuilRelance1)
+        : q.not("relance_1_at", "is", null).lte("date_seance", seuilRelance2);
     const { data } = await q;
     for (const e of (data ?? []) as Essai[]) {
       // Claim atomique : seul le premier passage gagne la mise à jour.

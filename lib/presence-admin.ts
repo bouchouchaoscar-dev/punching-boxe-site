@@ -1,10 +1,11 @@
-// Construction des lignes de présence côté ADMIN (statut trombi = source unique,
-// complétude dossier, photo signée). Serveur uniquement.
+// Construction des lignes de présence côté ADMIN + classification partagée
+// (statut trombi = SOURCE UNIQUE, complétude dossier, hors-formule). Serveur.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { statutTrombi } from "./paiement";
 import { evaluerDossier } from "./dossier";
 import { signerUrls } from "./storage-url";
 import { partiesParis } from "./presence";
+import { adherentDansDiscipline } from "./planning";
 
 export type PresenceRow = {
   id: string;
@@ -17,8 +18,20 @@ export type PresenceRow = {
   created_by: string | null;
 };
 
-// Situation regroupée pour les compteurs (5 familles avec « essai »).
-export type Situation = "regle" | "especes" | "non_finalise" | "incomplet" | "essai";
+// Catégories de FILTRE (peuvent se chevaucher : une personne peut être rouge ET
+// incomplète ET hors formule).
+export type Categorie =
+  | "regle"
+  | "especes"
+  | "non_finalise"
+  | "incomplet"
+  | "essai"
+  | "essai_utilise"
+  | "hors_formule";
+
+export const CATEGORIES: Categorie[] = [
+  "regle", "especes", "non_finalise", "incomplet", "essai", "essai_utilise", "hors_formule",
+];
 
 export type LigneAdmin = {
   presenceId: string;
@@ -31,11 +44,14 @@ export type LigneAdmin = {
   nom: string;
   photo: string | null; // URL signée (admin)
   couleur: "vert" | "orange" | "rouge" | null; // pastille trombi (null pour essai)
-  statutLabel: string | null;
-  situation: Situation;
+  statutLabel: string; // libellé paiement, ou « Séance d'essai »
+  cat: "regle" | "especes" | "non_finalise" | null; // catégorie paiement (null pour essai)
+  incomplet: boolean;
+  essai: boolean;
+  essaiDejaUtilise: boolean;
+  horsFormule: boolean;
   heure: string; // HH:MM (Europe/Paris)
   source: string;
-  essai: boolean;
   // Détails essai (admin uniquement) :
   email?: string | null;
   relance1?: string | null;
@@ -43,52 +59,78 @@ export type LigneAdmin = {
   converti?: boolean;
 };
 
-function heureParis(iso: string): string {
+export function heureParis(iso: string): string {
   const m = partiesParis(new Date(iso)).minutes;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
-// Situation d'un dossier : paiement non finalisé > espèces en attente >
-// dossier incomplet > réglé. Le paiement prime (action argent), puis les docs.
-function situationDossier(a: {
-  statut_paiement: string | null; mode_paiement: string | null;
-  nb_echeances: number | null; echeances_payees: number | null;
-  engage_at: string | null; annule_at: string | null;
-  fiche_valide?: boolean | null; reglement_valide?: boolean | null;
-  photo_valide?: boolean | null; certificat_valide?: boolean | null; certificat_medical_url?: string | null;
-}): { situation: Exclude<Situation, "essai">; couleur: "vert" | "orange" | "rouge"; label: string } {
+// Classification PURE d'un dossier présent (couleur/label paiement + badges).
+// Réutilisée par l'admin ET le coach → aucune divergence de règle.
+export function classerDossier(
+  a: {
+    statut_paiement: string | null; mode_paiement: string | null;
+    nb_echeances: number | null; echeances_payees: number | null;
+    engage_at: string | null; annule_at: string | null;
+    fiche_valide?: boolean | null; reglement_valide?: boolean | null;
+    photo_valide?: boolean | null; certificat_valide?: boolean | null; certificat_medical_url?: string | null;
+    package?: string | null; option_prepa_physique?: boolean | null;
+  },
+  discipline: string | null,
+): { couleur: "vert" | "orange" | "rouge"; statutLabel: string; cat: "regle" | "especes" | "non_finalise"; incomplet: boolean; horsFormule: boolean } {
   const st = statutTrombi(a as Parameters<typeof statutTrombi>[0]);
-  const docs = evaluerDossier(a as Parameters<typeof evaluerDossier>[0]);
-  let situation: Exclude<Situation, "essai">;
-  if (st.code === "a_finaliser" || st.code === "echec") situation = "non_finalise";
-  else if (st.code === "attente_especes") situation = "especes";
-  else if (docs.statut === "incomplet") situation = "incomplet";
-  else situation = "regle";
-  return { situation, couleur: st.couleur, label: st.label };
+  const cat: "regle" | "especes" | "non_finalise" =
+    st.couleur === "vert" ? "regle" : st.code === "attente_especes" ? "especes" : "non_finalise";
+  const incomplet = evaluerDossier(a as Parameters<typeof evaluerDossier>[0]).statut === "incomplet";
+  // Hors formule : la formule du dossier ne couvre pas la discipline du cours
+  // (réutilise la règle de ciblage « prévenir d'un cours »). Sans discipline → jamais.
+  const horsFormule = !!discipline && !adherentDansDiscipline(a.package ?? null, a.option_prepa_physique === true, discipline);
+  return { couleur: st.couleur, statutLabel: st.label, cat, incomplet, horsFormule };
 }
 
-// Tri : situations à traiter d'abord (non finalisé, espèces, incomplet, essai) puis réglés.
-const RANG: Record<Situation, number> = { non_finalise: 0, especes: 1, incomplet: 2, essai: 3, regle: 4 };
+// Catégories d'une ligne (pour compteurs/filtres, chevauchement assumé).
+export function categoriesDeLigne(l: LigneAdmin): Categorie[] {
+  const out: Categorie[] = [];
+  if (l.essai) {
+    out.push("essai");
+    if (l.essaiDejaUtilise) out.push("essai_utilise");
+    return out;
+  }
+  if (l.cat) out.push(l.cat);
+  if (l.incomplet) out.push("incomplet");
+  if (l.horsFormule) out.push("hors_formule");
+  return out;
+}
+
+// Tri : situations à traiter d'abord, réglés en dernier.
+function rang(l: LigneAdmin): number {
+  if (l.essaiDejaUtilise || l.horsFormule) return 0;
+  if (l.cat === "non_finalise") return 1;
+  if (l.cat === "especes") return 2;
+  if (l.incomplet) return 3;
+  if (l.essai) return 4;
+  return 5; // réglé
+}
 
 const CHAMPS_ADH =
-  "id, prenom, nom, photo_url, statut_paiement, mode_paiement, nb_echeances, echeances_payees, engage_at, annule_at, fiche_valide, reglement_valide, photo_valide, certificat_valide, certificat_medical_url";
+  "id, prenom, nom, photo_url, statut_paiement, mode_paiement, nb_echeances, echeances_payees, engage_at, annule_at, fiche_valide, reglement_valide, photo_valide, certificat_valide, certificat_medical_url, package, option_prepa_physique";
 
-/** Construit les lignes admin (triées) à partir des présences d'une/des séance(s). */
+/** Lignes admin (triées) à partir des présences d'une/des séance(s).
+ *  `disciplineByCours` : discipline de chaque cours (pour le hors-formule). */
 export async function construireLignesAdmin(
   supabase: SupabaseClient,
   presences: PresenceRow[],
+  disciplineByCours: Map<string, string | null>,
 ): Promise<LigneAdmin[]> {
   const dossierIds = [...new Set(presences.map((p) => p.dossier_id).filter(Boolean))] as string[];
   const essaiIds = [...new Set(presences.map((p) => p.essai_id).filter(Boolean))] as string[];
 
   const [{ data: adh }, { data: ess }] = await Promise.all([
     dossierIds.length ? supabase.from("adherents").select(CHAMPS_ADH).in("id", dossierIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    essaiIds.length ? supabase.from("essais").select("id, prenom, nom, email, date_naissance, relance_1_at, relance_2_at, converti_dossier_id, desinscrit").in("id", essaiIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    essaiIds.length ? supabase.from("essais").select("id, prenom, nom, email, date_naissance, date_seance, relance_1_at, relance_2_at, converti_dossier_id, desinscrit").in("id", essaiIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
   ]);
   const adhById = new Map((adh ?? []).map((a) => [a.id as string, a]));
   const essById = new Map((ess ?? []).map((e) => [e.id as string, e]));
 
-  // Photos signées (batch, aligné).
   const photos = await signerUrls(dossierIds.map((id) => (adhById.get(id)?.photo_url as string) ?? null));
   const photoById = new Map(dossierIds.map((id, i) => [id, photos[i]]));
 
@@ -97,26 +139,31 @@ export async function construireLignesAdmin(
     if (p.dossier_id) {
       const a = adhById.get(p.dossier_id);
       if (!a) continue;
-      const s = situationDossier(a as Parameters<typeof situationDossier>[0]);
+      const c = classerDossier(a as Parameters<typeof classerDossier>[0], disciplineByCours.get(p.cours_id) ?? null);
       lignes.push({
         presenceId: p.id, coursId: p.cours_id, dateSeance: p.date_seance, kind: "dossier",
         dossierId: p.dossier_id, prenom: String(a.prenom ?? ""), nom: String(a.nom ?? ""),
-        photo: photoById.get(p.dossier_id) ?? null, couleur: s.couleur, statutLabel: s.label,
-        situation: s.situation, heure: heureParis(p.created_at), source: p.source, essai: false,
+        photo: photoById.get(p.dossier_id) ?? null, couleur: c.couleur, statutLabel: c.statutLabel,
+        cat: c.cat, incomplet: c.incomplet, essai: false, essaiDejaUtilise: false, horsFormule: c.horsFormule,
+        heure: heureParis(p.created_at), source: p.source,
       });
     } else if (p.essai_id) {
       const e = essById.get(p.essai_id);
       if (!e) continue;
+      // Présence sur un essai d'une AUTRE date que la séance → essai déjà utilisé
+      // (rattaché à un essai existant, cf. quota essaisGratuits).
+      const dejaUtilise = (e.date_seance as string) !== p.date_seance;
       lignes.push({
         presenceId: p.id, coursId: p.cours_id, dateSeance: p.date_seance, kind: "essai",
         essaiId: p.essai_id, prenom: String(e.prenom ?? ""), nom: String(e.nom ?? ""),
-        photo: null, couleur: null, statutLabel: "Séance d'essai", situation: "essai",
-        heure: heureParis(p.created_at), source: p.source, essai: true,
+        photo: null, couleur: null, statutLabel: "Séance d'essai", cat: null, incomplet: false,
+        essai: true, essaiDejaUtilise: dejaUtilise, horsFormule: false,
+        heure: heureParis(p.created_at), source: p.source,
         email: (e.email as string) ?? null, relance1: (e.relance_1_at as string) ?? null,
         relance2: (e.relance_2_at as string) ?? null, converti: !!e.converti_dossier_id,
       });
     }
   }
-  lignes.sort((a, b) => RANG[a.situation] - RANG[b.situation] || a.heure.localeCompare(b.heure));
+  lignes.sort((a, b) => rang(a) - rang(b) || a.heure.localeCompare(b.heure));
   return lignes;
 }

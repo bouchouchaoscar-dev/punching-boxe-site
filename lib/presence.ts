@@ -6,7 +6,7 @@
 // discipline (adherentDansDiscipline) déjà écrite pour le mailing « prévenir ».
 // ============================================================================
 import { CONFIG_CLUB } from "./config-club";
-import { resoudreOuverture } from "./campagnes";
+import { fr } from "./typo";
 import {
   estFerme,
   formatHeure,
@@ -240,17 +240,30 @@ export type LigneCoachPresence = {
   prenom: string;
   nom: string;
   couleur: CouleurStatut | null; // null pour un essai (badge « Essai »)
+  statutLabel: string; // libellé de statut en clair (« Réglé », « Espèces… »…)
+  cat: "regle" | "especes" | "non_finalise" | null; // catégorie paiement (filtre)
+  incomplet: boolean;
   essai: boolean;
+  essaiDejaUtilise: boolean;
+  horsFormule: boolean;
   heure: string; // "HH:MM"
   photo: string | null; // data-URI (jamais d'URL signée exposée au coach)
 };
 
+// Liste blanche STRICTE : ne recopie QUE les champs autorisés. Toute donnée
+// sensible (email, téléphone, montant, date de naissance) passée par erreur est
+// ignorée (jamais recopiée dans la sortie).
 export function construireLignesCoachPresence(
   rows: Array<{
     prenom?: string | null;
     nom?: string | null;
     couleur?: string | null;
+    statutLabel?: string | null;
+    cat?: string | null;
+    incomplet?: boolean;
     essai?: boolean;
+    essaiDejaUtilise?: boolean;
+    horsFormule?: boolean;
     heure?: string | null;
     photo?: string | null;
     [k: string]: unknown;
@@ -258,59 +271,98 @@ export function construireLignesCoachPresence(
 ): LigneCoachPresence[] {
   const okCouleur = (c: unknown): CouleurStatut | null =>
     c === "vert" || c === "orange" || c === "rouge" ? c : null;
+  const okCat = (c: unknown): "regle" | "especes" | "non_finalise" | null =>
+    c === "regle" || c === "especes" || c === "non_finalise" ? c : null;
   return rows.map((r) => ({
     prenom: String(r.prenom ?? "").trim(),
     nom: String(r.nom ?? "").trim(),
     couleur: r.essai ? null : okCouleur(r.couleur),
+    statutLabel: String(r.statutLabel ?? (r.essai ? "Séance d'essai" : "")),
+    cat: r.essai ? null : okCat(r.cat),
+    incomplet: r.incomplet === true,
     essai: r.essai === true,
+    essaiDejaUtilise: r.essaiDejaUtilise === true,
+    horsFormule: r.horsFormule === true,
     heure: String(r.heure ?? "").slice(0, 5),
     photo: typeof r.photo === "string" && r.photo.startsWith("data:") ? r.photo : null,
   }));
 }
 
 // ============================================================================
-// RELANCES D'ESSAI — contenu PUR (objet + salutation + corps), testable. Le ton
-// s'adapte au parent quand la personne est mineure (« la séance d'essai de … »).
-// Pas de tiret long dans les textes.
+// RELANCES D'ESSAI — contenu PUR (testable). VOUVOIEMENT (le mail peut être lu
+// par un parent), aucune formulation exigeant un accord masculin/féminin, pas de
+// tiret long. [cours] = libellé complet du cours d'essai. Typographie française.
 // ============================================================================
+export type MailRelanceEssai = {
+  objet: string;
+  salutation: string;
+  corps: string[];
+  boutonLabel: string;
+  apresBouton?: string;
+  signature: string;
+};
+
 export function mailRelanceEssai(p: {
   prenom: string;
   mineur: boolean;
   coursLabel?: string | null;
   numero: 1 | 2;
-}): { objet: string; salutation: string; corps: string[]; boutonLabel: string } {
+  clubNom: string;
+}): MailRelanceEssai {
   const prenom = (p.prenom || "").trim();
-  const { salutation } = resoudreOuverture([{ prenom, mineur: p.mineur }]);
-  const coursPart = p.coursLabel ? ` au cours de ${p.coursLabel}` : "";
-  const boutonLabel = "Je m'inscris";
+  const cours = (p.coursLabel || "").trim();
+  const coursPart = cours ? ` au cours de ${cours}` : "";
+  const equipe = `L'équipe ${p.clubNom}`;
+  const boutonMajeur = "Je m'inscris";
+  const boutonMineur = `Inscrire ${prenom}`;
+
   if (p.numero === 1) {
+    const objet = fr("Alors, cette première séance ?");
+    if (p.mineur) {
+      return {
+        objet,
+        salutation: "Bonjour,",
+        corps: [
+          fr(`${prenom} a fait sa séance d'essai hier${coursPart}. Nous espérons qu'elle lui a plu !`),
+          fr(`Si vous souhaitez l'inscrire pour la saison, c'est rapide : créez votre espace adhérent à votre nom, puis ouvrez un dossier d'inscription au nom de ${prenom}.`),
+        ],
+        boutonLabel: boutonMineur,
+        signature: `À très bientôt au club,\n${equipe}`,
+      };
+    }
     return {
-      objet: "Alors, cette première séance ?",
-      salutation,
-      boutonLabel,
-      corps: p.mineur
-        ? [
-            `On espère que la séance d'essai de ${prenom} d'hier${coursPart} lui a plu.`,
-            `Si vous souhaitez l'inscrire pour continuer avec nous, l'inscription se fait en quelques minutes en ligne.`,
-          ]
-        : [
-            `On espère que ta séance d'essai d'hier${coursPart} t'a plu.`,
-            `Si tu veux revenir t'entraîner avec nous, l'inscription se fait en quelques minutes en ligne.`,
-          ],
+      objet,
+      salutation: fr(`Bonjour ${prenom},`),
+      corps: [
+        fr(`Merci d'avoir participé à votre séance d'essai hier${coursPart}. Nous espérons qu'elle vous a plu !`),
+        fr(`Si vous souhaitez nous rejoindre pour la saison, l'inscription se fait en quelques minutes sur notre site : créez votre espace adhérent, puis ouvrez votre dossier d'inscription.`),
+      ],
+      boutonLabel: boutonMajeur,
+      signature: `À très bientôt sur le ring,\n${equipe}`,
+    };
+  }
+
+  // Relance 2 (une semaine après, dernier message).
+  if (p.mineur) {
+    return {
+      objet: fr(`Une place attend ${prenom} au club`),
+      salutation: "Bonjour,",
+      corps: [
+        fr(`Il y a une semaine, ${prenom} a fait sa séance d'essai${coursPart}. Si vous souhaitez l'inscrire pour la saison, il est encore temps, en quelques minutes sur notre site.`),
+      ],
+      boutonLabel: boutonMineur,
+      apresBouton: "C'est notre dernier message à ce sujet.",
+      signature: `À bientôt peut-être,\n${equipe}`,
     };
   }
   return {
-    objet: "Ta place t'attend au club",
-    salutation,
-    boutonLabel,
-    corps: p.mineur
-      ? [
-          `Un dernier mot : la place de ${prenom} est prête au club.`,
-          `Si vous voulez l'inscrire, c'est par ici. Nous ne vous écrirons plus ensuite.`,
-        ]
-      : [
-          `Un dernier mot : ta place est prête au club.`,
-          `Si tu veux nous rejoindre, c'est par ici. Nous ne t'écrirons plus ensuite.`,
-        ],
+    objet: "Votre place vous attend au club",
+    salutation: fr(`Bonjour ${prenom},`),
+    corps: [
+      fr(`Il y a une semaine, vous avez fait votre séance d'essai${coursPart}. Si l'envie de continuer est là, il est encore temps de vous inscrire, en quelques minutes sur notre site.`),
+    ],
+    boutonLabel: boutonMajeur,
+    apresBouton: "C'est notre dernier message à ce sujet.",
+    signature: `À bientôt peut-être,\n${equipe}`,
   };
 }

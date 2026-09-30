@@ -82,5 +82,12 @@ export async function POST(request: Request) {
     dossiers,
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 500 });
-  return NextResponse.json({ ok: true, coursLabel: cible.cours.libelle, surDossier: res.surDossier, essai: !res.surDossier });
+  return NextResponse.json({
+    ok: true,
+    coursLabel: cible.cours.libelle,
+    surDossier: res.surDossier,
+    essai: !res.surDossier,
+    dejaUtilise: res.dejaUtilise ?? false,
+    dateEssai: res.dateEssai ?? null,
+  });
 }

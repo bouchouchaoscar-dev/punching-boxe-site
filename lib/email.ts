@@ -982,8 +982,10 @@ export async function sendRelanceEssai(d: {
   const client = getResend();
   if (!client) return { skipped: true as const };
 
-  const m = mailRelanceEssai({ prenom: d.prenom, mineur: d.mineur, coursLabel: d.coursLabel, numero: d.numero });
+  const m = mailRelanceEssai({ prenom: d.prenom, mineur: d.mineur, coursLabel: d.coursLabel, numero: d.numero, clubNom: CLUB.nomCourt });
   const paras = m.corps.map((p) => `<p style="line-height:1.6;color:#444">${escapeHtml(p)}</p>`).join("");
+  const apres = m.apresBouton ? `<p style="line-height:1.6;color:#666;font-size:13px">${escapeHtml(m.apresBouton)}</p>` : "";
+  const signature = `<p style="line-height:1.6;color:#444;margin-top:16px">${escapeHtml(m.signature).replace(/\n/g, "<br>")}</p>`;
   // Lien d'inscription depuis l'URL canonique (NEXT_PUBLIC_SITE_URL), jamais une
   // URL de déploiement ; repli sur SITE_URL (déjà canonique) si non définie.
   const base = siteUrl() ?? SITE_URL;
@@ -992,6 +994,8 @@ export async function sendRelanceEssai(d: {
     <p style="line-height:1.6;color:#444">${escapeHtml(m.salutation)}</p>
     ${paras}
     <p style="margin:16px 0 4px">${button(`${base}/inscription`, m.boutonLabel)}</p>
+    ${apres}
+    ${signature}
     <p style="font-size:12px;color:#999;margin-top:22px">
       <a href="${unsubscribeUrl(email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a>
     </p>

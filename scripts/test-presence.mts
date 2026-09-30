@@ -12,8 +12,10 @@ import {
   construireLignesCoachPresence,
   type CoursOuvert,
 } from "../lib/presence";
-import { MSG_PRESENCES_COURS, type Cours, type PeriodeFermeture } from "../lib/planning";
+import { MSG_PRESENCES_COURS, adherentDansDiscipline, type Cours, type PeriodeFermeture } from "../lib/planning";
 import { siteUrl, urlPresence } from "../lib/site-url";
+import { classerDossier } from "../lib/presence-admin";
+import { CONFIG_CLUB } from "../lib/config-club";
 
 let ok = 0;
 let ko = 0;
@@ -170,34 +172,51 @@ console.log("[Présence — recherche publique]");
   check(/"id"|"prenom"|"nom"/.test(blob), "recherche : champs id/prénom/nom présents");
 }
 
-// ---- Relances d'essai : ton mineur (parent) vs majeur ----
+// ---- Relances d'essai : vouvoiement, parent si mineur, textes exacts ----
 console.log("[Présence — relances essai]");
 {
-  const r1Adulte = mailRelanceEssai({ prenom: "Sarah", mineur: false, coursLabel: "Boxe Française", numero: 1 });
-  check(r1Adulte.objet === "Alors, cette première séance ?", "relance 1 : objet");
-  check(r1Adulte.salutation === "Bonjour Sarah,", "relance 1 majeur : salutation personnelle", r1Adulte.salutation);
-  check(r1Adulte.corps.join(" ").includes("ta séance d'essai"), "relance 1 majeur : « ta séance d'essai »");
-  const r1Mineur = mailRelanceEssai({ prenom: "Lucas", mineur: true, coursLabel: "Boxe Française", numero: 1 });
-  check(r1Mineur.salutation === "Bonjour,", "relance 1 mineur : salutation au parent (générique)", r1Mineur.salutation);
-  check(r1Mineur.corps.join(" ").includes("la séance d'essai de Lucas"), "relance 1 mineur : « la séance d'essai de Lucas »");
-  const r2 = mailRelanceEssai({ prenom: "Sarah", mineur: false, numero: 2 });
-  check(r2.objet === "Ta place t'attend au club", "relance 2 : objet");
-  check(!/—/.test([r1Adulte, r1Mineur, r2].flatMap((r) => r.corps).join(" ")), "relances : aucun tiret long");
+  const CLUB = "Punching Boxe";
+  const r1A = mailRelanceEssai({ prenom: "Sarah", mineur: false, coursLabel: "Boxe Française adultes", numero: 1, clubNom: CLUB });
+  check(r1A.objet.startsWith("Alors, cette première séance"), "relance 1 : objet");
+  check(/ \?$/.test(r1A.objet), "relance 1 : espace insécable avant « ? »", r1A.objet);
+  check(r1A.salutation === "Bonjour Sarah,", "relance 1 majeur : salutation personnelle", r1A.salutation);
+  check(r1A.corps.join(" ").includes("vous a plu"), "relance 1 majeur : vouvoiement");
+  check(r1A.corps.join(" ").includes("au cours de Boxe Française adultes"), "relance 1 : [cours] = libellé complet");
+  check(r1A.boutonLabel === "Je m'inscris", "relance 1 majeur : bouton « Je m'inscris »");
+  check(r1A.signature.includes(`L'équipe ${CLUB}`), "relance : signature depuis CONFIG_CLUB");
+
+  const r1M = mailRelanceEssai({ prenom: "Lucas", mineur: true, coursLabel: "Boxe Française enfants", numero: 1, clubNom: CLUB });
+  check(r1M.salutation === "Bonjour,", "relance 1 mineur : adressée au parent (Bonjour,)", r1M.salutation);
+  check(r1M.corps.join(" ").includes("Lucas a fait sa séance d'essai"), "relance 1 mineur : « Lucas a fait sa séance d'essai »");
+  check(r1M.boutonLabel === "Inscrire Lucas", "relance 1 mineur : bouton « Inscrire Lucas »");
+
+  const r2A = mailRelanceEssai({ prenom: "Sarah", mineur: false, numero: 2, clubNom: CLUB });
+  check(r2A.objet === "Votre place vous attend au club", "relance 2 majeur : objet", r2A.objet);
+  check(r2A.apresBouton === "C'est notre dernier message à ce sujet.", "relance 2 : dernier message");
+  const r2M = mailRelanceEssai({ prenom: "Lucas", mineur: true, numero: 2, clubNom: CLUB });
+  check(r2M.objet === "Une place attend Lucas au club", "relance 2 mineur : objet", r2M.objet);
+
+  const tout = [r1A, r1M, r2A, r2M].flatMap((r) => [...r.corps, r.objet, r.salutation, r.signature]).join(" ");
+  check(!/—/.test(tout), "relances : aucun tiret long");
+  // Aucun accord masculin/féminin bloquant (pas de « inscrit·e » / « venu(e) »…).
+  check(!/\b\w+\(e\)|·e\b/.test(tout), "relances : pas d'accord genré");
 }
 
 // ---- Liste blanche coach : aucune fuite ----
 console.log("[Présence — liste blanche coach]");
 {
   const lignes = construireLignesCoachPresence([
-    { prenom: "Marie", nom: "Durand", couleur: "vert", essai: false, heure: "18:32:10", photo: "data:image/png;base64,AAA", email: "leak@x.fr", montant: 430, telephone: "0600000000" },
-    { prenom: "Paul", nom: "Martin", essai: true, heure: "18:40", couleur: "rouge", photo: "https://signed.example/leak.jpg" },
+    { prenom: "Marie", nom: "Durand", couleur: "vert", statutLabel: "Réglé", cat: "regle", incomplet: true, essai: false, heure: "18:32:10", photo: "data:image/png;base64,AAA", email: "leak@x.fr", montant: 430, telephone: "0600000000", date_naissance: "2010-05-01", mode_paiement: "stripe_3x" },
+    { prenom: "Paul", nom: "Martin", essai: true, essaiDejaUtilise: true, heure: "18:40", couleur: "rouge", photo: "https://signed.example/leak.jpg" },
   ]);
   check(lignes[0].heure === "18:32", "coach : heure tronquée HH:MM");
   check(lignes[0].photo === "data:image/png;base64,AAA", "coach : photo data-URI conservée");
-  check(lignes[1].couleur === null && lignes[1].essai === true, "coach : essai → couleur null + badge");
+  check(lignes[0].statutLabel === "Réglé" && lignes[0].incomplet === true, "coach : libellé de statut + badge incomplet exposés");
+  check(lignes[1].couleur === null && lignes[1].essai === true && lignes[1].essaiDejaUtilise === true, "coach : essai déjà utilisé");
   check(lignes[1].photo === null, "coach : URL signée (non data-URI) rejetée");
   const blob = JSON.stringify(lignes);
-  check(!/leak@x\.fr|430|0600000000|montant|email|signed\.example/.test(blob), "coach : aucune donnée sensible", blob);
+  // Doit ÉCHOUER si un montant, email, téléphone ou date de naissance fuit.
+  check(!/leak@x\.fr|430|0600000000|2010-05-01|montant|"email"|telephone|date_naissance|mode_paiement|stripe|signed\.example/.test(blob), "coach : aucune donnée sensible (montant/email/tél/naissance)", blob);
 }
 
 // ---- Garde-fous des routes (module off + idempotence) ----
@@ -223,7 +242,7 @@ console.log("[Présence — garde-fous routes]");
   check(/23505/.test(read("app/api/presence/pointer/route.ts")), "pointer : doublon (23505) toléré (idempotent)");
   // La logique essai (idempotence + anti-doublon) est factorisée dans le helper partagé.
   check(/23505/.test(read("lib/presence-server.ts")), "essai (helper) : doublon (23505) toléré (idempotent)");
-  check(/from\("essais"\)[\s\S]*\.eq\("email"[\s\S]*\.eq\("cours_id"[\s\S]*\.eq\("date_seance"/.test(read("lib/presence-server.ts")), "essai (helper) : anti-doublon email+cours+date");
+  check(/essaisDeLaPersonne\(/.test(read("lib/presence-server.ts")) && /e\.cours_id === p\.coursId && e\.date_seance === p\.dateSeance/.test(read("lib/presence-server.ts")), "essai (helper) : anti-doublon (même personne, même cours, même date)");
   // Cron relances : claim atomique + exclusions + purge.
   const cron = read("app/api/cron/presence/route.ts");
   check(/\.is\(colClaim, null\)/.test(cron), "cron : claim atomique (relance non re-envoyée)");
@@ -300,7 +319,29 @@ console.log("[Présence — essai admin]");
   // La logique partagée : dossier correspondant → présence dossier (pas d'essai).
   const srv = readFileSync("lib/presence-server.ts", "utf8");
   check(/trouverDossierCorrespondant[\s\S]*dossier_id: dossier\.id/.test(srv), "attacherPresenceEssai : correspondance dossier → présence sur le dossier");
-  check(/from\("essais"\)[\s\S]*eq\("email"[\s\S]*eq\("cours_id"[\s\S]*eq\("date_seance"/.test(srv), "attacherPresenceEssai : anti-doublon email+cours+date");
+  check(/essaisDeLaPersonne\(/.test(srv) && /dejaUtilise/.test(srv), "attacherPresenceEssai : anti-doublon + quota essaisGratuits (déjà utilisé)");
+}
+
+// ---- Badge « hors formule » (réutilise adherentDansDiscipline) ----
+console.log("[Présence — hors formule]");
+{
+  // BF seule (boxe_classique, sans prépa) en cours de Savate → hors formule.
+  check(!adherentDansDiscipline("boxe_classique", false, "savate"), "BF seule en cours de Savate → hors formule");
+  // Savate+Prépa en cours de Prépa → OK.
+  check(adherentDansDiscipline("savate_prepa", false, "prepa_physique"), "Savate+Prépa en cours de Prépa → OK");
+  // BF+Prépa en cours de BF → OK.
+  check(adherentDansDiscipline("boxe_classique", true, "boxe_francaise"), "BF+Prépa en cours de BF → OK");
+
+  const dossier = { statut_paiement: "paye", mode_paiement: "stripe_2x", nb_echeances: 2, echeances_payees: 2, engage_at: "x", annule_at: null, fiche_valide: true, reglement_valide: true, photo_valide: true, certificat_valide: true, certificat_medical_url: "u", package: "boxe_classique", option_prepa_physique: false };
+  check(classerDossier(dossier, "savate").horsFormule === true, "classerDossier : BF en Savate → horsFormule true");
+  check(classerDossier(dossier, "boxe_francaise").horsFormule === false, "classerDossier : BF en BF → horsFormule false");
+  // La couleur reste le paiement ; le hors-formule est une dimension séparée.
+  check(classerDossier(dossier, "savate").couleur === "vert", "classerDossier : hors formule n'affecte pas la couleur de paiement");
+}
+
+// ---- Config : essaisGratuits ----
+{
+  check(typeof CONFIG_CLUB.modules.presence.essaisGratuits === "number" && CONFIG_CLUB.modules.presence.essaisGratuits >= 1, "config : essaisGratuits défini (>=1)");
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

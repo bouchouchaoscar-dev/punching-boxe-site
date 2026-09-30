@@ -130,29 +130,13 @@ export function statutTrombi(
     };
   }
 
-  // 🔴 Carte, inscription faite, mais paiement JAMAIS mené au bout (aucune
-  // tentative). ROUGE (problème d'argent, action attendue) — même convention que
-  // l'échec. Ne doit PAS s'afficher en vert « en cours » (faux positif trompeur).
-  if (estPaiementAFinaliser(a)) {
-    return {
-      code: "a_finaliser",
-      couleur: "rouge",
-      label: "Paiement à finaliser",
-    };
-  }
-
-  // 🟠 Carte comptant (1x) marquée « payé » SANS encaissement réel reflété :
-  // incohérence à vérifier (jamais vert tant que l'encaissement n'est pas prouvé).
-  if (paiementIncoherent(a)) {
-    return {
-      code: "a_verifier",
-      couleur: "orange",
-      label: "Paiement à vérifier",
-    };
-  }
-
-  // 🟢 Soldé (carte 1x, fractionné terminé, ou espèces confirmées).
+  // 🟢 / 🟠 SOLDÉ (payé intégralement, ou espèces confirmées) — mais jamais vert
+  // sans encaissement prouvé : carte 1x « payé » avec 0 échéance encaissée =
+  // incohérence → orange « à vérifier » (cf. paiementIncoherent).
   if (estPaiementSolde(a)) {
+    if (paiementIncoherent(a)) {
+      return { code: "a_verifier", couleur: "orange", label: "Paiement à vérifier" };
+    }
     const especes =
       a.statut_paiement === "confirme_especes" || a.mode_paiement === "especes";
     return especes
@@ -160,7 +144,18 @@ export function statutTrombi(
       : { code: "paye_carte", couleur: "vert", label: "Payé — carte" };
   }
 
-  // 🟠 Espèces pas encore encaissées.
+  // 🟢 Fractionné EN COURS : vert UNIQUEMENT si un encaissement réel existe (au
+  // moins une échéance encaissée). La couleur verte ne dépend jamais du mode
+  // choisi ni du statut déclaré : seul l'encaissement réel fait foi (LESSONS).
+  if (payees >= 1) {
+    return {
+      code: "fractionne",
+      couleur: "vert",
+      label: nb > 1 ? `Carte ${payees}/${nb}` : "Carte — en cours",
+    };
+  }
+
+  // 🟠 Espèces déclarées, pas encore encaissées → en attente.
   if (a.mode_paiement === "especes") {
     return {
       code: "attente_especes",
@@ -169,12 +164,10 @@ export function statutTrombi(
     };
   }
 
-  // 🟢 Carte fractionnée en cours (déroulement normal) → avancement.
-  return {
-    code: "fractionne",
-    couleur: "vert",
-    label: nb > 1 ? `Carte ${payees}/${nb}` : "Carte — en cours",
-  };
+  // 🔴 Tout le reste : carte choisie sans aucun encaissement, OU aucun mode choisi
+  // et rien d'encaissé (ex. dossier ouvert par l'admin, documents complétés mais
+  // paiement jamais mené au bout) → action attendue.
+  return { code: "a_finaliser", couleur: "rouge", label: "Paiement à finaliser" };
 }
 
 // ---- Filtre STATUT harmonisé (liste adhérents + trombinoscope) ----

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { estMineur } from "./pricing";
 import { normaliserEmail } from "./email-format";
 import { saisonCourante } from "./saison";
+import { CONFIG_CLUB } from "./config-club";
 import { disciplineLabel, publicLabel, type Cours, type PeriodeFermeture } from "./planning";
 import type { CoursOuvert, ProfilPointage } from "./presence";
 
@@ -111,8 +112,30 @@ export function trouverDossierCorrespondant(
 // Idempotent : un doublon (23505) est traité comme un succès.
 // ---------------------------------------------------------------------------
 export type AttacheEssaiResultat =
-  | { ok: true; surDossier: boolean; dossierId?: string; essaiId?: string }
+  | { ok: true; surDossier: boolean; dossierId?: string; essaiId?: string; dejaUtilise?: boolean; dateEssai?: string }
   | { ok: false; error: string };
+
+// Essais déjà enregistrés pour une personne (email normalisé OU triplet).
+async function essaisDeLaPersonne(
+  supabase: SupabaseClient,
+  p: { email: string; nom: string; prenom: string; date_naissance: string },
+): Promise<{ id: string; cours_id: string | null; date_seance: string }[]> {
+  const map = new Map<string, { id: string; cours_id: string | null; date_seance: string }>();
+  if (p.email) {
+    const { data } = await supabase.from("essais").select("id, cours_id, date_seance").eq("email", p.email);
+    for (const e of data ?? []) map.set(e.id as string, e as never);
+  }
+  if (p.nom && p.prenom && p.date_naissance) {
+    const { data } = await supabase
+      .from("essais")
+      .select("id, cours_id, date_seance")
+      .eq("nom", p.nom)
+      .eq("prenom", p.prenom)
+      .eq("date_naissance", p.date_naissance);
+    for (const e of data ?? []) map.set(e.id as string, e as never);
+  }
+  return [...map.values()];
+}
 
 export async function attacherPresenceEssai(
   supabase: SupabaseClient,
@@ -148,25 +171,35 @@ export async function attacherPresenceEssai(
     return { ok: true, surDossier: true, dossierId: dossier.id };
   }
 
-  // Anti-doublon essai (même email + cours + date).
-  const { data: existant } = await supabase
-    .from("essais")
-    .select("id")
-    .eq("email", p.email)
-    .eq("cours_id", p.coursId)
-    .eq("date_seance", p.dateSeance)
-    .maybeSingle();
+  // Essais déjà faits par cette personne (email OU triplet).
+  const personEssais = await essaisDeLaPersonne(supabase, { email: p.email, nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance });
+  const exact = personEssais.find((e) => e.cours_id === p.coursId && e.date_seance === p.dateSeance);
+  const autres = personEssais.filter((e) => e !== exact);
+  const gratuits = CONFIG_CLUB.modules?.presence?.essaisGratuits ?? 1;
+  const dejaUtilise = autres.length >= gratuits;
 
-  let essaiId = existant?.id as string | undefined;
-  if (!essaiId) {
-    const { data: cree, error: eEssai } = await supabase
-      .from("essais")
-      .insert({ nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance, email: p.email, cours_id: p.coursId, date_seance: p.dateSeance })
-      .select("id")
-      .single();
-    if (eEssai || !cree) return { ok: false, error: "Enregistrement impossible." };
-    essaiId = cree.id;
+  let essaiId: string | undefined;
+  let dateEssai: string | undefined;
+  if (dejaUtilise) {
+    // Quota d'essais atteint → on RÉUTILISE un essai existant (aucun nouvel essai,
+    // aucune nouvelle série de relances) ; la présence est bien enregistrée.
+    const cible = exact ?? [...personEssais].sort((a, b) => b.date_seance.localeCompare(a.date_seance))[0];
+    essaiId = cible?.id;
+    dateEssai = [...personEssais].sort((a, b) => a.date_seance.localeCompare(b.date_seance))[0]?.date_seance;
+  } else {
+    // Anti-doublon (même email + cours + date) sinon création d'un nouvel essai.
+    essaiId = exact?.id;
+    if (!essaiId) {
+      const { data: cree, error: eEssai } = await supabase
+        .from("essais")
+        .insert({ nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance, email: p.email, cours_id: p.coursId, date_seance: p.dateSeance })
+        .select("id")
+        .single();
+      if (eEssai || !cree) return { ok: false, error: "Enregistrement impossible." };
+      essaiId = cree.id;
+    }
   }
+  if (!essaiId) return { ok: false, error: "Enregistrement impossible." };
 
   const { error } = await supabase.from("presences").insert({
     cours_id: p.coursId,
@@ -176,5 +209,5 @@ export async function attacherPresenceEssai(
     created_by: p.createdBy ?? null,
   });
   if (error && error.code !== "23505") return { ok: false, error: "Enregistrement impossible." };
-  return { ok: true, surDossier: false, essaiId };
+  return { ok: true, surDossier: false, essaiId, dejaUtilise, dateEssai };
 }

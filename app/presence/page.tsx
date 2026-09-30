@@ -6,6 +6,7 @@ import { presenceActif } from "@/lib/presence";
 import { estEmailValide } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
 import { CLUB } from "@/lib/constants";
+import { fr } from "@/lib/typo";
 
 type CoursPublic = { id: string; libelle: string | null; discipline: string; public: string; horaire: string; salle: string | null };
 type Resultat = { id: string; prenom: string; nom: string; annee?: number };
@@ -20,7 +21,7 @@ export default function PresencePage() {
   const [ouverts, setOuverts] = useState<CoursPublic[]>([]);
   const [chargeOuverts, setChargeOuverts] = useState(false);
   const [mode, setMode] = useState<"adherent" | "essai">("adherent");
-  const [confirmation, setConfirmation] = useState<{ coursLabel: string | null; essai?: boolean } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ coursLabel: string | null; essai?: boolean; dejaUtilise?: boolean; dateEssai?: string | null } | null>(null);
 
   useEffect(() => {
     if (!presenceActif()) return;
@@ -51,7 +52,7 @@ export default function PresencePage() {
             {!chargeOuverts ? (
               <p className="text-center text-white/50">…</p>
             ) : ouverts.length === 0 ? (
-              <p className="text-center">Aucun cours en ce moment. Le pointage ouvre 30 minutes avant chaque cours.</p>
+              <p className="text-center">{fr("Aucun cours en ce moment. Le pointage ouvre 30 minutes avant chaque cours.")}</p>
             ) : (
               <ul className="space-y-1">
                 {ouverts.map((c) => (
@@ -91,17 +92,35 @@ export default function PresencePage() {
   );
 }
 
-function Confirmation({ data, onReset }: { data: { coursLabel: string | null; essai?: boolean }; onReset: () => void }) {
+function Confirmation({ data, onReset }: { data: { coursLabel: string | null; essai?: boolean; dejaUtilise?: boolean; dateEssai?: string | null }; onReset: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onReset, 6000);
+    const t = setTimeout(onReset, data.dejaUtilise ? 9000 : 6000);
     return () => clearTimeout(t);
-  }, [onReset]);
+  }, [onReset, data.dejaUtilise]);
+
+  // Essai déjà utilisé : message bienveillant, sans rouge agressif.
+  if (data.dejaUtilise) {
+    const dateFr = data.dateEssai ? new Date(data.dateEssai).toLocaleDateString("fr-FR") : null;
+    return (
+      <div className="flex flex-col items-center justify-center rounded-3xl bg-white/10 p-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-3xl">👍</div>
+        <p className="mt-4 text-lg font-bold leading-snug">
+          {dateFr ? `Tu as déjà fait ta séance d'essai le ${dateFr}.` : "Tu as déjà fait ta séance d'essai."}
+        </p>
+        <p className="mt-2 text-sm text-white/70">
+          {fr("Pour continuer, parle-en au coach, il t'expliquera comment t'inscrire.")}
+        </p>
+        <button onClick={onReset} className="mt-6 rounded-full bg-white px-6 py-2 text-sm font-bold text-ink">Terminé</button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center justify-center rounded-3xl bg-orange/15 p-8 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-orange text-3xl">✓</div>
-      <p className="mt-4 text-xl font-bold">C&apos;est noté, bon entraînement !</p>
+      <p className="mt-4 text-xl font-bold">{fr("C'est noté, bon entraînement !")}</p>
       {data.coursLabel && <p className="mt-1 text-white/70">{data.coursLabel}</p>}
-      {data.essai && <p className="mt-3 text-sm text-white/60">Tu recevras un email si tu veux t&apos;inscrire.</p>}
+      {data.essai && <p className="mt-3 text-sm text-white/60">{fr("Tu recevras un email si tu veux t'inscrire.")}</p>}
       <button onClick={onReset} className="mt-6 rounded-full bg-white px-6 py-2 text-sm font-bold text-ink">
         Terminé
       </button>
@@ -227,7 +246,7 @@ function VueEssai({
   onBack,
 }: {
   salle: string;
-  onDone: (c: { coursLabel: string | null; essai?: boolean }) => void;
+  onDone: (c: { coursLabel: string | null; essai?: boolean; dejaUtilise?: boolean; dateEssai?: string | null }) => void;
   onBack: () => void;
 }) {
   const [prenom, setPrenom] = useState("");
@@ -255,7 +274,7 @@ function VueEssai({
       const d = await r.json();
       if (!r.ok) { setErreur(d.error || "Impossible d'enregistrer."); return; }
       if (d.choix) { setChoix({ cours: d.choix, selectionId: d.selectionId }); return; }
-      onDone({ coursLabel: d.coursLabel, essai: !d.surDossier });
+      onDone({ coursLabel: d.coursLabel, essai: !d.surDossier, dejaUtilise: d.dejaUtilise, dateEssai: d.dateEssai });
     } finally {
       setBusy(false);
     }
@@ -270,9 +289,7 @@ function VueEssai({
       <button onClick={onBack} className="text-sm font-semibold text-white/60 hover:text-white">← Je suis adhérent</button>
       <input value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Prénom" className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-orange" />
       <input value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Nom" className="w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-orange" />
-      <div className="rounded-2xl border border-white/15 bg-white/10 px-2 py-1 [color-scheme:dark]">
-        <DatePicker label="Date de naissance" value={dateNaissance} onChange={setDateNaissance} />
-      </div>
+      <DatePicker label="Date de naissance" value={dateNaissance} onChange={setDateNaissance} theme="dark" />
       <div>
         <label className="block text-sm font-semibold text-white/80">{emailLabel}</label>
         <input

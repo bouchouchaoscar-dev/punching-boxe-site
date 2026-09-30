@@ -3,13 +3,14 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif, coursOuverts, partiesParis } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
-import { construireLignesAdmin, type PresenceRow, type Situation } from "@/lib/presence-admin";
+import { construireLignesAdmin, categoriesDeLigne, CATEGORIES, type PresenceRow, type Categorie } from "@/lib/presence-admin";
 import { disciplineLabel, publicLabel, formatHeure } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const compteursVides = (): Record<Situation, number> => ({ regle: 0, especes: 0, non_finalise: 0, incomplet: 0, essai: 0 });
+const compteursVides = (): Record<Categorie, number> =>
+  Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Categorie, number>;
 
 // GET /api/admin/presence/jour?date=YYYY-MM-DD — vue « Aujourd'hui » (admin).
 export async function GET(request: Request) {
@@ -36,17 +37,18 @@ export async function GET(request: Request) {
     estAujourdhui ? coursOuverts(now, { cours, periodes }).map((o) => o.cours.id) : [],
   );
 
+  const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
   const { data: presRows } = await supabase
     .from("presences")
     .select("id, cours_id, date_seance, dossier_id, essai_id, source, created_at, created_by")
     .eq("date_seance", date);
-  const lignes = await construireLignesAdmin(supabase, (presRows ?? []) as PresenceRow[]);
+  const lignes = await construireLignesAdmin(supabase, (presRows ?? []) as PresenceRow[], disciplineByCours);
 
   const blocs = coursDuJour
     .map((c) => {
       const l = lignes.filter((x) => x.coursId === c.id);
       const compteurs = compteursVides();
-      for (const x of l) compteurs[x.situation]++;
+      for (const x of l) for (const cat of categoriesDeLigne(x)) compteurs[cat]++;
       return {
         id: c.id,
         libelle: c.libelle,

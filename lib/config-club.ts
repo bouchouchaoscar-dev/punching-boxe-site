@@ -76,6 +76,7 @@ export const CONFIG_CLUB = {
       fenetre: { ouvertureMinutesAvant: 30, fermetureMinutesApres: 40 },
       relancesEssai: { premiereHeures: 24, secondeJours: 7 },
       conservationSaisons: 1,
+      essaisGratuits: 1, // séances d'essai autorisées avant « essai déjà utilisé »
     },
   },
 

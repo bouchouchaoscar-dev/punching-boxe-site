@@ -47,13 +47,18 @@ export function DatePicker({
   label,
   required,
   placeholder = "JJ/MM/AAAA",
+  theme = "light",
 }: {
   value: string;
   onChange: (iso: string) => void;
   label?: string;
   required?: boolean;
   placeholder?: string;
+  // "dark" : champ aligné sur un fond sombre (libellé/bordure/valeur lisibles).
+  // Le calendrier (portail) reste en clair. Défaut "light" (rendu inchangé).
+  theme?: "light" | "dark";
 }) {
+  const dark = theme === "dark";
   const selected = parseISO(value);
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -295,7 +300,7 @@ export function DatePicker({
   return (
     <div className="relative" ref={ref}>
       {label && (
-        <span className="mb-1.5 block text-sm font-semibold text-ink">
+        <span className={`mb-1.5 block text-sm font-semibold ${dark ? "text-white/80" : "text-ink"}`}>
           {label} {required && <span className="text-orange">*</span>}
         </span>
       )}
@@ -306,14 +311,14 @@ export function DatePicker({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`focus-ring flex w-full items-center justify-between rounded-xl border bg-paper-2 px-4 py-3 text-left outline-none transition-colors ${
-          open ? "border-orange" : "border-line"
-        }`}
+        className={`focus-ring flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left outline-none transition-colors ${
+          dark ? "bg-white/10 text-white" : "bg-paper-2"
+        } ${open ? "border-orange" : dark ? "border-white/15" : "border-line"}`}
       >
-        <span className={value ? "text-ink" : "text-smoke"}>
+        <span className={value ? (dark ? "text-white" : "text-ink") : dark ? "text-white/40" : "text-smoke"}>
           {value ? formatFR(value) : placeholder}
         </span>
-        <svg viewBox="0 0 24 24" className="h-5 w-5 text-smoke" fill="none" aria-hidden>
+        <svg viewBox="0 0 24 24" className={`h-5 w-5 ${dark ? "text-white/60" : "text-smoke"}`} fill="none" aria-hidden>
           <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
           <path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         </svg>
