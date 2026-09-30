@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { planningActif, lundiDeLaSemaine, toISODate, MSG_HISTORIQUE_COURS } from "@/lib/planning";
+import { planningActif, lundiDeLaSemaine, toISODate, MSG_HISTORIQUE_COURS, MSG_PRESENCES_COURS } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
@@ -34,7 +34,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: MSG_HISTORIQUE_COURS, code: "historique" }, { status: 409 });
   }
 
+  // Un seul cours du groupe a des présences → on bloque tout (tout ou rien).
+  const { count: nbPresences } = await supabase
+    .from("presences")
+    .select("id", { count: "exact", head: true })
+    .in("cours_id", ids);
+  if (nbPresences && nbPresences > 0) {
+    return NextResponse.json({ error: MSG_PRESENCES_COURS, code: "presences" }, { status: 409 });
+  }
+
   const { error } = await supabase.from("cours").delete().in("id", ids);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Filet de sécurité : FK ON DELETE RESTRICT (présences) → 409 lisible, pas 500.
+    if (error.code === "23503") {
+      return NextResponse.json({ error: MSG_PRESENCES_COURS, code: "presences" }, { status: 409 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ success: true, supprimes: ids.length });
 }

@@ -12,7 +12,7 @@ import {
   construireLignesCoachPresence,
   type CoursOuvert,
 } from "../lib/presence";
-import type { Cours, PeriodeFermeture } from "../lib/planning";
+import { MSG_PRESENCES_COURS, type Cours, type PeriodeFermeture } from "../lib/planning";
 
 let ok = 0;
 let ko = 0;
@@ -226,6 +226,21 @@ console.log("[Présence — garde-fous routes]");
   const cron = read("app/api/cron/presence/route.ts");
   check(/\.is\(colClaim, null\)/.test(cron), "cron : claim atomique (relance non re-envoyée)");
   check(/chargerExclusions/.test(cron) && /marquerSiConverti/.test(cron), "cron : exclusions bounce/désinscrit + arrêt si converti");
+}
+
+// ---- Suppression de cours : prise en compte des présences ----
+console.log("[Présence — suppression de cours]");
+{
+  const read = (p: string) => readFileSync(p, "utf8");
+  check(/présences/i.test(MSG_PRESENCES_COURS) && /désactivez/i.test(MSG_PRESENCES_COURS), "message présences : mentionne présences + Désactiver");
+  for (const p of ["app/api/admin/planning/cours/[id]/route.ts", "app/api/admin/planning/cours/bulk-delete/route.ts"]) {
+    const src = read(p);
+    // Cas 1 : présences existantes → 409 + MSG_PRESENCES_COURS.
+    check(/from\("presences"\)[\s\S]*count: "exact"[\s\S]*eq?/.test(src) || /from\("presences"\)/.test(src), `${p.split("/").slice(-2)[0]} : vérifie les présences avant suppression`);
+    check(/MSG_PRESENCES_COURS[\s\S]*status: 409/.test(src), `${p.split("/").slice(-2)[0]} : 409 + message présences`);
+    // Cas 2 : filet 23503 → 409 (jamais 500).
+    check(/error\.code === "23503"[\s\S]*MSG_PRESENCES_COURS[\s\S]*status: 409/.test(src), `${p.split("/").slice(-2)[0]} : 23503 traduit en 409 lisible`);
+  }
 }
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);

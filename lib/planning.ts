@@ -17,6 +17,11 @@ export function planningActif(): boolean {
 export const MSG_HISTORIQUE_COURS =
   "Ce cours a un historique d'affectations. Désactivez-le plutôt pour le retirer du planning sans perdre l'historique.";
 
+// Garde-fou de suppression d'un cours ayant des présences enregistrées (module
+// Présence). Même issue : désactiver plutôt que supprimer.
+export const MSG_PRESENCES_COURS =
+  "Ce cours a des présences enregistrées. Désactivez-le plutôt pour le retirer du planning sans perdre l'historique des présences.";
+
 // Message du garde-fou de suppression d'un PROF ayant un historique de cours.
 export const MSG_PROF_HISTORIQUE =
   "Ce prof a un historique de cours. Archivez-le plutôt : il ne sera plus proposé, mais ses heures restent.";
