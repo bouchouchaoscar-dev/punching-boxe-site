@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { statutAge } from "@/lib/anciennete";
 
@@ -17,25 +17,34 @@ export async function GET(request: Request, { params }: Ctx) {
   if (!isSupabaseConfigured()) return NextResponse.json({ historique: [] });
 
   const supabase = getSupabaseAdmin();
-  const { data: adh } = await supabase
-    .from("adherents")
-    .select("ancien_id")
-    .eq("id", id)
-    .maybeSingle();
+  const adh = exigerData(
+    await supabase
+      .from("adherents")
+      .select("ancien_id")
+      .eq("id", id)
+      .maybeSingle(),
+    "historique-ancien: adhérent",
+  );
   const ancienId = adh?.ancien_id as string | null | undefined;
   if (!ancienId) return NextResponse.json({ historique: [] });
 
-  const { data: ancien } = await supabase
-    .from("anciens_adherents")
-    .select("date_naissance")
-    .eq("id", ancienId)
-    .maybeSingle();
+  const ancien = exigerData(
+    await supabase
+      .from("anciens_adherents")
+      .select("date_naissance")
+      .eq("id", ancienId)
+      .maybeSingle(),
+    "historique-ancien: ancien",
+  );
   const naissance = (ancien?.date_naissance as string | null) ?? null;
 
-  const { data: hist } = await supabase
-    .from("historique_saisons")
-    .select("saison, disciplines, montant")
-    .eq("ancien_id", ancienId);
+  const hist = exigerData(
+    await supabase
+      .from("historique_saisons")
+      .select("saison, disciplines, montant")
+      .eq("ancien_id", ancienId),
+    "historique-ancien: historique saisons",
+  );
 
   const historique = (hist ?? [])
     .map((h) => ({

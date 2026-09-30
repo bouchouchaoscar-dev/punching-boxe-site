@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth-server";
 import { appliquerRegularisation } from "@/lib/payments";
 
@@ -33,11 +33,14 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
 
   // Appartenance du dossier.
-  const { data: adherent } = await supabase
-    .from("adherents")
-    .select("id, titulaire_id")
-    .eq("id", adherentId)
-    .maybeSingle();
+  const adherent = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, titulaire_id")
+      .eq("id", adherentId)
+      .maybeSingle(),
+    "régularisation confirm: appartenance dossier",
+  );
   if (!adherent) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }
@@ -46,11 +49,14 @@ export async function POST(request: Request) {
   }
 
   // Ligne d'échéance ciblée (du même dossier).
-  const { data: row } = await supabase
-    .from("paiements")
-    .select("id, adherent_id, stripe_payment_intent_id")
-    .eq("id", paiementId)
-    .maybeSingle();
+  const row = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, stripe_payment_intent_id")
+      .eq("id", paiementId)
+      .maybeSingle(),
+    "régularisation confirm: échéance par PaymentIntent",
+  );
   if (!row || row.adherent_id !== adherentId || !row.stripe_payment_intent_id) {
     return NextResponse.json({ error: "Échéance introuvable." }, { status: 404 });
   }

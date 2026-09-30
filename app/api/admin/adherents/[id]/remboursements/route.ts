@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 
 export const runtime = "nodejs";
@@ -15,12 +15,15 @@ export async function GET(request: Request, { params }: Ctx) {
   if (!isSupabaseConfigured()) return NextResponse.json({ remboursements: [] });
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("remboursements")
-    .select("id, montant_effectif, canal, ferme_inscription, statut, created_at, finished_at")
-    .eq("adherent_id", id)
-    .eq("statut", "fait")
-    .order("created_at", { ascending: false });
+  const data = exigerData(
+    await supabase
+      .from("remboursements")
+      .select("id, montant_effectif, canal, ferme_inscription, statut, created_at, finished_at")
+      .eq("adherent_id", id)
+      .eq("statut", "fait")
+      .order("created_at", { ascending: false }),
+    "fiche: historique remboursements",
+  );
 
   return NextResponse.json({ remboursements: data ?? [] });
 }

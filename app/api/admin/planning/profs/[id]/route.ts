@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { planningActif, lundiDeLaSemaine, toISODate, dureeHeures, MSG_PROF_HISTORIQUE } from "@/lib/planning";
 
@@ -28,11 +28,14 @@ export async function GET(request: Request, { params }: Ctx) {
   const { historique, futures, lundiCourant } = await compter(supabase, id);
 
   // Heures passées/en cours (jointure cours pour la durée).
-  const { data: affHist } = await supabase
-    .from("affectations")
-    .select("cours(heure_debut, heure_fin)")
-    .eq("prof_id", id)
-    .lte("semaine", lundiCourant);
+  const affHist = exigerData(
+    await supabase
+      .from("affectations")
+      .select("cours(heure_debut, heure_fin)")
+      .eq("prof_id", id)
+      .lte("semaine", lundiCourant),
+    "profs: affectations historique",
+  );
   let heures = 0;
   for (const a of (affHist ?? []) as unknown as {
     cours: { heure_debut: string | null; heure_fin: string | null } | null;

@@ -1,7 +1,7 @@
 // Logique SERVEUR partagée du trombinoscope (export PDF admin + endpoint coach).
 // Source unique : mêmes actifs, même tri A→Z, même mapping vers une forme
 // PUBLIQUE sans aucune donnée sensible.
-import { getSupabaseAdmin, STORAGE_BUCKET } from "@/lib/supabase";
+import { getSupabaseAdmin, STORAGE_BUCKET, exigerData } from "@/lib/supabase";
 import { signerUrls, cheminDepuisUrl } from "@/lib/storage-url";
 import { statutTrombi, estVisibleTrombi } from "@/lib/paiement";
 import { formuleLabel } from "@/lib/pricing";
@@ -107,7 +107,10 @@ export async function chargerActifsTrombi(opts: {
   saison?: string;
 }): Promise<Adherent[]> {
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase.from("adherents").select(COLS_TROMBI);
+  const data = exigerData(
+    await supabase.from("adherents").select(COLS_TROMBI),
+    "adhérents trombi",
+  );
   // Trombi élargi : inscription signée + photo, payé OU non (helper dédié, PAS
   // estActifCompte). Couvre l'endpoint coach ET l'export PDF admin.
   let actifs = ((data ?? []) as unknown as Adherent[]).filter(estVisibleTrombi);

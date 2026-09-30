@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { getResendClient, MAIL_FROM, renderCampagne } from "@/lib/email";
 import {
@@ -75,11 +75,14 @@ export async function POST(request: Request) {
   let nom = "";
 
   if (type === "natif") {
-    const { data } = await supabase
-      .from("adherents")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    const data = exigerData(
+      await supabase
+        .from("adherents")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle(),
+      "envoi individuel: lecture adhérent natif",
+    );
     if (!data) {
       return NextResponse.json({ error: "Adhérent introuvable." }, { status: 404 });
     }
@@ -97,11 +100,14 @@ export async function POST(request: Request) {
       disciplines: formuleLabel(a.package),
     };
   } else {
-    const { data } = await supabase
-      .from("anciens_recence")
-      .select("id, nom, prenom, email, derniere_saison, disciplines")
-      .eq("id", id)
-      .maybeSingle();
+    const data = exigerData(
+      await supabase
+        .from("anciens_recence")
+        .select("id, nom, prenom, email, derniere_saison, disciplines")
+        .eq("id", id)
+        .maybeSingle(),
+      "envoi individuel: lecture ancien recensé",
+    );
     if (!data) {
       return NextResponse.json({ error: "Ancien introuvable." }, { status: 404 });
     }
@@ -127,11 +133,14 @@ export async function POST(request: Request) {
 
   // Traçage RGPD : on note si la personne est désinscrite (envoi non bloqué,
   // décision admin assumée), pour transparence dans l'historique.
-  const { data: optout } = await supabase
-    .from("desinscriptions_mailing")
-    .select("email")
-    .eq("email", email.toLowerCase())
-    .maybeSingle();
+  const optout = exigerData(
+    await supabase
+      .from("desinscriptions_mailing")
+      .select("email")
+      .eq("email", email.toLowerCase())
+      .maybeSingle(),
+    "envoi individuel: trace RGPD désinscription",
+  );
   const desinscrit = !!optout;
 
   // Envoi unitaire (même pipeline que les campagnes : variables → gabarit + CTA

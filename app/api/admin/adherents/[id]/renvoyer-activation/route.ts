@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerLienActivation } from "@/lib/activation";
 import type { Adherent } from "@/lib/types";
@@ -23,11 +23,14 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("adherents")
-    .select("prenom, email")
-    .eq("id", id)
-    .maybeSingle();
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select("prenom, email")
+      .eq("id", id)
+      .maybeSingle(),
+    "renvoyer activation: prénom/email adhérent",
+  );
   if (!data) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }

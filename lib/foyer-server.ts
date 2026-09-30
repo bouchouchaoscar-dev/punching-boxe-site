@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { exigerData } from "./supabase";
 import { matchKey } from "./anciennete";
 import { estActifCompte } from "./adherents-actifs";
 import {
@@ -43,12 +44,15 @@ export async function resoudreMembre(
 ): Promise<FoyerSource> {
   const key = matchKey(m.nom ?? "", m.prenom ?? "", m.date_naissance);
   if (!key) return { etat: "introuvable" };
-  const { data } = await supabase
-    .from("adherents")
-    .select(
-      "foyer_id, titulaire_id, statut_paiement, echeances_payees, mode_paiement, annule_at",
-    )
-    .eq("match_key", key);
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select(
+        "foyer_id, titulaire_id, statut_paiement, echeances_payees, mode_paiement, annule_at",
+      )
+      .eq("match_key", key),
+    "foyer: membre par match_key",
+  );
   const rows = data ?? [];
   if (rows.length === 0) return { etat: "introuvable" };
   // On ne retient que les dossiers ACTIFS (non fermés). Une personne dont tous
@@ -73,12 +77,15 @@ async function foyerDuTitulaire(
   supabase: SupabaseClient,
   titulaireId: string,
 ): Promise<string | null> {
-  const { data } = await supabase
-    .from("adherents")
-    .select("foyer_id")
-    .eq("titulaire_id", titulaireId)
-    .not("foyer_id", "is", null)
-    .limit(1);
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select("foyer_id")
+      .eq("titulaire_id", titulaireId)
+      .not("foyer_id", "is", null)
+      .limit(1),
+    "foyer du titulaire",
+  );
   return (data?.[0]?.foyer_id as string | null) ?? null;
 }
 
@@ -90,18 +97,24 @@ async function lireUnion(
 ): Promise<any[]> {
   const byId = new Map<string, any>();
   if (foyers.length) {
-    const { data } = await supabase
-      .from("adherents")
-      .select(COLS_FOYER)
-      .in("foyer_id", foyers);
+    const data = exigerData(
+      await supabase
+        .from("adherents")
+        .select(COLS_FOYER)
+        .in("foyer_id", foyers),
+      "foyer: union par foyer_id",
+    );
     for (const r of data ?? []) byId.set(r.id, r);
   }
   if (titulaires.length) {
-    const { data } = await supabase
-      .from("adherents")
-      .select(COLS_FOYER)
-      .in("titulaire_id", titulaires)
-      .is("foyer_id", null);
+    const data = exigerData(
+      await supabase
+        .from("adherents")
+        .select(COLS_FOYER)
+        .in("titulaire_id", titulaires)
+        .is("foyer_id", null),
+      "foyer: union par titulaire_id",
+    );
     for (const r of data ?? []) byId.set(r.id, r);
   }
   return [...byId.values()];

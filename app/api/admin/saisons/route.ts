@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { saisonCourante } from "@/lib/saison";
 
@@ -20,7 +20,10 @@ export async function GET(request: Request) {
   for (const table of ["historique_saisons", "adherents"]) {
     let from = 0;
     for (;;) {
-      const { data } = await supabase.from(table).select("saison").range(from, from + 999);
+      const data = exigerData(
+        await supabase.from(table).select("saison").range(from, from + 999),
+        "saisons: page",
+      );
       if (!data || !data.length) break;
       for (const r of data) if (r.saison) set.add(r.saison as string);
       if (data.length < 1000) break;

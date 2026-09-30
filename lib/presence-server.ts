@@ -2,6 +2,7 @@
 // les routes publiques / admin / coach. Aucune règle métier ici : la logique de
 // fenêtre/rattachement vit dans lib/presence.ts (pur, testé).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { exigerData } from "./supabase";
 import { estMineur } from "./pricing";
 import { normaliserEmail } from "./email-format";
 import { saisonCourante } from "./saison";
@@ -60,11 +61,14 @@ export async function dossiersSaison(
   supabase: SupabaseClient,
   saison: string,
 ): Promise<DossierPresence[]> {
-  const { data } = await supabase
-    .from("adherents")
-    .select(CHAMPS_DOSSIER)
-    .eq("saison", saison)
-    .is("annule_at", null);
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select(CHAMPS_DOSSIER)
+      .eq("saison", saison)
+      .is("annule_at", null),
+    "dossiers saison",
+  );
   return (data ?? []) as DossierPresence[];
 }
 
@@ -122,16 +126,22 @@ async function essaisDeLaPersonne(
 ): Promise<{ id: string; cours_id: string | null; date_seance: string }[]> {
   const map = new Map<string, { id: string; cours_id: string | null; date_seance: string }>();
   if (p.email) {
-    const { data } = await supabase.from("essais").select("id, cours_id, date_seance").eq("email", p.email);
+    const data = exigerData(
+      await supabase.from("essais").select("id, cours_id, date_seance").eq("email", p.email),
+      "essais par email",
+    );
     for (const e of data ?? []) map.set(e.id as string, e as never);
   }
   if (p.nom && p.prenom && p.date_naissance) {
-    const { data } = await supabase
-      .from("essais")
-      .select("id, cours_id, date_seance")
-      .eq("nom", p.nom)
-      .eq("prenom", p.prenom)
-      .eq("date_naissance", p.date_naissance);
+    const data = exigerData(
+      await supabase
+        .from("essais")
+        .select("id, cours_id, date_seance")
+        .eq("nom", p.nom)
+        .eq("prenom", p.prenom)
+        .eq("date_naissance", p.date_naissance),
+      "essais par nom/prénom/naissance",
+    );
     for (const e of data ?? []) map.set(e.id as string, e as never);
   }
   return [...map.values()];

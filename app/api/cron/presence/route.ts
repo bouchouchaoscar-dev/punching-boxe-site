@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { CONFIG_CLUB } from "@/lib/config-club";
 import { presenceActif, partiesParis } from "@/lib/presence";
 import { dossiersSaison, trouverDossierCorrespondant } from "@/lib/presence-server";
@@ -103,7 +103,8 @@ export async function GET(request: Request) {
       numero === 1
         ? q.lte("date_seance", seuilRelance1)
         : q.not("relance_1_at", "is", null).lte("date_seance", seuilRelance2);
-    const { data } = await q;
+    // Une erreur avalée ici donnerait 0 essai → relances silencieusement sautées.
+    const data = exigerData(await q, "cron présence: select essais à relancer");
     for (const e of (data ?? []) as Essai[]) {
       // Claim atomique : seul le premier passage gagne la mise à jour.
       const { data: claimed } = await supabase

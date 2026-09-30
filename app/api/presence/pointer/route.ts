@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { presenceActif, coursOuverts, rattacherCours, partiesParis } from "@/lib/presence";
 import { chargerPlanning, profilDossier, type DossierPresence } from "@/lib/presence-server";
 import { autoriser, ipDe } from "@/lib/rate-limit";
@@ -26,12 +26,15 @@ export async function POST(request: Request) {
   if (!dossierId) return NextResponse.json({ error: "Adhérent requis." }, { status: 400 });
 
   const supabase = getSupabaseAdmin();
-  const { data: dossier } = await supabase
-    .from("adherents")
-    .select("id, prenom, nom, date_naissance, package, option_prepa_physique, annule_at")
-    .eq("id", dossierId)
-    .is("annule_at", null)
-    .maybeSingle();
+  const dossier = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, prenom, nom, date_naissance, package, option_prepa_physique, annule_at")
+      .eq("id", dossierId)
+      .is("annule_at", null)
+      .maybeSingle(),
+    "pointer: dossier",
+  );
   if (!dossier) return NextResponse.json({ error: "Adhérent introuvable." }, { status: 404 });
 
   const { cours, periodes } = await chargerPlanning(supabase);

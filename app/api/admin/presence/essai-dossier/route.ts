@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif } from "@/lib/presence";
 import { normaliserEmail } from "@/lib/email-format";
@@ -17,20 +17,26 @@ export async function GET(request: Request) {
   if (!id) return NextResponse.json({ essai: null });
 
   const supabase = getSupabaseAdmin();
-  const { data: adh } = await supabase
-    .from("adherents")
-    .select("id, email, nom, prenom, date_naissance")
-    .eq("id", id)
-    .maybeSingle();
+  const adh = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, email, nom, prenom, date_naissance")
+      .eq("id", id)
+      .maybeSingle(),
+    "essai-dossier: adhérent",
+  );
   if (!adh) return NextResponse.json({ essai: null });
 
   const norm = (s: string | null | undefined) =>
     (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
-  const { data: essais } = await supabase
-    .from("essais")
-    .select("id, date_seance, cours_id, email, nom, prenom, date_naissance, converti_dossier_id")
-    .order("date_seance", { ascending: true });
+  const essais = exigerData(
+    await supabase
+      .from("essais")
+      .select("id, date_seance, cours_id, email, nom, prenom, date_naissance, converti_dossier_id")
+      .order("date_seance", { ascending: true }),
+    "essai-dossier: essais",
+  );
 
   const email = normaliserEmail(adh.email);
   const match = (essais ?? []).find(
@@ -45,7 +51,10 @@ export async function GET(request: Request) {
 
   let coursLabel: string | null = null;
   if (match.cours_id) {
-    const { data: c } = await supabase.from("cours").select("libelle").eq("id", match.cours_id).maybeSingle();
+    const c = exigerData(
+      await supabase.from("cours").select("libelle").eq("id", match.cours_id).maybeSingle(),
+      "essai-dossier: libellé cours",
+    );
     coursLabel = (c?.libelle as string) ?? null;
   }
   return NextResponse.json({ essai: { date_seance: match.date_seance, coursLabel } });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 
 export const runtime = "nodejs";
@@ -63,11 +63,14 @@ export async function DELETE(request: Request, { params }: Ctx) {
   const { id } = await params;
   const supabase = getSupabaseAdmin();
 
-  const { data: t } = await supabase
-    .from("templates_mail")
-    .select("est_defaut")
-    .eq("id", id)
-    .maybeSingle();
+  const t = exigerData(
+    await supabase
+      .from("templates_mail")
+      .select("est_defaut")
+      .eq("id", id)
+      .maybeSingle(),
+    "suppression template: est_defaut",
+  );
   if (t?.est_defaut) {
     return NextResponse.json(
       { error: "Les templates par défaut ne peuvent pas être supprimés." },

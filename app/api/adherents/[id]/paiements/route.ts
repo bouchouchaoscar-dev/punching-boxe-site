@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
 import { familleEchec } from "@/lib/stripe-erreurs";
@@ -37,11 +37,14 @@ export async function POST(_req: Request, { params }: Ctx) {
 
   // Carte invalide (carte morte) : retenter la même carte échouera, c'est à
   // l'adhérent de régulariser avec une nouvelle carte.
-  const { data: adh } = await supabase
-    .from("adherents")
-    .select("derniere_erreur_code")
-    .eq("id", id)
-    .single();
+  const adh = exigerData(
+    await supabase
+      .from("adherents")
+      .select("derniere_erreur_code")
+      .eq("id", id)
+      .maybeSingle(),
+    "retenter paiement: code erreur carte adhérent",
+  );
   if (familleEchec(adh?.derniere_erreur_code) === "carte_morte") {
     return NextResponse.json(
       {
@@ -54,13 +57,16 @@ export async function POST(_req: Request, { params }: Ctx) {
 
   // Échéances non réglées, échec d'abord puis par numéro.
   const today = new Date().toISOString().slice(0, 10);
-  const { data: rows } = await supabase
-    .from("paiements")
-    .select("id, statut, numero_echeance, date_prevue")
-    .eq("adherent_id", id)
-    .neq("statut", "paye")
-    .not("numero_echeance", "is", null)
-    .order("numero_echeance", { ascending: true });
+  const rows = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, statut, numero_echeance, date_prevue")
+      .eq("adherent_id", id)
+      .neq("statut", "paye")
+      .not("numero_echeance", "is", null)
+      .order("numero_echeance", { ascending: true }),
+    "retenter paiement: échéances non réglées",
+  );
 
   // Cible = en échec, OU en attente dont la date prévue est atteinte. Jamais future.
   const cible = (rows ?? []).find(

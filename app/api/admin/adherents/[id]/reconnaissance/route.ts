@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { estEngage } from "@/lib/engagement";
 import { TARIFS } from "@/lib/pricing";
@@ -25,11 +25,10 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("adherents")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const data = exigerData(
+    await supabase.from("adherents").select("*").eq("id", id).maybeSingle(),
+    "reconnaissance: lecture adhérent",
+  );
   if (!data) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }
@@ -37,10 +36,12 @@ export async function POST(request: Request, { params }: Ctx) {
 
   // GARDE-FOU ARGENT (autoritaire, FAIL-SAFE) : autoriser UNIQUEMENT si le
   // dossier n'a RIEN encaissé et n'est PAS engagé. En cas de doute → bloqué.
-  const { data: pays } = await supabase
-    .from("paiements")
-    .select("statut")
-    .eq("adherent_id", id);
+  // Une erreur avalée ici donnerait argentEnJeu=false → autorisation à tort :
+  // exigerData lève (la requête échoue = rien n'est fait = réellement fail-safe).
+  const pays = exigerData(
+    await supabase.from("paiements").select("statut").eq("adherent_id", id),
+    "reconnaissance: garde-fou argent",
+  );
   const argentEnJeu = (pays ?? []).some((p) =>
     ["paye", "en_cours", "rembourse"].includes(p.statut as string),
   );

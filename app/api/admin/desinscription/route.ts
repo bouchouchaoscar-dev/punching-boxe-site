@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 
 export const runtime = "nodejs";
@@ -18,10 +18,14 @@ export async function GET(request: Request) {
   if (!email) return NextResponse.json({ desinscrit: false });
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("desinscriptions_mailing")
-    .select("email")
-    .eq("email", email)
-    .maybeSingle();
+  // Une erreur avalée ici afficherait « non désinscrit » à tort. exigerData lève.
+  const data = exigerData(
+    await supabase
+      .from("desinscriptions_mailing")
+      .select("email")
+      .eq("email", email)
+      .maybeSingle(),
+    "statut désinscription: lecture",
+  );
   return NextResponse.json({ desinscrit: !!data });
 }

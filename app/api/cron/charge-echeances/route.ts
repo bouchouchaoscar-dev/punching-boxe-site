@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isStripeConfigured } from "@/lib/stripe";
 import { chargerEcheance } from "@/lib/payments";
 import { CONFIG_CLUB } from "@/lib/config-club";
@@ -37,12 +37,15 @@ export const runtime = "nodejs";
 async function envoyerCampagnesPlanifiees() {
   const supabase = getSupabaseAdmin();
   const nowIso = new Date().toISOString();
-  const { data: dues } = await supabase
-    .from("campagnes")
-    .select("id")
-    .eq("statut", "planifiee")
-    .eq("etat", "active")
-    .lte("scheduled_at", nowIso);
+  const dues = exigerData(
+    await supabase
+      .from("campagnes")
+      .select("id")
+      .eq("statut", "planifiee")
+      .eq("etat", "active")
+      .lte("scheduled_at", nowIso),
+    "campagnes planifiées: select",
+  );
 
   const results: { id: string; statut: string; envoyes?: number }[] = [];
   for (const c of dues ?? []) {
@@ -153,25 +156,29 @@ export async function GET(request: Request) {
     results.push({ id: p.id, ...r });
   }
 
-  // Campagnes planifiées dont l'heure est atteinte.
-  const campagnes = await envoyerCampagnesPlanifiees();
+  // Chaque passe de relance lit `error` et LÈVE si la requête échoue (helper
+  // exigerData) : une requête cassée ne vaut jamais « 0 relance ». On isole
+  // chaque passe pour qu'une erreur soit REMONTÉE (loguée + exposée dans la
+  // réponse JSON, champ `erreurs`) sans bloquer les autres passes ni les
+  // prélèvements déjà faits. Cf. LESSONS.md.
+  const erreurs: Record<string, string> = {};
+  const passe = async <T>(nom: string, fn: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await fn();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      erreurs[nom] = msg;
+      console.error(`[cron charge-echeances] ${nom}:`, msg);
+      return null;
+    }
+  };
 
-  // Relances « panier abandonné » (dossiers carte non finalisés depuis 24h+).
-  const relances = await relancerPaniersAbandonnes();
-
-  // 2e relance « panier abandonné » (J+3) : dossiers carte dont la 1ère relance
-  // est déjà partie depuis 48h+ et toujours non réglés. Envoi unique, pas de 3e.
-  const relances2 = await relancerPaniersAbandonnes2();
-
-  // Relances « compte sans inscription » (espace créé, aucun dossier, 24h+).
-  const relancesComptes = await relancerComptesSansInscription();
-
-  // Rappel UNIQUE aux adhérents dont une échéance est en échec depuis 48h+ et
-  // toujours non régularisée.
-  const rappelsEchec = await relancerEchecs48h();
-
-  // Dossiers sans mode de paiement choisi (statut « à finaliser », mode null).
-  const relancesDossier = await relancerDossiersSansPaiement();
+  const campagnes = await passe("campagnes", envoyerCampagnesPlanifiees);
+  const relances = await passe("relancesPanier", relancerPaniersAbandonnes);
+  const relances2 = await passe("relancesPanier2", relancerPaniersAbandonnes2);
+  const relancesComptes = await passe("relancesComptes", relancerComptesSansInscription);
+  const rappelsEchec = await passe("rappelsEchec", relancerEchecs48h);
+  const relancesDossier = await passe("relancesDossier", () => relancerDossiersSansPaiement());
 
   return NextResponse.json({
     traitees: results.length,
@@ -182,6 +189,7 @@ export async function GET(request: Request) {
     relancesComptes,
     rappelsEchec,
     relancesDossier,
+    erreurs: Object.keys(erreurs).length ? erreurs : undefined,
   });
 }
 
@@ -190,21 +198,25 @@ export async function GET(request: Request) {
  * régularisée. Sélection : statut='echec' ET echec_a < now()-48h ET
  * rappel_echec_envoye=false. CLAIM-THEN-SEND (rappel_echec_envoye) → jamais
  * deux rappels. Si l'échéance est régularisée entre-temps (statut != 'echec'),
- * elle sort du filtre → aucun rappel. Résilient : sans les colonnes (migration
- * 007) la requête échoue silencieusement → aucun rappel (pas de régression).
+ * elle sort du filtre → aucun rappel. ROBUSTE : la requête lit `error`
+ * (exigerData) et LÈVE si elle échoue (ex. colonnes 007 absentes) — l'erreur est
+ * remontée à la passe englobante, jamais transformée en « 0 rappel » muet.
  */
 async function relancerEchecs48h(): Promise<{ envoyes: number }> {
   const supabase = getSupabaseAdmin();
   const seuil = new Date(Date.now() - RELANCES.echecH * H).toISOString();
 
-  const { data: echecs, error } = await supabase
-    .from("paiements")
-    .select("id, adherent_id, montant, date_prevue, numero_echeance")
-    .eq("statut", "echec")
-    .eq("rappel_echec_envoye", false)
-    .not("echec_a", "is", null)
-    .lt("echec_a", seuil);
-  if (error || !echecs?.length) return { envoyes: 0 };
+  const echecs = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, montant, date_prevue, numero_echeance")
+      .eq("statut", "echec")
+      .eq("rappel_echec_envoye", false)
+      .not("echec_a", "is", null)
+      .lt("echec_a", seuil),
+    "rappel échec 48h: select",
+  );
+  if (!echecs?.length) return { envoyes: 0 };
 
   let envoyes = 0;
   for (const p of echecs) {
@@ -218,11 +230,14 @@ async function relancerEchecs48h(): Promise<{ envoyes: number }> {
       .maybeSingle();
     if (!claimed) continue;
 
-    const { data: adh } = await supabase
-      .from("adherents")
-      .select("prenom, email, nb_echeances, derniere_erreur_code")
-      .eq("id", p.adherent_id)
-      .single();
+    const adh = exigerData(
+      await supabase
+        .from("adherents")
+        .select("prenom, email, nb_echeances, derniere_erreur_code")
+        .eq("id", p.adherent_id)
+        .maybeSingle(),
+      "rappel échec 48h: lecture adhérent",
+    );
     if (!adh?.email) continue;
     try {
       await sendPaiementEchec({
@@ -253,10 +268,10 @@ async function relancerComptesSansInscription() {
   const seuilMs = Date.now() - RELANCES.compteSansInscriptionH * H;
 
   // Titulaires ayant au moins un dossier (à exclure).
-  const { data: adh } = await supabase
-    .from("adherents")
-    .select("titulaire_id")
-    .not("titulaire_id", "is", null);
+  const adh = exigerData(
+    await supabase.from("adherents").select("titulaire_id").not("titulaire_id", "is", null),
+    "relance comptes: select titulaires",
+  );
   const avecDossier = new Set((adh ?? []).map((a) => a.titulaire_id as string));
 
   // Comptes Auth (pagination).
@@ -328,18 +343,20 @@ async function relancerDossiersSansPaiement(dryRun = false) {
   const exclusions = await chargerExclusionsMail(supabase);
   const champs =
     "id, prenom, nom, email, date_naissance, created_at, mode_paiement, statut_paiement, nb_echeances, echeances_payees, engage_at, annule_at, titulaire_id, relance_dossier_1_at, relance_dossier_2_at, fiche_valide, reglement_valide, photo_valide, certificat_valide, certificat_medical_url, fiche_signee_at, reglement_signee_at, fiche_inscription_url, reglement_url, photo_url";
-  const { data, error } = await supabase
-    .from("adherents")
-    .select(champs)
-    .eq("saison", saisonCourante(new Date()))
-    .is("mode_paiement", null)
-    .is("engage_at", null)
-    .is("annule_at", null)
-    .not("titulaire_id", "is", null);
-  // IMPORTANT : ne JAMAIS avaler l'erreur en `data ?? []`. Un échec de requête
-  // (ex. migration 016 non appliquée → colonnes absentes) doit remonter, pas se
-  // faire passer pour « 0 dossier » (cause du faux « aucun éligible » précédent).
-  if (error) throw new Error(`relancerDossiersSansPaiement: ${error.message}`);
+  // Ne JAMAIS avaler l'erreur en `data ?? []`. Un échec de requête (ex. migration
+  // 016 non appliquée → colonnes absentes) doit remonter, pas se faire passer pour
+  // « 0 dossier » (cause du faux « aucun éligible » précédent). Cf. LESSONS.md.
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select(champs)
+      .eq("saison", saisonCourante(new Date()))
+      .is("mode_paiement", null)
+      .is("engage_at", null)
+      .is("annule_at", null)
+      .not("titulaire_id", "is", null),
+    "relance dossiers sans paiement: select",
+  );
 
   // Règle SOURCE UNIQUE : statutTrombi === "a_finaliser" (mode null, rien encaissé).
   const candidats = (data ?? []).filter((a) => estDossierARelancer(a as Parameters<typeof estDossierARelancer>[0]));
@@ -407,15 +424,18 @@ async function relancerDossiersSansPaiement(dryRun = false) {
 async function relancerPaniersAbandonnes() {
   const supabase = getSupabaseAdmin();
   const seuil = new Date(Date.now() - RELANCES.panierH * H).toISOString();
-  const { data: dossiers } = await supabase
-    .from("adherents")
-    .select("id, prenom, email, created_at")
-    .like("mode_paiement", "stripe%")
-    .eq("statut_paiement", "en_attente")
-    .is("engage_at", null)
-    .is("annule_at", null)
-    .is("relance_panier_envoyee_at", null)
-    .lt("created_at", seuil);
+  const dossiers = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, prenom, email, created_at")
+      .like("mode_paiement", "stripe%")
+      .eq("statut_paiement", "en_attente")
+      .is("engage_at", null)
+      .is("annule_at", null)
+      .is("relance_panier_envoyee_at", null)
+      .lt("created_at", seuil),
+    "relance panier 1: select dossiers",
+  );
 
   let envoyes = 0;
   for (const a of dossiers ?? []) {
@@ -447,8 +467,9 @@ async function relancerPaniersAbandonnes() {
  * relance_panier_2_envoyee_at). AUCUNE 3e relance ensuite.
  *
  * NE MODIFIE PAS relancerPaniersAbandonnes (1ère relance, flag séparé).
- * RÉSILIENT : sans la colonne (migration 008) la requête échoue → 0 envoi (pas
- * de régression), comme le patron des relances 007.
+ * ROBUSTE : la requête lit `error` (exigerData) et LÈVE si elle échoue (ex.
+ * colonne 008 absente) — l'erreur est remontée à la passe englobante (loguée +
+ * exposée), jamais transformée en « 0 envoi » muet. Cf. LESSONS.md.
  */
 async function relancerPaniersAbandonnes2(): Promise<{
   candidats: number;
@@ -456,17 +477,20 @@ async function relancerPaniersAbandonnes2(): Promise<{
 }> {
   const supabase = getSupabaseAdmin();
   const seuil = new Date(Date.now() - RELANCES.panier2H * H).toISOString();
-  const { data: dossiers, error } = await supabase
-    .from("adherents")
-    .select("id, prenom, email")
-    .like("mode_paiement", "stripe%")
-    .eq("statut_paiement", "en_attente")
-    .is("engage_at", null)
-    .is("annule_at", null)
-    .not("relance_panier_envoyee_at", "is", null) // 1ère relance déjà partie
-    .is("relance_panier_2_envoyee_at", null) // 2e pas encore envoyée
-    .lt("relance_panier_envoyee_at", seuil); // au moins 48h après la 1ère
-  if (error || !dossiers?.length) return { candidats: 0, envoyes: 0 };
+  const dossiers = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, prenom, email")
+      .like("mode_paiement", "stripe%")
+      .eq("statut_paiement", "en_attente")
+      .is("engage_at", null)
+      .is("annule_at", null)
+      .not("relance_panier_envoyee_at", "is", null) // 1ère relance déjà partie
+      .is("relance_panier_2_envoyee_at", null) // 2e pas encore envoyée
+      .lt("relance_panier_envoyee_at", seuil), // au moins 48h après la 1ère
+    "relance panier 2: select dossiers",
+  );
+  if (!dossiers?.length) return { candidats: 0, envoyes: 0 };
 
   let envoyes = 0;
   for (const a of dossiers) {

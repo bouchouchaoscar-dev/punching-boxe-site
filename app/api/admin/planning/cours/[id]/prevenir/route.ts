@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { envoyerCampagne, statutCampagne, enregistrerEnvois } from "@/lib/envoi-campagne";
 import { resoudreOuverture, joindrePrenoms, type PersonneEnvoi, type DestinataireVars } from "@/lib/campagnes";
@@ -93,11 +93,18 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: coursRow } = await supabase.from("cours").select("*").eq("id", id).maybeSingle();
+  const coursRow = exigerData(
+    await supabase.from("cours").select("*").eq("id", id).maybeSingle(),
+    "prévenir: lecture cours",
+  );
   if (!coursRow) return NextResponse.json({ error: "Cours introuvable." }, { status: 404 });
   const cours = coursRow as Cours;
 
-  const { data: adhData } = await supabase.from("adherents").select("*");
+  // Une erreur avalée ici donnerait 0 cible → personne prévenu de l'annulation.
+  const adhData = exigerData(
+    await supabase.from("adherents").select("*"),
+    "prévenir: select adhérents (cibles)",
+  );
   const cibles = adherentsCibles((adhData ?? []) as Adherent[], cours);
   const emails = [...new Set(cibles.map((a) => (a.email || "").trim().toLowerCase()).filter(Boolean))];
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { annulerEcheances } from "@/lib/payments";
 import { sendFinInscription } from "@/lib/email";
@@ -23,21 +23,27 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: adherent } = await supabase
-    .from("adherents")
-    .select("id")
-    .eq("id", id)
-    .maybeSingle();
+  const adherent = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle(),
+    "annuler: existence dossier",
+  );
   if (!adherent) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }
 
   const { annulees } = await annulerEcheances(supabase, id);
-  const { data: updated } = await supabase
-    .from("adherents")
-    .select("*")
-    .eq("id", id)
-    .single();
+  const updated = exigerData(
+    await supabase
+      .from("adherents")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle(),
+    "annuler: relecture dossier pour mail de clôture",
+  );
 
   // Email de clôture (best-effort) : fin d'inscription sans remboursement.
   if (updated?.email) {

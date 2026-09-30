@@ -3,6 +3,7 @@ import {
   getSupabaseAdmin,
   isSupabaseConfigured,
   STORAGE_BUCKET,
+  exigerData,
 } from "@/lib/supabase";
 import { sendAdminDocReplaced } from "@/lib/email";
 import { signerDocsAdherents } from "@/lib/storage-url";
@@ -68,10 +69,13 @@ export async function GET(request: Request) {
   const paidEcheances: Record<string, number> = {};
   const ids = adherents.map((a) => a.id);
   if (ids.length) {
-    const { data: paies } = await supabase
-      .from("paiements")
-      .select("adherent_id, statut, numero_echeance")
-      .in("adherent_id", ids);
+    const paies = exigerData(
+      await supabase
+        .from("paiements")
+        .select("adherent_id, statut, numero_echeance")
+        .in("adherent_id", ids),
+      "mon-espace: paiements",
+    );
     for (const p of paies ?? []) {
       if (p.statut === "paye" && p.numero_echeance != null)
         paidEcheances[p.adherent_id] = (paidEcheances[p.adherent_id] ?? 0) + 1;

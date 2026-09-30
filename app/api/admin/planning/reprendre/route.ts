@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import {
   planningActif,
@@ -17,7 +17,10 @@ export const runtime = "nodejs";
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 async function calculer(supabase: SupabaseClient, semaine: string) {
-  const { data: per } = await supabase.from("periodes_fermeture").select("*");
+  const per = exigerData(
+    await supabase.from("periodes_fermeture").select("*"),
+    "reprendre: périodes de fermeture",
+  );
   const periodes = (per ?? []) as PeriodeFermeture[];
   const { source, sourceFermee } = choisirSourceReprise(semaine, periodes);
 

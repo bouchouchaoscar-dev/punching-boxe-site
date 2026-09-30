@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif } from "@/lib/presence";
 import { dateDuJour, toISODate } from "@/lib/planning";
@@ -20,11 +20,14 @@ export async function GET(request: Request) {
   const dimanche = toISODate(dateDuJour(semaine, 7));
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("presences")
-    .select("cours_id, date_seance")
-    .gte("date_seance", lundi)
-    .lte("date_seance", dimanche);
+  const data = exigerData(
+    await supabase
+      .from("presences")
+      .select("cours_id, date_seance")
+      .gte("date_seance", lundi)
+      .lte("date_seance", dimanche),
+    "présence semaine: présences",
+  );
 
   const counts: Record<string, number> = {};
   for (const p of data ?? []) {

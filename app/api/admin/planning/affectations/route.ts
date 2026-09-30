@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import {
   planningActif,
@@ -52,10 +52,16 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
 
   // Refus si le jour du cours est fermé cette semaine-là.
-  const { data: coursRow } = await supabase.from("cours").select("*").eq("id", coursId).maybeSingle();
+  const coursRow = exigerData(
+    await supabase.from("cours").select("*").eq("id", coursId).maybeSingle(),
+    "affectations: cours",
+  );
   const c = coursRow as Cours | null;
   if (c?.jour_semaine) {
-    const { data: per } = await supabase.from("periodes_fermeture").select("*");
+    const per = exigerData(
+      await supabase.from("periodes_fermeture").select("*"),
+      "affectations: périodes de fermeture",
+    );
     const dISO = toISODate(dateDuJour(semaine, c.jour_semaine));
     if (estFerme(dISO, (per ?? []) as PeriodeFermeture[])) {
       return NextResponse.json({ error: "Jour fermé : affectation impossible." }, { status: 409 });

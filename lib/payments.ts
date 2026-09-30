@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseAdmin } from "./supabase";
+import { getSupabaseAdmin, exigerData } from "./supabase";
 import { getStripe } from "./stripe";
 import {
   sendAdherentConfirmation,
@@ -247,18 +247,26 @@ export async function markAdherentPaid(
  */
 export async function recalculerEtatPaiement(adherentId: string) {
   const supabase = getSupabaseAdmin();
-  const { data: a } = await supabase
+  const { data: a, error: aErr } = await supabase
     .from("adherents")
     .select("*")
     .eq("id", adherentId)
     .single();
+  // Une requête EN ÉCHEC ne vaut jamais « introuvable » : on remonte (sinon on
+  // n'aurait pas recalculé echeances_payees/statut sans le moindre signal).
+  if (aErr) throw new Error(`recalculerEtatPaiement: lecture adhérent ${adherentId}: ${aErr.message}`);
   if (!a) return;
   const adherent = a as Adherent;
 
-  const { data: paiements } = await supabase
-    .from("paiements")
-    .select("montant, statut, numero_echeance, date_prevue")
-    .eq("adherent_id", adherentId);
+  // CRITIQUE : `paiements ?? []` sur une requête EN ÉCHEC donnerait 0 échéance
+  // payée → statut/echeances_payees remis à zéro à tort. exigerData lève d'abord.
+  const paiements = exigerData(
+    await supabase
+      .from("paiements")
+      .select("montant, statut, numero_echeance, date_prevue")
+      .eq("adherent_id", adherentId),
+    `recalculerEtatPaiement: échéances ${adherentId}`,
+  );
   const rows = (paiements ?? []) as Pick<
     Paiement,
     "montant" | "statut" | "numero_echeance" | "date_prevue"
@@ -321,11 +329,14 @@ export async function marquerEcheancePayee(
   paymentIntentId: string,
 ): Promise<boolean> {
   const supabase = getSupabaseAdmin();
-  const { data: paiement } = await supabase
-    .from("paiements")
-    .select("id, adherent_id, statut")
-    .eq("stripe_payment_intent_id", paymentIntentId)
-    .maybeSingle();
+  const paiement = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, statut")
+      .eq("stripe_payment_intent_id", paymentIntentId)
+      .maybeSingle(),
+    "marquerEcheancePayee: lecture paiement",
+  );
   if (!paiement) return false;
 
   if (paiement.statut !== "paye") {
@@ -345,17 +356,23 @@ export async function marquerEcheancePayee(
  */
 export async function nettoyerStatutEchec(adherentId: string): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const { data: a } = await supabase
-    .from("adherents")
-    .select("statut_paiement")
-    .eq("id", adherentId)
-    .single();
+  const a = exigerData(
+    await supabase
+      .from("adherents")
+      .select("statut_paiement")
+      .eq("id", adherentId)
+      .maybeSingle(),
+    "nettoyerStatutEchec: lecture statut",
+  );
   if (a?.statut_paiement !== "echec_paiement") return;
-  const { count } = await supabase
+  // CRITIQUE : `count ?? 0 === 0` sur une requête EN ÉCHEC repasserait le dossier
+  // en 'en_attente' à tort (comme s'il n'y avait plus d'échec). On lève d'abord.
+  const { count, error: cErr } = await supabase
     .from("paiements")
     .select("id", { count: "exact", head: true })
     .eq("adherent_id", adherentId)
     .eq("statut", "echec");
+  if (cErr) throw new Error(`nettoyerStatutEchec: comptage échecs: ${cErr.message}`);
   if ((count ?? 0) === 0) {
     await supabase
       .from("adherents")
@@ -420,11 +437,14 @@ export async function appliquerRemboursement(
   if (!pi) return;
   const supabase = getSupabaseAdmin();
 
-  const { data: paiement } = await supabase
-    .from("paiements")
-    .select("id, adherent_id, statut")
-    .eq("stripe_payment_intent_id", pi)
-    .maybeSingle();
+  const paiement = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, statut")
+      .eq("stripe_payment_intent_id", pi)
+      .maybeSingle(),
+    "appliquerRemboursement: lecture paiement",
+  );
   if (!paiement) return; // charge non rattachée à une échéance connue
 
   const refundedThis = Math.round(Number(charge.amount_refunded ?? 0)) / 100;
@@ -438,11 +458,16 @@ export async function appliquerRemboursement(
     })
     .eq("id", paiement.id);
 
-  // Cumul dossier (recalcul = idempotent même si l'event est rejoué).
-  const { data: lignes } = await supabase
-    .from("paiements")
-    .select("montant_rembourse")
-    .eq("adherent_id", paiement.adherent_id);
+  // Cumul dossier (recalcul = idempotent même si l'event est rejoué). CRITIQUE :
+  // `lignes ?? []` sur une requête EN ÉCHEC donnerait un cumul de 0 → montant
+  // remboursé du dossier écrasé à tort. exigerData lève d'abord.
+  const lignes = exigerData(
+    await supabase
+      .from("paiements")
+      .select("montant_rembourse")
+      .eq("adherent_id", paiement.adherent_id),
+    "appliquerRemboursement: cumul remboursements",
+  );
   const total =
     Math.round(
       (lignes ?? []).reduce((s, r) => s + Number(r.montant_rembourse || 0), 0) *
@@ -473,11 +498,14 @@ export async function appliquerLitige(
   if (!pi) return;
   const supabase = getSupabaseAdmin();
 
-  const { data: paiement } = await supabase
-    .from("paiements")
-    .select("adherent_id")
-    .eq("stripe_payment_intent_id", pi)
-    .maybeSingle();
+  const paiement = exigerData(
+    await supabase
+      .from("paiements")
+      .select("adherent_id")
+      .eq("stripe_payment_intent_id", pi)
+      .maybeSingle(),
+    "appliquerLitige: lecture paiement",
+  );
   if (!paiement) return;
   const adherentId = paiement.adherent_id;
 
@@ -511,13 +539,16 @@ export async function annulerEcheances(
   supabase: SupabaseClient,
   adherentId: string,
 ): Promise<{ annulees: number }> {
-  const { data } = await supabase
-    .from("paiements")
-    .update({ statut: "annule" })
-    .eq("adherent_id", adherentId)
-    .in("statut", ["en_attente", "en_cours", "echec"])
-    .not("numero_echeance", "is", null)
-    .select("id");
+  const data = exigerData(
+    await supabase
+      .from("paiements")
+      .update({ statut: "annule" })
+      .eq("adherent_id", adherentId)
+      .in("statut", ["en_attente", "en_cours", "echec"])
+      .not("numero_echeance", "is", null)
+      .select("id"),
+    "annulerEcheances: update échéances",
+  );
   await supabase
     .from("adherents")
     .update({ prochaine_echeance: null })
@@ -565,11 +596,14 @@ export async function marquerEcheanceEchec(
   code?: string | null,
 ): Promise<void> {
   const supabase = getSupabaseAdmin();
-  const { data: paiement } = await supabase
-    .from("paiements")
-    .select("id, adherent_id, montant, date_prevue, numero_echeance")
-    .eq("stripe_payment_intent_id", paymentIntentId)
-    .maybeSingle();
+  const paiement = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, montant, date_prevue, numero_echeance")
+      .eq("stripe_payment_intent_id", paymentIntentId)
+      .maybeSingle(),
+    "marquerEcheanceEchec: lecture paiement",
+  );
   if (!paiement) return;
   await supabase.from("paiements").update({ statut: "echec" }).eq("id", paiement.id);
   await supabase
@@ -583,11 +617,14 @@ export async function marquerEcheanceEchec(
 
   // Mails (adhérent + admin), CLAIM-THEN-SEND idempotent → jamais de double
   // envoi même si l'échec est aussi posé par le catch du cron.
-  const { data: adh } = await supabase
-    .from("adherents")
-    .select("prenom, nom, email, nb_echeances")
-    .eq("id", paiement.adherent_id)
-    .single();
+  const adh = exigerData(
+    await supabase
+      .from("adherents")
+      .select("prenom, nom, email, nb_echeances")
+      .eq("id", paiement.adherent_id)
+      .maybeSingle(),
+    "marquerEcheanceEchec: lecture adhérent (mail)",
+  );
   if (adh) {
     await notifierEchecPaiement(supabase, {
       paiementId: paiement.id,
@@ -613,20 +650,24 @@ export async function chargerEcheance(
   paiementId: string,
 ): Promise<{ ok: boolean; status?: string; error?: string }> {
   const supabase = getSupabaseAdmin();
-  const { data: p } = await supabase
-    .from("paiements")
-    .select("*")
-    .eq("id", paiementId)
-    .maybeSingle();
+  // CRITIQUE (prélèvement) : une requête EN ÉCHEC ne doit pas passer pour
+  // « échéance introuvable » (qui masquerait un débit à faire). exigerData lève.
+  const p = exigerData(
+    await supabase.from("paiements").select("*").eq("id", paiementId).maybeSingle(),
+    "chargerEcheance: lecture échéance",
+  );
   if (!p) return { ok: false, error: "Échéance introuvable." };
   // Garde-fou : déjà payée → on ne reprélève jamais.
   if (p.statut === "paye") return { ok: true, status: "succeeded" };
 
-  const { data: a } = await supabase
-    .from("adherents")
-    .select("id, stripe_customer_id, prenom, nom, email, nb_echeances")
-    .eq("id", p.adherent_id)
-    .single();
+  const a = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, stripe_customer_id, prenom, nom, email, nb_echeances")
+      .eq("id", p.adherent_id)
+      .maybeSingle(),
+    "chargerEcheance: lecture adhérent",
+  );
   if (!a?.stripe_customer_id) {
     return { ok: false, error: "Aucun client Stripe associé." };
   }

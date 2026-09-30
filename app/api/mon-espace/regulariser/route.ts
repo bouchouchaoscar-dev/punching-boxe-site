@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { getAuthUser } from "@/lib/auth-server";
 import { estEngage } from "@/lib/engagement";
 import type { Adherent } from "@/lib/types";
@@ -57,15 +57,18 @@ export async function POST(request: Request) {
   }
 
   // Plus ancienne échéance en échec.
-  const { data: echec } = await supabase
-    .from("paiements")
-    .select("id, montant, numero_echeance")
-    .eq("adherent_id", adherentId)
-    .eq("statut", "echec")
-    .not("numero_echeance", "is", null)
-    .order("numero_echeance", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const echec = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, montant, numero_echeance")
+      .eq("adherent_id", adherentId)
+      .eq("statut", "echec")
+      .not("numero_echeance", "is", null)
+      .order("numero_echeance", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    "régularisation: plus ancienne échéance en échec",
+  );
   if (!echec) {
     return NextResponse.json(
       { error: "Aucune échéance en échec à régulariser." },

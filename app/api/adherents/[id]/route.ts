@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { signerDocsAdherents } from "@/lib/storage-url";
 import { sendDocumentActionRequired } from "@/lib/email";
 import { evaluerDossier } from "@/lib/dossier";
@@ -126,11 +126,10 @@ export async function PATCH(request: Request, { params }: Ctx) {
     update.statut_paiement === "paye" ||
     update.statut_paiement === "confirme_especes"
   ) {
-    const { data: cur } = await supabase
-      .from("adherents")
-      .select("engage_at")
-      .eq("id", id)
-      .maybeSingle();
+    const cur = exigerData(
+      await supabase.from("adherents").select("engage_at").eq("id", id).maybeSingle(),
+      "adhérent PATCH: lecture engage_at",
+    );
     if (cur && !cur.engage_at) update.engage_at = new Date().toISOString();
   }
 
@@ -140,11 +139,16 @@ export async function PATCH(request: Request, { params }: Ctx) {
   // l'admin déclenchera l'envoi via le bouton (il garde la main sur le moment).
   const CHAMPS_DOCS = ["nom", "prenom", "date_naissance"] as const;
   if (CHAMPS_DOCS.some((k) => k in update)) {
-    const { data: avant } = await supabase
-      .from("adherents")
-      .select("nom, prenom, date_naissance")
-      .eq("id", id)
-      .maybeSingle();
+    // Une erreur avalée ici manquerait le déclencheur de re-signature (les flags
+    // ne seraient pas levés alors que l'identité a changé). exigerData lève.
+    const avant = exigerData(
+      await supabase
+        .from("adherents")
+        .select("nom, prenom, date_naissance")
+        .eq("id", id)
+        .maybeSingle(),
+      "adhérent PATCH: lecture identité (re-signature)",
+    );
     const change =
       !!avant &&
       CHAMPS_DOCS.some(

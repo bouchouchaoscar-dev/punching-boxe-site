@@ -3,6 +3,7 @@ import {
   getSupabaseAdmin,
   isSupabaseConfigured,
   STORAGE_BUCKET,
+  exigerData,
 } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 
@@ -29,11 +30,14 @@ export async function POST(request: Request, { params }: Ctx) {
   const supabase = getSupabaseAdmin();
 
   // 1) Existence + champs nécessaires au garde-fou "argent encaissé".
-  const { data: adherent } = await supabase
-    .from("adherents")
-    .select("id, statut_paiement, echeances_payees, montant_rembourse")
-    .eq("id", id)
-    .maybeSingle();
+  const adherent = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, statut_paiement, echeances_payees, montant_rembourse")
+      .eq("id", id)
+      .maybeSingle(),
+    "supprimer: lecture adhérent",
+  );
   if (!adherent) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }
@@ -47,12 +51,17 @@ export async function POST(request: Request, { params }: Ctx) {
     Number(adherent.montant_rembourse ?? 0) > 0;
 
   if (!aArgentEncaisse) {
-    const { data: pays } = await supabase
-      .from("paiements")
-      .select("id")
-      .eq("adherent_id", id)
-      .in("statut", ["paye", "rembourse"])
-      .limit(1);
+    // CRITIQUE : une erreur avalée ici laisserait aArgentEncaisse=false → on
+    // autoriserait la suppression d'un dossier AYANT encaissé. exigerData lève.
+    const pays = exigerData(
+      await supabase
+        .from("paiements")
+        .select("id")
+        .eq("adherent_id", id)
+        .in("statut", ["paye", "rembourse"])
+        .limit(1),
+      "supprimer: garde-fou argent encaissé",
+    );
     aArgentEncaisse = (pays?.length ?? 0) > 0;
   }
 

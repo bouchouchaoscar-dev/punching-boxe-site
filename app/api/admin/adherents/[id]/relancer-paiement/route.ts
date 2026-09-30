@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { sendRelancePanier } from "@/lib/email";
 import { estPaiementAFinaliser } from "@/lib/paiement";
@@ -24,11 +24,14 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase
-    .from("adherents")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
+  const data = exigerData(
+    await supabase
+      .from("adherents")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle(),
+    "relance paiement: lecture adhérent",
+  );
   if (!data) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { saisonCourante } from "@/lib/saison";
 import { classerAncien, statutAge, type ClasseAncien } from "@/lib/anciennete";
@@ -14,7 +14,10 @@ async function paginate(
   let all: any[] = [];
   let from = 0;
   for (;;) {
-    const { data } = await supabase.from(table).select(cols).range(from, from + 999);
+    const data = exigerData(
+      await supabase.from(table).select(cols).range(from, from + 999),
+      "anciens: page",
+    );
     if (!data || !data.length) break;
     all = all.concat(data);
     if (data.length < 1000) break;

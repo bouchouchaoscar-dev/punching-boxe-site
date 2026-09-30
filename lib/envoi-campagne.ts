@@ -18,6 +18,7 @@ import {
 } from "./campagnes";
 import { saisonCourante } from "./saison";
 import { estEmailValide } from "./email-format";
+import { exigerData } from "./supabase";
 import type { Adherent } from "./types";
 
 // Recette d'une campagne : la cible (segments/listes) + le message. C'est ce qui
@@ -162,7 +163,10 @@ export async function envoyerCampagne(
 
   let adherents: Adherent[] = [];
   if (smartLists.length > 0 || manualEmails.length > 0) {
-    const { data } = await supabase.from("adherents").select("*");
+    const data = exigerData(
+      await supabase.from("adherents").select("*"),
+      "campagne: select adhérents (smart-lists/manuels)",
+    );
     adherents = (data ?? []) as Adherent[];
   }
   const adherentPersonne = (a: Adherent): PersonneEnvoi => ({
@@ -194,9 +198,10 @@ export async function envoyerCampagne(
   for (const p of recette.manualPersonnes ?? []) addPersonne(p);
 
   if (recette.includeContacts) {
-    const { data } = await supabase
-      .from("contacts_mailing")
-      .select("id, email, prenom, nom");
+    const data = exigerData(
+      await supabase.from("contacts_mailing").select("id, email, prenom, nom"),
+      "campagne: select contacts_mailing",
+    );
     for (const c of data ?? [])
       addPersonne({
         personKey: `contact:${c.id}`,
@@ -209,14 +214,19 @@ export async function envoyerCampagne(
 
   let exclusSansEmail = 0;
   if (anciensSegments.length > 0) {
-    const { data: rec } = await supabase
-      .from("anciens_recence")
-      .select("id, nom, prenom, email, derniere_saison, disciplines");
+    const rec = exigerData(
+      await supabase
+        .from("anciens_recence")
+        .select("id, nom, prenom, email, derniere_saison, disciplines"),
+      "campagne: select anciens_recence",
+    );
     const anciens = (rec ?? []) as AncienRecence[];
-    const { data: migr } = await supabase
-      .from("adherents")
-      .select("ancien_id")
-      .not("ancien_id", "is", null);
+    // Exclusion des anciens DÉJÀ migrés (réinscrits) : une erreur avalée ici les
+    // ferait re-mailer → on lève.
+    const migr = exigerData(
+      await supabase.from("adherents").select("ancien_id").not("ancien_id", "is", null),
+      "campagne: select anciens migrés (exclusion)",
+    );
     const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
     for (const a of filtrerAnciens(anciens, anciensSegments, disciplines, saisonRef)) {
       if (migres.has(a.id)) continue;
@@ -256,12 +266,17 @@ export async function envoyerCampagne(
   // désinscrits RGPD + adresses bouncées (rejetées). Couvre TOUTES les sources
   // (adhérents, anciens, contacts, emails manuels) : aucune campagne ne peut
   // partir vers une adresse marquée. Point unique, comme desinscriptions_mailing.
-  const { data: optouts } = await supabase
-    .from("desinscriptions_mailing")
-    .select("email");
-  const { data: bounces } = await supabase
-    .from("emails_bounced")
-    .select("email");
+  // PORTE RGPD : une erreur avalée ici viderait la liste d'exclusion → des
+  // désinscrits / adresses bouncées seraient re-mailés. On LÈVE (jamais d'envoi
+  // sur une exclusion silencieusement perdue). Cf. LESSONS.md.
+  const optouts = exigerData(
+    await supabase.from("desinscriptions_mailing").select("email"),
+    "campagne: select désinscriptions (RGPD)",
+  );
+  const bounces = exigerData(
+    await supabase.from("emails_bounced").select("email"),
+    "campagne: select emails bouncés",
+  );
   const desinscrits = new Set([
     ...(optouts ?? []).map((o) => String(o.email).toLowerCase()),
     ...(bounces ?? []).map((b) => String(b.email).toLowerCase()),

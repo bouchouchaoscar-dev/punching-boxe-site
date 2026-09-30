@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif, coursOuverts, partiesParis } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
@@ -38,10 +38,13 @@ export async function GET(request: Request) {
   );
 
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
-  const { data: presRows } = await supabase
-    .from("presences")
-    .select("id, cours_id, date_seance, dossier_id, essai_id, source, created_at, created_by")
-    .eq("date_seance", date);
+  const presRows = exigerData(
+    await supabase
+      .from("presences")
+      .select("id, cours_id, date_seance, dossier_id, essai_id, source, created_at, created_by")
+      .eq("date_seance", date),
+    "présence jour: présences",
+  );
   const lignes = await construireLignesAdmin(supabase, (presRows ?? []) as PresenceRow[], disciplineByCours);
 
   const blocs = coursDuJour

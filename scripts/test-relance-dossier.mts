@@ -88,7 +88,7 @@ check("filtre les emails invalides (estEmailValide)", fn.includes("estEmailValid
 check("claim atomique .is(col, null)", fn.includes(".is(col, null)"));
 check("exclusions vérifiées AVANT le claim", fn.indexOf("exclusions.has(email)") < fn.indexOf(".is(col, null)"));
 // L'erreur de requête NE doit JAMAIS être avalée en `data ?? []` (cause du faux 0).
-check("erreur de select remontée (throw), pas avalée", fn.includes("if (error) throw"));
+check("erreur de select remontée (exigerData), pas avalée", fn.includes("exigerData("));
 check("signature accepte dryRun", fn.includes("relancerDossiersSansPaiement(dryRun = false)"));
 check("dryRun n'écrit/n'envoie rien (return avant claim/send)", fn.indexOf("if (dryRun)") < fn.indexOf(".update({ [col]"));
 

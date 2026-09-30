@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { buildResignatureUrl, type ResignDoc } from "@/lib/resignature-link";
 import { sendDemandeResignature } from "@/lib/email";
@@ -38,11 +38,14 @@ export async function POST(request: Request, { params }: Ctx) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: adherent } = await supabase
-    .from("adherents")
-    .select("id, prenom, email")
-    .eq("id", id)
-    .maybeSingle();
+  const adherent = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, prenom, email")
+      .eq("id", id)
+      .maybeSingle(),
+    "demander re-signature: lecture adhérent",
+  );
   if (!adherent) {
     return NextResponse.json({ error: "Dossier introuvable." }, { status: 404 });
   }

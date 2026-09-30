@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { hasRole } from "@/lib/admin-guard";
 import { presenceActif, partiesParis, construireLignesCoachPresence } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
@@ -34,10 +34,13 @@ export async function GET(request: Request) {
   const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
 
-  const { data: presRows } = await supabase
-    .from("presences")
-    .select("id, cours_id, date_seance, dossier_id, essai_id, created_at")
-    .eq("date_seance", date);
+  const presRows = exigerData(
+    await supabase
+      .from("presences")
+      .select("id, cours_id, date_seance, dossier_id, essai_id, created_at")
+      .eq("date_seance", date),
+    "coach présence: présences",
+  );
   const pres = presRows ?? [];
 
   const dossierIds = [...new Set(pres.map((p) => p.dossier_id).filter(Boolean))] as string[];

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -14,11 +14,14 @@ export async function GET(_req: Request, { params }: Ctx) {
   }
   const supabase = getSupabaseAdmin();
 
-  const { data: cur } = await supabase
-    .from("adherents")
-    .select("titulaire_id, foyer_id")
-    .eq("id", id)
-    .maybeSingle();
+  const cur = exigerData(
+    await supabase
+      .from("adherents")
+      .select("titulaire_id, foyer_id")
+      .eq("id", id)
+      .maybeSingle(),
+    "famille: adhérent courant",
+  );
 
   // Pas de titulaire (anciens dossiers) → pas de foyer.
   if (!cur?.titulaire_id) {

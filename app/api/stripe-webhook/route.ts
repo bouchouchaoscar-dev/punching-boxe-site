@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin, exigerData } from "@/lib/supabase";
 import { sendAdminAlertePaiement } from "@/lib/email";
 import {
   marquerEcheancePayee,
@@ -53,11 +53,14 @@ export async function POST(request: Request) {
       if (!found && intent.metadata?.adherentId) {
         const adherentId = intent.metadata.adherentId;
         const supabase = getSupabaseAdmin();
-        const { data: adh } = await supabase
-          .from("adherents")
-          .select("prenom, nom, montant_total, stripe_payment_intent_id")
-          .eq("id", adherentId)
-          .maybeSingle();
+        const adh = exigerData(
+          await supabase
+            .from("adherents")
+            .select("prenom, nom, montant_total, stripe_payment_intent_id")
+            .eq("id", adherentId)
+            .maybeSingle(),
+          "webhook filet 1x: lecture adhérent (PI courant)",
+        );
         if (adh && intent.id === adh.stripe_payment_intent_id) {
           await markAdherentPaid(adherentId, intent.id);
         } else {

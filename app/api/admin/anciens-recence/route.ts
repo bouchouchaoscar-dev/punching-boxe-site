@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 
 export const runtime = "nodejs";
@@ -20,16 +20,24 @@ export async function GET(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Anciens déjà réinscrits (représentés par leur dossier natif) → exclus des comptes.
-  const { data: migr } = await supabase
-    .from("adherents")
-    .select("ancien_id")
-    .not("ancien_id", "is", null);
+  // Une erreur avalée ici sous-estimerait les réinscrits → anciens déjà migrés
+  // recomptés à tort comme ciblables. exigerData lève.
+  const migr = exigerData(
+    await supabase
+      .from("adherents")
+      .select("ancien_id")
+      .not("ancien_id", "is", null),
+    "anciens recensés: exclusion des ancien_id déjà migrés",
+  );
   const migres = new Set((migr ?? []).map((m) => m.ancien_id as string));
 
   // Adresses bouncées : reflet du filtre d'envoi dans le compteur. Un ancien
   // dont l'email est bouncé est compté comme "sans email" (non ciblable), pour
   // que "X affichés" = "X réellement envoyés".
-  const { data: bounces } = await supabase.from("emails_bounced").select("email");
+  const bounces = exigerData(
+    await supabase.from("emails_bounced").select("email"),
+    "anciens recensés: emails bouncés",
+  );
   const bounced = new Set(
     (bounces ?? []).map((b) => String(b.email).toLowerCase()),
   );

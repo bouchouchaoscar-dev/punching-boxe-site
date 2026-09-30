@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { annulerEcheances, allouerRemboursement } from "@/lib/payments";
 import { sendRemboursement, sendFinInscription } from "@/lib/email";
@@ -53,11 +53,14 @@ export async function POST(request: Request, { params }: Ctx) {
 
   // --- Idempotence (ceinture n°1) : actionId = clé primaire. Déjà traité → on
   // renvoie l'état connu, on NE rejoue PAS. ---
-  const { data: existing } = await supabase
-    .from("remboursements")
-    .select("*")
-    .eq("id", actionId)
-    .maybeSingle();
+  const existing = exigerData(
+    await supabase
+      .from("remboursements")
+      .select("*")
+      .eq("id", actionId)
+      .maybeSingle(),
+    "gérer-paiement: idempotence lookup remboursement",
+  );
   if (existing) {
     return NextResponse.json({
       success: existing.statut === "fait",
@@ -94,20 +97,28 @@ export async function POST(request: Request, { params }: Ctx) {
   };
 
   try {
-    const { data: adherent } = await supabase
-      .from("adherents")
-      .select("id, email, prenom")
-      .eq("id", id)
-      .maybeSingle();
+    const adherent = exigerData(
+      await supabase
+        .from("adherents")
+        .select("id, email, prenom")
+        .eq("id", id)
+        .maybeSingle(),
+      "gérer-paiement: lookup adhérent",
+    );
     if (!adherent) return await fail(404, "Dossier introuvable.");
 
     // Lignes encaissées (montant - déjà remboursé). Carte = avec PaymentIntent ;
     // espèces = ligne d'encaissement sans PI (créée à la confirmation espèces).
-    const { data: echRows } = await supabase
-      .from("paiements")
-      .select("id, montant, montant_rembourse, stripe_payment_intent_id, numero_echeance")
-      .eq("adherent_id", id)
-      .eq("statut", "paye");
+    // CRITIQUE : une erreur avalée ici donnerait 0 ligne encaissée → montant
+    // remboursable calculé à tort à 0. exigerData lève.
+    const echRows = exigerData(
+      await supabase
+        .from("paiements")
+        .select("id, montant, montant_rembourse, stripe_payment_intent_id, numero_echeance")
+        .eq("adherent_id", id)
+        .eq("statut", "paye"),
+      "gérer-paiement: lignes encaissées",
+    );
     const aRemb = (e: { montant: number; montant_rembourse: number }) =>
       round2(Number(e.montant || 0) - Number(e.montant_rembourse || 0));
     const stripeRows = (echRows ?? [])
@@ -191,11 +202,12 @@ export async function POST(request: Request, { params }: Ctx) {
       }
     }
 
-    // Cumul dossier = somme des montant_rembourse (carte + espèces).
-    const { data: allP } = await supabase
-      .from("paiements")
-      .select("montant_rembourse")
-      .eq("adherent_id", id);
+    // Cumul dossier = somme des montant_rembourse (carte + espèces). Une erreur
+    // avalée ici écraserait le cumul à 0. exigerData lève.
+    const allP = exigerData(
+      await supabase.from("paiements").select("montant_rembourse").eq("adherent_id", id),
+      "gérer-paiement: cumul remboursements",
+    );
     const totalRemb = round2(
       (allP ?? []).reduce((s, r) => s + Number(r.montant_rembourse || 0), 0),
     );
