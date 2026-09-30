@@ -31,10 +31,6 @@ export async function renderReglementPdf(data: ReglementData): Promise<Buffer> {
   return renderToBuffer(<ReglementInterieurDoc data={data} />);
 }
 
-export function pdfHeaders(filename: string, inline = true): HeadersInit {
-  return {
-    "Content-Type": "application/pdf",
-    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${filename}"`,
-    "Cache-Control": "public, max-age=3600",
-  };
-}
+// En-têtes PDF (sûr par défaut) — définis dans ./headers (sans JSX) et ré-exportés
+// ici pour compatibilité des imports existants (@/lib/pdf/render).
+export { pdfHeaders, pdfHeadersPublic } from "./headers";

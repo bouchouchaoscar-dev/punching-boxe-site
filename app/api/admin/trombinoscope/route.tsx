@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="trombinoscope-punching-boxe.pdf"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store, max-age=0",
     },
   });
 }

@@ -34,7 +34,7 @@ export async function GET(request: Request, { params }: Ctx) {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${res.filename}"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, no-store, max-age=0",
     },
   });
 }

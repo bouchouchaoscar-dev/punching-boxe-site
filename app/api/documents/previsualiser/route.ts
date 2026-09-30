@@ -12,7 +12,7 @@ function pdfResponse(buf: Buffer, filename: string) {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store, max-age=0",
+      "Cache-Control": "private, no-store, max-age=0",
     },
   });
 }

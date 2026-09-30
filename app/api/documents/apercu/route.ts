@@ -1,4 +1,4 @@
-import { renderFichePdf, renderReglementPdf, pdfHeaders } from "@/lib/pdf/render";
+import { renderFichePdf, renderReglementPdf, pdfHeadersPublic } from "@/lib/pdf/render";
 import type { FicheData, SignatureVect } from "@/lib/pdf/types";
 
 export const runtime = "nodejs";
@@ -61,12 +61,12 @@ export async function GET(request: Request) {
       dateSignature: new Date().toISOString(),
     });
     return new Response(new Uint8Array(buf), {
-      headers: pdfHeaders("apercu-reglement.pdf"),
+      headers: pdfHeadersPublic("apercu-reglement.pdf"),
     });
   }
 
   const buf = await renderFichePdf(SAMPLE_FICHE(mineur));
   return new Response(new Uint8Array(buf), {
-    headers: pdfHeaders("apercu-fiche.pdf"),
+    headers: pdfHeadersPublic("apercu-fiche.pdf"),
   });
 }
