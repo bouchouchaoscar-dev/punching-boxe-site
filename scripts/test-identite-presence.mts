@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { memeIdentite, trouverDossierCorrespondant, attacherPresenceEssai, type DossierPresence } from "../lib/presence-server";
+import { memeIdentite, trouverDossierCorrespondant, attacherPresenceEssai, retirerPresence, type DossierPresence } from "../lib/presence-server";
 
 let ok = 0, ko = 0;
 const check = (l: string, c: boolean, g?: unknown) => {
@@ -100,6 +100,69 @@ console.log("\n== Rattachement au dossier : sur le triplet, jamais sur l'email d
   check("la personne du dossier (même triplet) → rattachée au dossier", ilan.ok && ilan.surDossier === true && ilan.dossierId === "D1", ilan);
 }
 
+console.log("\n== Retrait d'une présence d'essai : suppression si c'était la dernière ==");
+// Faux Supabase pour retirerPresence : présences + essais en mémoire, avec
+// select().eq().maybeSingle(), delete().eq(), et select(count:head).eq().
+function fakeRetrait(presences: Record<string, unknown>[], essais: Record<string, unknown>[]) {
+  const api = {
+    from(table: string) {
+      const store = table === "presences" ? presences : essais;
+      return {
+        select: (_c?: unknown, opts?: { count?: string; head?: boolean }) => ({
+          eq(col: string, val: unknown) {
+            const found = store.filter((r) => r[col] === val);
+            if (opts?.head) return { then: (r: (v: unknown) => unknown) => Promise.resolve({ data: null, count: found.length, error: null }).then(r) };
+            return {
+              maybeSingle: async () => ({ data: found[0] ?? null, error: null }),
+              then: (r: (v: unknown) => unknown) => Promise.resolve({ data: found, error: null }).then(r),
+            };
+          },
+        }),
+        delete: () => ({
+          eq: async (col: string, val: unknown) => {
+            const garde = store.filter((r) => r[col] !== val);
+            store.length = 0; store.push(...garde);
+            return { error: null };
+          },
+        }),
+      };
+    },
+  };
+  return api as unknown as Parameters<typeof retirerPresence>[0];
+}
+
+{
+  // Essai avec une SEULE présence → essai supprimé.
+  const essais = [{ id: "E1" }];
+  const presences = [{ id: "P1", essai_id: "E1", dossier_id: null }];
+  const r = await retirerPresence(fakeRetrait(presences, essais), "P1");
+  check("dernière présence d'essai retirée → essai supprimé", r.ok && r.essaiSupprime === true, r);
+  check("présence retirée", presences.length === 0);
+  check("fiche d'essai supprimée", essais.length === 0);
+}
+{
+  // Essai avec DEUX présences → on retire une seule, l'essai reste.
+  const essais = [{ id: "E2" }];
+  const presences = [{ id: "P1", essai_id: "E2", dossier_id: null }, { id: "P2", essai_id: "E2", dossier_id: null }];
+  const r = await retirerPresence(fakeRetrait(presences, essais), "P1");
+  check("essai à 2 présences → seule la présence retirée", r.ok && r.essaiSupprime === false, r);
+  check("l'autre présence subsiste", presences.length === 1 && presences[0].id === "P2");
+  check("fiche d'essai conservée", essais.length === 1);
+}
+{
+  // Présence d'ADHÉRENT → aucun effet sur un essai/dossier.
+  const essais: Record<string, unknown>[] = [];
+  const presences = [{ id: "P1", essai_id: null, dossier_id: "D1" }];
+  const r = await retirerPresence(fakeRetrait(presences, essais), "P1");
+  check("présence d'adhérent retirée → essaiSupprime false", r.ok && r.essaiSupprime === false, r);
+  check("présence d'adhérent bien retirée (aucun autre effet)", presences.length === 0);
+}
+{
+  // Idempotence : présence déjà retirée → ok, rien supprimé.
+  const r = await retirerPresence(fakeRetrait([], []), "ABSENTE");
+  check("présence inexistante → ok, idempotent", r.ok && r.essaiSupprime === false, r);
+}
+
 console.log("\n== Garde-fous statiques (cron relances / conversion) ==");
 const here = dirname(fileURLToPath(import.meta.url));
 const cron = readFileSync(join(here, "../app/api/cron/presence/route.ts"), "utf8");
@@ -111,6 +174,11 @@ check("un seul envoi par groupe (personnes: reserves.map…)", cron.includes("pe
 
 const essaiDossier = readFileSync(join(here, "../app/api/admin/presence/essai-dossier/route.ts"), "utf8");
 check("badge fiche : rattachement par matchKey (pas par email)", essaiDossier.includes("matchKey(") && !/normaliserEmail/.test(essaiDossier));
+
+const retirerRoute = readFileSync(join(here, "../app/api/admin/presence/retirer/route.ts"), "utf8");
+check("retrait : route déléguée à retirerPresence (source unique)", retirerRoute.includes("retirerPresence(supabase, id)"));
+const presenceUI = readFileSync(join(here, "../components/admin/Presence.tsx"), "utf8");
+check("modale : avertit de la suppression de la fiche d'essai", presenceUI.includes("sa fiche d'essai sera supprimée et elle ne recevra pas de relance"));
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

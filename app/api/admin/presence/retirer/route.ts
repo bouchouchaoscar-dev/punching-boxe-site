@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif } from "@/lib/presence";
+import { retirerPresence } from "@/lib/presence-server";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,9 @@ export async function POST(request: Request) {
   if (!id) return NextResponse.json({ error: "Présence requise." }, { status: 400 });
 
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from("presences").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: "Retrait impossible." }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  // Retrait + suppression de la fiche d'essai si c'était sa dernière présence
+  // (→ plus de relances), via la logique partagée (source unique).
+  const r = await retirerPresence(supabase, id);
+  if (!r.ok) return NextResponse.json({ error: r.error ?? "Retrait impossible." }, { status: 500 });
+  return NextResponse.json({ ok: true, essaiSupprime: r.essaiSupprime });
 }

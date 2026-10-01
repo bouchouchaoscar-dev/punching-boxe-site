@@ -189,7 +189,13 @@ function PresenceVue({ readOnly = false }: { readOnly?: boolean }) {
       {aRetirer && !readOnly && (
         <ConfirmDialog
           title="Retirer cette présence ?"
-          message={`${aRetirer.prenom} ${aRetirer.nom} ne sera plus compté(e) sur cette séance.`}
+          message={
+            // Essai dont c'est l'unique présence (pas « déjà utilisé » = pas d'autre
+            // séance) → la fiche d'essai sera supprimée et les relances cesseront.
+            aRetirer.essai && !aRetirer.essaiDejaUtilise
+              ? `${aRetirer.prenom} ${aRetirer.nom} ne sera plus compté(e) sur cette séance. Cette personne était en séance d'essai : sa fiche d'essai sera supprimée et elle ne recevra pas de relance.`
+              : `${aRetirer.prenom} ${aRetirer.nom} ne sera plus compté(e) sur cette séance.`
+          }
           confirmLabel="Retirer" variant="danger" busy={busy}
           onCancel={() => setARetirer(null)} onConfirm={retirer}
         />

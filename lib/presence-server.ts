@@ -111,6 +111,42 @@ export function trouverDossierCorrespondant(
   return dossiers.find((d) => matchKey(d.nom ?? "", d.prenom ?? "", d.date_naissance) === cle) ?? null;
 }
 
+/**
+ * Retrait admin d'une présence. Si la présence est liée à un ESSAI et que c'était
+ * sa DERNIÈRE présence, on supprime aussi la fiche d'essai (→ plus de relances) —
+ * cohérent avec la modale de confirmation. Si l'essai a d'autres présences, seule
+ * la présence est retirée. Une présence d'adhérent n'affecte jamais le dossier.
+ * Idempotent (présence déjà retirée → ok).
+ */
+export async function retirerPresence(
+  supabase: SupabaseClient,
+  presenceId: string,
+): Promise<{ ok: boolean; essaiSupprime: boolean; error?: string }> {
+  const pres = exigerData(
+    await supabase.from("presences").select("essai_id, dossier_id").eq("id", presenceId).maybeSingle(),
+    "retirer: lecture présence",
+  );
+  if (!pres) return { ok: true, essaiSupprime: false }; // déjà retirée
+
+  const { error: delErr } = await supabase.from("presences").delete().eq("id", presenceId);
+  if (delErr) return { ok: false, essaiSupprime: false, error: "Retrait impossible." };
+
+  const essaiId = (pres.essai_id as string | null) ?? null;
+  if (!essaiId) return { ok: true, essaiSupprime: false }; // présence d'adhérent
+
+  // Reste-t-il des présences pour cet essai ? Si non → suppression de l'essai.
+  const { count, error: cErr } = await supabase
+    .from("presences")
+    .select("id", { count: "exact", head: true })
+    .eq("essai_id", essaiId);
+  if (cErr) return { ok: true, essaiSupprime: false }; // présence déjà retirée, on n'échoue pas
+  if ((count ?? 0) === 0) {
+    await supabase.from("essais").delete().eq("id", essaiId);
+    return { ok: true, essaiSupprime: true };
+  }
+  return { ok: true, essaiSupprime: false };
+}
+
 // ---------------------------------------------------------------------------
 // Attache une présence de type « essai » à un cours DÉJÀ RÉSOLU (source unique,
 // partagée par la route publique /api/presence/essai et l'ajout admin). Règles :
