@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { hasRole } from "@/lib/admin-guard";
-import { presenceActif, partiesParis, construireLignesCoachPresence } from "@/lib/presence";
+import { presenceActif, partiesParis, construireLignesCoachPresence, coursOuverts, comparerBlocsPresence } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
 import { classerDossier, categoriesDeLigne, CATEGORIES, heureParis, type LigneAdmin, type Categorie } from "@/lib/presence-admin";
 import { photoDataUri } from "@/lib/trombi-server";
@@ -30,9 +30,16 @@ export async function GET(request: Request) {
   })();
 
   const supabase = getSupabaseAdmin();
-  const { cours } = await chargerPlanning(supabase);
+  const { cours, periodes } = await chargerPlanning(supabase);
   const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
+
+  // Détection « en cours » IDENTIQUE à l'admin (même fenêtre coursOuverts), et
+  // seulement si la date demandée est aujourd'hui.
+  const estAujourdhui = date === partiesParis(now).iso;
+  const ouvertsIds = new Set(
+    estAujourdhui ? coursOuverts(now, { cours, periodes }).map((o) => o.cours.id) : [],
+  );
 
   const presRows = exigerData(
     await supabase
@@ -96,10 +103,12 @@ export async function GET(request: Request) {
         id: c.id, libelle: c.libelle, discipline: disciplineLabel(c.discipline),
         public: publicLabel(c.type_adherent),
         horaire: `${formatHeure(c.heure_debut)} – ${formatHeure(c.heure_fin)}`,
-        heureDebut: c.heure_debut, salle: c.salle, nbPresents: rich.length, compteurs, lignes,
+        heureDebut: c.heure_debut, heureFin: c.heure_fin, salle: c.salle,
+        ouvert: ouvertsIds.has(c.id), nbPresents: rich.length, compteurs, lignes,
       };
     })
-    .sort((a, b) => (a.heureDebut ?? "").localeCompare(b.heureDebut ?? ""));
+    // Même ordre que l'admin : en cours → à venir → passés (puis horaire).
+    .sort((a, b) => comparerBlocsPresence(a, b, estAujourdhui ? partiesParis(now).minutes : -1));
 
   return NextResponse.json({ date, cours: blocs }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -10,6 +10,9 @@ import {
   chercherAdherentsPublic,
   mailRelanceEssai,
   construireLignesCoachPresence,
+  comparerBlocsPresence,
+  rangCoursPresence,
+  heureEnMinutes,
   type CoursOuvert,
 } from "../lib/presence";
 import { MSG_PRESENCES_COURS, adherentDansDiscipline, type Cours, type PeriodeFermeture } from "../lib/planning";
@@ -225,6 +228,59 @@ console.log("[Présence — liste blanche coach]");
   const blob = JSON.stringify(lignes);
   // Doit ÉCHOUER si un montant, email, téléphone ou date de naissance fuit.
   check(!/leak@x\.fr|430|0600000000|2010-05-01|montant|"email"|telephone|date_naissance|mode_paiement|stripe|signed\.example/.test(blob), "coach : aucune donnée sensible (montant/email/tél/naissance)", blob);
+}
+
+// ---- Ordre « en cours → à venir → passés » partagé admin ↔ coach ----
+console.log("[Présence — tri en cours/à venir/passés (partagé)]");
+{
+  check(heureEnMinutes("19:30") === 19 * 60 + 30, "heureEnMinutes HH:MM");
+  check(heureEnMinutes("19:30:00") === 19 * 60 + 30, "heureEnMinutes HH:MM:SS");
+  check(heureEnMinutes(null) === null, "heureEnMinutes vide → null");
+
+  // À 19:45 : un cours en cours, un à venir (20:30), un passé (fini 19:00).
+  const now = 19 * 60 + 45;
+  const enCours = { ouvert: true, heureDebut: "19:00", heureFin: "20:00" };
+  const aVenir = { ouvert: false, heureDebut: "20:30", heureFin: "21:30" };
+  const passe = { ouvert: false, heureDebut: "18:00", heureFin: "19:00" };
+  check(rangCoursPresence(enCours, now) === 0, "rang : en cours = 0");
+  check(rangCoursPresence(aVenir, now) === 1, "rang : à venir = 1");
+  check(rangCoursPresence(passe, now) === 2, "rang : passé = 2");
+  const ordre = [passe, aVenir, enCours].sort((a, b) => comparerBlocsPresence(a, b, now));
+  check(ordre[0] === enCours && ordre[1] === aVenir && ordre[2] === passe, "ordre = en cours, à venir, passé", ordre.map((x) => x.heureDebut));
+
+  // Deux cours à venir → ordre horaire.
+  const t1 = { ouvert: false, heureDebut: "20:00", heureFin: "21:00" };
+  const t2 = { ouvert: false, heureDebut: "20:30", heureFin: "21:30" };
+  const ordre2 = [t2, t1].sort((a, b) => comparerBlocsPresence(a, b, now));
+  check(ordre2[0] === t1 && ordre2[1] === t2, "à venir triés par horaire");
+
+  // Changement d'heure : le cours de 20:30 devient « en cours » → passe en tête.
+  const now2 = 20 * 60 + 40;
+  const a2 = { ouvert: true, heureDebut: "20:30", heureFin: "21:30" };
+  const b2 = { ouvert: false, heureDebut: "19:00", heureFin: "20:00" }; // désormais passé
+  const ordre3 = [b2, a2].sort((a, b) => comparerBlocsPresence(a, b, now2));
+  check(ordre3[0] === a2 && rangCoursPresence(b2, now2) === 2, "badge/tri suivent l'heure : nouveau cours en tête");
+
+  // Date ≠ aujourd'hui (nowMinutes < 0) → tri horaire simple, aucun « passé ».
+  check(rangCoursPresence(passe, -1) === 1, "date passée : pas de distinction passé/à venir");
+}
+
+// ---- Admin et coach partagent détection + tri (garde-fou statique) ----
+console.log("[Présence — admin ↔ coach : même logique]");
+{
+  const read = (p: string) => readFileSync(p, "utf8");
+  const admin = read("app/api/admin/presence/jour/route.ts");
+  const coach = read("app/api/coach/presence/route.ts");
+  check(admin.includes("coursOuverts(now"), "admin : détection via coursOuverts");
+  check(admin.includes("comparerBlocsPresence(a, b"), "admin : tri partagé comparerBlocsPresence");
+  check(coach.includes("coursOuverts(now"), "coach : détection via coursOuverts (même fenêtre)");
+  check(coach.includes("ouvert: ouvertsIds.has(c.id)"), "coach : bloc expose `ouvert`");
+  check(coach.includes("comparerBlocsPresence(a, b"), "coach : tri partagé comparerBlocsPresence");
+  // Anti-fuite : seuls `ouvert` (booléen) et `heureFin` (horaire, déjà public via
+  // `horaire`) ont été ajoutés au bloc coach — aucun champ sensible.
+  const iRet = coach.indexOf("return {", coach.indexOf("const compteurs = compteursVides"));
+  const blocCoach = coach.slice(iRet, coach.indexOf("Même ordre que l'admin"));
+  check(!/email|telephone|montant|date_naissance|stripe_customer/.test(blocCoach), "coach : aucun champ sensible ajouté au bloc", blocCoach);
 }
 
 // ---- Garde-fous des routes (module off + idempotence) ----

@@ -25,6 +25,45 @@ function norm(s: string | null | undefined): string {
     .trim();
 }
 
+// ---- Ordre d'affichage des cours dans l'onglet Présence (SOURCE UNIQUE,
+// partagée admin ↔ coach) : cours EN COURS d'abord, puis les cours À VENIR dans
+// l'ordre horaire, puis les cours PASSÉS. Détection « en cours » = coursOuverts
+// (même fenêtre). Fonctions PURES (testables). --------------------------------
+
+// Minutes depuis minuit d'une heure "HH:MM" ou "HH:MM:SS" (null si vide/invalide).
+export function heureEnMinutes(h?: string | null): number | null {
+  if (!h) return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(h);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+
+export type BlocOrdonnable = {
+  ouvert?: boolean;
+  heureDebut?: string | null;
+  heureFin?: string | null;
+};
+
+// Rang d'un cours : 0 = en cours, 1 = à venir, 2 = passé. `nowMinutes < 0`
+// (date ≠ aujourd'hui) → aucun passé/à venir distingué (tri horaire simple).
+export function rangCoursPresence(b: BlocOrdonnable, nowMinutes: number): 0 | 1 | 2 {
+  if (b.ouvert) return 0;
+  const fin = heureEnMinutes(b.heureFin);
+  if (nowMinutes >= 0 && fin !== null && fin <= nowMinutes) return 2;
+  return 1;
+}
+
+// Comparateur de tri (en cours → à venir → passé, puis horaire croissant).
+export function comparerBlocsPresence(
+  a: BlocOrdonnable,
+  b: BlocOrdonnable,
+  nowMinutes: number,
+): number {
+  return (
+    rangCoursPresence(a, nowMinutes) - rangCoursPresence(b, nowMinutes) ||
+    (a.heureDebut ?? "").localeCompare(b.heureDebut ?? "")
+  );
+}
+
 export function presenceActif(): boolean {
   return CONFIG_CLUB.modules?.presence?.actif === true;
 }

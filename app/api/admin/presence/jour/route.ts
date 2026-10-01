@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { presenceActif, coursOuverts, partiesParis } from "@/lib/presence";
+import { presenceActif, coursOuverts, partiesParis, comparerBlocsPresence } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
 import { construireLignesAdmin, categoriesDeLigne, CATEGORIES, type PresenceRow, type Categorie } from "@/lib/presence-admin";
 import { disciplineLabel, publicLabel, formatHeure } from "@/lib/planning";
@@ -59,6 +59,7 @@ export async function GET(request: Request) {
         public: publicLabel(c.type_adherent),
         horaire: `${formatHeure(c.heure_debut)} – ${formatHeure(c.heure_fin)}`,
         heureDebut: c.heure_debut,
+        heureFin: c.heure_fin,
         salle: c.salle,
         dateISO: date,
         ouvert: ouvertsIds.has(c.id),
@@ -67,11 +68,8 @@ export async function GET(request: Request) {
         lignes: l,
       };
     })
-    .sort(
-      (a, b) =>
-        Number(b.ouvert) - Number(a.ouvert) ||
-        (a.heureDebut ?? "").localeCompare(b.heureDebut ?? ""),
-    );
+    // Ordre partagé admin ↔ coach : en cours → à venir → passés (puis horaire).
+    .sort((a, b) => comparerBlocsPresence(a, b, estAujourdhui ? partiesParis(now).minutes : -1));
 
   return NextResponse.json({ date, cours: blocs }, { headers: { "Cache-Control": "no-store" } });
 }
