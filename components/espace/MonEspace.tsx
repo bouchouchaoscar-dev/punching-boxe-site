@@ -26,6 +26,7 @@ import {
   remiseFamilleActive,
   remiseFamilleBadge,
   remiseFamillePct,
+  estMineur as calcEstMineur,
 } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
@@ -66,7 +67,7 @@ const DOCS: {
   { key: "fiche_inscription_url", base: "fiche", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf", enLigne: true },
   { key: "certificat_medical_url", base: "certificat", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf,image/*" },
   { key: "reglement_url", base: "reglement", field: "reglement", label: "Règlement intérieur", accept: "application/pdf", enLigne: true },
-  { key: "photo_url", base: "photo", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
+  { key: "photo_url", base: "photo", field: "photo", label: "Photo du visage", accept: "image/jpeg,image/png" },
 ];
 
 const CONNEXION_REDIRECT =
@@ -461,6 +462,13 @@ export function MonEspace() {
                               <div className="min-w-0">
                                 <p className="text-sm font-semibold text-ink">{d.label}</p>
                                 <DocStatus statut={statut} url={urlVersion} motif={motifRefus} />
+                                {d.field === "photo" && (statut === "manquant" || statut === "refus") && (
+                                  <p className="mt-1 text-xs leading-relaxed text-smoke">
+                                    {calcEstMineur(a.date_naissance)
+                                      ? "Une photo récente de son visage, de face et bien éclairée : un selfie suffit. À défaut, sa pièce d'identité, en zoomant sur le visage."
+                                      : "Une photo récente de votre visage, de face et bien éclairée : un selfie suffit. À défaut, votre pièce d'identité, en zoomant sur le visage."}
+                                  </p>
+                                )}
                               </div>
                               {/* Fiche & règlement : signés EN LIGNE → pas de dépôt manuel. */}
                               {d.enLigne && statut === "manquant" && (

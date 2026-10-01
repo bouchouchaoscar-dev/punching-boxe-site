@@ -1174,18 +1174,25 @@ export function InscriptionForm({
                   </h3>
                   <div className="mt-3 space-y-5">
                     {/* Photo d'identité : recadrage */}
-                    <FileDrop
-                      field="photo"
-                      adherentId={adherentId}
-                      label="Photo d'identité"
-                      hint="JPG ou PNG, max 5 Mo"
-                      accept={{
-                        "image/jpeg": [".jpg", ".jpeg"],
-                        "image/png": [".png"],
-                      }}
-                      maxSizeMb={5}
-                      onChange={onFile}
-                    />
+                    <div>
+                      <FileDrop
+                        field="photo"
+                        adherentId={adherentId}
+                        label="Photo du visage"
+                        hint="JPG ou PNG — un selfie convient"
+                        accept={{
+                          "image/jpeg": [".jpg", ".jpeg"],
+                          "image/png": [".png"],
+                        }}
+                        maxSizeMb={5}
+                        onChange={onFile}
+                      />
+                      <p className="mt-1.5 text-xs leading-relaxed text-smoke">
+                        {estMineur
+                          ? "Une photo récente de son visage, de face et bien éclairée : un selfie suffit. À défaut, sa pièce d'identité, en zoomant sur le visage."
+                          : "Une photo récente de votre visage, de face et bien éclairée : un selfie suffit. À défaut, votre pièce d'identité, en zoomant sur le visage."}
+                      </p>
+                    </div>
 
                     {/* Certificat médical : upload (non bloquant) */}
                     <div>

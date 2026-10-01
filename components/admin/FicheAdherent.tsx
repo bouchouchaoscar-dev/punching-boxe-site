@@ -81,6 +81,14 @@ function estApercuImage(url: string): boolean {
   return /\.(jpe?g|png|webp)(\?|$)/i.test(url);
 }
 
+// Motifs de refus prêts à l'emploi pour la PHOTO (un clic → pré-remplit le champ,
+// modifiable avant envoi). Réutilise le mail de refus existant.
+const MOTIFS_PHOTO = [
+  "La photo doit être centrée sur votre visage. Utilisez le zoom de l'outil pour bien cadrer.",
+  "Merci de fournir une photo récente de votre visage (un selfie convient), plutôt que votre pièce d'identité entière.",
+  "Photo floue ou trop sombre. Merci d'en prendre une nouvelle, bien éclairée.",
+];
+
 export function FicheAdherent({ id }: { id: string }) {
   const router = useRouter();
   // Rôle client : la suppression est réservée à l'admin (jamais coach).
@@ -920,6 +928,21 @@ export function FicheAdherent({ id }: { id: string }) {
                     {/* Saisie du motif de refus */}
                     {enRefus && (
                       <div className="mt-3">
+                        {/* Motifs rapides pour la photo (un clic → pré-remplit, modifiable). */}
+                        {d.base === "photo" && (
+                          <div className="mb-2 flex flex-col gap-1.5">
+                            {MOTIFS_PHOTO.map((m, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setRefuseMotif(m)}
+                                className="rounded-lg border border-line bg-white px-2.5 py-1.5 text-left text-[11px] leading-snug text-ink/70 transition-colors hover:border-orange hover:text-ink"
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <textarea
                           value={refuseMotif}
                           onChange={(e) => setRefuseMotif(e.target.value)}

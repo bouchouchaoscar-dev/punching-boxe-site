@@ -3,6 +3,13 @@
 
 export type Area = { x: number; y: number; width: number; height: number };
 
+// Le cadrage a-t-il été modifié par rapport à l'état initial (zoom 1, position
+// centrée) ? Sert au rappel « le visage remplit-il le cercle ? » : on ne le
+// montre QUE si rien n'a bougé. Fonction PURE (testable).
+export function cadrageModifie(zoom: number, crop: { x: number; y: number }): boolean {
+  return zoom !== 1 || crop.x !== 0 || crop.y !== 0;
+}
+
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
