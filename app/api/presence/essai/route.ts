@@ -59,7 +59,8 @@ export async function POST(request: Request) {
   // Rattachement au cours ouvert : profil du dossier si correspondance (public +
   // discipline), sinon profil essayeur (par l'âge, toutes disciplines).
   const dossiers = await dossiersSaison(supabase, saisonCourante(new Date()));
-  const dossier = trouverDossierCorrespondant(dossiers, { email, nom, prenom, date_naissance });
+  // Rattachement au dossier existant : triplet UNIQUEMENT (jamais l'email).
+  const dossier = trouverDossierCorrespondant(dossiers, { nom, prenom, date_naissance });
   const profil = dossier ? profilDossier(dossier) : { mineur: estMineur(date_naissance), essai: true };
 
   let cible = body.coursId ? ouverts.find((o) => o.cours.id === body.coursId) : undefined;

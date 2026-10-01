@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { presenceActif } from "@/lib/presence";
-import { normaliserEmail } from "@/lib/email-format";
+import { matchKey } from "@/lib/anciennete";
 
 export const runtime = "nodejs";
 
@@ -27,25 +27,22 @@ export async function GET(request: Request) {
   );
   if (!adh) return NextResponse.json({ essai: null });
 
-  const norm = (s: string | null | undefined) =>
-    (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-
   const essais = exigerData(
     await supabase
       .from("essais")
-      .select("id, date_seance, cours_id, email, nom, prenom, date_naissance, converti_dossier_id")
+      .select("id, date_seance, cours_id, nom, prenom, date_naissance, converti_dossier_id")
       .order("date_seance", { ascending: true }),
     "essai-dossier: essais",
   );
 
-  const email = normaliserEmail(adh.email);
+  // Rattachement essai → fiche : lien explicite (converti_dossier_id) OU triplet
+  // d'identité (matchKey). JAMAIS l'email (un email = souvent une famille).
+  const cleAdh = matchKey(adh.nom ?? "", adh.prenom ?? "", adh.date_naissance);
   const match = (essais ?? []).find(
     (e) =>
       e.converti_dossier_id === id ||
-      (email && normaliserEmail(e.email as string) === email) ||
-      (norm(e.nom as string) === norm(adh.nom) &&
-        norm(e.prenom as string) === norm(adh.prenom) &&
-        e.date_naissance === adh.date_naissance),
+      (cleAdh !== null &&
+        matchKey(e.nom as string, e.prenom as string, e.date_naissance as string | null) === cleAdh),
   );
   if (!match) return NextResponse.json({ essai: null });
 

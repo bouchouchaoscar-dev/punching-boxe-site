@@ -76,11 +76,11 @@ export async function GET(request: Request) {
   let envoyes2 = 0;
   let convertis = 0;
 
-  // Un essai converti entre-temps (email/triplet = dossier saison) → on lie et on
-  // n'envoie pas. Renvoie true si converti.
+  // Un essai converti entre-temps → on lie et on n'envoie pas. CONVERSION par le
+  // TRIPLET d'identité UNIQUEMENT (jamais l'email) : l'inscription d'un enfant ne
+  // doit jamais arrêter les relances de son frère/sa sœur partageant le même email.
   async function marquerSiConverti(e: Essai): Promise<boolean> {
     const d = trouverDossierCorrespondant(dossiers, {
-      email: e.email,
       nom: e.nom,
       prenom: e.prenom,
       date_naissance: e.date_naissance,
@@ -105,26 +105,53 @@ export async function GET(request: Request) {
         : q.not("relance_1_at", "is", null).lte("date_seance", seuilRelance2);
     // Une erreur avalée ici donnerait 0 essai → relances silencieusement sautées.
     const data = exigerData(await q, "cron présence: select essais à relancer");
-    for (const e of (data ?? []) as Essai[]) {
-      // Claim atomique : seul le premier passage gagne la mise à jour.
-      const { data: claimed } = await supabase
-        .from("essais")
-        .update({ [colClaim]: new Date().toISOString() })
-        .eq("id", e.id)
-        .is(colClaim, null)
-        .select("id")
-        .maybeSingle();
-      if (!claimed) continue; // claim perdu
 
-      if (await marquerSiConverti(e)) continue; // inscrit entre-temps → stop
-      const email = normaliserEmail(e.email);
-      if (!email || exclusions.has(email)) continue; // bounce / désinscrit
+    // 1) Écarte les essais convertis entre-temps (triplet = dossier saison). Un
+    //    seul enfant inscrit sort du lot ; ses frères/sœurs restent relançables.
+    const encore: Essai[] = [];
+    for (const e of (data ?? []) as Essai[]) {
+      if (await marquerSiConverti(e)) continue;
+      encore.push(e);
+    }
+
+    // 2) Regroupe par FAMILLE = même email (normalisé) + même date de séance → un
+    //    seul mail qui nomme tout le monde (cf. mailRelanceEssai groupé).
+    const groupes = new Map<string, Essai[]>();
+    for (const e of encore) {
+      const cle = `${normaliserEmail(e.email)}|${e.date_seance}`;
+      const arr = groupes.get(cle);
+      if (arr) arr.push(e);
+      else groupes.set(cle, [e]);
+    }
+
+    // 3) Pour chaque groupe : claim idempotent PAR ESSAI (jamais deux mails pour la
+    //    même relance), puis UN SEUL envoi pour les essais effectivement réservés.
+    for (const membres of groupes.values()) {
+      const reserves: Essai[] = [];
+      for (const e of membres) {
+        const { data: claimed } = await supabase
+          .from("essais")
+          .update({ [colClaim]: new Date().toISOString() })
+          .eq("id", e.id)
+          .is(colClaim, null)
+          .select("id")
+          .maybeSingle();
+        if (claimed) reserves.push(e);
+      }
+      if (reserves.length === 0) continue; // tout a été pris par un autre passage
+
+      const email = normaliserEmail(reserves[0].email);
+      if (!email || exclusions.has(email)) continue; // bounce / désinscrit (créneau déjà réservé)
+
+      // Libellé de cours : commun si tous sur le même cours, sinon omis (on ne
+      // met pas en avant un seul cours pour une fratrie répartie).
+      const coursIds = new Set(reserves.map((e) => e.cours_id));
+      const coursLabel = coursIds.size === 1 && reserves[0].cours_id ? labelCours.get(reserves[0].cours_id) ?? null : null;
 
       await sendRelanceEssai({
         email,
-        prenom: e.prenom ?? "",
-        mineur: estMineur(e.date_naissance),
-        coursLabel: e.cours_id ? labelCours.get(e.cours_id) ?? null : null,
+        personnes: reserves.map((e) => ({ prenom: e.prenom ?? "", mineur: estMineur(e.date_naissance) })),
+        coursLabel,
         numero,
       });
       if (numero === 1) envoyes1++;

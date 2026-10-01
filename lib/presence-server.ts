@@ -4,7 +4,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { exigerData } from "./supabase";
 import { estMineur } from "./pricing";
-import { normaliserEmail } from "./email-format";
+import { matchKey } from "./anciennete";
 import { saisonCourante } from "./saison";
 import { CONFIG_CLUB } from "./config-club";
 import { disciplineLabel, publicLabel, type Cours, type PeriodeFermeture } from "./planning";
@@ -82,28 +82,33 @@ export function profilDossier(d: DossierPresence): ProfilPointage {
 }
 
 /**
- * Cherche un dossier de la saison correspondant par email normalisé OU par
- * triplet nom/prénom/naissance (mêmes clés que la reconnaissance d'ancien).
+ * IDENTITÉ = nom + prénom + date de naissance, normalisés (SOURCE UNIQUE :
+ * matchKey, la même clé que la reconnaissance d'ancien et le dédoublonnage
+ * d'inscription — casse, accents, tirets, apostrophes, espaces). L'email ne sert
+ * JAMAIS à identifier une personne (un email = souvent une FAMILLE).
+ */
+export function memeIdentite(
+  a: { nom?: string | null; prenom?: string | null; date_naissance?: string | null },
+  b: { nom?: string | null; prenom?: string | null; date_naissance?: string | null },
+): boolean {
+  const ka = matchKey(a.nom ?? "", a.prenom ?? "", a.date_naissance);
+  const kb = matchKey(b.nom ?? "", b.prenom ?? "", b.date_naissance);
+  return ka !== null && ka === kb;
+}
+
+/**
+ * Cherche un dossier de la saison correspondant à une personne, UNIQUEMENT par le
+ * triplet nom/prénom/naissance (jamais par email : sinon la présence d'un enfant
+ * serait rattachée au dossier de son frère/sa sœur qui partage le même email).
  * Sert à l'anti-doublon essai→dossier et à la conversion des relances.
  */
 export function trouverDossierCorrespondant(
   dossiers: DossierPresence[],
-  p: { email?: string | null; nom?: string | null; prenom?: string | null; date_naissance?: string | null },
+  p: { nom?: string | null; prenom?: string | null; date_naissance?: string | null },
 ): DossierPresence | null {
-  const email = normaliserEmail(p.email);
-  if (email) {
-    const parEmail = dossiers.find((d) => normaliserEmail(d.email) === email);
-    if (parEmail) return parEmail;
-  }
-  const n = (s: string | null | undefined) =>
-    (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-  if (p.nom && p.prenom && p.date_naissance) {
-    const parTriplet = dossiers.find(
-      (d) => n(d.nom) === n(p.nom) && n(d.prenom) === n(p.prenom) && d.date_naissance === p.date_naissance,
-    );
-    if (parTriplet) return parTriplet;
-  }
-  return null;
+  const cle = matchKey(p.nom ?? "", p.prenom ?? "", p.date_naissance);
+  if (!cle) return null;
+  return dossiers.find((d) => matchKey(d.nom ?? "", d.prenom ?? "", d.date_naissance) === cle) ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -119,32 +124,23 @@ export type AttacheEssaiResultat =
   | { ok: true; surDossier: boolean; dossierId?: string; essaiId?: string; dejaUtilise?: boolean; dateEssai?: string }
   | { ok: false; error: string };
 
-// Essais déjà enregistrés pour une personne (email normalisé OU triplet).
+// Essais déjà enregistrés pour une PERSONNE — identité par le triplet normalisé
+// (matchKey), JAMAIS par email : deux enfants d'un même parent (même email) sont
+// deux personnes distinctes. On charge les essais et on filtre sur la clé
+// d'identité (gère aussi les variantes de saisie : casse, accents, tiret, espaces).
 async function essaisDeLaPersonne(
   supabase: SupabaseClient,
-  p: { email: string; nom: string; prenom: string; date_naissance: string },
+  p: { nom: string; prenom: string; date_naissance: string },
 ): Promise<{ id: string; cours_id: string | null; date_seance: string }[]> {
-  const map = new Map<string, { id: string; cours_id: string | null; date_seance: string }>();
-  if (p.email) {
-    const data = exigerData(
-      await supabase.from("essais").select("id, cours_id, date_seance").eq("email", p.email),
-      "essais par email",
-    );
-    for (const e of data ?? []) map.set(e.id as string, e as never);
-  }
-  if (p.nom && p.prenom && p.date_naissance) {
-    const data = exigerData(
-      await supabase
-        .from("essais")
-        .select("id, cours_id, date_seance")
-        .eq("nom", p.nom)
-        .eq("prenom", p.prenom)
-        .eq("date_naissance", p.date_naissance),
-      "essais par nom/prénom/naissance",
-    );
-    for (const e of data ?? []) map.set(e.id as string, e as never);
-  }
-  return [...map.values()];
+  const cle = matchKey(p.nom, p.prenom, p.date_naissance);
+  if (!cle) return [];
+  const data = exigerData(
+    await supabase.from("essais").select("id, cours_id, date_seance, nom, prenom, date_naissance"),
+    "essais (identité)",
+  );
+  return (data ?? [])
+    .filter((e) => matchKey(e.nom as string, e.prenom as string, e.date_naissance as string | null) === cle)
+    .map((e) => ({ id: e.id as string, cours_id: (e.cours_id as string) ?? null, date_seance: e.date_seance as string }));
 }
 
 export async function attacherPresenceEssai(
@@ -162,8 +158,8 @@ export async function attacherPresenceEssai(
   },
 ): Promise<AttacheEssaiResultat> {
   const dossiers = p.dossiers ?? (await dossiersSaison(supabase, saisonCourante(new Date())));
+  // Rattachement au dossier existant : triplet UNIQUEMENT (jamais l'email).
   const dossier = trouverDossierCorrespondant(dossiers, {
-    email: p.email,
     nom: p.nom,
     prenom: p.prenom,
     date_naissance: p.date_naissance,
@@ -181,8 +177,8 @@ export async function attacherPresenceEssai(
     return { ok: true, surDossier: true, dossierId: dossier.id };
   }
 
-  // Essais déjà faits par cette personne (email OU triplet).
-  const personEssais = await essaisDeLaPersonne(supabase, { email: p.email, nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance });
+  // Essais déjà faits par cette PERSONNE (triplet uniquement, jamais l'email).
+  const personEssais = await essaisDeLaPersonne(supabase, { nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance });
   const exact = personEssais.find((e) => e.cours_id === p.coursId && e.date_seance === p.dateSeance);
   const autres = personEssais.filter((e) => e !== exact);
   const gratuits = CONFIG_CLUB.modules?.presence?.essaisGratuits ?? 1;

@@ -7,6 +7,7 @@
 // ============================================================================
 import { CONFIG_CLUB } from "./config-club";
 import { fr } from "./typo";
+import { resoudreOuverture, joindrePrenoms } from "./campagnes";
 import {
   estFerme,
   formatHeure,
@@ -302,66 +303,76 @@ export type MailRelanceEssai = {
   signature: string;
 };
 
+// Relance d'essai, ÉVENTUELLEMENT GROUPÉE PAR FAMILLE : plusieurs essayeurs
+// partageant le même email et la même date de séance reçoivent UN SEUL mail qui
+// les nomme tous. L'ouverture (personnel vs foyer) réutilise resoudreOuverture.
+// `personnes` = au moins une personne ; single adulte → vouvoiement « vous »,
+// sinon (famille ou mineur) → 3e personne.
 export function mailRelanceEssai(p: {
-  prenom: string;
-  mineur: boolean;
+  personnes: { prenom: string; mineur: boolean }[];
   coursLabel?: string | null;
   numero: 1 | 2;
   clubNom: string;
 }): MailRelanceEssai {
-  const prenom = (p.prenom || "").trim();
+  const personnes = p.personnes.length ? p.personnes : [{ prenom: "", mineur: false }];
+  const noms = joindrePrenoms(personnes.map((x) => x.prenom));
+  const plural = personnes.length > 1;
+  const personnel = personnes.length === 1 && !personnes[0].mineur; // adulte seul
+  const { salutation } = resoudreOuverture(personnes);
   const cours = (p.coursLabel || "").trim();
   const coursPart = cours ? ` au cours de ${cours}` : "";
   const equipe = `L'équipe ${p.clubNom}`;
-  const boutonMajeur = "Je m'inscris";
-  const boutonMineur = `Inscrire ${prenom}`;
+  // Verbes/possessifs accordés au nombre (foyer : 3e personne).
+  const ont = plural ? "ont fait leur" : "a fait sa";
+  const leur = plural ? "leur" : "lui";
+  const boutonTiers = plural ? "Les inscrire" : `Inscrire ${noms}`;
 
   if (p.numero === 1) {
     const objet = fr("Alors, cette première séance ?");
-    if (p.mineur) {
+    if (personnel) {
       return {
         objet,
-        salutation: "Bonjour,",
+        salutation,
         corps: [
-          fr(`${prenom} a fait sa séance d'essai hier${coursPart}. Nous espérons qu'elle lui a plu !`),
-          fr(`Si vous souhaitez l'inscrire pour la saison, c'est rapide : créez votre espace adhérent à votre nom, puis ouvrez un dossier d'inscription au nom de ${prenom}.`),
+          fr(`Merci d'avoir participé à votre séance d'essai hier${coursPart}. Nous espérons qu'elle vous a plu !`),
+          fr(`Si vous souhaitez nous rejoindre pour la saison, l'inscription se fait en quelques minutes sur notre site : créez votre espace adhérent, puis ouvrez votre dossier d'inscription.`),
         ],
-        boutonLabel: boutonMineur,
-        signature: `À très bientôt au club,\n${equipe}`,
+        boutonLabel: "Je m'inscris",
+        signature: `À très bientôt sur le ring,\n${equipe}`,
       };
     }
     return {
       objet,
-      salutation: fr(`Bonjour ${prenom},`),
+      salutation,
       corps: [
-        fr(`Merci d'avoir participé à votre séance d'essai hier${coursPart}. Nous espérons qu'elle vous a plu !`),
-        fr(`Si vous souhaitez nous rejoindre pour la saison, l'inscription se fait en quelques minutes sur notre site : créez votre espace adhérent, puis ouvrez votre dossier d'inscription.`),
+        fr(`${noms} ${ont} séance d'essai hier${coursPart}. Nous espérons qu'elle ${leur} a plu !`),
+        fr(`Si vous souhaitez ${plural ? "les" : "l'"}inscrire pour la saison, c'est rapide : créez votre espace adhérent à votre nom, puis ouvrez un dossier d'inscription pour ${plural ? "chacun" : noms}.`),
       ],
-      boutonLabel: boutonMajeur,
-      signature: `À très bientôt sur le ring,\n${equipe}`,
+      boutonLabel: boutonTiers,
+      signature: `À très bientôt au club,\n${equipe}`,
     };
   }
 
   // Relance 2 (une semaine après, dernier message).
-  if (p.mineur) {
+  if (personnel) {
     return {
-      objet: fr(`Une place attend ${prenom} au club`),
-      salutation: "Bonjour,",
+      objet: "Votre place vous attend au club",
+      salutation,
       corps: [
-        fr(`Il y a une semaine, ${prenom} a fait sa séance d'essai${coursPart}. Si vous souhaitez l'inscrire pour la saison, il est encore temps, en quelques minutes sur notre site.`),
+        fr(`Il y a une semaine, vous avez fait votre séance d'essai${coursPart}. Si l'envie de continuer est là, il est encore temps de vous inscrire, en quelques minutes sur notre site.`),
       ],
-      boutonLabel: boutonMineur,
+      boutonLabel: "Je m'inscris",
       apresBouton: "C'est notre dernier message à ce sujet.",
       signature: `À bientôt peut-être,\n${equipe}`,
     };
   }
   return {
-    objet: "Votre place vous attend au club",
-    salutation: fr(`Bonjour ${prenom},`),
+    objet: fr(plural ? `Une place attend ${noms} au club` : `Une place attend ${noms} au club`),
+    salutation,
     corps: [
-      fr(`Il y a une semaine, vous avez fait votre séance d'essai${coursPart}. Si l'envie de continuer est là, il est encore temps de vous inscrire, en quelques minutes sur notre site.`),
+      fr(`Il y a une semaine, ${noms} ${ont} séance d'essai${coursPart}. Si vous souhaitez ${plural ? "les" : "l'"}inscrire pour la saison, il est encore temps, en quelques minutes sur notre site.`),
     ],
-    boutonLabel: boutonMajeur,
+    boutonLabel: boutonTiers,
     apresBouton: "C'est notre dernier message à ce sujet.",
     signature: `À bientôt peut-être,\n${equipe}`,
   };

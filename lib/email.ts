@@ -973,8 +973,8 @@ export async function sendContactConfirmation(d: { nom: string; email: string })
  */
 export async function sendRelanceEssai(d: {
   email: string;
-  prenom: string;
-  mineur: boolean;
+  // Une ou plusieurs personnes (famille : même email + même séance) → un seul mail.
+  personnes: { prenom: string; mineur: boolean }[];
   coursLabel?: string | null;
   numero: 1 | 2;
 }) {
@@ -983,7 +983,7 @@ export async function sendRelanceEssai(d: {
   const client = getResend();
   if (!client) return { skipped: true as const };
 
-  const m = mailRelanceEssai({ prenom: d.prenom, mineur: d.mineur, coursLabel: d.coursLabel, numero: d.numero, clubNom: CLUB.nomCourt });
+  const m = mailRelanceEssai({ personnes: d.personnes, coursLabel: d.coursLabel, numero: d.numero, clubNom: CLUB.nomCourt });
   const paras = m.corps.map((p) => `<p style="line-height:1.6;color:#444">${escapeHtml(p)}</p>`).join("");
   const apres = m.apresBouton ? `<p style="line-height:1.6;color:#666;font-size:13px">${escapeHtml(m.apresBouton)}</p>` : "";
   const signature = `<p style="line-height:1.6;color:#444;margin-top:16px">${escapeHtml(m.signature).replace(/\n/g, "<br>")}</p>`;

@@ -176,7 +176,7 @@ console.log("[Présence — recherche publique]");
 console.log("[Présence — relances essai]");
 {
   const CLUB = "Punching Boxe";
-  const r1A = mailRelanceEssai({ prenom: "Sarah", mineur: false, coursLabel: "Boxe Française adultes", numero: 1, clubNom: CLUB });
+  const r1A = mailRelanceEssai({ personnes: [{ prenom: "Sarah", mineur: false }], coursLabel: "Boxe Française adultes", numero: 1, clubNom: CLUB });
   check(r1A.objet.startsWith("Alors, cette première séance"), "relance 1 : objet");
   check(/ \?$/.test(r1A.objet), "relance 1 : espace insécable avant « ? »", r1A.objet);
   check(r1A.salutation === "Bonjour Sarah,", "relance 1 majeur : salutation personnelle", r1A.salutation);
@@ -185,18 +185,26 @@ console.log("[Présence — relances essai]");
   check(r1A.boutonLabel === "Je m'inscris", "relance 1 majeur : bouton « Je m'inscris »");
   check(r1A.signature.includes(`L'équipe ${CLUB}`), "relance : signature depuis CONFIG_CLUB");
 
-  const r1M = mailRelanceEssai({ prenom: "Lucas", mineur: true, coursLabel: "Boxe Française enfants", numero: 1, clubNom: CLUB });
+  const r1M = mailRelanceEssai({ personnes: [{ prenom: "Lucas", mineur: true }], coursLabel: "Boxe Française enfants", numero: 1, clubNom: CLUB });
   check(r1M.salutation === "Bonjour,", "relance 1 mineur : adressée au parent (Bonjour,)", r1M.salutation);
   check(r1M.corps.join(" ").includes("Lucas a fait sa séance d'essai"), "relance 1 mineur : « Lucas a fait sa séance d'essai »");
   check(r1M.boutonLabel === "Inscrire Lucas", "relance 1 mineur : bouton « Inscrire Lucas »");
 
-  const r2A = mailRelanceEssai({ prenom: "Sarah", mineur: false, numero: 2, clubNom: CLUB });
+  const r2A = mailRelanceEssai({ personnes: [{ prenom: "Sarah", mineur: false }], numero: 2, clubNom: CLUB });
   check(r2A.objet === "Votre place vous attend au club", "relance 2 majeur : objet", r2A.objet);
   check(r2A.apresBouton === "C'est notre dernier message à ce sujet.", "relance 2 : dernier message");
-  const r2M = mailRelanceEssai({ prenom: "Lucas", mineur: true, numero: 2, clubNom: CLUB });
+  const r2M = mailRelanceEssai({ personnes: [{ prenom: "Lucas", mineur: true }], numero: 2, clubNom: CLUB });
   check(r2M.objet === "Une place attend Lucas au club", "relance 2 mineur : objet", r2M.objet);
 
-  const tout = [r1A, r1M, r2A, r2M].flatMap((r) => [...r.corps, r.objet, r.salutation, r.signature]).join(" ");
+  // Relance GROUPÉE (fratrie : même email + même séance) → un seul mail nommant tous.
+  const r1G = mailRelanceEssai({ personnes: [{ prenom: "Ilan", mineur: true }, { prenom: "Ines", mineur: true }], numero: 1, clubNom: CLUB });
+  check(r1G.salutation === "Bonjour,", "relance groupée : ouverture foyer (Bonjour,)", r1G.salutation);
+  check(r1G.corps.join(" ").includes("Ilan et Ines ont fait leur"), "relance groupée : nomme les deux enfants", r1G.corps.join(" "));
+  check(r1G.boutonLabel === "Les inscrire", "relance groupée : bouton « Les inscrire »", r1G.boutonLabel);
+  const r1Gseul = mailRelanceEssai({ personnes: [{ prenom: "Ilan", mineur: true }], numero: 1, clubNom: CLUB });
+  check(r1Gseul.boutonLabel === "Inscrire Ilan", "relance (reste 1 enfant) : bouton « Inscrire Ilan »", r1Gseul.boutonLabel);
+
+  const tout = [r1A, r1M, r2A, r2M, r1G].flatMap((r) => [...r.corps, r.objet, r.salutation, r.signature]).join(" ");
   check(!/—/.test(tout), "relances : aucun tiret long");
   // Aucun accord masculin/féminin bloquant (pas de « inscrit·e » / « venu(e) »…).
   check(!/\b\w+\(e\)|·e\b/.test(tout), "relances : pas d'accord genré");
