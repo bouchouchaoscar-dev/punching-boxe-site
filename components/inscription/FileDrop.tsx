@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useDropzone, type Accept, type FileRejection } from "react-dropzone";
 import { PhotoCropModal } from "./PhotoCropModal";
+import { estImagePiece, preparerPiece } from "@/lib/image-client";
 
 export type FileFieldKey =
   | "fiche_inscription"
@@ -101,6 +102,16 @@ export function FileDrop({
       if (field === "photo" && file.type.startsWith("image/")) {
         setFileName(file.name);
         setCropFile(file);
+        return;
+      }
+      // Autre pièce + image (ex. certificat photographié) → compression client
+      // (redimension ~2000 px + JPEG), qui règle aussi le poids des photos de
+      // téléphone et le HEIC décodable. Échec de décodage → envoi de l'original.
+      if (field !== "photo" && estImagePiece(file)) {
+        setFileName(file.name);
+        setStatus("uploading");
+        const { blob, name } = await preparerPiece(file);
+        await uploadFile(blob, name);
         return;
       }
       await uploadFile(file, file.name);

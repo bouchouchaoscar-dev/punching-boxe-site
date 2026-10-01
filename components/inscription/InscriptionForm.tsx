@@ -1193,13 +1193,12 @@ export function InscriptionForm({
                         field="certificat_medical"
                         adherentId={adherentId}
                         label="Certificat médical"
-                        hint="PDF ou photo (JPG/PNG), max 5 Mo"
+                        hint="PDF ou photo du certificat signé. Prenez-le à plat, bien éclairé, en entier."
                         accept={{
                           "application/pdf": [".pdf"],
-                          "image/jpeg": [".jpg", ".jpeg"],
-                          "image/png": [".png"],
+                          "image/*": [".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"],
                         }}
-                        maxSizeMb={5}
+                        maxSizeMb={20}
                         onChange={onFile}
                         optional
                       />

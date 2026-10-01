@@ -74,6 +74,13 @@ const DOCS: {
   { key: "photo_url", base: "photo", label: "Photo d'identité", obligatoire: true },
 ];
 
+// Une pièce affichable en aperçu image inline (détecté sur l'extension du chemin
+// signé, avant le ?token). Le PDF et le HEIC (non rendu par les navigateurs hors
+// Safari) restent en lien « Ouvrir → ».
+function estApercuImage(url: string): boolean {
+  return /\.(jpe?g|png|webp)(\?|$)/i.test(url);
+}
+
 export function FicheAdherent({ id }: { id: string }) {
   const router = useRouter();
   // Rôle client : la suppression est réservée à l'admin (jamais coach).
@@ -841,14 +848,28 @@ export function FicheAdherent({ id }: { id: string }) {
                           )}
                         </p>
                         {url ? (
-                          <a
-                            href={hrefUrl ?? url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="mt-1 inline-block text-xs font-bold text-orange hover:underline"
-                          >
-                            Ouvrir →
-                          </a>
+                          <div className="mt-1 space-y-1.5">
+                            <a
+                              href={hrefUrl ?? url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-block text-xs font-bold text-orange hover:underline"
+                            >
+                              Ouvrir →
+                            </a>
+                            {/* Aperçu image inline (certificat photographié) : cliquable
+                                pour l'agrandir en plein écran, comme on ouvre le PDF. */}
+                            {estApercuImage(hrefUrl ?? url) && (
+                              <a href={hrefUrl ?? url} target="_blank" rel="noopener noreferrer" className="block">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={hrefUrl ?? url}
+                                  alt={d.label}
+                                  className="max-h-48 w-auto rounded-lg border border-line object-contain"
+                                />
+                              </a>
+                            )}
+                          </div>
                         ) : (
                           <span className="mt-1 inline-block rounded-full bg-paper-2 px-2.5 py-0.5 text-xs font-bold text-smoke">
                             Non fourni

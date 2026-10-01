@@ -9,16 +9,12 @@ import { sendAdminDocReplaced } from "@/lib/email";
 import { signerDocsAdherents } from "@/lib/storage-url";
 import { evaluerDossier } from "@/lib/dossier";
 import { getAuthUser } from "@/lib/auth-server";
+import { validerPiece, TYPE_META, CHAMPS_PIECE, type ChampPiece } from "@/lib/upload-piece";
 
 export const runtime = "nodejs";
 
-const FIELDS = [
-  "fiche_inscription",
-  "certificat_medical",
-  "reglement",
-  "photo",
-] as const;
-type Field = (typeof FIELDS)[number];
+const FIELDS = CHAMPS_PIECE;
+type Field = ChampPiece;
 
 const URL_COLUMN: Record<Field, string> = {
   fiche_inscription: "fiche_inscription_url",
@@ -40,8 +36,6 @@ const DOC_LABEL: Record<Field, string> = {
   reglement: "Règlement intérieur",
   photo: "Photo d'identité",
 };
-
-const MAX_SIZE = 5 * 1024 * 1024; // 5 Mo
 
 // GET — TOUS les dossiers du compte titulaire connecté (rattachés par titulaire_id).
 export async function GET(request: Request) {
@@ -128,33 +122,32 @@ export async function POST(request: Request) {
   if (!FIELDS.includes(field)) {
     return NextResponse.json({ error: "Document invalide." }, { status: 400 });
   }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json(
-      { error: "Fichier trop volumineux (max 5 Mo)." },
-      { status: 413 },
-    );
-  }
 
-  const isImage = field === "photo";
-  const okType = isImage
-    ? ["image/jpeg", "image/png"].includes(file.type)
-    : file.type === "application/pdf";
-  if (!okType) {
-    return NextResponse.json(
-      { error: isImage ? "Image JPG ou PNG attendue." : "PDF attendu." },
-      { status: 415 },
-    );
-  }
-
-  const ext = isImage ? (file.type === "image/png" ? "png" : "jpg") : "pdf";
-  const path = `${adherent.id}/${field}.${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
+  // VALIDATION PAR CONTENU RÉEL (magic bytes, source unique) — jamais file.type.
+  // Certificat : PDF + photos (JPEG/PNG/WebP/HEIC). Ext + Content-Type imposés.
+  const v = validerPiece(field, buffer);
+  if (!v.ok) {
+    return NextResponse.json({ error: v.error }, { status: v.status });
+  }
+  const { ext, contentType } = TYPE_META[v.type];
+  const path = `${adherent.id}/${field}.${ext}`;
 
   const { error: upErr } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, buffer, { contentType: file.type, upsert: true });
+    .upload(path, buffer, { contentType, upsert: true });
   if (upErr) {
     return NextResponse.json({ error: upErr.message }, { status: 500 });
+  }
+
+  // Nettoyage best-effort : retire les variantes d'AUTRE extension du même champ
+  // (ex. ancien certificat.pdf quand on redépose une photo .jpg).
+  const autres = (Object.keys(TYPE_META) as (keyof typeof TYPE_META)[])
+    .filter((t) => TYPE_META[t].ext !== ext)
+    .map((t) => `${adherent.id}/${field}.${TYPE_META[t].ext}`);
+  if (autres.length) {
+    const { error: rmErr } = await supabase.storage.from(STORAGE_BUCKET).remove(autres);
+    if (rmErr) console.error("Nettoyage variantes (ignoré):", rmErr.message);
   }
 
   // Bucket privé cible : on stocke le CHEMIN storage (la lecture signe à la

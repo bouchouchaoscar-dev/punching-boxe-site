@@ -17,6 +17,7 @@ import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
 import type { FileFieldKey } from "@/components/inscription/FileDrop";
+import { estImagePiece, preparerPiece } from "@/lib/image-client";
 import { PhotoCropModal } from "@/components/inscription/PhotoCropModal";
 import {
   euro,
@@ -63,7 +64,7 @@ const DOCS: {
   enLigne?: boolean;
 }[] = [
   { key: "fiche_inscription_url", base: "fiche", field: "fiche_inscription", label: "Fiche d'inscription", accept: "application/pdf", enLigne: true },
-  { key: "certificat_medical_url", base: "certificat", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf" },
+  { key: "certificat_medical_url", base: "certificat", field: "certificat_medical", label: "Certificat médical", accept: "application/pdf,image/*" },
   { key: "reglement_url", base: "reglement", field: "reglement", label: "Règlement intérieur", accept: "application/pdf", enLigne: true },
   { key: "photo_url", base: "photo", field: "photo", label: "Photo d'identité", accept: "image/jpeg,image/png" },
 ];
@@ -209,6 +210,12 @@ export function MonEspace() {
       // Photo de profil + image → recadrage avant upload (même UX qu'à l'inscription).
       if (field === "photo" && file.type.startsWith("image/")) {
         setCropPhoto({ file, adherentId });
+        return;
+      }
+      // Certificat (ou autre pièce) photographié → compression client avant envoi.
+      if (field !== "photo" && estImagePiece(file)) {
+        const { blob, name } = await preparerPiece(file);
+        await uploadEspace(blob, name, field, adherentId);
         return;
       }
       await uploadEspace(file, file.name, field, adherentId);
