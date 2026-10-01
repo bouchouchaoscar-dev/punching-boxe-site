@@ -743,6 +743,33 @@ export async function sendAdminAlertePaiement(d: {
   });
 }
 
+// Info club : un adhérent qui avait choisi « espèces » a finalement réglé par
+// carte (bascule confirmée). Le dossier quitte le filtre « espèces en attente ».
+export async function sendAdminBascule(d: {
+  prenom: string;
+  nom: string;
+  adherentId: string;
+  nbEcheances: number;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+  const fois = d.nbEcheances > 1 ? `en ${d.nbEcheances} fois` : "1x";
+  const qui = `${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`;
+  const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 8px">Paiement par carte reçu</h1>
+    <p style="line-height:1.6;color:#444"><strong>${qui}</strong> a finalement réglé par carte (${fois}). Plus besoin d'attendre les espèces.</p>
+    <p style="margin:6px 0 18px">${button(lien, "Ouvrir la fiche adhérent")}</p>
+  `);
+  return client.emails.send({
+    from: FROM,
+    to: ADMIN_TO,
+    replyTo: REPLY_TO,
+    subject: `Réglé par carte — ${qui}`,
+    html,
+  });
+}
+
 export type RemboursementContexte = {
   montant: number;
   canal: "stripe" | "especes" | "virement";

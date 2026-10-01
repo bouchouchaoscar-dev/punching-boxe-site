@@ -12,7 +12,7 @@ import {
   type DossierTon,
 } from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
-import { estPaiementSolde } from "@/lib/paiement";
+import { estPaiementSolde, statutTrombi } from "@/lib/paiement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
@@ -688,6 +688,10 @@ function DossierActions({
   }
   const especesAttente =
     a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
+  // Espèces déclarées mais RIEN d'encaissé (statutTrombi = en attente) et dossier
+  // non annulé → on peut encore basculer vers un paiement par carte.
+  const peutPayerCarte =
+    statutTrombi(a).code === "attente_especes" && !a.annule_at;
   return (
     <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
       {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}
@@ -698,6 +702,18 @@ function DossierActions({
         >
           Finaliser le paiement
         </Link>
+      )}
+      {/* Bascule espèces → carte (réutilise le tunnel /inscription/finaliser). */}
+      {peutPayerCarte && (
+        <div className="w-full">
+          <Link
+            href={`/inscription/finaliser/${a.id}`}
+            className="inline-block rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+          >
+            Payer par carte plutôt
+          </Link>
+          <p className="mt-1 text-xs text-smoke">Vous pourrez régler en une ou plusieurs fois.</p>
+        </div>
       )}
       <button
         onClick={onDelete}

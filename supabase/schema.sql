@@ -62,6 +62,7 @@ create table if not exists public.adherents (
   statut_paiement           text not null default 'en_attente'
                               check (statut_paiement in
                               ('en_attente','paye','confirme_especes','echec_paiement')),
+  paiement_a_verifier       boolean not null default false,            -- [017] anomalie à arbitrer (orange « à vérifier »)
   stripe_customer_id        text,
   stripe_payment_intent_id  text,
   stripe_setup_intent_id    text,

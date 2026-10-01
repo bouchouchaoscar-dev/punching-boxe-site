@@ -79,6 +79,13 @@ export async function POST(request: Request) {
     );
   }
 
+  // BASCULE depuis des ESPÈCES EN ATTENTE (rien d'encaissé) : on NE change PAS le
+  // mode au clic. Il ne passera en carte qu'à la CONFIRMATION réelle du paiement
+  // (recalculerEtatPaiement, à l'engagement). Un paiement abandonné laisse donc le
+  // dossier en « espèces en attente », rien ne change. Cf. item 4.
+  const switchEspeces =
+    adherent.mode_paiement === "especes" && adherent.statut_paiement === "en_attente";
+
   // On repart d'une ardoise propre : suppression des anciennes tentatives
   // (aucune n'est payée puisque le dossier n'est pas engagé).
   await supabase.from("paiements").delete().eq("adherent_id", adherentId);
@@ -171,7 +178,7 @@ export async function POST(request: Request) {
       await supabase
         .from("adherents")
         .update({
-          mode_paiement: mode,
+          mode_paiement: switchEspeces ? "especes" : mode,
           nb_echeances: 1,
           prochaine_echeance: null,
           statut_paiement: "en_attente",
@@ -213,7 +220,7 @@ export async function POST(request: Request) {
     await supabase
       .from("adherents")
       .update({
-        mode_paiement: mode,
+        mode_paiement: switchEspeces ? "especes" : mode,
         nb_echeances: n,
         prochaine_echeance: dates[1],
         statut_paiement: "en_attente",

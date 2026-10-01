@@ -26,6 +26,9 @@ export interface Adherent {
   montant_total: number;
   mode_paiement: ModePaiement;
   statut_paiement: StatutPaiement;
+  // Anomalie à arbitrer par l'admin (ex. espèces confirmées ET carte encaissée
+  // après une bascule) → statut « à vérifier » (orange), aucun remboursement auto.
+  paiement_a_verifier?: boolean | null;
   stripe_payment_intent_id: string | null;
   saison: string;
   photo_url: string | null;

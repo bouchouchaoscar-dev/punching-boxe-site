@@ -6,6 +6,7 @@ import {
   sendAdherentConfirmation,
   sendAdminNotification,
   sendAdminAlertePaiement,
+  sendAdminBascule,
 } from "./email";
 import { notifierSiDossierComplet } from "./dossier-complet";
 import { notifierEchecPaiement } from "./echec-notify";
@@ -290,13 +291,27 @@ export async function recalculerEtatPaiement(adherentId: string) {
   // Dossier "engagé" dès la 1re échéance payée → on fige engage_at une seule fois.
   const devientEngage = echeancesPayees >= 1 && !adherent.engage_at;
 
+  // BASCULE espèces → carte : le mode n'était PAS changé au clic (cf. finaliser).
+  // Il passe en carte UNIQUEMENT ici, quand un encaissement carte réel engage le
+  // dossier. Une inscription espèces n'engage jamais par échéance payée (la
+  // confirmation espèces passe par confirme_especes), donc mode==especes +
+  // devientEngage = c'est forcément un paiement carte confirmé.
+  const nbCarte = adherent.nb_echeances || 1;
+  const modeCarte = `stripe_${nbCarte}x` as Adherent["mode_paiement"];
+  const bascule = devientEngage && adherent.mode_paiement === "especes";
+  // FILET : espèces DÉJÀ confirmées ET carte encaissée → anomalie à arbitrer
+  // (aucun remboursement auto), dossier « à vérifier » + alerte admin.
+  const doubleEncaissement = bascule && adherent.statut_paiement === "confirme_especes";
+
   await supabase
     .from("adherents")
     .update({
       echeances_payees: echeancesPayees,
       prochaine_echeance: prochaine,
       ...(devientEngage ? { engage_at: new Date().toISOString() } : {}),
-      ...(complet
+      ...(bascule ? { mode_paiement: modeCarte } : {}),
+      ...(doubleEncaissement ? { paiement_a_verifier: true } : {}),
+      ...(complet && !doubleEncaissement
         ? {
             statut_paiement: "paye",
             derniere_erreur_stripe: null,
@@ -305,6 +320,39 @@ export async function recalculerEtatPaiement(adherentId: string) {
         : {}),
     })
     .eq("id", adherentId);
+
+  // Information du club après une bascule effective (un seul passage : devientEngage).
+  if (bascule) {
+    const montant = Number(adherent.montant_total || 0);
+    if (doubleEncaissement) {
+      console.error(
+        `[BASCULE ESPÈCES→CARTE] DOUBLE ENCAISSEMENT — adherent=${adherentId} : espèces confirmées ET carte encaissée (${montant} €). Dossier passé « à vérifier », AUCUN remboursement auto.`,
+      );
+      try {
+        await sendAdminAlertePaiement({
+          prenom: adherent.prenom ?? "",
+          nom: adherent.nom ?? "",
+          adherentId,
+          montant,
+          paymentIntentId: adherent.stripe_payment_intent_id ?? null,
+          issue: `À VÉRIFIER — espèces confirmées (${montant} €) ET carte encaissée (${montant} €). Aucun remboursement automatique : arbitrage manuel requis.`,
+        });
+      } catch (e) {
+        console.error("[BASCULE] alerte double encaissement échouée:", e);
+      }
+    } else {
+      try {
+        await sendAdminBascule({
+          prenom: adherent.prenom ?? "",
+          nom: adherent.nom ?? "",
+          adherentId,
+          nbEcheances: nbCarte,
+        });
+      } catch (e) {
+        console.error("[BASCULE] email club échoué:", e);
+      }
+    }
+  }
 
   if (premierPaiement) {
     const echeances = rows

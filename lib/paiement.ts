@@ -113,10 +113,17 @@ export function statutTrombi(
     | "echeances_payees"
     | "engage_at"
     | "annule_at"
+    | "paiement_a_verifier"
   >,
 ): TrombiStatut {
   const nb = a.nb_echeances || 1;
   const payees = a.echeances_payees || 0;
+
+  // 🟠 Anomalie signalée (ex. espèces confirmées ET carte encaissée) → à arbitrer
+  // par l'admin, aucun remboursement automatique. Prioritaire sur le reste.
+  if (a.paiement_a_verifier === true && !a.annule_at) {
+    return { code: "a_verifier", couleur: "orange", label: "Paiement à vérifier" };
+  }
 
   // 🔴 Échec de prélèvement (détecté et enregistré).
   if (a.statut_paiement === "echec_paiement") {
