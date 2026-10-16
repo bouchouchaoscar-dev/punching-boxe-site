@@ -29,6 +29,10 @@ export interface Adherent {
   // Anomalie à arbitrer par l'admin (ex. espèces confirmées ET carte encaissée
   // après une bascule) → statut « à vérifier » (orange), aucun remboursement auto.
   paiement_a_verifier?: boolean | null;
+  // [018] Supplément de changement de formule en attente (dérivé du paiement
+  // réel) : 'a_finaliser' (carte non encaissée) | 'attente_especes'. Lu par
+  // statutTrombi quand la cotisation est par ailleurs réglée.
+  supplement_statut?: "a_finaliser" | "attente_especes" | null;
   stripe_payment_intent_id: string | null;
   saison: string;
   photo_url: string | null;

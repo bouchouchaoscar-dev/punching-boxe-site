@@ -63,6 +63,7 @@ create table if not exists public.adherents (
                               check (statut_paiement in
                               ('en_attente','paye','confirme_especes','echec_paiement')),
   paiement_a_verifier       boolean not null default false,            -- [017] anomalie à arbitrer (orange « à vérifier »)
+  supplement_statut         text check (supplement_statut in ('a_finaliser','attente_especes')), -- [018] supplément de changement de formule en attente (dérivé)
   stripe_customer_id        text,
   stripe_payment_intent_id  text,
   stripe_setup_intent_id    text,
@@ -178,6 +179,34 @@ create table if not exists public.remboursements (
   finished_at       timestamptz
 );
 create index if not exists remboursements_adherent_idx on public.remboursements (adherent_id);
+
+-- ---------------------------------------------------------------------------
+-- 3bis) CHANGEMENTS DE FORMULE (migration 018) — historique + relances. Le
+--   supplément éventuel reste un paiement normal (table paiements).
+-- ---------------------------------------------------------------------------
+create table if not exists public.changements_formule (
+  id                 uuid primary key default gen_random_uuid(),
+  dossier_id         uuid not null references public.adherents(id) on delete cascade,
+  ancienne_formule   text,
+  nouvelle_formule   text,
+  source             text check (source in ('adherent','admin')),
+  montant_cents      integer not null default 0,
+  mode_reglement     text check (mode_reglement in
+                       ('carte','especes','offert','remboursement_carte','remboursement_hors_ligne')),
+  statut             text not null default 'actif'
+                       check (statut in ('en_attente_paiement','actif','annule')),
+  payment_intent_id  text,
+  paiement_id        uuid references public.paiements(id) on delete set null,
+  signature_requise  boolean not null default false,
+  signe_at           timestamptz,
+  relance_1_at       timestamptz,
+  relance_2_at       timestamptz,
+  created_by         text,
+  motif              text,
+  created_at         timestamptz not null default now()
+);
+create index if not exists changements_formule_dossier_idx on public.changements_formule (dossier_id);
+create index if not exists changements_formule_statut_idx   on public.changements_formule (statut);
 
 -- ---------------------------------------------------------------------------
 -- 4) PROFILES — lien Supabase Auth ↔ adhérent (espace adhérent)
@@ -388,6 +417,7 @@ create index if not exists periodes_fermeture_dates_idx on public.periodes_ferme
 alter table public.adherents               enable row level security;
 alter table public.paiements               enable row level security;
 alter table public.remboursements          enable row level security;
+alter table public.changements_formule     enable row level security;   -- [018]
 alter table public.profiles                enable row level security;
 alter table public.anciens_adherents       enable row level security;
 alter table public.historique_saisons      enable row level security;

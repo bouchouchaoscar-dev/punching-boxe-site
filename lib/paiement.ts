@@ -104,18 +104,33 @@ export type TrombiStatut = {
   label: string;
 };
 
-export function statutTrombi(
-  a: Pick<
-    Adherent,
-    | "statut_paiement"
-    | "mode_paiement"
-    | "nb_echeances"
-    | "echeances_payees"
-    | "engage_at"
-    | "annule_at"
-    | "paiement_a_verifier"
-  >,
-): TrombiStatut {
+type StatutTrombiInput = Pick<
+  Adherent,
+  | "statut_paiement"
+  | "mode_paiement"
+  | "nb_echeances"
+  | "echeances_payees"
+  | "engage_at"
+  | "annule_at"
+  | "paiement_a_verifier"
+  | "supplement_statut"
+>;
+
+export function statutTrombi(a: StatutTrombiInput): TrombiStatut {
+  const base = statutTrombiBase(a);
+  // [018] Supplément de changement de formule : quand la cotisation est par
+  // ailleurs réglée (vert), un supplément non encaissé fait primer son action.
+  // Dérivé de l'état réel du paiement (adherents.supplement_statut). AUCUNE autre
+  // règle de statutTrombiBase n'est modifiée.
+  if (base.couleur === "vert" && !a.annule_at && a.supplement_statut) {
+    return a.supplement_statut === "attente_especes"
+      ? { code: "attente_especes", couleur: "orange", label: "Espèces — en attente" }
+      : { code: "a_finaliser", couleur: "rouge", label: "Paiement à finaliser" };
+  }
+  return base;
+}
+
+function statutTrombiBase(a: StatutTrombiInput): TrombiStatut {
   const nb = a.nb_echeances || 1;
   const payees = a.echeances_payees || 0;
 
