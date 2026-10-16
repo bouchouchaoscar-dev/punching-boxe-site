@@ -704,7 +704,10 @@ export function FicheAdherent({ id }: { id: string }) {
                 ? (MODE_LABEL[a.mode_paiement] ?? a.mode_paiement)
                 : "Mode à choisir au paiement"}
             </p>
-            {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" && encCotisation && (
+            {/* [020] Affiché pour TOUT dossier espèces non annulé — y compris soldé
+                (confirme_especes) : le récap « Soldé » + l'historique des versements
+                avec suppression servent de « annuler » après un « Tout encaisser ». */}
+            {a.mode_paiement === "especes" && !a.annule_at && encCotisation && (
               <EncaissementEspeces
                 adherentId={id}
                 du={encCotisation.du}
