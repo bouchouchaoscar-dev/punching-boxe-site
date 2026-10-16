@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { appliquerChangementActif } from "@/lib/changement-formule-server";
-import { FORMULES_CLE, labelFormuleDossier } from "@/lib/changement-formule";
+import { FORMULES_CLE, labelFormuleDossier, resoudreChangementAdmin } from "@/lib/changement-formule";
 import { formuleCle, type FormuleCle, type PackageType } from "@/lib/pricing";
 import { estEngage } from "@/lib/engagement";
 import type { Adherent } from "@/lib/types";
@@ -24,10 +24,9 @@ export async function POST(request: Request, { params }: Ctx) {
     nouvelleFormule?: FormuleCle;
     montantEuros?: number;
     sens?: "supplement" | "remboursement" | "aucun";
-    // Supplément : l'admin choisit QUI/COMMENT règle — « à régler par l'adhérent »
-    // (il choisira carte/espèces), « réglé sur place en espèces » (encaissé), ou
-    // « offert ». Remboursement : carte / hors-ligne.
-    reglement?: "a_regler" | "especes_sur_place" | "offert" | "remboursement_carte" | "remboursement_hors_ligne";
+    // Supplément : « à régler par l'adhérent » (il choisira carte ou espèces en
+    // signant sa nouvelle fiche) ou « offert ». Remboursement : carte / hors-ligne.
+    reglement?: "a_regler" | "offert" | "remboursement_carte" | "remboursement_hors_ligne";
     motif?: string | null;
   };
   try {
@@ -55,42 +54,14 @@ export async function POST(request: Request, { params }: Ctx) {
 
   // CAS a / b (même règle que le parcours adhérent) : rien d'encaissé ni engagé
   // → le supplément/la réduction est FUSIONNÉ dans montant_total (pas de paiement
-  // séparé, pas de remboursement). Sinon → supplément/remboursement séparé.
+  // séparé). Sinon → supplément/remboursement séparé. Fail-closed : seuls « à
+  // régler par l'adhérent » et « offert » sont acceptés pour un supplément (toute
+  // autre valeur, dont l'ancien « réglé sur place en espèces », est refusée).
   const engage = estEngage(adherent);
   const total = Number(adherent.montant_total || 0);
-  let mode: Parameters<typeof appliquerChangementActif>[2]["modeReglement"] = null;
-  let montant = 0;
-  let nouveauTotal: number | null = null;
-  let encaisse = false;
-  let confirmerCotisationEspeces = false; // cas a « réglé sur place » : encaisser le total
-
-  if (sens === "supplement") {
-    const reglement = body.reglement;
-    if (reglement === "offert") {
-      mode = "offert"; montant = 0; // formule changée sans montant
-    } else if (reglement === "a_regler" || reglement === "especes_sur_place") {
-      if (montantEuros <= 0) return NextResponse.json({ error: "Montant du supplément requis." }, { status: 400 });
-      if (!engage) {
-        // CAS a : fusion dans le total. « réglé sur place » → on encaisse aussi le total.
-        mode = null; montant = montantEuros; nouveauTotal = Math.round((total + montantEuros) * 100) / 100;
-        confirmerCotisationEspeces = reglement === "especes_sur_place";
-      } else if (reglement === "especes_sur_place") {
-        mode = "especes"; montant = montantEuros; encaisse = true; // ligne paiements encaissée directement
-      } else {
-        mode = "a_regler"; montant = montantEuros; // l'adhérent choisira carte/espèces dans son espace
-      }
-    } else {
-      return NextResponse.json({ error: "Choix de règlement du supplément requis." }, { status: 400 });
-    }
-  } else if (sens === "remboursement") {
-    if (montantEuros <= 0) return NextResponse.json({ error: "Montant du remboursement requis." }, { status: 400 });
-    if (!engage) {
-      mode = null; montant = -montantEuros; nouveauTotal = Math.round((total - montantEuros) * 100) / 100; // réduction = baisse du total
-    } else {
-      mode = body.reglement === "remboursement_carte" ? "remboursement_carte" : "remboursement_hors_ligne";
-      montant = montantEuros; // le mouvement d'argent passe par « Gérer le paiement »
-    }
-  }
+  const resolution = resoudreChangementAdmin({ sens, reglement: body.reglement ?? null, montantEuros, engage, total });
+  if (!resolution.ok) return NextResponse.json({ error: resolution.error }, { status: 400 });
+  const { mode, montant, nouveauTotal } = resolution;
 
   const r = await appliquerChangementActif(supabase, adherent, {
     nouvelleCle,
@@ -101,17 +72,7 @@ export async function POST(request: Request, { params }: Ctx) {
     motif: body.motif ?? null,
     signatureRequise: true, // la fiche change → re-signature
     nouveauTotal,
-    encaisse,
   });
-
-  // Cas a « réglé sur place en espèces » : on encaisse la cotisation (nouveau total)
-  // → confirmation espèces du dossier (engage + confirme_especes).
-  if (confirmerCotisationEspeces) {
-    await supabase
-      .from("adherents")
-      .update({ mode_paiement: "especes", statut_paiement: "confirme_especes", engage_at: adherent.engage_at ?? new Date().toISOString() })
-      .eq("id", id);
-  }
 
   return NextResponse.json({
     ok: true,

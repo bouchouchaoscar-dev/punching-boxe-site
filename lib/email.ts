@@ -781,7 +781,7 @@ export async function sendChangementFormuleAdherent(d: {
   ancienneFormule?: string | null;
   nouvelleFormule: string;
   montantEuros: number;
-  mode: "a_regler" | "carte" | "especes" | "especes_encaisse" | "offert" | "remboursement" | null;
+  mode: "a_regler" | "carte" | "especes" | "offert" | "remboursement" | null;
   signatureRequise: boolean;
   lienSigner?: string | null;
   lienPayer?: string | null;
@@ -806,7 +806,6 @@ export async function sendChangementFormuleAdherent(d: {
   if (d.mode === "offert") corps.push("Ce changement vous est offert par le club.");
   else if (d.mode === "remboursement" && d.montantEuros > 0) corps.push(`Un remboursement de ${euro(d.montantEuros)} est prévu.`);
   else if (d.mode === "a_regler" && d.montantEuros > 0) corps.push(`Il reste un supplément de ${euro(d.montantEuros)} à régler. Choisissez votre mode de paiement (carte ou espèces) depuis votre espace.`);
-  else if (d.montantEuros > 0 && d.mode === "especes_encaisse") corps.push(`Supplément de ${euro(d.montantEuros)} réglé en espèces. Merci !`);
   else if (d.montantEuros > 0 && d.mode === "especes") corps.push(`Supplément : ${euro(d.montantEuros)}, à régler en espèces au prochain cours.`);
   else if (d.montantEuros > 0 && d.mode === "carte") corps.push(`Supplément réglé par carte : ${euro(d.montantEuros)}. Merci !`);
 

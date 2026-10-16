@@ -3,7 +3,7 @@
 import {
   estBoxeSeule, peutAjouterPrepa, prixOptionPrepa, labelFormuleCle, cleVersDossier,
   restantChangement, changementAFaire, mailRelanceChangement,
-  calculerSupplementStatut, changementActivable,
+  calculerSupplementStatut, changementActivable, resoudreChangementAdmin,
 } from "../lib/changement-formule";
 import { prepaDuMois, formuleCle } from "../lib/pricing";
 import { statutTrombi } from "../lib/paiement";
@@ -86,6 +86,23 @@ check("annulé → supplément ignoré", st({ annule_at: "2026-10-01", supplemen
 // Cotisation PAS réglée (base rouge) → le supplément ne change rien (base prime).
 const nonRegle: Record<string, unknown> = { statut_paiement: "en_attente", mode_paiement: null, nb_echeances: 1, echeances_payees: 0, engage_at: null, annule_at: null, supplement_statut: "attente_especes" };
 check("cotisation non réglée → base inchangée (a_finaliser), supplément n'écrase pas", statutTrombi(nonRegle as A).code === "a_finaliser");
+
+console.log("\n== resoudreChangementAdmin : fail-closed (supplément = à régler / offert) ==");
+const R = (o: Parameters<typeof resoudreChangementAdmin>[0]) => resoudreChangementAdmin(o);
+// Supplément « à régler par l'adhérent ».
+check("à régler + non engagé → fusion dans le total (cas a)", (() => { const r = R({ sens: "supplement", reglement: "a_regler", montantEuros: 150, engage: false, total: 380 }); return r.ok && r.mode === null && r.nouveauTotal === 530 && r.montant === 150; })());
+check("à régler + engagé → supplément séparé a_regler (cas b)", (() => { const r = R({ sens: "supplement", reglement: "a_regler", montantEuros: 150, engage: true, total: 380 }); return r.ok && r.mode === "a_regler" && r.nouveauTotal === null; })());
+check("à régler mais montant 0 → refusé", (() => { const r = R({ sens: "supplement", reglement: "a_regler", montantEuros: 0, engage: false, total: 380 }); return !r.ok; })());
+check("offert → mode offert, 0 €, total inchangé", (() => { const r = R({ sens: "supplement", reglement: "offert", montantEuros: 150, engage: false, total: 380 }); return r.ok && r.mode === "offert" && r.montant === 0 && r.nouveauTotal === null; })());
+// FAIL-CLOSED : l'option retirée et toute valeur inconnue sont REFUSÉES.
+check("« réglé sur place en espèces » (especes_sur_place) → REFUSÉ (400)", !R({ sens: "supplement", reglement: "especes_sur_place", montantEuros: 150, engage: true, total: 380 }).ok);
+check("valeur inconnue → refusée", !R({ sens: "supplement", reglement: "n_importe_quoi", montantEuros: 150, engage: false, total: 380 }).ok);
+check("supplément sans règlement → refusé", !R({ sens: "supplement", reglement: null, montantEuros: 150, engage: false, total: 380 }).ok);
+// Remboursement (inchangé) : fusion si non engagé, séparé sinon.
+check("remboursement + non engagé → baisse du total (fusion)", (() => { const r = R({ sens: "remboursement", reglement: "remboursement_carte", montantEuros: 50, engage: false, total: 380 }); return r.ok && r.mode === null && r.nouveauTotal === 330 && r.montant === -50; })());
+check("remboursement + engagé carte → remboursement_carte séparé", (() => { const r = R({ sens: "remboursement", reglement: "remboursement_carte", montantEuros: 50, engage: true, total: 380 }); return r.ok && r.mode === "remboursement_carte"; })());
+check("remboursement montant 0 → refusé", !R({ sens: "remboursement", reglement: "remboursement_carte", montantEuros: 0, engage: true, total: 380 }).ok);
+check("sens 'aucun' → changement de formule sans montant", (() => { const r = R({ sens: "aucun", montantEuros: 0, engage: false, total: 380 }); return r.ok && r.mode === null && r.montant === 0; })());
 
 console.log("\n== Propagation : tout dérive de (package, option_prepa) ==");
 // Avant : BF seule. Après : BF + Prépa (flip de option_prepa_physique).

@@ -22,9 +22,9 @@ export function GererFormuleModal({
   const actuelle = formuleCle(adherent.package as PackageType, adherent.option_prepa_physique ?? false);
   const [cible, setCible] = useState<FormuleCle | null>(null);
   const [sens, setSens] = useState<"supplement" | "remboursement" | "aucun">("aucun");
-  // Supplément : à régler par l'adhérent (défaut) / réglé sur place espèces / offert.
-  // Remboursement : carte / hors-ligne.
-  const [reglement, setReglement] = useState<"a_regler" | "especes_sur_place" | "offert" | "remboursement_carte" | "remboursement_hors_ligne">("a_regler");
+  // Supplément : à régler par l'adhérent (défaut, il choisira carte/espèces en
+  // signant) ou offert. Remboursement : carte / hors-ligne.
+  const [reglement, setReglement] = useState<"a_regler" | "offert" | "remboursement_carte" | "remboursement_hors_ligne">("a_regler");
   const [montant, setMontant] = useState<string>("");
   const [motif, setMotif] = useState("");
   const [busy, setBusy] = useState(false);
@@ -133,7 +133,6 @@ export function GererFormuleModal({
                 {sens === "supplement" && (
                   <select value={reglement} onChange={(e) => setReglement(e.target.value as typeof reglement)} className="rounded-xl border border-line px-2 py-2 text-sm">
                     <option value="a_regler">À régler par l&apos;adhérent</option>
-                    <option value="especes_sur_place">Réglé sur place en espèces</option>
                     <option value="offert">Offert</option>
                   </select>
                 )}
@@ -156,8 +155,7 @@ export function GererFormuleModal({
             <div className="rounded-xl border border-line bg-paper-2 p-3 text-sm">
               <p><strong>{labelFormuleDossier(adherent)}</strong> → <strong>{labelFormuleCle(cible)}</strong></p>
               {sens === "supplement" && reglement === "offert" && <p className="mt-1">Offert.</p>}
-              {sens === "supplement" && reglement === "a_regler" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> — l&apos;adhérent choisira carte ou espèces dans son espace.</p>}
-              {sens === "supplement" && reglement === "especes_sur_place" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> — <strong>réglé sur place en espèces</strong> (encaissé immédiatement).</p>}
+              {sens === "supplement" && reglement === "a_regler" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> — l&apos;adhérent choisira carte ou espèces au moment de signer sa nouvelle fiche.</p>}
               {sens === "remboursement" && <p className="mt-1 text-red-700">Remboursement : <strong>{euro(montantNum)}</strong> {reglement === "remboursement_carte" ? "(carte — à exécuter via Gérer le paiement)" : "(hors ligne)"}.</p>}
               <p className="mt-1 text-xs text-smoke">La fiche d'inscription sera à re-signer (lien envoyé à l'adhérent).</p>
             </div>

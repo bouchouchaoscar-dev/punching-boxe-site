@@ -152,16 +152,18 @@ console.log("\n== Reshape : l'adhérent choisit le mode (admin pose 'a_regler') 
   check("a_regler : montant_total inchangé (cas b séparé)", db._t.adherents[0].montant_total === 380);
 }
 
-console.log("\n== Reshape : « Réglé sur place en espèces » (cas b engagé) = encaissé ==");
+console.log("\n== Rétrocompat : ancienne ligne « réglé sur place » (especes + payé) ==");
 {
-  const db = fakeDb({ adherents: [{ ...adherentBase, package: "boxe_classique", option_prepa_physique: false, montant_total: 380, supplement_statut: null, fiche_a_resigner: false }] });
-  await appliquerChangementActif(db as unknown as SB, { ...adherentBase, package: "boxe_classique", option_prepa_physique: false } as never, {
-    nouvelleCle: "boxe_prepa", montantEuros: 150, modeReglement: "especes", source: "admin", createdBy: "admin", signatureRequise: true, encaisse: true,
+  // Lecture tolérante : une ligne HISTORIQUE créée par l'ancien « réglé sur place »
+  // (mode_reglement='especes', paiement encaissé 'paye') doit toujours se lire et
+  // compter comme ENCAISSÉE (aucune attente) dans recalculerSupplement.
+  const db = fakeDb({
+    adherents: [{ ...adherentBase, package: "boxe_classique", option_prepa_physique: true, supplement_statut: "attente_especes" }],
+    changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "especes", montant_cents: 15000, paiement_id: "P", nouvelle_formule: "boxe_prepa" }],
+    paiements: [{ id: "P", adherent_id: "D", statut: "paye", numero_echeance: null }],
   });
-  const p = db._t.paiements[0];
-  check("réglé sur place : ligne paiement créée « paye » (encaissée)", p.statut === "paye" && p.montant === 150);
-  check("réglé sur place : date_paiement posée", p.date_paiement != null);
-  check("réglé sur place : aucune attente (supplement_statut null)", db._t.adherents[0].supplement_statut === null);
+  await recalculerSupplement(db as unknown as SB, "D");
+  check("ancienne ligne especes encaissée → supplement_statut null (compte comme payée)", db._t.adherents[0].supplement_statut === null);
 }
 
 console.log("\n== Reshape : « Offert » = aucun montant dû ==");
@@ -225,9 +227,9 @@ check("adhérent : éligibilité peutAjouterPrepa (BF seule)", adh.includes("peu
 const admin = read("app/api/admin/adherents/[id]/changer-formule/route.ts");
 check("admin : garde isAdminRequest (fail-closed)", admin.includes("isAdminRequest(request)") && admin.includes("Non autorisé"));
 check("admin : activation immédiate (appliquerChangementActif)", admin.includes("appliquerChangementActif"));
-check("admin : règlement = a_regler | especes_sur_place | offert (plus de « lien carte »)", admin.includes('"a_regler"') && admin.includes('"especes_sur_place"') && admin.includes('"offert"'));
-check("admin : « réglé sur place » engagé → espèces encaissées (encaisse)", admin.includes("encaisse = true"));
-check("admin : « à régler » engagé → mode a_regler (choix adhérent)", admin.includes('mode = "a_regler"'));
+check("admin : règlement supplément = a_regler | offert seulement", admin.includes('"a_regler"') && admin.includes('"offert"'));
+check("admin : « réglé sur place » RETIRÉ (plus de especes_sur_place ni encaisse)", !admin.includes("especes_sur_place") && !admin.includes("encaisse"));
+check("admin : résolution fail-closed via resoudreChangementAdmin", admin.includes("resoudreChangementAdmin") && admin.includes("resolution.ok"));
 
 const confirm = read("app/api/mon-espace/supplement/confirm/route.ts");
 check("confirm carte : marquerEcheancePayee → activation via recalcul", confirm.includes("marquerEcheancePayee(intent.id)"));
@@ -251,7 +253,8 @@ check("admin : modale GererFormuleModal", fiche.includes("GererFormuleModal"));
 check("admin : section historique « Changements de formule »", fiche.includes("Changements de formule"));
 const modaleAdmin = read("components/admin/GererFormuleModal.tsx");
 check("admin modale : 3 formules (FORMULES_CLE) + récap + confirmation", modaleAdmin.includes("FORMULES_CLE.map") && modaleAdmin.includes("Confirmer le changement"));
-check("admin modale : choix supplément « À régler par l'adhérent » (défaut) / sur place / offert", modaleAdmin.includes("À régler par l") && modaleAdmin.includes("Réglé sur place en espèces") && modaleAdmin.includes('useState<"a_regler"'));
+check("admin modale : supplément = « À régler par l'adhérent » (défaut) + « Offert » SEULEMENT", modaleAdmin.includes("À régler par l") && modaleAdmin.includes(">Offert<") && !modaleAdmin.includes("Réglé sur place en espèces") && !modaleAdmin.includes("especes_sur_place"));
+check("admin modale : aide « choisira carte ou espèces au moment de signer sa nouvelle fiche »", modaleAdmin.includes("au moment de signer sa nouvelle fiche"));
 const espaceSup = read("components/espace/ReglerSupplementModal.tsx");
 check("espace : « Régler le supplément » (carte / espèces au choix de l'adhérent)", espaceSup.includes("supplement/choisir") && espaceSup.includes("Payer par carte") && espaceSup.includes("Régler en espèces"));
 check("espace : MonEspace branche ReglerSupplementModal", espace.includes("ReglerSupplementModal") && espace.includes("Régler le supplément"));

@@ -6,7 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getStripe } from "./stripe";
 import { estMineur, formuleCle, type FormuleCle, type PackageType } from "./pricing";
-import { cleVersDossier, labelFormuleCle } from "./changement-formule";
+import { cleVersDossier, labelFormuleCle, type ModeChangement } from "./changement-formule";
 import { recalculerSupplement } from "./payments";
 import { buildResignatureUrl } from "./resignature-link";
 import {
@@ -104,13 +104,7 @@ export async function creerSupplementCarte(
  * emails. Le total du dossier n'est PAS modifié (le supplément est une ligne
  * paiements à part) — SAUF cas a où l'appelant passe `nouveauTotal`.
  */
-export type ModeChangement =
-  | "a_regler" // supplément séparé, mode choisi plus tard par l'adhérent (carte/espèces)
-  | "especes" // supplément espèces (sur place = encaissé, ou choisi par l'adhérent = en attente)
-  | "offert"
-  | "remboursement_carte"
-  | "remboursement_hors_ligne"
-  | null; // fusionné dans le total (cas a) / aucun montant
+export type { ModeChangement };
 
 export async function appliquerChangementActif(
   supabase: SupabaseClient,
@@ -124,7 +118,6 @@ export async function appliquerChangementActif(
     motif?: string | null;
     signatureRequise: boolean;
     nouveauTotal?: number | null; // cas a : total recalculé (sinon inchangé)
-    encaisse?: boolean; // espèces réglées sur place → paiement déjà encaissé
   },
 ): Promise<{ changementId: string }> {
   const cible = cleVersDossier(p.nouvelleCle);
@@ -137,9 +130,9 @@ export async function appliquerChangementActif(
     })
     .eq("id", adherent.id);
 
-  // Ligne supplément en ESPÈCES uniquement : réglées sur place → « paye »
-  // (encaissé), sinon « en_attente » (confirmation admin). Le mode carte passe
-  // par le choix de l'adhérent (choisirModeSupplement → creerSupplementCarte).
+  // Ligne supplément en ESPÈCES (choix de l'adhérent) : « en_attente » jusqu'à
+  // confirmation de l'encaissement par l'admin. Le mode carte passe par le choix
+  // de l'adhérent (choisirModeSupplement → creerSupplementCarte).
   let paiementId: string | null = null;
   if (p.montantEuros > 0 && p.modeReglement === "especes") {
     const paie = await supabase
@@ -147,10 +140,10 @@ export async function appliquerChangementActif(
       .insert({
         adherent_id: adherent.id,
         montant: p.montantEuros,
-        statut: p.encaisse ? "paye" : "en_attente",
+        statut: "en_attente",
         numero_echeance: null,
         date_prevue: auj(),
-        date_paiement: p.encaisse ? new Date().toISOString() : null,
+        date_paiement: null,
       })
       .select("id")
       .single();
@@ -186,9 +179,9 @@ export async function appliquerChangementActif(
   // Emails (best-effort).
   try {
     if (adherent.email) {
-      let modeAdherent: "a_regler" | "especes" | "especes_encaisse" | "offert" | "remboursement" | null;
+      let modeAdherent: "a_regler" | "especes" | "offert" | "remboursement" | null;
       if (p.modeReglement === "remboursement_carte" || p.modeReglement === "remboursement_hors_ligne") modeAdherent = "remboursement";
-      else if (p.modeReglement === "especes") modeAdherent = p.encaisse ? "especes_encaisse" : "especes";
+      else if (p.modeReglement === "especes") modeAdherent = "especes";
       else modeAdherent = p.modeReglement; // 'a_regler' | 'offert' | null
       await sendChangementFormuleAdherent({
         email: adherent.email,

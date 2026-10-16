@@ -119,6 +119,53 @@ export function changementActivable(ch: {
   );
 }
 
+// Mode de règlement d'un changement, tel que PERSISTÉ (changements_formule).
+// null = fusionné dans le total (cas a) / aucun montant. 'especes' reste lisible
+// (parcours adhérent + anciennes lignes admin « réglé sur place »), mais n'est
+// plus proposé à la création côté admin.
+export type ModeChangement =
+  | "a_regler"
+  | "especes"
+  | "offert"
+  | "remboursement_carte"
+  | "remboursement_hors_ligne"
+  | null;
+
+export type ResolutionChangement =
+  | { ok: true; mode: ModeChangement; montant: number; nouveauTotal: number | null }
+  | { ok: false; error: string };
+
+// Résout le règlement d'un changement déclenché par l'ADMIN (PUR, fail-closed).
+// Supplément : uniquement « à régler par l'adhérent » (il choisira carte ou
+// espèces en signant sa nouvelle fiche) ou « offert ». Toute autre valeur — dont
+// l'ancien « réglé sur place en espèces » (especes_sur_place) — est REFUSÉE.
+// Cas a (ni encaissé ni engagé) : le montant est FUSIONNÉ dans le total.
+export function resoudreChangementAdmin(p: {
+  sens: "supplement" | "remboursement" | "aucun";
+  reglement?: string | null;
+  montantEuros: number; // déjà normalisé (>= 0)
+  engage: boolean;
+  total: number;
+}): ResolutionChangement {
+  if (p.sens === "supplement") {
+    if (p.reglement === "offert") return { ok: true, mode: "offert", montant: 0, nouveauTotal: null };
+    if (p.reglement === "a_regler") {
+      if (p.montantEuros <= 0) return { ok: false, error: "Montant du supplément requis." };
+      // Cas a : fusion dans le total. Cas b (engagé) : supplément séparé à régler.
+      if (!p.engage) return { ok: true, mode: null, montant: p.montantEuros, nouveauTotal: Math.round((p.total + p.montantEuros) * 100) / 100 };
+      return { ok: true, mode: "a_regler", montant: p.montantEuros, nouveauTotal: null };
+    }
+    return { ok: false, error: "Mode de règlement du supplément invalide (attendu : « à régler par l'adhérent » ou « offert »)." };
+  }
+  if (p.sens === "remboursement") {
+    if (p.montantEuros <= 0) return { ok: false, error: "Montant du remboursement requis." };
+    if (!p.engage) return { ok: true, mode: null, montant: -p.montantEuros, nouveauTotal: Math.round((p.total - p.montantEuros) * 100) / 100 };
+    const mode: ModeChangement = p.reglement === "remboursement_carte" ? "remboursement_carte" : "remboursement_hors_ligne";
+    return { ok: true, mode, montant: p.montantEuros, nouveauTotal: null };
+  }
+  return { ok: true, mode: null, montant: 0, nouveauTotal: null };
+}
+
 // ---- Contenu ADAPTATIF des mails de relance (PUR) ----
 export type MailRelanceChangement = {
   objet: string;
