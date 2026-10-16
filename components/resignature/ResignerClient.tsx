@@ -4,6 +4,10 @@ import { useState } from "react";
 import { SignDocumentModal } from "@/components/inscription/SignDocumentModal";
 import type { FicheData, ReglementData, SignatureVect } from "@/lib/pdf/types";
 
+// [P3] Reste à payer après un changement de formule (renvoyé par /api/re-signer).
+type ResteInfo = { nouvelleFormuleLabel: string; phrases: string[]; cas: "a" | "b"; resteEuros: number } | null;
+const euro = (n: number) => `${Number(n).toLocaleString("fr-FR", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })} €`;
+
 type Token = { a: string; doc: string; exp: string; t: string };
 type DocKey = "fiche" | "reglement";
 
@@ -34,6 +38,7 @@ export function ResignerClient({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [resteInfo, setResteInfo] = useState<ResteInfo>(null);
 
   const meta: Record<DocKey, { label: string; certif: string }> = {
     fiche: {
@@ -74,6 +79,7 @@ export function ResignerClient({
       const data = await res.json();
       if (res.ok && data.received) {
         setDone((d) => ({ ...d, [doc]: true }));
+        if (data.resteInfo) setResteInfo(data.resteInfo as ResteInfo);
         setOpen(null);
       } else {
         setError(data.error || "L'envoi a échoué. Réessayez.");
@@ -114,9 +120,33 @@ export function ResignerClient({
             <p className="mt-3 text-sm font-semibold text-ink">
               Merci ! Votre re-signature a bien été prise en compte.
             </p>
-            <p className="mt-1 text-xs text-smoke">
-              Vous pouvez fermer cette page.
-            </p>
+            {resteInfo ? (
+              <div className="mt-4 rounded-xl border border-line bg-white p-4 text-left">
+                <p className="text-sm text-ink">
+                  Votre fiche est signée et votre nouvelle formule (<strong>{resteInfo.nouvelleFormuleLabel}</strong>) est active.
+                </p>
+                {resteInfo.phrases.map((p, i) => (
+                  <p key={i} className="mt-1 text-sm text-smoke">{p}</p>
+                ))}
+                {resteInfo.resteEuros > 0 ? (
+                  <>
+                    <p className="mt-2 text-sm text-ink">
+                      Il vous reste <strong className="text-orange">{euro(resteInfo.resteEuros)}</strong> à régler{resteInfo.cas === "b" ? " pour ce supplément" : " pour votre nouvelle formule"}.
+                    </p>
+                    <p className="mt-1 text-xs text-smoke">
+                      Vous pouvez payer par carte ou en espèces depuis votre espace. En espèces, vous réglerez auprès de votre professeur lors de votre prochain cours.
+                    </p>
+                    <a href="/mon-espace" className="mt-3 inline-block rounded-full bg-orange px-4 py-2 text-xs font-bold text-white hover:brightness-95">
+                      Voir ce qu'il reste à régler
+                    </a>
+                  </>
+                ) : (
+                  <p className="mt-2 text-sm font-semibold text-emerald-700">Il n&apos;y a rien de plus à régler. Merci !</p>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-smoke">Vous pouvez fermer cette page.</p>
+            )}
           </div>
         ) : (
           <div className="mt-6 space-y-3">

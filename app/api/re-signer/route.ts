@@ -13,7 +13,9 @@ import { cheminDepuisUrl } from "@/lib/storage-url";
 import {
   sendReSignatureConfirmationAdherent,
   sendReSignatureConfirmationAdmin,
+  sendChangementSigne,
 } from "@/lib/email";
+import { infoResteChangement } from "@/lib/changement-formule-server";
 import type { SignatureVect } from "@/lib/pdf/types";
 import type { Adherent } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -378,7 +380,19 @@ async function regenererFiche(
     })
     .eq("id", id);
 
-  // 7) Mails de confirmation (best-effort, spécifiques au document).
+  // 7) Contenu adaptatif « reste à payer après changement de formule » (serveur
+  //    autoritaire). Sert à l'écran post-signature ET au mail post-signature.
+  let resteInfo = null as Awaited<ReturnType<typeof infoResteChangement>>;
+  try {
+    resteInfo = await infoResteChangement(supabase, id);
+  } catch (e) {
+    console.error("infoResteChangement (ignoré):", e);
+  }
+
+  // 8) Mails de confirmation (best-effort). L'admin reçoit toujours la confirmation
+  //    de re-signature. Pour l'adhérent : UN SEUL mail — si un changement de formule
+  //    laisse un reste à payer, on envoie le mail adaptatif (signée + formule active
+  //    + reste exact + comment payer) À LA PLACE du mail générique (pas de doublon).
   const dateFr = new Intl.DateTimeFormat("fr-FR", {
     dateStyle: "long",
     timeStyle: "short",
@@ -394,18 +408,32 @@ async function regenererFiche(
       }),
     ];
     if (adherent.email) {
-      envois.push(
-        sendReSignatureConfirmationAdherent({
-          prenom: adherent.prenom ?? "",
-          email: adherent.email,
-          docLabel: "la fiche d'inscription",
-        }),
-      );
+      if (resteInfo && resteInfo.resteEuros > 0) {
+        envois.push(
+          sendChangementSigne({
+            email: adherent.email,
+            prenom: adherent.prenom ?? "",
+            mineur,
+            nouvelleFormuleLabel: resteInfo.nouvelleFormuleLabel,
+            phrases: resteInfo.phrases,
+            resteEuros: resteInfo.resteEuros,
+            cas: resteInfo.cas,
+          }),
+        );
+      } else {
+        envois.push(
+          sendReSignatureConfirmationAdherent({
+            prenom: adherent.prenom ?? "",
+            email: adherent.email,
+            docLabel: "la fiche d'inscription",
+          }),
+        );
+      }
     }
     await Promise.all(envois);
   } catch (e) {
     console.error("Mails re-signature (ignoré):", e);
   }
 
-  return NextResponse.json({ received: true, doc: "fiche" });
+  return NextResponse.json({ received: true, doc: "fiche", resteInfo });
 }

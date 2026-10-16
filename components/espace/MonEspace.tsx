@@ -700,7 +700,7 @@ function DossierActions({
     </div>
   ) : sup && sup.statut === "especes_attente" ? (
     <p className="w-full text-xs text-smoke">
-      Supplément en espèces : {sup.dejaEncaisse > 0 ? <>déjà réglé <strong className="text-ink">{euro(sup.dejaEncaisse)}</strong>, reste <strong className="text-orange">{euro(sup.reste)}</strong></> : <>{euro(sup.reste)}</>} — en attente de confirmation au club.
+      Supplément : {sup.dejaEncaisse > 0 ? <>déjà réglé <strong className="text-ink">{euro(sup.dejaEncaisse)}</strong>, </> : null}vous réglerez <strong className="text-orange">{euro(sup.reste)}</strong> en espèces auprès de votre professeur lors de votre prochain cours.
     </p>
   ) : null;
 
@@ -762,7 +762,13 @@ function DossierActions({
       {/* [020] Récap espèces (déjà réglé / reste) sans les notes internes. */}
       {especesAttente && especesEncaisse > 0 && (
         <p className="w-full text-sm text-smoke">
-          Déjà réglé en espèces : <strong className="text-ink">{euro(especesEncaisse)}</strong> — reste <strong className="text-orange">{euro(especesReste)}</strong> à régler au club.
+          Déjà réglé en espèces : <strong className="text-ink">{euro(especesEncaisse)}</strong>. Vous réglerez les <strong className="text-orange">{euro(especesReste)}</strong> restants en espèces auprès de votre professeur lors de votre prochain cours.
+        </p>
+      )}
+      {/* [P3] Espèces, rien encore encaissé : rappel clair du mode de règlement. */}
+      {especesAttente && especesEncaisse === 0 && especesReste > 0 && (
+        <p className="w-full text-sm text-smoke">
+          Vous réglerez <strong className="text-orange">{euro(especesReste)}</strong> en espèces auprès de votre professeur lors de votre prochain cours.
         </p>
       )}
       {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}

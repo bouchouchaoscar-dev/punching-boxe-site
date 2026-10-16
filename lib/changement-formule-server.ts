@@ -6,9 +6,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getStripe } from "./stripe";
 import { estMineur, formuleCle, type FormuleCle, type PackageType } from "./pricing";
-import { cleVersDossier, labelFormuleCle, type ModeChangement } from "./changement-formule";
-import { recalculerSupplement } from "./payments";
+import { cleVersDossier, labelFormuleCle, diffDisciplines, phrasesChangementDisciplines, resumeChangementDisciplines, type ModeChangement } from "./changement-formule";
+import { recalculerSupplement, cibleEncaissementEspeces } from "./payments";
+import { estPaiementSolde } from "./paiement";
 import { buildResignatureUrl } from "./resignature-link";
+import { exigerData } from "./supabase";
 import {
   sendChangementFormuleAdherent,
   sendChangementFormuleAdmin,
@@ -176,6 +178,10 @@ export async function appliquerChangementActif(
   // SEUL écrivain de supplement_statut (dérivé de la réalité).
   await recalculerSupplement(supabase, adherent.id);
 
+  // Ce que le changement AJOUTE / RETIRE réellement (source unique disciplines).
+  const ancienneCle = cle(adherent);
+  const diff = ancienneCle ? diffDisciplines(ancienneCle, p.nouvelleCle) : { ajoutees: [], retirees: [] };
+
   // Emails (best-effort).
   try {
     if (adherent.email) {
@@ -191,6 +197,7 @@ export async function appliquerChangementActif(
         nouvelleFormule: labelFormuleCle(p.nouvelleCle),
         montantEuros: p.montantEuros,
         mode: modeAdherent,
+        phrases: phrasesChangementDisciplines(diff),
         signatureRequise: p.signatureRequise,
         lienSigner: p.signatureRequise ? lienSignatureFiche(adherent.id) : null,
         parAdmin: p.source === "admin",
@@ -204,6 +211,7 @@ export async function appliquerChangementActif(
       montantEuros: p.montantEuros,
       mode: p.modeReglement,
       source: p.source,
+      resumeDisciplines: resumeChangementDisciplines(diff),
     });
   } catch (e) {
     console.error("[CHANGEMENT FORMULE] emails échoués:", adherent.id, e);
@@ -277,6 +285,62 @@ export async function chargerSupplementsParDossier(
     }
   }
   return out;
+}
+
+// [P3] SOURCE UNIQUE du « reste à payer après un changement de formule », pour le
+// contenu adaptatif montré (1) sur l'écran post-signature, (2) dans l'espace, (3)
+// dans le mail post-signature. Le serveur a le DERNIER MOT sur le montant (jamais
+// supposé). Renvoie null si aucun changement récent n'impose un paiement.
+//   - cas a : supplément FUSIONNÉ dans le total → reste = total - déjà encaissé.
+//   - cas b : supplément SÉPARÉ → reste = montant du supplément - déjà encaissé.
+// Tient compte des versements espèces partiels déjà encaissés. Tolérant (018/020).
+export type InfoResteChangement = {
+  nouvelleFormuleLabel: string;
+  phrases: string[]; // disciplines gagnées/perdues (vrai changement)
+  cas: "a" | "b";
+  resteEuros: number; // exact, recalculé serveur
+};
+export async function infoResteChangement(
+  supabase: SupabaseClient,
+  adherentId: string,
+): Promise<InfoResteChangement | null> {
+  const adherent = exigerData(
+    await supabase.from("adherents").select("montant_total, mode_paiement, statut_paiement, nb_echeances, echeances_payees").eq("id", adherentId).maybeSingle(),
+    "infoResteChangement: adhérent",
+  );
+  if (!adherent) return null;
+
+  const chs = exigerData(
+    await supabase
+      .from("changements_formule")
+      .select("id, ancienne_formule, nouvelle_formule, montant_cents, mode_reglement, statut, created_at")
+      .eq("dossier_id", adherentId)
+      .eq("statut", "actif"),
+    "infoResteChangement: changements",
+  );
+  // Changement RÉEL le plus récent (montant non nul : exclut un « offert »).
+  const recent = (chs ?? [])
+    .filter((c) => Math.round(Number(c.montant_cents || 0)) !== 0)
+    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
+  if (!recent) return null;
+
+  const diff = diffDisciplines(recent.ancienne_formule as FormuleCle, recent.nouvelle_formule as FormuleCle);
+  const base = {
+    nouvelleFormuleLabel: labelFormuleCle(recent.nouvelle_formule as FormuleCle),
+    phrases: phrasesChangementDisciplines(diff),
+  };
+
+  if (recent.mode_reglement === null) {
+    // CAS A : fusionné dans le total. Reste = total - encaissé (0 si déjà soldé).
+    if (estPaiementSolde(adherent as Parameters<typeof estPaiementSolde>[0])) return { ...base, cas: "a", resteEuros: 0 };
+    const c = await cibleEncaissementEspeces(supabase, adherentId, null);
+    const reste = c.ok ? c.cible.reste : Number(adherent.montant_total || 0);
+    return { ...base, cas: "a", resteEuros: reste };
+  }
+  // CAS B : supplément séparé. Reste = dû supplément - déjà encaissé.
+  const c = await cibleEncaissementEspeces(supabase, adherentId, recent.id as string);
+  const reste = c.ok ? c.cible.reste : Math.max(0, Number(recent.montant_cents || 0) / 100);
+  return { ...base, cas: "b", resteEuros: reste };
 }
 
 // L'adhérent CHOISIT le mode de règlement d'un supplément 'a_regler' (créé par

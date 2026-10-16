@@ -4,6 +4,7 @@ import {
   estBoxeSeule, peutAjouterPrepa, prixOptionPrepa, labelFormuleCle, cleVersDossier,
   restantChangement, changementAFaire, mailRelanceChangement,
   calculerSupplementStatut, changementActivable, resoudreChangementAdmin,
+  diffDisciplines, phrasesChangementDisciplines, disciplinesDeFormule,
 } from "../lib/changement-formule";
 import { prepaDuMois, formuleCle } from "../lib/pricing";
 import { statutTrombi } from "../lib/paiement";
@@ -105,6 +106,26 @@ check("remboursement + non engagé → baisse du total (fusion)", (() => { const
 check("remboursement + engagé carte → remboursement_carte séparé", (() => { const r = R({ sens: "remboursement", reglement: "remboursement_carte", montantEuros: 50, engage: true, total: 380 }); return r.ok && r.mode === "remboursement_carte"; })());
 check("remboursement montant 0 → refusé", !R({ sens: "remboursement", reglement: "remboursement_carte", montantEuros: 0, engage: true, total: 380 }).ok);
 check("sens 'aucun' → changement de formule sans montant", (() => { const r = R({ sens: "aucun", montantEuros: 0, engage: false, total: 380 }); return r.ok && r.mode === null && r.montant === 0; })());
+
+console.log("\n== Diff de disciplines : les 6 transitions (texte ajout/retrait réel) ==");
+// Disciplines de chaque formule (déduites de la config, aucune liste en dur).
+check("boxe = {Boxe française}", JSON.stringify(disciplinesDeFormule("boxe")) === JSON.stringify(["Boxe française"]));
+check("boxe_prepa = {Boxe française, Préparation physique}", JSON.stringify(disciplinesDeFormule("boxe_prepa")) === JSON.stringify(["Boxe française", "Préparation physique"]));
+check("savate_prepa = {Savate, Préparation physique}", JSON.stringify(disciplinesDeFormule("savate_prepa")) === JSON.stringify(["Savate", "Préparation physique"]));
+const ph = (av: "boxe"|"boxe_prepa"|"savate_prepa", ap: "boxe"|"boxe_prepa"|"savate_prepa") => phrasesChangementDisciplines(diffDisciplines(av, ap)).join(" ");
+// 1. boxe → boxe_prepa : gagne la prépa.
+check("boxe→boxe_prepa : accès prépa, aucun retrait", ph("boxe", "boxe_prepa") === "Vous avez désormais accès aux cours de préparation physique.");
+// 2. boxe_prepa → boxe : perd la prépa.
+check("boxe_prepa→boxe : prépa retirée", ph("boxe_prepa", "boxe") === "Les cours de préparation physique ne font plus partie de votre formule.");
+// 3. boxe → savate_prepa : gagne savate + prépa, perd boxe française.
+check("boxe→savate_prepa : +savate +prépa, −boxe française", ph("boxe", "savate_prepa") === "Vous avez désormais accès aux cours de savate et préparation physique. Les cours de boxe française ne font plus partie de votre formule.");
+// 4. savate_prepa → boxe : gagne boxe française, perd savate + prépa.
+check("savate_prepa→boxe : +boxe française, −savate −prépa", ph("savate_prepa", "boxe") === "Vous avez désormais accès aux cours de boxe française. Les cours de savate et préparation physique ne font plus partie de votre formule.");
+// 5. boxe_prepa → savate_prepa : gagne savate, perd boxe française (prépa conservée, non citée).
+check("boxe_prepa→savate_prepa : +savate, −boxe française (prépa non citée)", ph("boxe_prepa", "savate_prepa") === "Vous avez désormais accès aux cours de savate. Les cours de boxe française ne font plus partie de votre formule.");
+// 6. savate_prepa → boxe_prepa : LE BUG — gagne boxe française, perd savate (JAMAIS « accès prépa »).
+check("savate_prepa→boxe_prepa : +boxe française, −savate (PAS « accès prépa »)", ph("savate_prepa", "boxe_prepa") === "Vous avez désormais accès aux cours de boxe française. Les cours de savate ne font plus partie de votre formule.");
+check("savate_prepa→boxe_prepa : ne mentionne PAS la préparation physique", !ph("savate_prepa", "boxe_prepa").toLowerCase().includes("préparation physique"));
 
 console.log("\n== Propagation : tout dérive de (package, option_prepa) ==");
 // Avant : BF seule. Après : BF + Prépa (flip de option_prepa_physique).

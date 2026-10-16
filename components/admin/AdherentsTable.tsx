@@ -13,7 +13,8 @@ import { IconButton } from "@/components/ui/IconButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Download } from "lucide-react";
 import { estEmailValide } from "@/lib/email-format";
-import { getAdminRole, adminAuthHeaders } from "@/lib/admin-auth";
+import { getAdminRole } from "@/lib/admin-auth";
+import { ConfirmEspecesListeModal } from "./ConfirmEspecesListeModal";
 import { euro, formuleLabel, formuleCle, FORMULE_FILTRE_OPTIONS } from "@/lib/pricing";
 import {
   statutTrombi,
@@ -40,7 +41,6 @@ export function AdherentsTable() {
   const [statut, setStatut] = useState<StatutFiltre>("all");
   const [formule, setFormule] = useState("all");
   const [emailFiltre, setEmailFiltre] = useState("all"); // all | invalides
-  const [confirming, setConfirming] = useState<string | null>(null);
   // Création admin (tarif/durée libres) — bouton réservé à l'admin.
   const [role, setRole] = useState<string | null>(null);
   useEffect(() => setRole(getAdminRole()), []);
@@ -109,20 +109,9 @@ export function AdherentsTable() {
     });
   }, [adherents, q, type, statut, formule, emailFiltre]);
 
-  async function confirmCash(id: string) {
-    setConfirming(id);
-    try {
-      // « Tout encaisser » en un clic : le serveur encaisse le reste dû (idempotent).
-      await fetch(`/api/admin/adherents/${id}/encaisser-especes`, {
-        method: "POST",
-        headers: { ...adminAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ versementId: crypto.randomUUID(), tout: true }),
-      });
-      await refresh();
-    } finally {
-      setConfirming(null);
-    }
-  }
+  // [P1] Le clic n'encaisse plus en un geste : il ouvre une modale (Tout encaisser /
+  // Encaisser une partie), via le composant partagé et la même route admin.
+  const [especesModal, setEspecesModal] = useState<Adherent | null>(null);
 
   function exportCsv() {
     const headers = [
@@ -305,8 +294,7 @@ export function AdherentsTable() {
                   a={a}
                   encaisse={encaisseMap[a.id] ?? 0}
                   paidEcheances={paidEcheancesMap[a.id] ?? 0}
-                  confirming={confirming === a.id}
-                  onConfirm={() => confirmCash(a.id)}
+                  onConfirm={() => setEspecesModal(a)}
                 />
               ))}
             </tbody>
@@ -327,6 +315,14 @@ export function AdherentsTable() {
           </>
         )}
       </div>
+
+      {especesModal && (
+        <ConfirmEspecesListeModal
+          adherent={especesModal}
+          onClose={() => setEspecesModal(null)}
+          onChanged={refresh}
+        />
+      )}
     </div>
   );
 }
@@ -335,13 +331,11 @@ function Row({
   a,
   encaisse,
   paidEcheances,
-  confirming,
   onConfirm,
 }: {
   a: Adherent;
   encaisse: number;
   paidEcheances: number;
-  confirming: boolean;
   onConfirm: () => void;
 }) {
   const isNew = isNewAdherent(a);
@@ -398,10 +392,9 @@ function Row({
         {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" ? (
           <button
             onClick={onConfirm}
-            disabled={confirming}
-            className="whitespace-nowrap rounded-full bg-ink px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-orange disabled:opacity-50"
+            className="whitespace-nowrap rounded-full bg-ink px-2 py-1 text-xs font-bold text-white transition-colors hover:bg-orange"
           >
-            {confirming ? "…" : "Confirmer espèces"}
+            Confirmer espèces
           </button>
         ) : (
           <Link

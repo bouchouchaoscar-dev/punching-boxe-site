@@ -12,7 +12,7 @@ import {
 import { notifierSiDossierComplet } from "./dossier-complet";
 import { notifierEchecPaiement } from "./echec-notify";
 import { estMineur, type FormuleCle } from "./pricing";
-import { cleVersDossier, labelFormuleCle, calculerSupplementStatut, changementActivable } from "./changement-formule";
+import { cleVersDossier, labelFormuleCle, calculerSupplementStatut, changementActivable, diffDisciplines, phrasesChangementDisciplines } from "./changement-formule";
 import { totalEncaisseEspeces, resteDuEspeces, versementValide, type VersementRow } from "./encaissement";
 import type { Adherent, Paiement } from "./types";
 
@@ -441,7 +441,7 @@ export async function recalculerSupplement(
 ): Promise<void> {
   const { data: changements, error } = await supabase
     .from("changements_formule")
-    .select("id, nouvelle_formule, montant_cents, mode_reglement, statut, paiement_id, signature_requise")
+    .select("id, ancienne_formule, nouvelle_formule, montant_cents, mode_reglement, statut, paiement_id, signature_requise")
     .eq("dossier_id", adherentId);
   if (error || !changements) return; // table absente (pré-migration) → no-op
 
@@ -492,9 +492,11 @@ export async function recalculerSupplement(
           email: a.email as string,
           prenom: (a.prenom as string) ?? "",
           mineur: estMineur(a.date_naissance as string),
+          ancienneFormule: labelFormuleCle(ch.ancienne_formule as FormuleCle),
           nouvelleFormule: labelFormuleCle(ch.nouvelle_formule as FormuleCle),
           montantEuros: Math.max(0, (ch.montant_cents as number) ?? 0) / 100,
           mode: "carte",
+          phrases: phrasesChangementDisciplines(diffDisciplines(ch.ancienne_formule as FormuleCle, ch.nouvelle_formule as FormuleCle)),
           signatureRequise: true,
         });
       }

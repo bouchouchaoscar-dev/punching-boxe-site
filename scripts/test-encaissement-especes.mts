@@ -192,5 +192,46 @@ console.log("\n== Non-régression : ancien dossier encaissé en UNE fois (ligne 
   check("ligne unique conservée", db._t.paiements.length === 1);
 }
 
+console.log("\n== P3 : reste à payer après changement (cas a / cas b, exact) ==");
+{
+  const { infoResteChangement } = await import("../lib/changement-formule-server");
+  // CAS A : supplément FUSIONNÉ (mode null), total 530, rien encaissé → reste 530.
+  const dbA = fakeDb({
+    adherents: [dossierEspeces({ id: "D", montant_total: 530, statut_paiement: "en_attente" })],
+    paiements: [],
+    changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: null, montant_cents: 15000, ancienne_formule: "savate_prepa", nouvelle_formule: "boxe_prepa", created_at: "2026-10-16T10:00:00Z" }],
+  });
+  const a = await infoResteChangement(dbA as unknown as SB, "D");
+  check("cas a : détecté", a?.cas === "a");
+  check("cas a : reste = 530 (total fusionné)", a?.resteEuros === 530, a);
+  check("cas a : phrase décrit le vrai gain (boxe française)", (a?.phrases ?? []).join(" ").toLowerCase().includes("boxe française"));
+  // CAS A partiel : 200 € déjà encaissés → reste 330.
+  await encaisserEspeces(dbA as unknown as SB, { adherentId: "D", versementId: "VA", montantEuros: 200 });
+  const a2 = await infoResteChangement(dbA as unknown as SB, "D");
+  check("cas a partiel : reste = 330 après 200 € encaissés", a2?.resteEuros === 330, a2);
+
+  // CAS B : cotisation 430 déjà payée, supplément SÉPARÉ 70 € espèces → reste 70.
+  const dbB = fakeDb({
+    adherents: [dossierEspeces({ id: "D", montant_total: 430, statut_paiement: "confirme_especes", engage_at: "2026-09-01", option_prepa_physique: true })],
+    paiements: [],
+    changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "especes", montant_cents: 7000, paiement_id: null, ancienne_formule: "boxe", nouvelle_formule: "boxe_prepa", created_at: "2026-10-16T11:00:00Z" }],
+  });
+  const b = await infoResteChangement(dbB as unknown as SB, "D");
+  check("cas b : détecté", b?.cas === "b");
+  check("cas b : reste = 70 (supplément seul, jamais le total)", b?.resteEuros === 70, b);
+  // CAS B partiel : 40 € encaissés sur le supplément → reste 30.
+  await encaisserEspeces(dbB as unknown as SB, { adherentId: "D", versementId: "VB", montantEuros: 40, changementId: "C" });
+  const b2 = await infoResteChangement(dbB as unknown as SB, "D");
+  check("cas b partiel : reste = 30 après 40 € encaissés", b2?.resteEuros === 30, b2);
+
+  // OFFERT (montant 0) → aucun reste à annoncer.
+  const dbO = fakeDb({
+    adherents: [dossierEspeces({ id: "D", statut_paiement: "confirme_especes" })],
+    paiements: [],
+    changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "offert", montant_cents: 0, ancienne_formule: "boxe", nouvelle_formule: "boxe_prepa", created_at: "2026-10-16T12:00:00Z" }],
+  });
+  check("offert : infoResteChangement = null (rien à régler)", (await infoResteChangement(dbO as unknown as SB, "D")) === null);
+}
+
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

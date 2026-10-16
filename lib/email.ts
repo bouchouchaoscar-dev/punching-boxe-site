@@ -782,6 +782,9 @@ export async function sendChangementFormuleAdherent(d: {
   nouvelleFormule: string;
   montantEuros: number;
   mode: "a_regler" | "carte" | "especes" | "offert" | "remboursement" | null;
+  // Phrases adaptatives décrivant le VRAI changement de disciplines (ajout/retrait),
+  // calculées en amont (diffDisciplines). Jamais de liste en dur ici.
+  phrases?: string[];
   signatureRequise: boolean;
   lienSigner?: string | null;
   lienPayer?: string | null;
@@ -798,9 +801,8 @@ export async function sendChangementFormuleAdherent(d: {
   } else {
     corps.push(`Votre formule est désormais <strong>${escapeHtml(d.nouvelleFormule)}</strong>.`);
   }
-  if (d.nouvelleFormule.includes("Prépa")) {
-    corps.push("Vous avez désormais accès aux cours de préparation physique.");
-  }
+  // Ce que l'adhérent gagne / perd réellement (disciplines), jamais supposé.
+  for (const p of d.phrases ?? []) corps.push(escapeHtml(p));
   // Message adapté : quand c'est à l'adhérent de choisir ('a_regler'), on ne lui
   // impose PAS de mode — il choisit carte ou espèces depuis son espace.
   if (d.mode === "offert") corps.push("Ce changement vous est offert par le club.");
@@ -838,11 +840,14 @@ export async function sendChangementFormuleAdmin(d: {
   montantEuros: number;
   mode: "a_regler" | "carte" | "especes" | "offert" | "remboursement_carte" | "remboursement_hors_ligne" | null;
   source: "adherent" | "admin";
+  // Résumé court du vrai changement de disciplines (ex. « + boxe française, − savate »).
+  resumeDisciplines?: string;
 }) {
   const client = getResend();
   if (!client) return { skipped: true as const };
   const qui = `${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`;
   const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
+  const resume = d.resumeDisciplines ? ` <em style="color:#666">(${escapeHtml(d.resumeDisciplines)})</em>` : "";
   const detail =
     d.mode === "a_regler" ? `supplément ${euro(d.montantEuros)} à régler par l'adhérent (carte ou espèces)`
     : d.mode === "carte" ? `supplément ${euro(d.montantEuros)} par carte`
@@ -855,7 +860,7 @@ export async function sendChangementFormuleAdmin(d: {
     : `Formule mise à jour pour <strong>${qui}</strong>`;
   const html = wrap(`
     <h1 style="font-size:20px;margin:0 0 8px">Changement de formule</h1>
-    <p style="line-height:1.6;color:#444">${intro} → <strong>${escapeHtml(d.nouvelleFormule)}</strong> (${detail}).</p>
+    <p style="line-height:1.6;color:#444">${intro} → <strong>${escapeHtml(d.nouvelleFormule)}</strong>${resume} (${detail}).</p>
     <p style="margin:6px 0 18px">${button(lien, "Ouvrir la fiche adhérent")}</p>
   `);
   return client.emails.send({
@@ -865,6 +870,48 @@ export async function sendChangementFormuleAdmin(d: {
     subject: `Changement de formule — ${qui}`,
     html,
   });
+}
+
+// [P3] Mail APRÈS SIGNATURE de la fiche actualisée (changement de formule). UN SEUL
+// mail : confirme la signature + la nouvelle formule active, et indique le reste
+// EXACT à régler (recalculé serveur) + comment payer. Remplace le mail générique de
+// re-signature quand il reste quelque chose à payer (pas de doublon).
+export async function sendChangementSigne(d: {
+  email: string;
+  prenom: string;
+  mineur: boolean;
+  nouvelleFormuleLabel: string;
+  phrases: string[];
+  resteEuros: number;
+  cas: "a" | "b";
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+  const base = siteUrl() ?? SITE_URL;
+  const salutation = d.mineur ? "Bonjour," : `Bonjour ${d.prenom},`;
+  const titre = "Votre fiche est signée";
+  const corps: string[] = [
+    `Votre fiche est signée et votre nouvelle formule (<strong>${escapeHtml(d.nouvelleFormuleLabel)}</strong>) est active.`,
+  ];
+  for (const p of d.phrases) corps.push(escapeHtml(p));
+  if (d.resteEuros > 0) {
+    const quoi = d.cas === "b" ? "pour ce supplément" : "pour votre nouvelle formule";
+    corps.push(`Il vous reste <strong>${euro(d.resteEuros)}</strong> à régler ${quoi}.`);
+    corps.push("Vous pouvez payer par carte ou en espèces depuis votre espace. En espèces, vous réglerez auprès de votre professeur lors de votre prochain cours.");
+  } else {
+    corps.push("Il n'y a rien de plus à régler. Merci !");
+  }
+  const paras = corps.map((p) => `<p style="line-height:1.6;color:#444">${p}</p>`).join("");
+  const boutons = d.resteEuros > 0 ? `<p style="margin:10px 0 18px">${button(`${base}/mon-espace`, "Voir ce qu'il reste à régler")}</p>` : "";
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 12px">${titre} 🥊</h1>
+    <p style="line-height:1.6;color:#444">${salutation}</p>
+    ${paras}
+    ${boutons}
+    <p style="line-height:1.6;color:#444;margin-top:12px">À très bientôt au club,<br/>L'équipe ${CLUB.nomCourt}</p>
+    <p style="font-size:12px;color:#999;margin-top:22px"><a href="${unsubscribeUrl(d.email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a></p>
+  `);
+  return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject: titre, html });
 }
 
 // [018] Relance d'un changement de formule (section 5). Contenu adaptatif fourni

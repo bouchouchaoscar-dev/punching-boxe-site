@@ -260,5 +260,27 @@ const espaceSup = read("components/espace/ReglerSupplementModal.tsx");
 check("espace : « Régler le supplément » (carte / espèces au choix de l'adhérent)", espaceSup.includes("supplement/choisir") && espaceSup.includes("Payer par carte") && espaceSup.includes("Régler en espèces"));
 check("espace : MonEspace branche ReglerSupplementModal", espace.includes("ReglerSupplementModal") && espace.includes("Régler le supplément"));
 
+// [P1] Confirmation espèces depuis la LISTE : modale réutilisant EncaissementEspeces
+// + route partagée (plus d'encaissement en un clic sans confirmation).
+const liste = read("components/admin/AdherentsTable.tsx");
+check("liste : clic ouvre la modale (ConfirmEspecesListeModal), pas d'encaissement direct", liste.includes("ConfirmEspecesListeModal") && liste.includes("setEspecesModal") && !/tout: true/.test(liste));
+const modaleListe = read("components/admin/ConfirmEspecesListeModal.tsx");
+check("liste modale : réutilise EncaissementEspeces + route /encaisser-especes", modaleListe.includes("EncaissementEspeces") && modaleListe.includes("/encaisser-especes") && modaleListe.includes("Confirmer le paiement en espèces"));
+
+// [P2] Mails : aucune discipline en dur ; texte dérivé du diff (phrases).
+const emailSrc = read("lib/email.ts");
+check("mail adhérent : plus de « accès aux cours de préparation physique » en dur", !emailSrc.includes('accès aux cours de préparation physique"'));
+check("mail adhérent : texte des disciplines via phrases (diff)", emailSrc.includes("for (const p of d.phrases ?? []) corps.push"));
+const serveurSrc = read("lib/changement-formule-server.ts");
+check("appliquerChangementActif : calcule diffDisciplines et passe phrases/resume", serveurSrc.includes("diffDisciplines(ancienneCle") && serveurSrc.includes("phrases: phrasesChangementDisciplines(diff)") && serveurSrc.includes("resumeDisciplines"));
+
+// [P3] Un SEUL mail après signature : adaptatif si reste > 0, sinon générique.
+const resign = read("app/api/re-signer/route.ts");
+check("re-signer : infoResteChangement (serveur autoritaire) utilisé", resign.includes("infoResteChangement(supabase, id)"));
+check("re-signer : UN seul mail adhérent (adaptatif OU générique, pas les deux)", resign.includes("resteInfo.resteEuros > 0") && resign.includes("sendChangementSigne") && resign.includes("} else {"));
+check("re-signer : resteInfo renvoyé pour l'écran post-signature", resign.includes("resteInfo });"));
+const resignUI = read("components/resignature/ResignerClient.tsx");
+check("écran post-signature : affiche formule active + reste + comment payer", resignUI.includes("est active") && resignUI.includes("reste") && resignUI.includes("carte ou en espèces"));
+
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

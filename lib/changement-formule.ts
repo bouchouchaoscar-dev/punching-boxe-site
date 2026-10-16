@@ -6,6 +6,7 @@ import type { Adherent } from "./types";
 import { formuleCle, formuleLabel, prepaDuMois, type FormuleCle, type PackageType } from "./pricing";
 import { fr } from "./typo";
 import { resoudreOuverture } from "./campagnes";
+import { adherentDansDiscipline, DISCIPLINES_COURS } from "./planning";
 
 // La formule actuelle est-elle « Boxe Française seule » ? (seul cas où l'adhérent
 // peut ajouter la prépa lui-même ; jamais pour les autres formules.)
@@ -47,6 +48,54 @@ export const FORMULES_CLE: FormuleCle[] = ["boxe", "boxe_prepa", "savate_prepa"]
 export function cleVersDossier(c: FormuleCle): { package: PackageType; option_prepa_physique: boolean } {
   if (c === "savate_prepa") return { package: "savate_prepa", option_prepa_physique: false };
   return { package: "boxe_classique", option_prepa_physique: c === "boxe_prepa" };
+}
+
+// ---- DIFFÉRENCE DE DISCIPLINES entre deux formules (SOURCE UNIQUE) ----
+// On NE code AUCUNE liste en dur : les disciplines de chaque formule sont déduites
+// de la config (cleVersDossier + adherentDansDiscipline + DISCIPLINES_COURS).
+
+// Disciplines (labels) d'une formule donnée.
+export function disciplinesDeFormule(c: FormuleCle): string[] {
+  const d = cleVersDossier(c);
+  return DISCIPLINES_COURS.filter((x) => adherentDansDiscipline(d.package, d.option_prepa_physique, x.cle)).map((x) => x.label);
+}
+
+export type DiffDisciplines = { ajoutees: string[]; retirees: string[] };
+
+// Ce que la nouvelle formule AJOUTE / RETIRE par rapport à l'ancienne.
+export function diffDisciplines(ancienne: FormuleCle, nouvelle: FormuleCle): DiffDisciplines {
+  const av = new Set(disciplinesDeFormule(ancienne));
+  const ap = new Set(disciplinesDeFormule(nouvelle));
+  return {
+    ajoutees: [...ap].filter((x) => !av.has(x)),
+    retirees: [...av].filter((x) => !ap.has(x)),
+  };
+}
+
+// Minuscule initiale pour insérer un label en milieu de phrase (« la boxe française »).
+const minusc = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+const joindre = (xs: string[]) =>
+  xs.length <= 1 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} et ${xs[xs.length - 1]}`;
+
+// Phrases ADAPTATIVES décrivant le vrai changement (ajout et/ou retrait). Vide si
+// aucune différence de disciplines (ex. même périmètre, simple ré-tarification).
+export function phrasesChangementDisciplines(diff: DiffDisciplines): string[] {
+  const out: string[] = [];
+  if (diff.ajoutees.length) {
+    out.push(`Vous avez désormais accès aux cours de ${joindre(diff.ajoutees.map(minusc))}.`);
+  }
+  if (diff.retirees.length) {
+    out.push(`Les cours de ${joindre(diff.retirees.map(minusc))} ne font plus partie de votre formule.`);
+  }
+  return out;
+}
+
+// Variante COURTE pour l'admin / l'historique (ex. « + boxe française, − savate »).
+export function resumeChangementDisciplines(diff: DiffDisciplines): string {
+  const bits: string[] = [];
+  if (diff.ajoutees.length) bits.push(`+ ${joindre(diff.ajoutees.map(minusc))}`);
+  if (diff.retirees.length) bits.push(`− ${joindre(diff.retirees.map(minusc))}`);
+  return bits.join(", ");
 }
 
 // ---- Relances d'un changement « admin » : ce qui reste à faire ----
