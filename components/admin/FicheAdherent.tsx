@@ -26,6 +26,7 @@ type ChangementLigne = {
   created_at: string;
 };
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
+import { EncaissementEspeces } from "./EncaissementEspeces";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
 import { OPTION_SUPPLEMENTAIRE } from "@/lib/constants";
@@ -426,8 +427,10 @@ export function FicheAdherent({ id }: { id: string }) {
   // [018] Historique des changements de formule + modale « Gérer la formule ».
   const [gererFormule, setGererFormule] = useState(false);
   const [changements, setChangements] = useState<ChangementLigne[]>([]);
-  const [supplement, setSupplement] = useState<{ montantEuros: number; mode: string; statut: string } | null>(null);
-  const [confirmSupp, setConfirmSupp] = useState(false);
+  const [supplement, setSupplement] = useState<{ changementId: string; montantEuros: number; dejaEncaisse: number; reste: number; mode: string; statut: string; versements?: { id: string; montant: number; date: string | null; note: string | null }[] } | null>(null);
+  // [020] Encaissement espèces de la COTISATION (récap + versements) — GET dédié.
+  const [encCotisation, setEncCotisation] = useState<{ du: number; encaisse: number; reste: number } | null>(null);
+  const [versementsCotisation, setVersementsCotisation] = useState<{ id: string; montant: number; date: string | null; note: string | null }[]>([]);
   const chargerChangements = useCallback(() => {
     fetch(`/api/admin/adherents/${id}/changements-formule`, { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
@@ -436,19 +439,17 @@ export function FicheAdherent({ id }: { id: string }) {
   }, [id]);
   useEffect(() => { chargerChangements(); }, [chargerChangements]);
 
-  async function confirmerSupplementEspeces() {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/admin/adherents/${id}/confirmer-supplement-especes`, {
-        method: "POST",
-        headers: adminAuthHeaders(),
-      });
-      const data = await res.json();
-      if (res.ok) { showToast(`Supplément espèces confirmé (${euro(data.montant)}) ✓`); load(); chargerChangements(); }
-      else showToast(data.error || "Confirmation impossible.");
-    } catch { showToast("Erreur réseau."); }
-    finally { setSaving(false); setConfirmSupp(false); }
-  }
+  // [020] Récap + historique des versements espèces de la cotisation.
+  const chargerEncaissement = useCallback(() => {
+    fetch(`/api/admin/adherents/${id}/encaisser-especes`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        setEncCotisation(d.cotisation ?? null);
+        setVersementsCotisation((d.versements ?? []).filter((v: { changementId: string | null }) => !v.changementId));
+      })
+      .catch(() => {});
+  }, [id]);
+  useEffect(() => { chargerEncaissement(); }, [chargerEncaissement]);
 
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
@@ -703,15 +704,16 @@ export function FicheAdherent({ id }: { id: string }) {
                 ? (MODE_LABEL[a.mode_paiement] ?? a.mode_paiement)
                 : "Mode à choisir au paiement"}
             </p>
-            {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" && (
-              <ButtonAction
-                onClick={() => patch({ action: "confirmer_especes" })}
-                disabled={saving}
-                size="md"
-                className="mt-4 w-full"
-              >
-                {saving ? "…" : "Confirmer paiement espèces"}
-              </ButtonAction>
+            {a.mode_paiement === "especes" && a.statut_paiement === "en_attente" && encCotisation && (
+              <EncaissementEspeces
+                adherentId={id}
+                du={encCotisation.du}
+                encaisse={encCotisation.encaisse}
+                reste={encCotisation.reste}
+                versements={versementsCotisation}
+                onChange={() => { load(); chargerEncaissement(); }}
+                showToast={showToast}
+              />
             )}
           </div>
 
@@ -1275,20 +1277,20 @@ export function FicheAdherent({ id }: { id: string }) {
               <dd className="font-semibold text-ink">{euro(supplement.montantEuros)} <span className="text-xs font-normal text-orange">({supplement.statut === "especes_attente" ? "espèces en attente" : supplement.statut === "carte_attente" ? "à régler par carte" : "à régler par l'adhérent"})</span></dd>
             </div>
             <div className="flex justify-between gap-3 border-t border-line pt-1"><dt className="font-semibold text-ink">Total</dt><dd className="font-bold text-ink">{euro(Number(a.montant_total || 0) + supplement.montantEuros)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-smoke">Reste dû (supplément)</dt><dd className="font-bold text-red-700">{euro(supplement.montantEuros)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-smoke">Reste dû (supplément)</dt><dd className="font-bold text-red-700">{euro(supplement.reste)}</dd></div>
           </dl>
+          {/* [020] Encaissement espèces du supplément (une ou plusieurs fois). */}
           {supplement.statut === "especes_attente" && (
-            !confirmSupp ? (
-              <button onClick={() => setConfirmSupp(true)} className="mt-3 rounded-full bg-green-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-green-700">
-                Confirmer l&apos;encaissement espèces
-              </button>
-            ) : (
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-ink">Confirmer {euro(supplement.montantEuros)} en espèces ?</span>
-                <button onClick={confirmerSupplementEspeces} disabled={saving} className="rounded-full bg-green-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">{saving ? "…" : "Oui, encaissé"}</button>
-                <button onClick={() => setConfirmSupp(false)} className="text-xs font-semibold text-smoke">Annuler</button>
-              </div>
-            )
+            <EncaissementEspeces
+              adherentId={id}
+              changementId={supplement.changementId}
+              du={supplement.montantEuros}
+              encaisse={supplement.dejaEncaisse}
+              reste={supplement.reste}
+              versements={supplement.versements ?? []}
+              onChange={() => { load(); chargerChangements(); chargerEncaissement(); }}
+              showToast={showToast}
+            />
           )}
         </div>
       )}

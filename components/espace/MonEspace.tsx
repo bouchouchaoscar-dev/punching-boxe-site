@@ -699,7 +699,9 @@ function DossierActions({
       <p className="mt-1 text-xs text-smoke">Changement de formule — carte ou espèces, à votre choix.</p>
     </div>
   ) : sup && sup.statut === "especes_attente" ? (
-    <p className="w-full text-xs text-smoke">Supplément de {euro(sup.montantEuros)} en espèces : en attente de confirmation au club.</p>
+    <p className="w-full text-xs text-smoke">
+      Supplément en espèces : {sup.dejaEncaisse > 0 ? <>déjà réglé <strong className="text-ink">{euro(sup.dejaEncaisse)}</strong>, reste <strong className="text-orange">{euro(sup.reste)}</strong></> : <>{euro(sup.reste)}</>} — en attente de confirmation au club.
+    </p>
   ) : null;
 
   // Dossier engagé : verrouillé, SAUF s'il a une échéance en échec → régularisation.
@@ -743,14 +745,26 @@ function DossierActions({
   }
   const especesAttente =
     a.mode_paiement === "especes" && a.statut_paiement === "en_attente";
-  // Espèces déclarées mais RIEN d'encaissé (statutTrombi = en attente) et dossier
-  // non annulé → on peut encore basculer vers un paiement par carte.
+  // [020] Encaissement espèces possible en plusieurs fois : montant déjà réglé /
+  // reste à régler (SANS les notes, internes au club).
+  const especesReste = especesAttente ? Number(a.reste_du_especes ?? a.montant_total ?? 0) : 0;
+  const especesEncaisse = especesAttente
+    ? Math.max(0, Math.round((Number(a.montant_total || 0) - especesReste) * 100) / 100)
+    : 0;
+  // Espèces déclarées mais RIEN d'encaissé (statutTrombi = en attente), dossier non
+  // annulé ET aucun versement espèces déjà commencé → on peut encore basculer carte.
   const peutPayerCarte =
-    statutTrombi(a).code === "attente_especes" && !a.annule_at;
+    statutTrombi(a).code === "attente_especes" && !a.annule_at && especesEncaisse === 0;
   return (
     <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
       {boutonPrepa}
       {boutonSupplement}
+      {/* [020] Récap espèces (déjà réglé / reste) sans les notes internes. */}
+      {especesAttente && especesEncaisse > 0 && (
+        <p className="w-full text-sm text-smoke">
+          Déjà réglé en espèces : <strong className="text-ink">{euro(especesEncaisse)}</strong> — reste <strong className="text-orange">{euro(especesReste)}</strong> à régler au club.
+        </p>
+      )}
       {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}
       {!especesAttente && (
         <Link

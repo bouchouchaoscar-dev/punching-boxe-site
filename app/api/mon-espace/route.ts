@@ -8,6 +8,7 @@ import {
 import { sendAdminDocReplaced } from "@/lib/email";
 import { signerDocsAdherents } from "@/lib/storage-url";
 import { chargerSupplementsParDossier } from "@/lib/changement-formule-server";
+import { chargerEncaisseEspecesParDossier } from "@/lib/payments";
 import { evaluerDossier } from "@/lib/dossier";
 import { getAuthUser } from "@/lib/auth-server";
 import { validerPiece, TYPE_META, CHAMPS_PIECE, type ChampPiece } from "@/lib/upload-piece";
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
     }
   }
 
-  // [018] Supplément de changement de formule non encaissé par dossier (récap +
+  // [018] Supplément de changement de formule non soldé par dossier (récap +
   // bouton « Régler le supplément » dans l'espace). Tolérant (table 018 absente).
   try {
     const sup = await chargerSupplementsParDossier(supabase, ids);
@@ -87,6 +88,17 @@ export async function GET(request: Request) {
     }
   } catch {
     /* rien */
+  }
+  // [020] Reste dû en espèces de la cotisation (montant_total - déjà encaissé) pour
+  // afficher « X € encaissés, reste Y € » à l'adhérent (SANS les notes, internes).
+  try {
+    const enc = await chargerEncaisseEspecesParDossier(supabase, ids);
+    for (const a of adherents as Record<string, unknown>[]) {
+      const encaisse = enc.get(a.id as string) ?? 0;
+      a.reste_du_especes = Math.max(0, Math.round((Number(a.montant_total || 0) - encaisse) * 100) / 100);
+    }
+  } catch {
+    /* colonnes 020 absentes → rien */
   }
 
   return NextResponse.json({ adherents, paidEcheances });

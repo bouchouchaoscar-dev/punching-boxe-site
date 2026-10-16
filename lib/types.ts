@@ -34,11 +34,15 @@ export interface Adherent {
   // statutTrombi quand la cotisation est par ailleurs réglée.
   supplement_statut?: "a_finaliser" | "attente_especes" | null;
   // [018] Montant (€) du supplément de changement de formule non encaissé —
-  // dérivé, attaché par /api/adherents pour le « dû » du tableau de bord.
+  // dérivé, attaché par /api/adherents pour le « dû » du tableau de bord. [020]
+  // = RESTE dû du supplément (encaissement possible en plusieurs fois).
   supplement_du?: number | null;
-  // [018] Récap du supplément en cours (attaché par /api/mon-espace) : montant +
-  // statut ('a_regler' = mode à choisir | 'especes_attente' | 'carte_attente').
-  supplement?: { montantEuros: number; statut: "a_regler" | "especes_attente" | "carte_attente" } | null;
+  // [020] Reste dû en espèces de la COTISATION (montant_total - déjà encaissé) —
+  // dérivé, attaché par /api/adherents pour le « dû » du tableau de bord.
+  reste_du_especes?: number | null;
+  // [018/020] Récap du supplément en cours (attaché par /api/mon-espace) : montant
+  // dû, déjà encaissé, reste + statut ('a_regler' | 'especes_attente' | 'carte_attente').
+  supplement?: { montantEuros: number; dejaEncaisse: number; reste: number; statut: "a_regler" | "especes_attente" | "carte_attente" } | null;
   stripe_payment_intent_id: string | null;
   saison: string;
   photo_url: string | null;

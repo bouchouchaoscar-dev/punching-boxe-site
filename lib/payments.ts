@@ -13,7 +13,33 @@ import { notifierSiDossierComplet } from "./dossier-complet";
 import { notifierEchecPaiement } from "./echec-notify";
 import { estMineur, type FormuleCle } from "./pricing";
 import { cleVersDossier, labelFormuleCle, calculerSupplementStatut, changementActivable } from "./changement-formule";
+import { totalEncaisseEspeces, resteDuEspeces, versementValide, type VersementRow } from "./encaissement";
 import type { Adherent, Paiement } from "./types";
+
+const round2money = (n: number) => Math.round(n * 100) / 100;
+
+// [020] Lit les lignes de paiement d'un dossier avec les colonnes « versement
+// espèces » (note/changement_id de la migration 020). TOLÉRANT : si la migration
+// n'est pas encore appliquée, retombe sur les colonnes de base (changement_id
+// traité comme null) — l'encaissement espèces multiple est alors simplement inerte.
+async function lignesEspeces(
+  supabase: SupabaseClient,
+  adherentId: string,
+): Promise<(VersementRow & { id: string })[]> {
+  const full = await supabase
+    .from("paiements")
+    .select("id, montant, statut, numero_echeance, stripe_payment_intent_id, changement_id")
+    .eq("adherent_id", adherentId);
+  if (!full.error) return (full.data ?? []) as (VersementRow & { id: string })[];
+  const base = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, montant, statut, numero_echeance, stripe_payment_intent_id")
+      .eq("adherent_id", adherentId),
+    `lignesEspeces: ${adherentId}`,
+  );
+  return ((base ?? []) as Record<string, unknown>[]).map((r) => ({ ...r, changement_id: null })) as (VersementRow & { id: string })[];
+}
 
 /**
  * Envoie les mails d'inscription (confirmation adhérent + notification club)
@@ -249,8 +275,8 @@ export async function markAdherentPaid(
  * - prochaine_echeance = prochaine date prévue non payée
  * - statut « payé » + emails quand toutes les échéances sont réglées.
  */
-export async function recalculerEtatPaiement(adherentId: string) {
-  const supabase = getSupabaseAdmin();
+export async function recalculerEtatPaiement(adherentId: string, supabaseArg?: SupabaseClient) {
+  const supabase = supabaseArg ?? getSupabaseAdmin();
   const { data: a, error: aErr } = await supabase
     .from("adherents")
     .select("*")
@@ -306,12 +332,31 @@ export async function recalculerEtatPaiement(adherentId: string) {
   // (aucun remboursement auto), dossier « à vérifier » + alerte admin.
   const doubleEncaissement = bascule && adherent.statut_paiement === "confirme_especes";
 
+  // [020] ENCAISSEMENT ESPÈCES de la COTISATION, possiblement en PLUSIEURS FOIS.
+  // Versements = lignes cash (numéro null, sans carte) NON rattachées à un
+  // supplément (changement_id null). SEUL écrivain du statut dérivé : soldé
+  // (total encaissé >= montant_total) → confirme_especes ; sinon en_attente
+  // (orange). Le total est TOUJOURS recalculé depuis les lignes (jamais stocké).
+  const estEspeces = adherent.mode_paiement === "especes" && !bascule;
+  let especesSolde = false;
+  let especesPartielEnAttente = false;
+  if (estEspeces) {
+    const cashRows = await lignesEspeces(supabase, adherentId);
+    const cotisationEncaisse = totalEncaisseEspeces(cashRows, { changementId: null });
+    const total = Number(adherent.montant_total || 0);
+    especesSolde = total > 0 && Math.round(cotisationEncaisse * 100) >= Math.round(total * 100);
+    // Revert (ex. suppression d'un versement) : était confirmé mais ne couvre plus.
+    especesPartielEnAttente = !especesSolde && adherent.statut_paiement === "confirme_especes";
+  }
+  // Engage figé une seule fois quand les espèces sont soldées (comme aujourd'hui).
+  const especesDevientEngage = especesSolde && !adherent.engage_at;
+
   await supabase
     .from("adherents")
     .update({
       echeances_payees: echeancesPayees,
       prochaine_echeance: prochaine,
-      ...(devientEngage ? { engage_at: new Date().toISOString() } : {}),
+      ...(devientEngage || especesDevientEngage ? { engage_at: new Date().toISOString() } : {}),
       ...(bascule ? { mode_paiement: modeCarte } : {}),
       ...(doubleEncaissement ? { paiement_a_verifier: true } : {}),
       ...(complet && !doubleEncaissement
@@ -321,6 +366,8 @@ export async function recalculerEtatPaiement(adherentId: string) {
             derniere_erreur_code: null,
           }
         : {}),
+      ...(especesSolde ? { statut_paiement: "confirme_especes" } : {}),
+      ...(especesPartielEnAttente ? { statut_paiement: "en_attente" } : {}),
     })
     .eq("id", adherentId);
 
@@ -398,14 +445,34 @@ export async function recalculerSupplement(
     .eq("dossier_id", adherentId);
   if (error || !changements) return; // table absente (pré-migration) → no-op
 
-  // Statut des paiements « supplément » (numero_echeance null) du dossier.
-  const { data: sup } = await supabase
+  // Paiements « supplément » (numero_echeance null) du dossier. [020] On lit AUSSI
+  // montant + changement_id (tolérant pré-migration) pour sommer les versements
+  // espèces en plusieurs fois rattachés à chaque changement.
+  const supFull = await supabase
     .from("paiements")
-    .select("id, statut")
+    .select("id, statut, montant, changement_id")
     .eq("adherent_id", adherentId)
     .is("numero_echeance", null);
-  const statutPaie = new Map((sup ?? []).map((p) => [p.id as string, p.statut as string]));
+  const supRows: { id: string; statut: string; montant: number; changement_id: string | null }[] =
+    supFull.error
+      ? (((await supabase.from("paiements").select("id, statut, montant").eq("adherent_id", adherentId).is("numero_echeance", null)).data ?? []) as Record<string, unknown>[]).map(
+          (p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: null }),
+        )
+      : ((supFull.data ?? []) as Record<string, unknown>[]).map((p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: (p.changement_id as string | null) ?? null }));
+  const statutPaie = new Map(supRows.map((p) => [p.id, p.statut]));
   const paieStatut = (id: string | null) => (id ? statutPaie.get(id) ?? null : null);
+  // Total encaissé (centimes) pour le supplément d'un changement : versements
+  // rattachés (changement_id) + éventuelle ligne historique liée (paiement_id).
+  const encaisseCentsPour = (ch: { id: string; paiement_id: string | null }) => {
+    let c = 0;
+    for (const p of supRows) {
+      if (p.statut !== "paye") continue;
+      if (p.changement_id === ch.id || (p.changement_id == null && p.id === ch.paiement_id)) {
+        c += Math.round(p.montant * 100);
+      }
+    }
+    return c;
+  };
 
   // 1) Activation (cas b carte) : supplément encaissé → bascule formule + fiche à re-signer.
   for (const ch of changements) {
@@ -436,16 +503,182 @@ export async function recalculerSupplement(
     }
   }
 
-  // 2) Cache supplement_statut dérivé des changements ACTIFS non encaissés.
+  // 2) Cache supplement_statut dérivé des changements ACTIFS non encore SOLDÉS.
   const cible = calculerSupplementStatut(
     changements.map((ch) => ({
       statut: ch.statut as string | null,
       mode_reglement: ch.mode_reglement as string | null,
       montant_cents: ch.montant_cents as number | null,
-      paiementStatut: paieStatut(ch.paiement_id as string | null),
+      encaisseCents: encaisseCentsPour({ id: ch.id as string, paiement_id: (ch.paiement_id as string | null) ?? null }),
     })),
   );
   await supabase.from("adherents").update({ supplement_statut: cible }).eq("id", adherentId);
+}
+
+// [020] Total encaissé en espèces de la COTISATION par dossier (changement_id
+// null). Tolérant pré-migration (→ colonnes de base). Sert au « reste dû » du
+// tableau de bord (montant_total - encaissé).
+export async function chargerEncaisseEspecesParDossier(
+  supabase: SupabaseClient,
+  ids: string[],
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (!ids.length) return out;
+  const full = await supabase
+    .from("paiements")
+    .select("adherent_id, montant, statut, numero_echeance, stripe_payment_intent_id, changement_id")
+    .in("adherent_id", ids)
+    .is("numero_echeance", null)
+    .is("stripe_payment_intent_id", null)
+    .eq("statut", "paye");
+  const rows = full.error
+    ? ((await supabase
+        .from("paiements")
+        .select("adherent_id, montant, statut, numero_echeance, stripe_payment_intent_id")
+        .in("adherent_id", ids)
+        .is("numero_echeance", null)
+        .is("stripe_payment_intent_id", null)
+        .eq("statut", "paye")).data ?? []).map((r) => ({ ...r, changement_id: null }))
+    : (full.data ?? []);
+  for (const r of rows as Record<string, unknown>[]) {
+    if (((r.changement_id as string | null) ?? null) !== null) continue; // rattaché à un supplément
+    const k = r.adherent_id as string;
+    out.set(k, round2money((out.get(k) ?? 0) + Number(r.montant || 0)));
+  }
+  return out;
+}
+
+export type EncaissementCible = {
+  du: number; // montant total dû (€)
+  encaisse: number; // déjà encaissé (€)
+  reste: number; // reste dû (€)
+};
+
+// [020] Lit la cible d'encaissement espèces (cotisation ou supplément) : montant
+// dû, déjà encaissé, reste dû. Source unique réutilisée par l'API (récap avant/
+// après) et par la validation du plafond serveur.
+export async function cibleEncaissementEspeces(
+  supabase: SupabaseClient,
+  adherentId: string,
+  changementId: string | null,
+): Promise<{ ok: true; cible: EncaissementCible; chPaiementId: string | null } | { ok: false; status: number; error: string }> {
+  const adherent = exigerData(
+    await supabase.from("adherents").select("montant_total").eq("id", adherentId).maybeSingle(),
+    "encaissement espèces: lecture adhérent",
+  );
+  if (!adherent) return { ok: false, status: 404, error: "Dossier introuvable." };
+
+  const rows = await lignesEspeces(supabase, adherentId);
+
+  if (changementId) {
+    const ch = exigerData(
+      await supabase
+        .from("changements_formule")
+        .select("id, montant_cents, statut, paiement_id")
+        .eq("id", changementId)
+        .eq("dossier_id", adherentId)
+        .maybeSingle(),
+      "encaissement espèces: lecture changement",
+    );
+    if (!ch) return { ok: false, status: 404, error: "Supplément introuvable." };
+    if (ch.statut !== "actif") return { ok: false, status: 409, error: "Ce supplément n'est plus à régler." };
+    const du = round2money(Math.max(0, Number(ch.montant_cents || 0)) / 100);
+    // Encaissé du supplément = versements rattachés (changement_id) + ligne liée (paiement_id).
+    let encaisse = 0;
+    for (const r of rows) {
+      if (r.statut !== "paye" || r.numero_echeance != null || r.stripe_payment_intent_id) continue;
+      if (r.changement_id === ch.id || (r.changement_id == null && r.id === ch.paiement_id)) {
+        encaisse += Number(r.montant || 0);
+      }
+    }
+    encaisse = round2money(encaisse);
+    return { ok: true, cible: { du, encaisse, reste: resteDuEspeces(du, encaisse) }, chPaiementId: (ch.paiement_id as string | null) ?? null };
+  }
+
+  const du = round2money(Number(adherent.montant_total || 0));
+  const encaisse = totalEncaisseEspeces(rows, { changementId: null });
+  return { ok: true, cible: { du, encaisse, reste: resteDuEspeces(du, encaisse) }, chPaiementId: null };
+}
+
+/**
+ * [020] Enregistre UN versement espèces (cotisation si changementId absent, sinon
+ * supplément de changement de formule). Le serveur a le dernier mot : il revérifie
+ * le reste dû et REFUSE tout dépassement. Idempotent : versementId (uuid) = clé
+ * primaire de la ligne paiements → un double-clic ne crée jamais deux versements.
+ * Les statuts dérivés sont ensuite recalculés par recalculerEtatPaiement (seul écrivain).
+ */
+export async function encaisserEspeces(
+  supabase: SupabaseClient,
+  p: { adherentId: string; versementId: string; montantEuros?: number; tout?: boolean; note?: string | null; changementId?: string | null },
+): Promise<{ ok: true; dejaTraite?: boolean; cible: EncaissementCible } | { ok: false; status: number; error: string }> {
+  const changementId = p.changementId ?? null;
+  const c = await cibleEncaissementEspeces(supabase, p.adherentId, changementId);
+  if (!c.ok) return c;
+  // « Tout encaisser » : le serveur résout le montant = reste dû (un clic).
+  const montant = p.tout ? c.cible.reste : round2money(Number(p.montantEuros || 0));
+  if (!versementValide(montant, c.cible.reste)) {
+    return { ok: false, status: 400, error: `Montant invalide : le reste dû est de ${c.cible.reste} €.` };
+  }
+  const note = (p.note ?? "").trim().slice(0, 80) || null;
+
+  const ins = await supabase
+    .from("paiements")
+    .insert({
+      id: p.versementId,
+      adherent_id: p.adherentId,
+      montant,
+      statut: "paye",
+      numero_echeance: null,
+      stripe_payment_intent_id: null,
+      changement_id: changementId,
+      note,
+      date_prevue: new Date().toISOString().slice(0, 10),
+      date_paiement: new Date().toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+  // Idempotence : clé déjà présente (double-clic / rejeu) → on ne recrée rien.
+  if (ins.error) {
+    const dup = /duplicate key|23505/i.test(ins.error.message);
+    if (!dup) return { ok: false, status: 500, error: ins.error.message };
+    await recalculerEtatPaiement(p.adherentId, supabase);
+    const after = await cibleEncaissementEspeces(supabase, p.adherentId, changementId);
+    return { ok: true, dejaTraite: true, cible: after.ok ? after.cible : c.cible };
+  }
+
+  await recalculerEtatPaiement(p.adherentId, supabase);
+  const after = await cibleEncaissementEspeces(supabase, p.adherentId, changementId);
+  return { ok: true, cible: after.ok ? after.cible : c.cible };
+}
+
+/**
+ * [020] Supprime UN versement espèces (correction d'erreur) et recalcule les
+ * statuts. Refuse toute ligne qui n'est pas un versement espèces (carte / échéance
+ * fractionnée / remboursée) : on ne touche jamais aux encaissements carte.
+ */
+export async function supprimerVersementEspeces(
+  supabase: SupabaseClient,
+  p: { adherentId: string; versementId: string },
+): Promise<{ ok: true; cible: EncaissementCible } | { ok: false; status: number; error: string }> {
+  const row = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, adherent_id, statut, numero_echeance, stripe_payment_intent_id, changement_id")
+      .eq("id", p.versementId)
+      .maybeSingle(),
+    "suppression versement: lecture",
+  );
+  if (!row || row.adherent_id !== p.adherentId) return { ok: false, status: 404, error: "Versement introuvable." };
+  const estEspeces = row.numero_echeance == null && !row.stripe_payment_intent_id && row.statut === "paye";
+  if (!estEspeces) return { ok: false, status: 409, error: "Seul un versement espèces peut être supprimé ici." };
+  const changementId = (row.changement_id as string | null) ?? null;
+
+  const del = await supabase.from("paiements").delete().eq("id", p.versementId);
+  if (del.error) return { ok: false, status: 500, error: del.error.message };
+
+  await recalculerEtatPaiement(p.adherentId, supabase);
+  const after = await cibleEncaissementEspeces(supabase, p.adherentId, changementId);
+  return { ok: true, cible: after.ok ? after.cible : { du: 0, encaisse: 0, reste: 0 } };
 }
 
 /** Marque l'échéance liée à un PaymentIntent comme payée. */

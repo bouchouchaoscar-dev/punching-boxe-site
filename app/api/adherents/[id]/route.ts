@@ -97,8 +97,14 @@ export async function PATCH(request: Request, { params }: Ctx) {
     update.email = e;
   }
 
+  // [020] La confirmation des espèces (y compris en plusieurs fois) passe
+  // désormais par la route admin protégée /encaisser-especes (recalculerEtatPaiement
+  // étant le seul à écrire le statut dérivé). On n'accepte plus l'ancien raccourci ici.
   if (body.action === "confirmer_especes") {
-    update.statut_paiement = "confirme_especes";
+    return NextResponse.json(
+      { error: "Utilisez l'encaissement espèces (route /encaisser-especes)." },
+      { status: 400 },
+    );
   }
 
   if (Object.keys(update).length === 0) {
@@ -181,26 +187,6 @@ export async function PATCH(request: Request, { params }: Ctx) {
         .select()
         .single();
       if (!r.error && r.data) data = r.data;
-    }
-  }
-
-  // Espèces confirmées → enregistrer l'ENCAISSEMENT (ligne paiements payée), pour
-  // que le montant compte dans "Encaissé" (fiche + liste). Idempotent : on
-  // n'insère que s'il n'existe encore aucune ligne payée pour ce dossier.
-  if (data?.statut_paiement === "confirme_especes") {
-    const { count } = await supabase
-      .from("paiements")
-      .select("id", { count: "exact", head: true })
-      .eq("adherent_id", id)
-      .eq("statut", "paye");
-    if ((count ?? 0) === 0) {
-      await supabase.from("paiements").insert({
-        adherent_id: id,
-        montant: data.montant_total,
-        statut: "paye",
-        numero_echeance: null,
-        date_paiement: new Date().toISOString(),
-      });
     }
   }
 

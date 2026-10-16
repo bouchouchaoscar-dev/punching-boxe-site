@@ -79,13 +79,15 @@ export function changementAFaire(r: RestantChangement): boolean {
 }
 
 // ---- Dérivation PURE du cache adherents.supplement_statut (écrit UNIQUEMENT par
-// recalculerEtatPaiement, à partir de la réalité). Un supplément ACTIF non encaissé
-// → carte prime (a_finaliser), sinon espèces (attente_especes). Sinon null. ----
+// recalculerEtatPaiement, à partir de la réalité). Un supplément ACTIF non encore
+// SOLDÉ → carte prime (a_finaliser), sinon espèces (attente_especes). Sinon null.
+// [020] Le « soldé » se calcule : encaisseCents >= montant_cents (versements
+// espèces en plusieurs fois possibles). ----
 export type ChangementReel = {
   statut: string | null;
   mode_reglement: string | null;
   montant_cents: number | null;
-  paiementStatut: string | null; // statut du paiement lié (null si aucun)
+  encaisseCents: number; // total déjà encaissé pour ce supplément (somme des versements + carte réglée)
 };
 
 export function calculerSupplementStatut(
@@ -94,11 +96,11 @@ export function calculerSupplementStatut(
   let cache: "a_finaliser" | "attente_especes" | null = null;
   for (const ch of changements) {
     if (ch.statut !== "actif") continue;
-    if ((ch.montant_cents ?? 0) <= 0) continue; // 0 ou remboursement → rien à encaisser
-    const paye = ch.paiementStatut === "paye";
-    if (paye) continue;
+    const du = ch.montant_cents ?? 0;
+    if (du <= 0) continue; // 0 ou remboursement → rien à encaisser
+    if ((ch.encaisseCents ?? 0) >= du) continue; // soldé (une ou plusieurs fois)
     // Mode non encore choisi par l'adhérent ('a_regler') OU carte non réglée → à
-    // finaliser (rouge). Espèces en attente → orange. 'offert'/null (fusionné) : rien.
+    // finaliser (rouge). Espèces en attente (même partiel) → orange. 'offert'/null : rien.
     if (ch.mode_reglement === "carte" || ch.mode_reglement === "a_regler") return "a_finaliser";
     if (ch.mode_reglement === "especes") cache = cache ?? "attente_especes";
   }

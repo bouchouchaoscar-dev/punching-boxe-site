@@ -149,7 +149,7 @@ create table if not exists public.paiements (
   montant                   numeric,
   montant_rembourse         numeric default 0,
   statut                    text default 'en_attente',  -- en_attente|en_cours|paye|echec|annule|rembourse|planifiee
-  numero_echeance           integer,                    -- null = encaissement espèces global
+  numero_echeance           integer,                    -- null = encaissement espèces (cotisation ou supplément)
   date_prevue               date,
   date_paiement             timestamptz,
   created_at                timestamptz default now(),
@@ -157,11 +157,16 @@ create table if not exists public.paiements (
   echec_a                   timestamptz,
   mail_echec_envoye         boolean not null default false,
   mail_echec_admin_envoye   boolean not null default false,
-  rappel_echec_envoye       boolean not null default false
+  rappel_echec_envoye       boolean not null default false,
+  -- [020] Versements espèces en plusieurs fois (cotisation ET supplément).
+  note                      text,                        -- note interne courte (≤ 80)
+  changement_id             uuid references public.changements_formule(id) on delete set null, -- null = cotisation
+  constraint paiements_note_len check (note is null or char_length(note) <= 80)
 );
 create index if not exists paiements_adherent_idx on public.paiements (adherent_id);
 create index if not exists paiements_statut_idx   on public.paiements (statut);
 create index if not exists paiements_due_idx      on public.paiements (date_prevue);
+create index if not exists paiements_changement_idx on public.paiements (changement_id) where changement_id is not null;
 
 -- ---------------------------------------------------------------------------
 -- 3) REMBOURSEMENTS — journal des remboursements / clôtures (idempotent par id)

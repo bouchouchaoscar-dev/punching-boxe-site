@@ -126,28 +126,44 @@ export async function construireFacturePdf(
   try {
     const { data: chs } = await supabase
       .from("changements_formule")
-      .select("nouvelle_formule, montant_cents, paiement_id, created_at")
+      .select("id, nouvelle_formule, montant_cents, mode_reglement, paiement_id, created_at")
       .eq("dossier_id", adherentId)
       .eq("statut", "actif");
-    // Suppléments SÉPARÉS uniquement (paiement_id non nul) : les changements
-    // FUSIONNÉS dans montant_total (cas a, paiement_id null) sont déjà dans la
-    // cotisation → pas de double-ligne.
-    const chRows = (chs ?? []).filter((c) => Math.round(Number(c.montant_cents || 0)) > 0 && c.paiement_id);
-    const supIds = chRows.map((c) => c.paiement_id).filter(Boolean) as string[];
-    const payeById = new Map<string, boolean>();
-    if (supIds.length) {
-      const { data: ps } = await supabase.from("paiements").select("id, statut").in("id", supIds);
-      for (const p of ps ?? []) payeById.set(p.id as string, p.statut === "paye");
-    }
+    // Suppléments SÉPARÉS (cas b) : mode de règlement propre (a_regler/especes/carte).
+    // Les changements FUSIONNÉS dans montant_total (cas a, mode null) sont déjà dans
+    // la cotisation → pas de double-ligne. [020] L'encaissé = somme des versements.
+    const chRows = (chs ?? []).filter((c) => {
+      const m = c.mode_reglement as string | null;
+      return Math.round(Number(c.montant_cents || 0)) > 0 && (m === "a_regler" || m === "especes" || m === "carte");
+    });
+    // Lignes paiements « supplément » (numéro null) avec montant + rattachement (tolérant).
+    const full = await supabase
+      .from("paiements")
+      .select("id, statut, montant, changement_id")
+      .eq("adherent_id", adherentId)
+      .is("numero_echeance", null);
+    const supRows: { id: string; statut: string; montant: number; changement_id: string | null }[] = full.error
+      ? (((await supabase.from("paiements").select("id, statut, montant").eq("adherent_id", adherentId).is("numero_echeance", null)).data ?? []) as Record<string, unknown>[]).map((p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: null }))
+      : ((full.data ?? []) as Record<string, unknown>[]).map((p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: (p.changement_id as string | null) ?? null }));
+    const encaisseCents = (chId: string, paiementId: string | null) => {
+      let c2 = 0;
+      for (const p of supRows) {
+        if (p.statut !== "paye") continue;
+        if (p.changement_id === chId || (p.changement_id == null && p.id === paiementId)) c2 += Math.round(p.montant * 100);
+      }
+      return c2;
+    };
+    let supEncaisse = 0;
     supplements = chRows.map((c) => {
       const dateStr = c.created_at ? new Intl.DateTimeFormat("fr-FR").format(new Date(c.created_at as string)) : "";
       const estPrepa = String(c.nouvelle_formule ?? "").includes("prepa");
       const label = estPrepa ? `Option préparation physique, ajoutée le ${dateStr}` : `Changement de formule, le ${dateStr}`;
-      const paye = c.paiement_id ? payeById.get(c.paiement_id as string) === true : false;
-      return { label, montant: Math.round(Number(c.montant_cents)) / 100, paye };
+      const duCents = Math.round(Number(c.montant_cents || 0));
+      const encCents = Math.min(duCents, encaisseCents(c.id as string, (c.paiement_id as string | null) ?? null));
+      supEncaisse += encCents / 100;
+      return { label, montant: duCents / 100, paye: encCents >= duCents };
     });
-    const supPaye = supplements.filter((s) => s.paye).reduce((s2, x) => s2 + x.montant, 0);
-    regleAJour = Math.round((regleAJour + supPaye) * 100) / 100;
+    regleAJour = Math.round((regleAJour + supEncaisse) * 100) / 100;
   } catch {
     /* table 018 absente → pas de supplément (rien ne casse) */
   }
@@ -166,17 +182,34 @@ export async function construireFacturePdf(
           : "Non précisé";
 
   // Date d'ENCAISSEMENT RÉEL (jamais la date d'inscription) :
-  //  - espèces → engage_at, posé à la CONFIRMATION admin (adherents/[id]/route.ts:124 ;
-  //    un dossier espèces en attente a engage_at null → engage_at = moment de confirmation).
+  //  - espèces → [020] date du DERNIER versement encaissé (encaissement possible en
+  //    plusieurs fois) ; à défaut engage_at (ancien modèle 1 seul versement).
   //  - carte 1x / fractionné soldé → dernière date_paiement réelle des échéances réglées
   //    (le fractionné n'est acquitté qu'à la dernière échéance payée).
   const datesReglees = echeancesReglees
     .map((e) => e.date)
     .filter((d): d is string => !!d)
     .sort();
+  let dernierVersementEspeces: string | null = null;
+  if (a.mode_paiement === "especes") {
+    const full = await supabase
+      .from("paiements")
+      .select("date_paiement, changement_id")
+      .eq("adherent_id", adherentId)
+      .is("numero_echeance", null)
+      .is("stripe_payment_intent_id", null)
+      .eq("statut", "paye")
+      .order("date_paiement", { ascending: false });
+    const rows = full.error
+      ? ((await supabase.from("paiements").select("date_paiement").eq("adherent_id", adherentId).is("numero_echeance", null).is("stripe_payment_intent_id", null).eq("statut", "paye").order("date_paiement", { ascending: false })).data ?? []).map((r) => ({ ...r, changement_id: null }))
+      : (full.data ?? []);
+    // Cotisation uniquement (changement_id null) pour la date de paiement principale.
+    const cot = (rows as Record<string, unknown>[]).filter((r) => ((r.changement_id as string | null) ?? null) === null);
+    dernierVersementEspeces = (cot[0]?.date_paiement as string) ?? null;
+  }
   const dateEncaissementIso =
     a.mode_paiement === "especes"
-      ? (a.engage_at ?? null)
+      ? (dernierVersementEspeces ?? a.engage_at ?? null)
       : (datesReglees[datesReglees.length - 1] ?? null);
   let datePaiement = "";
   if (dateEncaissementIso) {

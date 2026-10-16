@@ -9,7 +9,7 @@ import {
   OPTIONAL_DOC_COLUMNS,
   type InscriptionPayload,
 } from "@/lib/inscription";
-import { envoyerMailsInscription } from "@/lib/payments";
+import { envoyerMailsInscription, chargerEncaisseEspecesParDossier } from "@/lib/payments";
 import { remiseFamilleActive } from "@/lib/pricing";
 import {
   analyserFoyer,
@@ -224,17 +224,29 @@ export async function GET(request: Request) {
   // Photos + documents renvoyés en URLs SIGNÉES (bucket privé cible) — 1 appel
   // batch pour toute la liste. Fail-closed : champ non signable → null.
   const adherents = await signerDocsAdherents(data ?? []);
-  // [018] Supplément de changement de formule non encaissé par dossier → compte
-  // dans le « dû » du tableau de bord (indépendamment de la cotisation).
+  // [018] Supplément de changement de formule non soldé par dossier → compte dans
+  // le « dû » du tableau de bord (indépendamment de la cotisation). [020] = RESTE dû.
   try {
     const ids = (adherents as { id: string }[]).map((a) => a.id);
     const sup = await chargerSupplementsParDossier(getSupabaseAdmin(), ids);
     for (const a of adherents as Record<string, unknown>[]) {
       const s = sup.get(a.id as string);
-      a.supplement_du = s ? s.montantEuros : 0;
+      a.supplement_du = s ? s.reste : 0;
     }
   } catch {
     /* table 018 absente → pas de supplément (rien ne casse) */
+  }
+  // [020] Reste dû en ESPÈCES de la cotisation (montant_total - déjà encaissé) →
+  // le tableau de bord compte le RESTE, pas le montant initial.
+  try {
+    const ids = (adherents as { id: string }[]).map((a) => a.id);
+    const enc = await chargerEncaisseEspecesParDossier(getSupabaseAdmin(), ids);
+    for (const a of adherents as Record<string, unknown>[]) {
+      const encaisse = enc.get(a.id as string) ?? 0;
+      a.reste_du_especes = Math.max(0, Math.round((Number(a.montant_total || 0) - encaisse) * 100) / 100);
+    }
+  } catch {
+    /* colonnes 020 absentes → reste = montant_total (comportement actuel) */
   }
   return NextResponse.json({ adherents });
 }

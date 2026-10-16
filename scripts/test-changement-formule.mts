@@ -46,11 +46,13 @@ check("à régler (mode non choisi) + signé → relance paiement", (() => { con
 check("à régler mais déjà encaissé → plus de relance paiement", !restantChangement({ ...base, signe_at: "2026-10-10", mode_reglement: "a_regler", supplementPaye: true }).paiementCarte);
 
 console.log("\n== calculerSupplementStatut : dérivation du cache (réalité) ==");
-const chBase = { statut: "actif", montant_cents: 15000, paiementStatut: null as string | null };
+const chBase = { statut: "actif", montant_cents: 15000, encaisseCents: 0 };
 check("'a_regler' actif non encaissé → a_finaliser", calculerSupplementStatut([{ ...chBase, mode_reglement: "a_regler" }]) === "a_finaliser");
 check("carte actif non encaissé → a_finaliser", calculerSupplementStatut([{ ...chBase, mode_reglement: "carte" }]) === "a_finaliser");
 check("espèces actif → attente_especes", calculerSupplementStatut([{ ...chBase, mode_reglement: "especes" }]) === "attente_especes");
-check("carte encaissé → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "carte", paiementStatut: "paye" }]) === null);
+check("espèces PARTIEL (encaissé < dû) → attente_especes", calculerSupplementStatut([{ ...chBase, mode_reglement: "especes", encaisseCents: 5000 }]) === "attente_especes");
+check("carte encaissé (>=dû) → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "carte", encaisseCents: 15000 }]) === null);
+check("espèces SOLDÉ en plusieurs fois → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "especes", encaisseCents: 15000 }]) === null);
 check("fusionné (mode null) → null (cas a)", calculerSupplementStatut([{ ...chBase, mode_reglement: null }]) === null);
 check("offert → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "offert" }]) === null);
 check("montant 0 → null", calculerSupplementStatut([{ ...chBase, montant_cents: 0, mode_reglement: "a_regler" }]) === null);

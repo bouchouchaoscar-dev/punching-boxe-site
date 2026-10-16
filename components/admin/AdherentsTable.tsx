@@ -13,7 +13,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Download } from "lucide-react";
 import { estEmailValide } from "@/lib/email-format";
-import { getAdminRole } from "@/lib/admin-auth";
+import { getAdminRole, adminAuthHeaders } from "@/lib/admin-auth";
 import { euro, formuleLabel, formuleCle, FORMULE_FILTRE_OPTIONS } from "@/lib/pricing";
 import {
   statutTrombi,
@@ -112,10 +112,11 @@ export function AdherentsTable() {
   async function confirmCash(id: string) {
     setConfirming(id);
     try {
-      await fetch(`/api/adherents/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "confirmer_especes" }),
+      // « Tout encaisser » en un clic : le serveur encaisse le reste dû (idempotent).
+      await fetch(`/api/admin/adherents/${id}/encaisser-especes`, {
+        method: "POST",
+        headers: { ...adminAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ versementId: crypto.randomUUID(), tout: true }),
       });
       await refresh();
     } finally {

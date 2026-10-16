@@ -211,11 +211,18 @@ export async function appliquerChangementActif(
   return { changementId: ch.data.id };
 }
 
-// Supplément SÉPARÉ en cours (non encaissé) par dossier : montant + statut
-// ('a_regler' | 'especes_attente' | 'carte_attente'). Sert à l'espace adhérent
-// (récap + « Régler le supplément ») et au « dû » du tableau de bord. Tolérant si
-// la table 018 n'existe pas (→ Map vide).
-export type SupplementDossier = { montantEuros: number; statut: "a_regler" | "especes_attente" | "carte_attente" };
+// Supplément SÉPARÉ en cours (non encore soldé) par dossier : montant dû, déjà
+// encaissé, reste dû + statut ('a_regler' | 'especes_attente' | 'carte_attente').
+// Sert à l'espace adhérent (récap + « Régler le supplément ») et au « dû » du
+// tableau de bord (qui compte le RESTE). [020] Encaissement possible en plusieurs
+// fois : l'encaissé se calcule depuis les lignes paiements. Tolérant (table 018/020
+// absente → Map vide / colonnes de base).
+export type SupplementDossier = {
+  montantEuros: number; // montant dû du supplément
+  dejaEncaisse: number; // déjà encaissé (versements espèces + carte réglée)
+  reste: number; // reste dû
+  statut: "a_regler" | "especes_attente" | "carte_attente";
+};
 export async function chargerSupplementsParDossier(
   supabase: SupabaseClient,
   dossierIds: string[],
@@ -224,31 +231,49 @@ export async function chargerSupplementsParDossier(
   if (!dossierIds.length) return out;
   const { data: chs, error } = await supabase
     .from("changements_formule")
-    .select("dossier_id, montant_cents, mode_reglement, statut, paiement_id")
+    .select("id, dossier_id, montant_cents, mode_reglement, statut, paiement_id")
     .in("dossier_id", dossierIds)
     .eq("statut", "actif");
   if (error || !chs) return out; // table absente → aucun supplément
-  const paieIds = [...new Set(chs.map((c) => c.paiement_id).filter(Boolean))] as string[];
-  const payeById = new Map<string, boolean>();
-  if (paieIds.length) {
-    const { data: ps } = await supabase.from("paiements").select("id, statut").in("id", paieIds);
-    for (const p of ps ?? []) payeById.set(p.id as string, p.statut === "paye");
-  }
+
+  // Lignes paiements « supplément » (numéro null) des dossiers concernés, avec
+  // montant + rattachement. Tolérant si la colonne changement_id (020) est absente.
+  const full = await supabase
+    .from("paiements")
+    .select("id, statut, montant, changement_id")
+    .in("adherent_id", dossierIds)
+    .is("numero_echeance", null);
+  const supRows: { id: string; statut: string; montant: number; changement_id: string | null }[] = full.error
+    ? (((await supabase.from("paiements").select("id, statut, montant").in("adherent_id", dossierIds).is("numero_echeance", null)).data ?? []) as Record<string, unknown>[]).map(
+        (p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: null }),
+      )
+    : ((full.data ?? []) as Record<string, unknown>[]).map((p) => ({ id: p.id as string, statut: p.statut as string, montant: Number(p.montant || 0), changement_id: (p.changement_id as string | null) ?? null }));
+  const encaisseCents = (chId: string, paiementId: string | null) => {
+    let c = 0;
+    for (const p of supRows) {
+      if (p.statut !== "paye") continue;
+      if (p.changement_id === chId || (p.changement_id == null && p.id === paiementId)) c += Math.round(p.montant * 100);
+    }
+    return c;
+  };
+
   for (const c of chs) {
-    const montant = Number(c.montant_cents || 0);
-    if (montant <= 0) continue;
+    const duCents = Number(c.montant_cents || 0);
+    if (duCents <= 0) continue;
     const mode = c.mode_reglement as string | null;
-    const paye = c.paiement_id ? payeById.get(c.paiement_id as string) === true : false;
-    if (paye) continue;
+    const encCents = encaisseCents(c.id as string, (c.paiement_id as string | null) ?? null);
+    if (encCents >= duCents) continue; // soldé
     let statut: SupplementDossier["statut"] | null = null;
     if (mode === "a_regler") statut = "a_regler";
     else if (mode === "especes") statut = "especes_attente";
     else if (mode === "carte") statut = "carte_attente";
     if (!statut) continue; // fusionné (null) / offert → pas un supplément dû
+    const reste = Math.round(duCents - encCents) / 100;
+    const sup: SupplementDossier = { montantEuros: duCents / 100, dejaEncaisse: encCents / 100, reste, statut };
     // Un seul par dossier (le plus défavorable : a_regler/carte priment l'espèces).
     const prec = out.get(c.dossier_id as string);
     if (!prec || (prec.statut === "especes_attente" && statut !== "especes_attente")) {
-      out.set(c.dossier_id as string, { montantEuros: montant / 100, statut });
+      out.set(c.dossier_id as string, sup);
     }
   }
   return out;
@@ -262,18 +287,15 @@ export async function choisirModeSupplement(
   adherent: Adherent,
   changement: { id: string; montant_cents: number | null },
   mode: "carte" | "especes",
-): Promise<{ clientSecret?: string | null; paiementId: string }> {
+): Promise<{ clientSecret?: string | null; paiementId: string | null }> {
   const montantEuros = Math.max(0, Number(changement.montant_cents ?? 0)) / 100;
   if (mode === "especes") {
-    const paie = await supabase
-      .from("paiements")
-      .insert({ adherent_id: adherent.id, montant: montantEuros, statut: "en_attente", numero_echeance: null, date_prevue: auj() })
-      .select("id")
-      .single();
-    if (paie.error || !paie.data) throw new Error(paie.error?.message || "Enregistrement impossible.");
-    await supabase.from("changements_formule").update({ mode_reglement: "especes", paiement_id: paie.data.id }).eq("id", changement.id);
+    // [020] Pas de ligne « placeholder » : le supplément reste en attente (orange)
+    // tant que l'encaissement réel (un ou plusieurs versements, enregistrés par
+    // l'admin via /encaisser-especes) ne couvre pas le montant dû. On fixe juste le mode.
+    await supabase.from("changements_formule").update({ mode_reglement: "especes", paiement_id: null }).eq("id", changement.id);
     await recalculerSupplement(supabase, adherent.id);
-    return { paiementId: paie.data.id };
+    return { paiementId: null };
   }
   // Carte : PI + ligne paiements (numero null), rattachés au changement.
   const stripe = getStripe();

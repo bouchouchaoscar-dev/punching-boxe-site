@@ -133,16 +133,18 @@ export function Dashboard() {
       `${formaterPrenom(a.prenom)} ${formaterNom(a.nom)}`.trim();
     const parNom = (x: { nom: string }, y: { nom: string }) =>
       x.nom.localeCompare(y.nom, "fr", { sensitivity: "base" });
-    // Espèces en attente & à finaliser : dû = cotisation (montant_total, via le
-    // statut de COTISATION pour ne pas sur-compter) + supplément de changement de
-    // formule non encaissé (supplement_du), rangé selon son statut (orange espèces
-    // / rouge à finaliser).
+    // Espèces en attente & à finaliser : dû = cotisation + supplément de changement
+    // de formule non soldé (supplement_du), rangé selon son statut (orange espèces /
+    // rouge à finaliser). [020] Pour les espèces, on compte le RESTE dû (reste_du_especes,
+    // = montant_total - déjà encaissé), pas le montant initial : un versement partiel
+    // diminue le dû affiché.
     const supDu = (a: (typeof adherents)[number]) => Number(a.supplement_du || 0);
+    const resteEspeces = (a: (typeof adherents)[number]) => Number(a.reste_du_especes ?? a.montant_total ?? 0);
     const listeEspeces = adherents
       .filter((a) => estEspecesEnAttente(a) || a.supplement_statut === "attente_especes")
       .map((a) => ({
         nom: nomAff(a),
-        montant: (estEspecesEnAttente(a) ? Number(a.montant_total || 0) : 0) + (a.supplement_statut === "attente_especes" ? supDu(a) : 0),
+        montant: (estEspecesEnAttente(a) ? resteEspeces(a) : 0) + (a.supplement_statut === "attente_especes" ? supDu(a) : 0),
       }))
       .filter((x) => x.montant > 0)
       .sort(parNom);

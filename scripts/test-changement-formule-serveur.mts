@@ -86,7 +86,7 @@ console.log("\n== Cache supplement_statut dérivé (espèces) ==");
   const db = fakeDb({
     adherents: [{ id: "D", package: "boxe_classique", option_prepa_physique: true, supplement_statut: null }],
     changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "especes", montant_cents: 3500, paiement_id: "P", nouvelle_formule: "boxe_prepa", signature_requise: true }],
-    paiements: [{ id: "P", adherent_id: "D", statut: "en_attente", numero_echeance: null }],
+    paiements: [{ id: "P", adherent_id: "D", statut: "en_attente", numero_echeance: null, montant: 35 }],
   });
   await recalculerSupplement(db as unknown as SB, "D");
   check("supplément espèces non confirmé → supplement_statut = attente_especes", db._t.adherents[0].supplement_statut === "attente_especes", db._t.adherents[0]);
@@ -112,7 +112,7 @@ console.log("\n== Activation cas b carte (option B) : formule activée au paieme
   const db = fakeDb({
     adherents: [{ id: "D", package: "boxe_classique", option_prepa_physique: false, supplement_statut: null, fiche_a_resigner: false, prenom: "Léa", nom: "T", email: "", date_naissance: "2000-01-01" }],
     changements_formule: [{ id: "C", dossier_id: "D", statut: "en_attente_paiement", mode_reglement: "carte", montant_cents: 3500, paiement_id: "P", nouvelle_formule: "boxe_prepa", signature_requise: true }],
-    paiements: [{ id: "P", adherent_id: "D", statut: "paye", numero_echeance: null }],
+    paiements: [{ id: "P", adherent_id: "D", statut: "paye", numero_echeance: null, montant: 35 }],
   });
   await recalculerSupplement(db as unknown as SB, "D");
   const a = db._t.adherents[0];
@@ -160,7 +160,7 @@ console.log("\n== Rétrocompat : ancienne ligne « réglé sur place » (especes
   const db = fakeDb({
     adherents: [{ ...adherentBase, package: "boxe_classique", option_prepa_physique: true, supplement_statut: "attente_especes" }],
     changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "especes", montant_cents: 15000, paiement_id: "P", nouvelle_formule: "boxe_prepa" }],
-    paiements: [{ id: "P", adherent_id: "D", statut: "paye", numero_echeance: null }],
+    paiements: [{ id: "P", adherent_id: "D", statut: "paye", numero_echeance: null, montant: 150 }],
   });
   await recalculerSupplement(db as unknown as SB, "D");
   check("ancienne ligne especes encaissée → supplement_statut null (compte comme payée)", db._t.adherents[0].supplement_statut === null);
@@ -196,10 +196,11 @@ console.log("\n== Reshape : choisirModeSupplement — l'adhérent prend ESPÈCES
     changements_formule: [{ id: "C", dossier_id: "D", statut: "actif", mode_reglement: "a_regler", montant_cents: 15000, paiement_id: null, nouvelle_formule: "boxe_prepa" }],
   });
   await choisirModeSupplement(db as unknown as SB, { ...adherentBase, package: "boxe_classique", option_prepa_physique: true } as never, { id: "C", montant_cents: 15000 }, "especes");
-  const p = db._t.paiements[0];
-  check("adhérent choisit espèces : ligne paiement « en_attente »", p.statut === "en_attente" && p.montant === 150);
-  check("adhérent choisit espèces : changement mode → especes", db._t.changements_formule[0].mode_reglement === "especes");
-  check("adhérent choisit espèces : supplement_statut → attente_especes (plus de relance paiement)", db._t.adherents[0].supplement_statut === "attente_especes");
+  // [020] Plus de ligne « placeholder » : le supplément reste en attente (orange)
+  // tant que l'admin n'a pas enregistré de versement réel.
+  check("adhérent choisit espèces : AUCUNE ligne placeholder créée", (db._t.paiements ?? []).length === 0);
+  check("adhérent choisit espèces : changement mode → especes (paiement_id null)", db._t.changements_formule[0].mode_reglement === "especes" && db._t.changements_formule[0].paiement_id === null);
+  check("adhérent choisit espèces : supplement_statut → attente_especes (rien encaissé)", db._t.adherents[0].supplement_statut === "attente_especes");
 }
 
 console.log("\n== Garde-fous statiques (single writer, endpoints, propagation) ==");
@@ -241,7 +242,7 @@ check("relances : exclusions (invalides/désinscrits/bounces)", cron.includes("e
 
 const facture = read("lib/pdf/facture-gen.tsx");
 check("facture : ligne supplément « option préparation physique, ajoutée le »", facture.includes("Option préparation physique, ajoutée le"));
-check("facture : suppléments encaissés inclus au total réglé", facture.includes("regleAJour + supPaye"));
+check("facture : suppléments encaissés inclus au total réglé", facture.includes("regleAJour + supEncaisse"));
 
 // UI : espace adhérent + admin.
 const espace = read("components/espace/MonEspace.tsx");
