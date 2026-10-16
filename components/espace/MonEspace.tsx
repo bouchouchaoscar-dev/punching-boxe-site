@@ -13,6 +13,8 @@ import {
 } from "@/lib/dossier";
 import { estEngage } from "@/lib/engagement";
 import { estPaiementSolde, statutTrombi } from "@/lib/paiement";
+import { peutAjouterPrepa } from "@/lib/changement-formule";
+import { AjouterPrepaModal } from "./AjouterPrepaModal";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
@@ -89,6 +91,7 @@ export function MonEspace() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // adherentId
   // Photo de profil à recadrer (re-dépôt depuis l'espace).
   const [cropPhoto, setCropPhoto] = useState<{ file: File; adherentId: string } | null>(null);
+  const [prepaDossier, setPrepaDossier] = useState<Adherent | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [factureBusy, setFactureBusy] = useState<string | null>(null);
 
@@ -572,6 +575,7 @@ export function MonEspace() {
                     <DossierActions
                       a={a}
                       onDelete={() => setConfirmDelete(a.id)}
+                      onAjouterPrepa={() => setPrepaDossier(a)}
                     />
                   </div>
                 )}
@@ -579,6 +583,11 @@ export function MonEspace() {
             );
           })}
         </div>
+      )}
+
+      {/* Ajout de l'option prépa physique (dossier Boxe Française seule). */}
+      {prepaDossier && token && (
+        <AjouterPrepaModal adherent={prepaDossier} token={token} onClose={() => setPrepaDossier(null)} />
       )}
 
       {/* Recadrage de la photo de profil (re-dépôt) */}
@@ -646,15 +655,32 @@ export function MonEspace() {
 function DossierActions({
   a,
   onDelete,
+  onAjouterPrepa,
 }: {
   a: Adherent;
   onDelete: () => void;
+  onAjouterPrepa: () => void;
 }) {
+  // Bouton « Ajouter la prépa physique » : dossier BF seule, non annulé — visible
+  // que le dossier soit finalisé ou non (cf. cahier des charges).
+  const boutonPrepa = peutAjouterPrepa(a) ? (
+    <div>
+      <button
+        onClick={onAjouterPrepa}
+        className="rounded-full border border-orange bg-orange-50 px-4 py-2 text-sm font-bold text-orange transition-colors hover:bg-orange-100"
+      >
+        Ajouter la prépa physique
+      </button>
+      <p className="mt-1 text-xs text-smoke">Accès aux cours de préparation physique.</p>
+    </div>
+  ) : null;
+
   // Dossier engagé : verrouillé, SAUF s'il a une échéance en échec → régularisation.
   if (estEngage(a)) {
     if (a.statut_paiement === "echec_paiement") {
       return (
         <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+          {boutonPrepa}
           <Link
             href={`/inscription/regulariser/${a.id}`}
             className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700"
@@ -664,7 +690,8 @@ function DossierActions({
         </div>
       );
     }
-    return null;
+    if (!boutonPrepa) return null;
+    return <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">{boutonPrepa}</div>;
   }
   // Dossier à tarif libre pas encore complété (identité/signatures manquantes,
   // date de naissance non renseignée) → parcours de COMPLÉTION avant paiement.
@@ -694,6 +721,7 @@ function DossierActions({
     statutTrombi(a).code === "attente_especes" && !a.annule_at;
   return (
     <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
+      {boutonPrepa}
       {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}
       {!especesAttente && (
         <Link

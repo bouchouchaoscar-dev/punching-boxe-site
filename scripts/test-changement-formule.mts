@@ -4,8 +4,9 @@ import {
   estBoxeSeule, peutAjouterPrepa, prixOptionPrepa, labelFormuleCle, cleVersDossier,
   restantChangement, changementAFaire, mailRelanceChangement,
 } from "../lib/changement-formule";
-import { prepaDuMois } from "../lib/pricing";
+import { prepaDuMois, formuleCle } from "../lib/pricing";
 import { statutTrombi } from "../lib/paiement";
+import { adherentDansDiscipline } from "../lib/planning";
 
 let ok = 0, ko = 0;
 const check = (l: string, c: boolean, g?: unknown) => {
@@ -67,6 +68,19 @@ check("annulé → supplément ignoré", st({ annule_at: "2026-10-01", supplemen
 // Cotisation PAS réglée (base rouge) → le supplément ne change rien (base prime).
 const nonRegle: Record<string, unknown> = { statut_paiement: "en_attente", mode_paiement: null, nb_echeances: 1, echeances_payees: 0, engage_at: null, annule_at: null, supplement_statut: "attente_especes" };
 check("cotisation non réglée → base inchangée (a_finaliser), supplément n'écrase pas", statutTrombi(nonRegle as A).code === "a_finaliser");
+
+console.log("\n== Propagation : tout dérive de (package, option_prepa) ==");
+// Avant : BF seule. Après : BF + Prépa (flip de option_prepa_physique).
+const avant = { package: "boxe_classique" as const, option: false };
+const apres = { package: "boxe_classique" as const, option: true };
+// Filtre/segment/trombi/dashboard : formuleCle.
+check("filtre formule : boxe → boxe_prepa", formuleCle(avant.package, avant.option) === "boxe" && formuleCle(apres.package, apres.option) === "boxe_prepa");
+// Hors formule / « prévenir » / segments par discipline : adherentDansDiscipline.
+check("prépa physique : non avant, OUI après", adherentDansDiscipline(avant.package, avant.option, "prepa_physique") === false && adherentDansDiscipline(apres.package, apres.option, "prepa_physique") === true);
+check("boxe française : toujours incluse (même package)", adherentDansDiscipline(apres.package, apres.option, "boxe_francaise") === true);
+// Retrait d'une formule : savate_prepa → boxe seule → disparaît de savate/prépa.
+check("retrait savate+prépa → boxe : sort de savate", adherentDansDiscipline("boxe_classique", false, "savate") === false);
+check("retrait savate+prépa → boxe : sort de prépa", adherentDansDiscipline("boxe_classique", false, "prepa_physique") === false);
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

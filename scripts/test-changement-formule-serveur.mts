@@ -149,5 +149,16 @@ const facture = read("lib/pdf/facture-gen.tsx");
 check("facture : ligne supplément « option préparation physique, ajoutée le »", facture.includes("Option préparation physique, ajoutée le"));
 check("facture : suppléments encaissés inclus au total réglé", facture.includes("regleAJour + supPaye"));
 
+// UI : espace adhérent + admin.
+const espace = read("components/espace/MonEspace.tsx");
+check("espace : bouton « Ajouter la prépa physique » (peutAjouterPrepa)", espace.includes("Ajouter la prépa physique") && espace.includes("peutAjouterPrepa(a)"));
+check("espace : modale AjouterPrepaModal branchée", espace.includes("AjouterPrepaModal"));
+const fiche = read("components/admin/FicheAdherent.tsx");
+check("admin : bouton « Gérer la formule »", fiche.includes("Gérer la formule"));
+check("admin : modale GererFormuleModal", fiche.includes("GererFormuleModal"));
+check("admin : section historique « Changements de formule »", fiche.includes("Changements de formule"));
+const modaleAdmin = read("components/admin/GererFormuleModal.tsx");
+check("admin modale : 3 formules (FORMULES_CLE) + récap + confirmation", modaleAdmin.includes("FORMULES_CLE.map") && modaleAdmin.includes("Confirmer le changement"));
+
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

@@ -6,7 +6,25 @@ import { useRouter } from "next/navigation";
 import { PaiementStatut, StatutBadge } from "./StatutBadge";
 import { EnvoiMailModal } from "./EnvoiMailModal";
 import { GererPaiementModal } from "./GererPaiementModal";
+import { GererFormuleModal } from "./GererFormuleModal";
+import { labelFormuleCle } from "@/lib/changement-formule";
+import type { FormuleCle } from "@/lib/pricing";
 import { HistoriqueSaisons, type HistLigne } from "./HistoriqueSaisons";
+
+type ChangementLigne = {
+  id: string;
+  ancienne_formule: string | null;
+  nouvelle_formule: string | null;
+  source: string | null;
+  montant_cents: number | null;
+  mode_reglement: string | null;
+  statut: string | null;
+  signe_at: string | null;
+  signature_requise: boolean | null;
+  created_by: string | null;
+  motif: string | null;
+  created_at: string;
+};
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { ButtonAction } from "@/components/ui/Button";
 import { euro, formuleLabel, TARIFS } from "@/lib/pricing";
@@ -405,6 +423,17 @@ export function FicheAdherent({ id }: { id: string }) {
       .catch(() => {});
   }, [id]);
 
+  // [018] Historique des changements de formule + modale « Gérer la formule ».
+  const [gererFormule, setGererFormule] = useState(false);
+  const [changements, setChangements] = useState<ChangementLigne[]>([]);
+  const chargerChangements = useCallback(() => {
+    fetch(`/api/admin/adherents/${id}/changements-formule`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setChangements(d.changements ?? []))
+      .catch(() => {});
+  }, [id]);
+  useEffect(() => { chargerChangements(); }, [chargerChangements]);
+
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
     try {
@@ -749,10 +778,18 @@ export function FicheAdherent({ id }: { id: string }) {
             <dl className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
               <EditableInfo label="Prénom" editing={editing} value={form.prenom ?? ""} onChange={(v) => setForm({ ...form, prenom: v })} display={formaterPrenom(a.prenom)} hint="Ex : Jean-Marc" />
               <EditableInfo label="Nom" editing={editing} value={form.nom ?? ""} onChange={(v) => setForm({ ...form, nom: v })} display={formaterNom(a.nom)} hint="En majuscules" />
-              <Info
-                label="Formule"
-                value={formuleLabel(a.package, a.option_prepa_physique)}
-              />
+              <div>
+                <dt className="text-xs font-bold uppercase tracking-wide text-smoke">Formule</dt>
+                <dd className="mt-1 text-sm text-ink">{formuleLabel(a.package, a.option_prepa_physique)}</dd>
+                {role !== "coach" && !a.annule_at && (
+                  <button
+                    onClick={() => setGererFormule(true)}
+                    className="mt-1.5 text-xs font-bold text-orange transition-colors hover:underline"
+                  >
+                    Gérer la formule
+                  </button>
+                )}
+              </div>
               {a.tarif_libre && a.date_debut && (
                 <Info
                   label="Période"
@@ -1211,6 +1248,35 @@ export function FicheAdherent({ id }: { id: string }) {
         </div>
       )}
 
+      {/* [018] Historique des changements de formule */}
+      {changements.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+          <h3 className="font-display text-base font-extrabold uppercase text-ink">Changements de formule</h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            {changements.map((c) => {
+              const montant = (c.montant_cents ?? 0) / 100;
+              const sens = montant > 0 ? `+${euro(montant)}` : montant < 0 ? `−${euro(Math.abs(montant))}` : "—";
+              return (
+                <li key={c.id} className="rounded-xl border border-line/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-ink">
+                      {labelFormuleCle((c.ancienne_formule as FormuleCle) ?? null)} → {labelFormuleCle((c.nouvelle_formule as FormuleCle) ?? null)}
+                    </span>
+                    <span className="text-xs text-smoke">{formatDateFr(c.created_at)}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-smoke">
+                    {sens}{c.mode_reglement ? ` · ${c.mode_reglement}` : ""} · {c.statut}
+                    {c.signature_requise ? ` · fiche ${c.signe_at ? "signée" : "à signer"}` : ""}
+                    {c.source ? ` · ${c.source}` : ""}
+                    {c.motif ? ` · ${c.motif}` : ""}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Envoi d'un mail individuel */}
       {mailOpen && (
         <EnvoiMailModal
@@ -1242,6 +1308,20 @@ export function FicheAdherent({ id }: { id: string }) {
           onDone={(msg) => {
             setGererOpen(false);
             load();
+            showToast(msg);
+          }}
+        />
+      )}
+
+      {/* [018] Gérer la formule (activation immédiate) */}
+      {gererFormule && (
+        <GererFormuleModal
+          adherent={a}
+          onClose={() => setGererFormule(false)}
+          onDone={(msg) => {
+            setGererFormule(false);
+            load();
+            chargerChangements();
             showToast(msg);
           }}
         />
