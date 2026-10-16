@@ -22,7 +22,7 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 import { analyserSaisons } from "@/lib/stats-insights";
 import { euro, formuleCle } from "@/lib/pricing";
 import { estActifCompte } from "@/lib/adherents-actifs";
-import { estPaiementAFinaliser, estEspecesEnAttente } from "@/lib/paiement";
+import { estPaiementAFinaliser, estEspecesEnAttente, estCotisationAFinaliser } from "@/lib/paiement";
 import { CONFIG_CLUB } from "@/lib/config-club";
 import { resteParAdherent, type EcheanceRow } from "@/lib/encaissement";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
@@ -133,14 +133,26 @@ export function Dashboard() {
       `${formaterPrenom(a.prenom)} ${formaterNom(a.nom)}`.trim();
     const parNom = (x: { nom: string }, y: { nom: string }) =>
       x.nom.localeCompare(y.nom, "fr", { sensitivity: "base" });
-    // Espèces en attente & à finaliser : dû = montant_total (rien encaissé).
+    // Espèces en attente & à finaliser : dû = cotisation (montant_total, via le
+    // statut de COTISATION pour ne pas sur-compter) + supplément de changement de
+    // formule non encaissé (supplement_du), rangé selon son statut (orange espèces
+    // / rouge à finaliser).
+    const supDu = (a: (typeof adherents)[number]) => Number(a.supplement_du || 0);
     const listeEspeces = adherents
-      .filter(estEspecesEnAttente)
-      .map((a) => ({ nom: nomAff(a), montant: Number(a.montant_total || 0) }))
+      .filter((a) => estEspecesEnAttente(a) || a.supplement_statut === "attente_especes")
+      .map((a) => ({
+        nom: nomAff(a),
+        montant: (estEspecesEnAttente(a) ? Number(a.montant_total || 0) : 0) + (a.supplement_statut === "attente_especes" ? supDu(a) : 0),
+      }))
+      .filter((x) => x.montant > 0)
       .sort(parNom);
     const listeAFinaliser = adherents
-      .filter(estPaiementAFinaliser)
-      .map((a) => ({ nom: nomAff(a), montant: Number(a.montant_total || 0) }))
+      .filter((a) => estCotisationAFinaliser(a) || a.supplement_statut === "a_finaliser")
+      .map((a) => ({
+        nom: nomAff(a),
+        montant: (estCotisationAFinaliser(a) ? Number(a.montant_total || 0) : 0) + (a.supplement_statut === "a_finaliser" ? supDu(a) : 0),
+      }))
+      .filter((x) => x.montant > 0)
       .sort(parNom);
     // Encaissement à venir (fractionné) : reste = Σ échéances 'en_attente' via le
     // helper SOURCE UNIQUE (calcul DYNAMIQUE ; une échéance payée sort d'elle-même).

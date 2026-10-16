@@ -781,7 +781,7 @@ export async function sendChangementFormuleAdherent(d: {
   ancienneFormule?: string | null;
   nouvelleFormule: string;
   montantEuros: number;
-  mode: "carte" | "especes" | "offert" | "remboursement" | null;
+  mode: "a_regler" | "carte" | "especes" | "especes_encaisse" | "offert" | "remboursement" | null;
   signatureRequise: boolean;
   lienSigner?: string | null;
   lienPayer?: string | null;
@@ -801,14 +801,20 @@ export async function sendChangementFormuleAdherent(d: {
   if (d.nouvelleFormule.includes("Prépa")) {
     corps.push("Vous avez désormais accès aux cours de préparation physique.");
   }
+  // Message adapté : quand c'est à l'adhérent de choisir ('a_regler'), on ne lui
+  // impose PAS de mode — il choisit carte ou espèces depuis son espace.
   if (d.mode === "offert") corps.push("Ce changement vous est offert par le club.");
   else if (d.mode === "remboursement" && d.montantEuros > 0) corps.push(`Un remboursement de ${euro(d.montantEuros)} est prévu.`);
+  else if (d.mode === "a_regler" && d.montantEuros > 0) corps.push(`Il reste un supplément de ${euro(d.montantEuros)} à régler. Choisissez votre mode de paiement (carte ou espèces) depuis votre espace.`);
+  else if (d.montantEuros > 0 && d.mode === "especes_encaisse") corps.push(`Supplément de ${euro(d.montantEuros)} réglé en espèces. Merci !`);
   else if (d.montantEuros > 0 && d.mode === "especes") corps.push(`Supplément : ${euro(d.montantEuros)}, à régler en espèces au prochain cours.`);
   else if (d.montantEuros > 0 && d.mode === "carte") corps.push(`Supplément réglé par carte : ${euro(d.montantEuros)}. Merci !`);
 
   const paras = corps.map((p) => `<p style="line-height:1.6;color:#444">${p}</p>`).join("");
   const actions: string[] = [];
-  if (d.lienPayer) actions.push(button(d.lienPayer, "Régler le supplément"));
+  // Supplément à régler par l'adhérent → bouton vers l'espace (il y choisit le mode).
+  if (d.mode === "a_regler" && d.montantEuros > 0) actions.push(button(d.lienPayer ?? `${base}/mon-espace`, "Régler le supplément"));
+  else if (d.lienPayer) actions.push(button(d.lienPayer, "Régler le supplément"));
   if (d.signatureRequise && d.lienSigner) actions.push(button(d.lienSigner, "Signer ma fiche actualisée"));
   else if (d.signatureRequise) actions.push(button(`${base}/mon-espace`, "Signer ma fiche actualisée"));
   const boutons = actions.length ? `<p style="margin:10px 0 18px">${actions.join("&nbsp;&nbsp;")}</p>` : "";
@@ -831,7 +837,7 @@ export async function sendChangementFormuleAdmin(d: {
   adherentId: string;
   nouvelleFormule: string;
   montantEuros: number;
-  mode: "carte" | "especes" | "offert" | "remboursement_carte" | "remboursement_hors_ligne" | null;
+  mode: "a_regler" | "carte" | "especes" | "offert" | "remboursement_carte" | "remboursement_hors_ligne" | null;
   source: "adherent" | "admin";
 }) {
   const client = getResend();
@@ -839,8 +845,9 @@ export async function sendChangementFormuleAdmin(d: {
   const qui = `${formaterPrenom(d.prenom)} ${formaterNom(d.nom)}`;
   const lien = `${SITE_URL}/admin/adherents/${d.adherentId}`;
   const detail =
-    d.mode === "carte" ? `supplément ${euro(d.montantEuros)} par carte`
-    : d.mode === "especes" ? `supplément ${euro(d.montantEuros)} à encaisser en espèces`
+    d.mode === "a_regler" ? `supplément ${euro(d.montantEuros)} à régler par l'adhérent (carte ou espèces)`
+    : d.mode === "carte" ? `supplément ${euro(d.montantEuros)} par carte`
+    : d.mode === "especes" ? `supplément ${euro(d.montantEuros)} en espèces`
     : d.mode === "offert" ? "offert"
     : d.mode?.startsWith("remboursement") ? `remboursement ${euro(d.montantEuros)}`
     : "sans montant";

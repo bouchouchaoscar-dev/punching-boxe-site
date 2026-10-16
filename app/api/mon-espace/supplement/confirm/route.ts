@@ -38,13 +38,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Ce dossier n'appartient pas à votre compte." }, { status: 403 });
   }
 
-  // Dernier changement « carte en attente » du dossier.
+  // Dernier changement carte avec un PI à confirmer (cas b adhérent-ajout en
+  // attente de paiement, OU supplément admin « à régler » que l'adhérent a réglé
+  // par carte : statut actif, mode carte, PI présent).
   const { data: ch } = await supabase
     .from("changements_formule")
-    .select("id, payment_intent_id, paiement_id")
+    .select("id, payment_intent_id, paiement_id, statut")
     .eq("dossier_id", adherentId)
     .eq("mode_reglement", "carte")
-    .eq("statut", "en_attente_paiement")
+    .not("payment_intent_id", "is", null)
+    .in("statut", ["en_attente_paiement", "actif"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();

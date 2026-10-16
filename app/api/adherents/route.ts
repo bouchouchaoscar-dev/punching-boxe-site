@@ -17,6 +17,7 @@ import {
   rattachementsRenseignes,
 } from "@/lib/foyer-server";
 import { resoudreDocs } from "@/lib/pdf/generer-server";
+import { chargerSupplementsParDossier } from "@/lib/changement-formule-server";
 import { getAuthUser } from "@/lib/auth-server";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { estJuin, saisonCourante, saisonQuiSeTermine } from "@/lib/saison";
@@ -223,5 +224,17 @@ export async function GET(request: Request) {
   // Photos + documents renvoyés en URLs SIGNÉES (bucket privé cible) — 1 appel
   // batch pour toute la liste. Fail-closed : champ non signable → null.
   const adherents = await signerDocsAdherents(data ?? []);
+  // [018] Supplément de changement de formule non encaissé par dossier → compte
+  // dans le « dû » du tableau de bord (indépendamment de la cotisation).
+  try {
+    const ids = (adherents as { id: string }[]).map((a) => a.id);
+    const sup = await chargerSupplementsParDossier(getSupabaseAdmin(), ids);
+    for (const a of adherents as Record<string, unknown>[]) {
+      const s = sup.get(a.id as string);
+      a.supplement_du = s ? s.montantEuros : 0;
+    }
+  } catch {
+    /* table 018 absente → pas de supplément (rien ne casse) */
+  }
   return NextResponse.json({ adherents });
 }

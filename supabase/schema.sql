@@ -191,8 +191,8 @@ create table if not exists public.changements_formule (
   nouvelle_formule   text,
   source             text check (source in ('adherent','admin')),
   montant_cents      integer not null default 0,
-  mode_reglement     text check (mode_reglement in
-                       ('carte','especes','offert','remboursement_carte','remboursement_hors_ligne')),
+  mode_reglement     text check (mode_reglement in           -- [019] + 'a_regler' (mode choisi par l'adhérent)
+                       ('a_regler','carte','especes','offert','remboursement_carte','remboursement_hors_ligne')),
   statut             text not null default 'actif'
                        check (statut in ('en_attente_paiement','actif','annule')),
   payment_intent_id  text,

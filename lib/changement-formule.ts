@@ -63,10 +63,13 @@ export function restantChangement(ch: {
   mode_reglement: string | null;
   signature_requise: boolean | null;
   signe_at: string | null;
-  supplementPaye: boolean; // le paiement carte lié est-il encaissé ?
+  supplementPaye: boolean; // le paiement lié est-il encaissé ?
 }): RestantChangement {
   if (ch.statut === "annule") return { paiementCarte: false, signature: false };
-  const paiementCarte = ch.mode_reglement === "carte" && !ch.supplementPaye;
+  // Paiement à relancer tant que le mode n'est pas choisi ('a_regler') OU que la
+  // carte n'est pas réglée. JAMAIS pour les espèces (réglées sur place / en
+  // attente côté club) ni pour un « offert ».
+  const paiementCarte = (ch.mode_reglement === "a_regler" || ch.mode_reglement === "carte") && !ch.supplementPaye;
   const signature = !!ch.signature_requise && !ch.signe_at;
   return { paiementCarte, signature };
 }
@@ -94,7 +97,9 @@ export function calculerSupplementStatut(
     if ((ch.montant_cents ?? 0) <= 0) continue; // 0 ou remboursement → rien à encaisser
     const paye = ch.paiementStatut === "paye";
     if (paye) continue;
-    if (ch.mode_reglement === "carte") return "a_finaliser"; // carte prime
+    // Mode non encore choisi par l'adhérent ('a_regler') OU carte non réglée → à
+    // finaliser (rouge). Espèces en attente → orange. 'offert'/null (fusionné) : rien.
+    if (ch.mode_reglement === "carte" || ch.mode_reglement === "a_regler") return "a_finaliser";
     if (ch.mode_reglement === "especes") cache = cache ?? "attente_especes";
   }
   return cache;

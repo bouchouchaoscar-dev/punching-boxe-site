@@ -3,6 +3,7 @@
 import {
   estBoxeSeule, peutAjouterPrepa, prixOptionPrepa, labelFormuleCle, cleVersDossier,
   restantChangement, changementAFaire, mailRelanceChangement,
+  calculerSupplementStatut, changementActivable,
 } from "../lib/changement-formule";
 import { prepaDuMois, formuleCle } from "../lib/pricing";
 import { statutTrombi } from "../lib/paiement";
@@ -40,6 +41,23 @@ check("carte non payée + signé → paiement seul", (() => { const r = restantC
 check("espèces → aucune relance (réglé sur place)", !changementAFaire(restantChangement({ ...base, signe_at: "2026-10-10", mode_reglement: "especes", supplementPaye: false })));
 check("offert signé → aucune relance", !changementAFaire(restantChangement({ ...base, signe_at: "2026-10-10", mode_reglement: "offert", supplementPaye: false })));
 check("annulé → aucune relance", !changementAFaire(restantChangement({ ...base, statut: "annule", mode_reglement: "carte", supplementPaye: false })));
+// Nouveau flux : mode choisi par l'adhérent ('a_regler', tant que rien choisi).
+check("à régler (mode non choisi) + signé → relance paiement", (() => { const r = restantChangement({ ...base, signe_at: "2026-10-10", mode_reglement: "a_regler", supplementPaye: false }); return r.paiementCarte && !r.signature; })());
+check("à régler mais déjà encaissé → plus de relance paiement", !restantChangement({ ...base, signe_at: "2026-10-10", mode_reglement: "a_regler", supplementPaye: true }).paiementCarte);
+
+console.log("\n== calculerSupplementStatut : dérivation du cache (réalité) ==");
+const chBase = { statut: "actif", montant_cents: 15000, paiementStatut: null as string | null };
+check("'a_regler' actif non encaissé → a_finaliser", calculerSupplementStatut([{ ...chBase, mode_reglement: "a_regler" }]) === "a_finaliser");
+check("carte actif non encaissé → a_finaliser", calculerSupplementStatut([{ ...chBase, mode_reglement: "carte" }]) === "a_finaliser");
+check("espèces actif → attente_especes", calculerSupplementStatut([{ ...chBase, mode_reglement: "especes" }]) === "attente_especes");
+check("carte encaissé → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "carte", paiementStatut: "paye" }]) === null);
+check("fusionné (mode null) → null (cas a)", calculerSupplementStatut([{ ...chBase, mode_reglement: null }]) === null);
+check("offert → null", calculerSupplementStatut([{ ...chBase, mode_reglement: "offert" }]) === null);
+check("montant 0 → null", calculerSupplementStatut([{ ...chBase, montant_cents: 0, mode_reglement: "a_regler" }]) === null);
+check("non actif → ignoré", calculerSupplementStatut([{ ...chBase, statut: "annule", mode_reglement: "a_regler" }]) === null);
+check("règle la plus défavorable : a_regler prime sur espèces", calculerSupplementStatut([{ ...chBase, mode_reglement: "especes" }, { ...chBase, mode_reglement: "a_regler" }]) === "a_finaliser");
+check("activable : carte en_attente_paiement encaissé", changementActivable({ statut: "en_attente_paiement", mode_reglement: "carte", paiementStatut: "paye" }));
+check("non activable : espèces", !changementActivable({ statut: "en_attente_paiement", mode_reglement: "especes", paiementStatut: "paye" }));
 
 console.log("\n== Contenu adaptatif des relances ==");
 const m1deux = mailRelanceChangement({ prenom: "Léa", mineur: false, numero: 1, restant: { paiementCarte: true, signature: true }, montantEuros: 35, clubNom: "Le Club" });

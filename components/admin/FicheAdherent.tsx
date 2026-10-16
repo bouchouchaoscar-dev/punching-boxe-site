@@ -426,13 +426,29 @@ export function FicheAdherent({ id }: { id: string }) {
   // [018] Historique des changements de formule + modale « Gérer la formule ».
   const [gererFormule, setGererFormule] = useState(false);
   const [changements, setChangements] = useState<ChangementLigne[]>([]);
+  const [supplement, setSupplement] = useState<{ montantEuros: number; mode: string; statut: string } | null>(null);
+  const [confirmSupp, setConfirmSupp] = useState(false);
   const chargerChangements = useCallback(() => {
     fetch(`/api/admin/adherents/${id}/changements-formule`, { headers: adminAuthHeaders(), cache: "no-store" })
       .then((r) => r.json())
-      .then((d) => setChangements(d.changements ?? []))
+      .then((d) => { setChangements(d.changements ?? []); setSupplement(d.supplement ?? null); })
       .catch(() => {});
   }, [id]);
   useEffect(() => { chargerChangements(); }, [chargerChangements]);
+
+  async function confirmerSupplementEspeces() {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/adherents/${id}/confirmer-supplement-especes`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const data = await res.json();
+      if (res.ok) { showToast(`Supplément espèces confirmé (${euro(data.montant)}) ✓`); load(); chargerChangements(); }
+      else showToast(data.error || "Confirmation impossible.");
+    } catch { showToast("Erreur réseau."); }
+    finally { setSaving(false); setConfirmSupp(false); }
+  }
 
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
@@ -1245,6 +1261,35 @@ export function FicheAdherent({ id }: { id: string }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* [018] Récap du supplément séparé en cours (cas b) + confirmation espèces */}
+      {supplement && (
+        <div className="mt-6 rounded-2xl border border-orange/40 bg-orange-50/50 p-5">
+          <h3 className="font-display text-base font-extrabold uppercase text-ink">Supplément changement de formule</h3>
+          <dl className="mt-3 space-y-1 text-sm">
+            <div className="flex justify-between gap-3"><dt className="text-smoke">Cotisation</dt><dd className="font-semibold text-ink">{euro(Number(a.montant_total || 0))}</dd></div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-smoke">Supplément changement de formule</dt>
+              <dd className="font-semibold text-ink">{euro(supplement.montantEuros)} <span className="text-xs font-normal text-orange">({supplement.statut === "especes_attente" ? "espèces en attente" : supplement.statut === "carte_attente" ? "à régler par carte" : "à régler par l'adhérent"})</span></dd>
+            </div>
+            <div className="flex justify-between gap-3 border-t border-line pt-1"><dt className="font-semibold text-ink">Total</dt><dd className="font-bold text-ink">{euro(Number(a.montant_total || 0) + supplement.montantEuros)}</dd></div>
+            <div className="flex justify-between gap-3"><dt className="text-smoke">Reste dû (supplément)</dt><dd className="font-bold text-red-700">{euro(supplement.montantEuros)}</dd></div>
+          </dl>
+          {supplement.statut === "especes_attente" && (
+            !confirmSupp ? (
+              <button onClick={() => setConfirmSupp(true)} className="mt-3 rounded-full bg-green-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-green-700">
+                Confirmer l&apos;encaissement espèces
+              </button>
+            ) : (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="text-xs text-ink">Confirmer {euro(supplement.montantEuros)} en espèces ?</span>
+                <button onClick={confirmerSupplementEspeces} disabled={saving} className="rounded-full bg-green-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">{saving ? "…" : "Oui, encaissé"}</button>
+                <button onClick={() => setConfirmSupp(false)} className="text-xs font-semibold text-smoke">Annuler</button>
+              </div>
+            )
+          )}
         </div>
       )}
 

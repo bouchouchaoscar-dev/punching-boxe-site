@@ -22,7 +22,9 @@ export function GererFormuleModal({
   const actuelle = formuleCle(adherent.package as PackageType, adherent.option_prepa_physique ?? false);
   const [cible, setCible] = useState<FormuleCle | null>(null);
   const [sens, setSens] = useState<"supplement" | "remboursement" | "aucun">("aucun");
-  const [mode, setMode] = useState<"carte" | "especes" | "offert" | "remboursement_carte" | "remboursement_hors_ligne" | null>(null);
+  // Supplément : à régler par l'adhérent (défaut) / réglé sur place espèces / offert.
+  // Remboursement : carte / hors-ligne.
+  const [reglement, setReglement] = useState<"a_regler" | "especes_sur_place" | "offert" | "remboursement_carte" | "remboursement_hors_ligne">("a_regler");
   const [montant, setMontant] = useState<string>("");
   const [motif, setMotif] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,11 +37,11 @@ export function GererFormuleModal({
     setError("");
     if (actuelle === "boxe" && c === "boxe_prepa") {
       setSens("supplement");
-      setMode("carte");
+      setReglement("a_regler");
       setMontant(String(prixOptionPrepa(new Date())));
     } else {
       setSens("aucun");
-      setMode(null);
+      setReglement("a_regler");
       setMontant("");
     }
   }
@@ -55,17 +57,14 @@ export function GererFormuleModal({
         body: JSON.stringify({
           nouvelleFormule: cible,
           sens,
-          modeReglement: mode,
+          reglement,
           montantEuros: Number(montant || 0),
           motif: motif.trim() || null,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Changement impossible.");
-      const suite =
-        data.remboursement
-          ? " Effectuez le remboursement via « Gérer le paiement »."
-          : "";
+      const suite = data.remboursement ? " Effectuez le remboursement via « Gérer le paiement »." : "";
       onDone(`Formule mise à jour → ${labelFormuleCle(cible)}.${suite}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur.");
@@ -77,7 +76,7 @@ export function GererFormuleModal({
   const recapOk =
     cible &&
     (sens === "aucun" ||
-      (sens === "supplement" && (mode === "offert" || montantNum > 0)) ||
+      (sens === "supplement" && (reglement === "offert" || montantNum > 0)) ||
       (sens === "remboursement" && montantNum > 0));
 
   return (
@@ -114,7 +113,7 @@ export function GererFormuleModal({
                 <button
                   key={s}
                   type="button"
-                  onClick={() => { setSens(s); if (s === "remboursement") setMode("remboursement_carte"); else if (s === "supplement") setMode("carte"); else setMode(null); }}
+                  onClick={() => { setSens(s); setReglement(s === "remboursement" ? "remboursement_carte" : "a_regler"); }}
                   className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${sens === s ? "border-orange bg-orange-50 text-orange" : "border-line text-ink/70"}`}
                 >
                   {s === "supplement" ? "Supplément à payer" : s === "remboursement" ? "Remboursement" : "Aucun montant"}
@@ -132,14 +131,14 @@ export function GererFormuleModal({
                   placeholder="€"
                 />
                 {sens === "supplement" && (
-                  <select value={mode ?? "carte"} onChange={(e) => setMode(e.target.value as typeof mode)} className="rounded-xl border border-line px-2 py-2 text-sm">
-                    <option value="carte">Lien carte par mail</option>
-                    <option value="especes">Espèces</option>
+                  <select value={reglement} onChange={(e) => setReglement(e.target.value as typeof reglement)} className="rounded-xl border border-line px-2 py-2 text-sm">
+                    <option value="a_regler">À régler par l&apos;adhérent</option>
+                    <option value="especes_sur_place">Réglé sur place en espèces</option>
                     <option value="offert">Offert</option>
                   </select>
                 )}
                 {sens === "remboursement" && (
-                  <select value={mode ?? "remboursement_carte"} onChange={(e) => setMode(e.target.value as typeof mode)} className="rounded-xl border border-line px-2 py-2 text-sm">
+                  <select value={reglement} onChange={(e) => setReglement(e.target.value as typeof reglement)} className="rounded-xl border border-line px-2 py-2 text-sm">
                     <option value="remboursement_carte">Carte (via Gérer le paiement)</option>
                     <option value="remboursement_hors_ligne">Hors ligne</option>
                   </select>
@@ -156,9 +155,10 @@ export function GererFormuleModal({
             {/* Récap chiffré + confirmation explicite (action potentiellement irréversible). */}
             <div className="rounded-xl border border-line bg-paper-2 p-3 text-sm">
               <p><strong>{labelFormuleDossier(adherent)}</strong> → <strong>{labelFormuleCle(cible)}</strong></p>
-              {sens === "supplement" && mode !== "offert" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> ({mode === "carte" ? "lien carte par mail" : "espèces"}).</p>}
-              {sens === "supplement" && mode === "offert" && <p className="mt-1">Offert.</p>}
-              {sens === "remboursement" && <p className="mt-1 text-red-700">Remboursement : <strong>{euro(montantNum)}</strong> {mode === "remboursement_carte" ? "(carte — à exécuter via Gérer le paiement)" : "(hors ligne)"}.</p>}
+              {sens === "supplement" && reglement === "offert" && <p className="mt-1">Offert.</p>}
+              {sens === "supplement" && reglement === "a_regler" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> — l&apos;adhérent choisira carte ou espèces dans son espace.</p>}
+              {sens === "supplement" && reglement === "especes_sur_place" && <p className="mt-1">Supplément : <strong>{euro(montantNum)}</strong> — <strong>réglé sur place en espèces</strong> (encaissé immédiatement).</p>}
+              {sens === "remboursement" && <p className="mt-1 text-red-700">Remboursement : <strong>{euro(montantNum)}</strong> {reglement === "remboursement_carte" ? "(carte — à exécuter via Gérer le paiement)" : "(hors ligne)"}.</p>}
               <p className="mt-1 text-xs text-smoke">La fiche d'inscription sera à re-signer (lien envoyé à l'adhérent).</p>
             </div>
 

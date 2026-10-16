@@ -129,7 +129,10 @@ export async function construireFacturePdf(
       .select("nouvelle_formule, montant_cents, paiement_id, created_at")
       .eq("dossier_id", adherentId)
       .eq("statut", "actif");
-    const chRows = (chs ?? []).filter((c) => Math.round(Number(c.montant_cents || 0)) > 0);
+    // Suppléments SÉPARÉS uniquement (paiement_id non nul) : les changements
+    // FUSIONNÉS dans montant_total (cas a, paiement_id null) sont déjà dans la
+    // cotisation → pas de double-ligne.
+    const chRows = (chs ?? []).filter((c) => Math.round(Number(c.montant_cents || 0)) > 0 && c.paiement_id);
     const supIds = chRows.map((c) => c.paiement_id).filter(Boolean) as string[];
     const payeById = new Map<string, boolean>();
     if (supIds.length) {

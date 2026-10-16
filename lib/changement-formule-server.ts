@@ -10,7 +10,6 @@ import { cleVersDossier, labelFormuleCle } from "./changement-formule";
 import { recalculerSupplement } from "./payments";
 import { buildResignatureUrl } from "./resignature-link";
 import {
-  sendDemandeResignature,
   sendChangementFormuleAdherent,
   sendChangementFormuleAdmin,
 } from "./email";
@@ -21,23 +20,18 @@ const cle = (a: Pick<Adherent, "package" | "option_prepa_physique">) =>
   formuleCle(a.package as PackageType, a.option_prepa_physique ?? false);
 
 /**
- * Déclenche la re-signature de la fiche (mécanisme EXISTANT) : pose
- * fiche_a_resigner et envoie le lien HMAC. La fiche sera régénérée depuis la
- * formule COURANTE au moment de la signature (backup de l'ancienne incluse).
+ * Déclenche la re-signature de la fiche (mécanisme EXISTANT) : pose UNIQUEMENT
+ * fiche_a_resigner. Le mail de re-signature STANDARD n'est PAS envoyé ici : c'est
+ * le mail « Votre formule a été mise à jour » (sendChangementFormuleAdherent, avec
+ * le lien de signature) qui part — un seul mail par changement. La fiche sera
+ * régénérée depuis la formule COURANTE à la signature (backup inclus). Les relances
+ * de signature (section 5) restent inchangées.
  */
 export async function declencherResignatureFiche(
   supabase: SupabaseClient,
   adherent: Pick<Adherent, "id" | "prenom" | "email">,
 ): Promise<void> {
   await supabase.from("adherents").update({ fiche_a_resigner: true }).eq("id", adherent.id);
-  try {
-    if (adherent.email) {
-      const lien = buildResignatureUrl(adherent.id, ["fiche"]);
-      await sendDemandeResignature({ prenom: adherent.prenom ?? "", email: adherent.email, docs: ["fiche"], lien });
-    }
-  } catch (e) {
-    console.error("[CHANGEMENT FORMULE] lien re-signature échoué:", adherent.id, e);
-  }
 }
 
 /** Lien de signature (espace adhérent / HMAC) pour les emails. */
@@ -110,18 +104,27 @@ export async function creerSupplementCarte(
  * emails. Le total du dossier n'est PAS modifié (le supplément est une ligne
  * paiements à part) — SAUF cas a où l'appelant passe `nouveauTotal`.
  */
+export type ModeChangement =
+  | "a_regler" // supplément séparé, mode choisi plus tard par l'adhérent (carte/espèces)
+  | "especes" // supplément espèces (sur place = encaissé, ou choisi par l'adhérent = en attente)
+  | "offert"
+  | "remboursement_carte"
+  | "remboursement_hors_ligne"
+  | null; // fusionné dans le total (cas a) / aucun montant
+
 export async function appliquerChangementActif(
   supabase: SupabaseClient,
   adherent: Adherent,
   p: {
     nouvelleCle: FormuleCle;
     montantEuros: number; // supplément (>0) ; 0 si aucun ; remboursement : magnitude (stockée en négatif)
-    modeReglement: "carte" | "especes" | "offert" | "remboursement_carte" | "remboursement_hors_ligne" | null;
+    modeReglement: ModeChangement;
     source: "adherent" | "admin";
     createdBy: string;
     motif?: string | null;
     signatureRequise: boolean;
     nouveauTotal?: number | null; // cas a : total recalculé (sinon inchangé)
+    encaisse?: boolean; // espèces réglées sur place → paiement déjà encaissé
   },
 ): Promise<{ changementId: string }> {
   const cible = cleVersDossier(p.nouvelleCle);
@@ -134,42 +137,25 @@ export async function appliquerChangementActif(
     })
     .eq("id", adherent.id);
 
-  // Ligne supplément : espèces (en attente de confirmation admin) OU carte (PI
-  // + lien de paiement ; activation immédiate, supplément « à finaliser »).
+  // Ligne supplément en ESPÈCES uniquement : réglées sur place → « paye »
+  // (encaissé), sinon « en_attente » (confirmation admin). Le mode carte passe
+  // par le choix de l'adhérent (choisirModeSupplement → creerSupplementCarte).
   let paiementId: string | null = null;
-  let paymentIntentId: string | null = null;
   if (p.montantEuros > 0 && p.modeReglement === "especes") {
     const paie = await supabase
       .from("paiements")
-      .insert({ adherent_id: adherent.id, montant: p.montantEuros, statut: "en_attente", numero_echeance: null, date_prevue: auj() })
+      .insert({
+        adherent_id: adherent.id,
+        montant: p.montantEuros,
+        statut: p.encaisse ? "paye" : "en_attente",
+        numero_echeance: null,
+        date_prevue: auj(),
+        date_paiement: p.encaisse ? new Date().toISOString() : null,
+      })
       .select("id")
       .single();
     if (paie.error || !paie.data) throw new Error(paie.error?.message || "Insertion supplément impossible.");
     paiementId = paie.data.id;
-  } else if (p.montantEuros > 0 && p.modeReglement === "carte") {
-    const stripe = getStripe();
-    const customerId =
-      adherent.stripe_customer_id ||
-      (await stripe.customers.create({ email: adherent.email, name: `${adherent.prenom} ${adherent.nom}`, metadata: { adherentId: adherent.id } })).id;
-    const pi = await stripe.paymentIntents.create({
-      amount: Math.round(p.montantEuros * 100),
-      currency: "eur",
-      customer: customerId,
-      payment_method_types: ["card"],
-      description: `Supplément formule — ${adherent.prenom} ${adherent.nom}`,
-      metadata: { adherentId: adherent.id, type: "supplement" },
-    });
-    paymentIntentId = pi.id;
-    const paie = await supabase
-      .from("paiements")
-      .insert({ adherent_id: adherent.id, stripe_payment_intent_id: pi.id, montant: p.montantEuros, statut: "en_attente", numero_echeance: null, date_prevue: auj() })
-      .select("id")
-      .single();
-    if (paie.error || !paie.data) throw new Error(paie.error?.message || "Insertion supplément impossible.");
-    paiementId = paie.data.id;
-    if (!adherent.stripe_customer_id) {
-      await supabase.from("adherents").update({ stripe_customer_id: customerId }).eq("id", adherent.id);
-    }
   }
 
   const ch = await supabase
@@ -182,7 +168,6 @@ export async function appliquerChangementActif(
       montant_cents: Math.round((p.modeReglement?.startsWith("remboursement") ? -Math.abs(p.montantEuros) : p.montantEuros) * 100),
       mode_reglement: p.modeReglement,
       statut: "actif",
-      payment_intent_id: paymentIntentId,
       paiement_id: paiementId,
       signature_requise: p.signatureRequise,
       created_by: p.createdBy,
@@ -201,7 +186,10 @@ export async function appliquerChangementActif(
   // Emails (best-effort).
   try {
     if (adherent.email) {
-      const modeAdherent = p.modeReglement?.startsWith("remboursement") ? "remboursement" : p.modeReglement;
+      let modeAdherent: "a_regler" | "especes" | "especes_encaisse" | "offert" | "remboursement" | null;
+      if (p.modeReglement === "remboursement_carte" || p.modeReglement === "remboursement_hors_ligne") modeAdherent = "remboursement";
+      else if (p.modeReglement === "especes") modeAdherent = p.encaisse ? "especes_encaisse" : "especes";
+      else modeAdherent = p.modeReglement; // 'a_regler' | 'offert' | null
       await sendChangementFormuleAdherent({
         email: adherent.email,
         prenom: adherent.prenom ?? "",
@@ -209,7 +197,7 @@ export async function appliquerChangementActif(
         ancienneFormule: labelFormuleCle(cle(adherent)),
         nouvelleFormule: labelFormuleCle(p.nouvelleCle),
         montantEuros: p.montantEuros,
-        mode: modeAdherent as "carte" | "especes" | "offert" | "remboursement" | null,
+        mode: modeAdherent,
         signatureRequise: p.signatureRequise,
         lienSigner: p.signatureRequise ? lienSignatureFiche(adherent.id) : null,
         parAdmin: p.source === "admin",
@@ -228,4 +216,95 @@ export async function appliquerChangementActif(
     console.error("[CHANGEMENT FORMULE] emails échoués:", adherent.id, e);
   }
   return { changementId: ch.data.id };
+}
+
+// Supplément SÉPARÉ en cours (non encaissé) par dossier : montant + statut
+// ('a_regler' | 'especes_attente' | 'carte_attente'). Sert à l'espace adhérent
+// (récap + « Régler le supplément ») et au « dû » du tableau de bord. Tolérant si
+// la table 018 n'existe pas (→ Map vide).
+export type SupplementDossier = { montantEuros: number; statut: "a_regler" | "especes_attente" | "carte_attente" };
+export async function chargerSupplementsParDossier(
+  supabase: SupabaseClient,
+  dossierIds: string[],
+): Promise<Map<string, SupplementDossier>> {
+  const out = new Map<string, SupplementDossier>();
+  if (!dossierIds.length) return out;
+  const { data: chs, error } = await supabase
+    .from("changements_formule")
+    .select("dossier_id, montant_cents, mode_reglement, statut, paiement_id")
+    .in("dossier_id", dossierIds)
+    .eq("statut", "actif");
+  if (error || !chs) return out; // table absente → aucun supplément
+  const paieIds = [...new Set(chs.map((c) => c.paiement_id).filter(Boolean))] as string[];
+  const payeById = new Map<string, boolean>();
+  if (paieIds.length) {
+    const { data: ps } = await supabase.from("paiements").select("id, statut").in("id", paieIds);
+    for (const p of ps ?? []) payeById.set(p.id as string, p.statut === "paye");
+  }
+  for (const c of chs) {
+    const montant = Number(c.montant_cents || 0);
+    if (montant <= 0) continue;
+    const mode = c.mode_reglement as string | null;
+    const paye = c.paiement_id ? payeById.get(c.paiement_id as string) === true : false;
+    if (paye) continue;
+    let statut: SupplementDossier["statut"] | null = null;
+    if (mode === "a_regler") statut = "a_regler";
+    else if (mode === "especes") statut = "especes_attente";
+    else if (mode === "carte") statut = "carte_attente";
+    if (!statut) continue; // fusionné (null) / offert → pas un supplément dû
+    // Un seul par dossier (le plus défavorable : a_regler/carte priment l'espèces).
+    const prec = out.get(c.dossier_id as string);
+    if (!prec || (prec.statut === "especes_attente" && statut !== "especes_attente")) {
+      out.set(c.dossier_id as string, { montantEuros: montant / 100, statut });
+    }
+  }
+  return out;
+}
+
+// L'adhérent CHOISIT le mode de règlement d'un supplément 'a_regler' (créé par
+// l'admin « à régler par l'adhérent ») : espèces (en attente) ou carte (PI +
+// lien de paiement). Met à jour le changement existant. Idempotent par l'état.
+export async function choisirModeSupplement(
+  supabase: SupabaseClient,
+  adherent: Adherent,
+  changement: { id: string; montant_cents: number | null },
+  mode: "carte" | "especes",
+): Promise<{ clientSecret?: string | null; paiementId: string }> {
+  const montantEuros = Math.max(0, Number(changement.montant_cents ?? 0)) / 100;
+  if (mode === "especes") {
+    const paie = await supabase
+      .from("paiements")
+      .insert({ adherent_id: adherent.id, montant: montantEuros, statut: "en_attente", numero_echeance: null, date_prevue: auj() })
+      .select("id")
+      .single();
+    if (paie.error || !paie.data) throw new Error(paie.error?.message || "Enregistrement impossible.");
+    await supabase.from("changements_formule").update({ mode_reglement: "especes", paiement_id: paie.data.id }).eq("id", changement.id);
+    await recalculerSupplement(supabase, adherent.id);
+    return { paiementId: paie.data.id };
+  }
+  // Carte : PI + ligne paiements (numero null), rattachés au changement.
+  const stripe = getStripe();
+  const customerId =
+    adherent.stripe_customer_id ||
+    (await stripe.customers.create({ email: adherent.email, name: `${adherent.prenom} ${adherent.nom}`, metadata: { adherentId: adherent.id } })).id;
+  const pi = await stripe.paymentIntents.create({
+    amount: Math.round(montantEuros * 100),
+    currency: "eur",
+    customer: customerId,
+    payment_method_types: ["card"],
+    description: `Supplément formule — ${adherent.prenom} ${adherent.nom}`,
+    metadata: { adherentId: adherent.id, type: "supplement" },
+  });
+  const paie = await supabase
+    .from("paiements")
+    .insert({ adherent_id: adherent.id, stripe_payment_intent_id: pi.id, montant: montantEuros, statut: "en_attente", numero_echeance: null, date_prevue: auj() })
+    .select("id")
+    .single();
+  if (paie.error || !paie.data) throw new Error(paie.error?.message || "Enregistrement impossible.");
+  await supabase.from("changements_formule").update({ mode_reglement: "carte", payment_intent_id: pi.id, paiement_id: paie.data.id }).eq("id", changement.id);
+  if (!adherent.stripe_customer_id) {
+    await supabase.from("adherents").update({ stripe_customer_id: customerId }).eq("id", adherent.id);
+  }
+  await recalculerSupplement(supabase, adherent.id);
+  return { clientSecret: pi.client_secret, paiementId: paie.data.id };
 }

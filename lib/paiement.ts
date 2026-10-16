@@ -118,16 +118,29 @@ type StatutTrombiInput = Pick<
 
 export function statutTrombi(a: StatutTrombiInput): TrombiStatut {
   const base = statutTrombiBase(a);
-  // [018] Supplément de changement de formule : quand la cotisation est par
-  // ailleurs réglée (vert), un supplément non encaissé fait primer son action.
-  // Dérivé de l'état réel du paiement (adherents.supplement_statut). AUCUNE autre
-  // règle de statutTrombiBase n'est modifiée.
-  if (base.couleur === "vert" && !a.annule_at && a.supplement_statut) {
-    return a.supplement_statut === "attente_especes"
+  // [018] Supplément de changement de formule (dérivé de l'état réel du paiement).
+  // Tant qu'un supplément n'est pas encaissé, le dossier est rouge/orange QUELLE
+  // QUE soit la couleur de la cotisation : la règle la PLUS DÉFAVORABLE l'emporte.
+  // statutTrombiBase n'est pas modifié.
+  if (a.annule_at || !a.supplement_statut) return base;
+  const sup: TrombiStatut =
+    a.supplement_statut === "attente_especes"
       ? { code: "attente_especes", couleur: "orange", label: "Espèces — en attente" }
       : { code: "a_finaliser", couleur: "rouge", label: "Paiement à finaliser" };
-  }
-  return base;
+  const severite = (c: TrombiStatut["couleur"]) => (c === "rouge" ? 3 : c === "orange" ? 2 : 1);
+  return severite(sup.couleur) > severite(base.couleur) ? sup : base;
+}
+
+// Statut de la COTISATION seule (sans le supplément de changement de formule) —
+// utile au tableau de bord pour ne pas sur-compter montant_total quand seul un
+// supplément est dû.
+export function statutCotisation(a: StatutTrombiInput): TrombiStatut {
+  return statutTrombiBase(a);
+}
+
+// La COTISATION (hors supplément) est-elle « à finaliser » ? (montant = total dû)
+export function estCotisationAFinaliser(a: StatutTrombiInput): boolean {
+  return statutTrombiBase(a).code === "a_finaliser";
 }
 
 function statutTrombiBase(a: StatutTrombiInput): TrombiStatut {

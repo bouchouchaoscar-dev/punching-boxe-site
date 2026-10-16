@@ -15,6 +15,7 @@ import { estEngage } from "@/lib/engagement";
 import { estPaiementSolde, statutTrombi } from "@/lib/paiement";
 import { peutAjouterPrepa } from "@/lib/changement-formule";
 import { AjouterPrepaModal } from "./AjouterPrepaModal";
+import { ReglerSupplementModal } from "./ReglerSupplementModal";
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { urlAvecVersion } from "@/lib/doc-version";
 import { syntheseDossier, type SyntheseTone } from "@/lib/synthese-dossier";
@@ -92,6 +93,7 @@ export function MonEspace() {
   // Photo de profil à recadrer (re-dépôt depuis l'espace).
   const [cropPhoto, setCropPhoto] = useState<{ file: File; adherentId: string } | null>(null);
   const [prepaDossier, setPrepaDossier] = useState<Adherent | null>(null);
+  const [supplementDossier, setSupplementDossier] = useState<Adherent | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [factureBusy, setFactureBusy] = useState<string | null>(null);
 
@@ -576,6 +578,7 @@ export function MonEspace() {
                       a={a}
                       onDelete={() => setConfirmDelete(a.id)}
                       onAjouterPrepa={() => setPrepaDossier(a)}
+                      onReglerSupplement={() => setSupplementDossier(a)}
                     />
                   </div>
                 )}
@@ -588,6 +591,11 @@ export function MonEspace() {
       {/* Ajout de l'option prépa physique (dossier Boxe Française seule). */}
       {prepaDossier && token && (
         <AjouterPrepaModal adherent={prepaDossier} token={token} onClose={() => setPrepaDossier(null)} />
+      )}
+
+      {/* Régler le supplément d'un changement de formule « à régler ». */}
+      {supplementDossier && token && (
+        <ReglerSupplementModal adherent={supplementDossier} token={token} onClose={() => setSupplementDossier(null)} />
       )}
 
       {/* Recadrage de la photo de profil (re-dépôt) */}
@@ -656,10 +664,12 @@ function DossierActions({
   a,
   onDelete,
   onAjouterPrepa,
+  onReglerSupplement,
 }: {
   a: Adherent;
   onDelete: () => void;
   onAjouterPrepa: () => void;
+  onReglerSupplement: () => void;
 }) {
   // Bouton « Ajouter la prépa physique » : dossier BF seule, non annulé — visible
   // que le dossier soit finalisé ou non (cf. cahier des charges).
@@ -675,12 +685,30 @@ function DossierActions({
     </div>
   ) : null;
 
+  // [018] Supplément de changement de formule à régler (mode à choisir ou carte
+  // non réglée) → bouton. Espèces en attente → note (confirmation au club).
+  const sup = a.supplement;
+  const boutonSupplement = sup && (sup.statut === "a_regler" || sup.statut === "carte_attente") ? (
+    <div className="w-full">
+      <button
+        onClick={onReglerSupplement}
+        className="rounded-full bg-orange px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-orange/90"
+      >
+        Régler le supplément ({euro(sup.montantEuros)})
+      </button>
+      <p className="mt-1 text-xs text-smoke">Changement de formule — carte ou espèces, à votre choix.</p>
+    </div>
+  ) : sup && sup.statut === "especes_attente" ? (
+    <p className="w-full text-xs text-smoke">Supplément de {euro(sup.montantEuros)} en espèces : en attente de confirmation au club.</p>
+  ) : null;
+
   // Dossier engagé : verrouillé, SAUF s'il a une échéance en échec → régularisation.
   if (estEngage(a)) {
     if (a.statut_paiement === "echec_paiement") {
       return (
         <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
           {boutonPrepa}
+          {boutonSupplement}
           <Link
             href={`/inscription/regulariser/${a.id}`}
             className="rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700"
@@ -690,8 +718,8 @@ function DossierActions({
         </div>
       );
     }
-    if (!boutonPrepa) return null;
-    return <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">{boutonPrepa}</div>;
+    if (!boutonPrepa && !boutonSupplement) return null;
+    return <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">{boutonPrepa}{boutonSupplement}</div>;
   }
   // Dossier à tarif libre pas encore complété (identité/signatures manquantes,
   // date de naissance non renseignée) → parcours de COMPLÉTION avant paiement.
@@ -722,6 +750,7 @@ function DossierActions({
   return (
     <div className="mt-5 flex flex-wrap gap-3 border-t border-line pt-4">
       {boutonPrepa}
+      {boutonSupplement}
       {/* Espèces en attente → pas de "finaliser" (fil rouge espèces conservé). */}
       {!especesAttente && (
         <Link

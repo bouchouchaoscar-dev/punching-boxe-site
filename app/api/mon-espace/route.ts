@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase";
 import { sendAdminDocReplaced } from "@/lib/email";
 import { signerDocsAdherents } from "@/lib/storage-url";
+import { chargerSupplementsParDossier } from "@/lib/changement-formule-server";
 import { evaluerDossier } from "@/lib/dossier";
 import { getAuthUser } from "@/lib/auth-server";
 import { validerPiece, TYPE_META, CHAMPS_PIECE, type ChampPiece } from "@/lib/upload-piece";
@@ -74,6 +75,18 @@ export async function GET(request: Request) {
       if (p.statut === "paye" && p.numero_echeance != null)
         paidEcheances[p.adherent_id] = (paidEcheances[p.adherent_id] ?? 0) + 1;
     }
+  }
+
+  // [018] Supplément de changement de formule non encaissé par dossier (récap +
+  // bouton « Régler le supplément » dans l'espace). Tolérant (table 018 absente).
+  try {
+    const sup = await chargerSupplementsParDossier(supabase, ids);
+    for (const a of adherents as Record<string, unknown>[]) {
+      const s = sup.get(a.id as string);
+      if (s) a.supplement = s;
+    }
+  } catch {
+    /* rien */
   }
 
   return NextResponse.json({ adherents, paidEcheances });
