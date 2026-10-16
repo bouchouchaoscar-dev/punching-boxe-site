@@ -13,12 +13,15 @@ import {
   sendCommencerInscription,
   sendPaiementEchec,
   sendRelanceDossier,
+  sendRelanceChangement,
 } from "@/lib/email";
 import { statutTrombi } from "@/lib/paiement";
 import { estMineur } from "@/lib/pricing";
 import { estEmailValide, normaliserEmail } from "@/lib/email-format";
 import { saisonCourante } from "@/lib/saison";
 import { etatDossierRelance, estDossierARelancer, numeroRelanceDossier } from "@/lib/relance-dossier";
+import { restantChangement, changementAFaire } from "@/lib/changement-formule";
+import { lienSignatureFiche } from "@/lib/changement-formule-server";
 import {
   envoyerCampagne,
   statutCampagne,
@@ -179,6 +182,7 @@ export async function GET(request: Request) {
   const relancesComptes = await passe("relancesComptes", relancerComptesSansInscription);
   const rappelsEchec = await passe("rappelsEchec", relancerEchecs48h);
   const relancesDossier = await passe("relancesDossier", () => relancerDossiersSansPaiement());
+  const relancesChangement = await passe("relancesChangement", relancerChangementsFormule);
 
   return NextResponse.json({
     traitees: results.length,
@@ -189,6 +193,7 @@ export async function GET(request: Request) {
     relancesComptes,
     rappelsEchec,
     relancesDossier,
+    relancesChangement,
     erreurs: Object.keys(erreurs).length ? erreurs : undefined,
   });
 }
@@ -419,6 +424,100 @@ async function relancerDossiersSansPaiement(dryRun = false) {
     await new Promise((r) => setTimeout(r, 300)); // pacing Resend
   }
   return { candidats: candidats.length, relance1, relance2 };
+}
+
+// [018] Relances des CHANGEMENTS DE FORMULE (section 5). Source 'admin' : supplément
+// carte non encaissé et/ou fiche non signée. Source 'adherent' : SIGNATURE
+// uniquement (le paiement adhérent n'est pas relancé ici). Jamais pour espèces,
+// ni pour un « offert » signé. Relance 1 >= 48 h, relance 2 >= 7 j. Claim idempotent
+// par relance_1_at puis relance_2_at. Exclusions désinscrits/bounces/invalides.
+async function relancerChangementsFormule() {
+  const supabase = getSupabaseAdmin();
+  const now = Date.now();
+  const exclusions = await chargerExclusionsMail(supabase);
+
+  const data = exigerData(
+    await supabase
+      .from("changements_formule")
+      .select("id, dossier_id, source, statut, mode_reglement, montant_cents, signature_requise, signe_at, paiement_id, relance_1_at, relance_2_at, created_at")
+      .eq("statut", "actif"),
+    "relance changements: select",
+  );
+  const changements = (data ?? []) as Record<string, unknown>[];
+  if (changements.length === 0) return { candidats: 0, relance1: 0, relance2: 0 };
+
+  // Statuts des paiements « supplément » liés (pour savoir si la carte est encaissée).
+  const paieIds = [...new Set(changements.map((c) => c.paiement_id).filter(Boolean))] as string[];
+  const statutPaie = new Map<string, string>();
+  if (paieIds.length) {
+    const pays = exigerData(await supabase.from("paiements").select("id, statut").in("id", paieIds), "relance changements: paiements");
+    for (const p of pays ?? []) statutPaie.set(p.id as string, p.statut as string);
+  }
+
+  let relance1 = 0;
+  let relance2 = 0;
+  let candidats = 0;
+  for (const ch of changements) {
+    const supplementPaye = ch.paiement_id ? statutPaie.get(ch.paiement_id as string) === "paye" : true;
+    let restant = restantChangement({
+      source: ch.source as string | null,
+      statut: ch.statut as string | null,
+      mode_reglement: ch.mode_reglement as string | null,
+      signature_requise: ch.signature_requise as boolean | null,
+      signe_at: ch.signe_at as string | null,
+      supplementPaye,
+    });
+    // Source 'adherent' : relance la SIGNATURE uniquement (jamais le paiement).
+    if (ch.source === "adherent") restant = { paiementCarte: false, signature: restant.signature };
+    if (!changementAFaire(restant)) continue;
+    candidats++;
+
+    const r1 = ch.relance_1_at as string | null;
+    const r2 = ch.relance_2_at as string | null;
+    const cree = new Date(ch.created_at as string).getTime();
+    let numero: 1 | 2 | null = null;
+    let col = "";
+    if (!r1 && cree <= now - RELANCES.changement1Heures * H) { numero = 1; col = "relance_1_at"; }
+    else if (r1 && !r2 && cree <= now - RELANCES.changement2Jours * 24 * H) { numero = 2; col = "relance_2_at"; }
+    if (!numero) continue;
+
+    // Adhérent (email + prénom + mineur).
+    const { data: adh } = await supabase
+      .from("adherents")
+      .select("prenom, email, date_naissance")
+      .eq("id", ch.dossier_id as string)
+      .maybeSingle();
+    const email = normaliserEmail((adh?.email as string) ?? "");
+    if (!email || !estEmailValide(email) || exclusions.has(email)) continue;
+
+    // Claim atomique : jamais deux relances pour le même palier.
+    const { data: claimed } = await supabase
+      .from("changements_formule")
+      .update({ [col]: new Date().toISOString() })
+      .eq("id", ch.id as string)
+      .is(col, null)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue;
+
+    try {
+      await sendRelanceChangement({
+        email,
+        prenom: (adh?.prenom as string) ?? "",
+        mineur: estMineur(adh?.date_naissance as string),
+        numero,
+        restant,
+        montantEuros: Math.max(0, (ch.montant_cents as number) ?? 0) / 100,
+        lienSigner: restant.signature ? lienSignatureFiche(ch.dossier_id as string) : null,
+      });
+      if (numero === 1) relance1++;
+      else relance2++;
+    } catch (e) {
+      console.error("Relance changement formule:", ch.id, e);
+    }
+    await new Promise((r) => setTimeout(r, 300)); // pacing Resend
+  }
+  return { candidats, relance1, relance2 };
 }
 
 async function relancerPaniersAbandonnes() {

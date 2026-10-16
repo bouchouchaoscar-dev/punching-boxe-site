@@ -7,9 +7,12 @@ import {
   sendAdminNotification,
   sendAdminAlertePaiement,
   sendAdminBascule,
+  sendChangementFormuleAdherent,
 } from "./email";
 import { notifierSiDossierComplet } from "./dossier-complet";
 import { notifierEchecPaiement } from "./echec-notify";
+import { estMineur, type FormuleCle } from "./pricing";
+import { cleVersDossier, labelFormuleCle, calculerSupplementStatut, changementActivable } from "./changement-formule";
 import type { Adherent, Paiement } from "./types";
 
 /**
@@ -370,6 +373,79 @@ export async function recalculerEtatPaiement(adherentId: string) {
   if (devientEngage || complet) {
     await notifierSiDossierComplet(supabase, adherentId);
   }
+
+  // [018] Supplément « changement de formule » : SEUL écrivain du cache
+  // adherents.supplement_statut, et activation (cas b carte, option B) des
+  // changements dont le supplément vient d'être encaissé. Dérivé de la réalité
+  // (changements_formule + paiements). Tolérant si la table n'existe pas encore.
+  await recalculerSupplement(supabase, adherentId);
+}
+
+/**
+ * Recalcule le cache adherents.supplement_statut depuis la réalité et active les
+ * changements « cas b carte » (option B) dont le supplément est encaissé : au
+ * moment où la carte est confirmée, on bascule la formule, on régénère/marque la
+ * fiche à re-signer (mécanisme existant) et on informe l'adhérent. SEUL endroit
+ * qui écrit supplement_statut. No-op si la table 018 n'est pas encore migrée.
+ */
+export async function recalculerSupplement(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  adherentId: string,
+): Promise<void> {
+  const { data: changements, error } = await supabase
+    .from("changements_formule")
+    .select("id, nouvelle_formule, montant_cents, mode_reglement, statut, paiement_id, signature_requise")
+    .eq("dossier_id", adherentId);
+  if (error || !changements) return; // table absente (pré-migration) → no-op
+
+  // Statut des paiements « supplément » (numero_echeance null) du dossier.
+  const { data: sup } = await supabase
+    .from("paiements")
+    .select("id, statut")
+    .eq("adherent_id", adherentId)
+    .is("numero_echeance", null);
+  const statutPaie = new Map((sup ?? []).map((p) => [p.id as string, p.statut as string]));
+  const paieStatut = (id: string | null) => (id ? statutPaie.get(id) ?? null : null);
+
+  // 1) Activation (cas b carte) : supplément encaissé → bascule formule + fiche à re-signer.
+  for (const ch of changements) {
+    if (!changementActivable({ statut: ch.statut as string | null, mode_reglement: ch.mode_reglement as string | null, paiementStatut: paieStatut(ch.paiement_id as string | null) })) continue;
+    const cible = cleVersDossier(ch.nouvelle_formule as FormuleCle);
+    await supabase
+      .from("adherents")
+      .update({ package: cible.package, option_prepa_physique: cible.option_prepa_physique, fiche_a_resigner: true })
+      .eq("id", adherentId);
+    await supabase.from("changements_formule").update({ statut: "actif" }).eq("id", ch.id);
+    ch.statut = "actif"; // reflète pour le calcul du cache ci-dessous
+    // Email de confirmation chaleureux (best-effort).
+    try {
+      const { data: a } = await supabase.from("adherents").select("prenom, nom, email, date_naissance").eq("id", adherentId).maybeSingle();
+      if (a?.email) {
+        await sendChangementFormuleAdherent({
+          email: a.email as string,
+          prenom: (a.prenom as string) ?? "",
+          mineur: estMineur(a.date_naissance as string),
+          nouvelleFormule: labelFormuleCle(ch.nouvelle_formule as FormuleCle),
+          montantEuros: Math.max(0, (ch.montant_cents as number) ?? 0) / 100,
+          mode: "carte",
+          signatureRequise: true,
+        });
+      }
+    } catch (e) {
+      console.error("[CHANGEMENT FORMULE] email adhérent (activation carte) échoué:", adherentId, e);
+    }
+  }
+
+  // 2) Cache supplement_statut dérivé des changements ACTIFS non encaissés.
+  const cible = calculerSupplementStatut(
+    changements.map((ch) => ({
+      statut: ch.statut as string | null,
+      mode_reglement: ch.mode_reglement as string | null,
+      montant_cents: ch.montant_cents as number | null,
+      paiementStatut: paieStatut(ch.paiement_id as string | null),
+    })),
+  );
+  await supabase.from("adherents").update({ supplement_statut: cible }).eq("id", adherentId);
 }
 
 /** Marque l'échéance liée à un PaymentIntent comme payée. */

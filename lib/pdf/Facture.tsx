@@ -35,6 +35,8 @@ export type FactureData = {
   // Période (dossier à tarif/durée libres) — affichée si présente.
   dateDebut?: string | null;
   dateFin?: string | null;
+  // [018] Lignes de supplément « changement de formule » (option prépa, etc.).
+  supplements?: { label: string; montant: number; paye: boolean }[];
 };
 
 const fmtSaison = (s: string) => s.replace("-", "/");
@@ -129,9 +131,17 @@ export function FactureDoc({ data }: { data: FactureData }) {
               <Text style={s.ligneVal}>{euro(data.adhesion)}</Text>
             </View>
           )}
+          {(data.supplements ?? []).map((sup, i) => (
+            <View key={i} style={s.ligne}>
+              <Text style={s.ligneLabel}>{sup.label}</Text>
+              <Text style={s.ligneVal}>{euro(sup.montant)}</Text>
+            </View>
+          ))}
           <View style={s.total}>
             <Text style={s.totalLabel}>Total</Text>
-            <Text style={s.totalVal}>{euro(data.montantTotal)}</Text>
+            <Text style={s.totalVal}>
+              {euro(data.montantTotal + (data.supplements ?? []).reduce((a, b) => a + b.montant, 0))}
+            </Text>
           </View>
           <View style={s.ligne}>
             <Text style={s.ligneLabel}>Mode de paiement</Text>

@@ -75,6 +75,45 @@ export function changementAFaire(r: RestantChangement): boolean {
   return r.paiementCarte || r.signature;
 }
 
+// ---- Dérivation PURE du cache adherents.supplement_statut (écrit UNIQUEMENT par
+// recalculerEtatPaiement, à partir de la réalité). Un supplément ACTIF non encaissé
+// → carte prime (a_finaliser), sinon espèces (attente_especes). Sinon null. ----
+export type ChangementReel = {
+  statut: string | null;
+  mode_reglement: string | null;
+  montant_cents: number | null;
+  paiementStatut: string | null; // statut du paiement lié (null si aucun)
+};
+
+export function calculerSupplementStatut(
+  changements: ChangementReel[],
+): "a_finaliser" | "attente_especes" | null {
+  let cache: "a_finaliser" | "attente_especes" | null = null;
+  for (const ch of changements) {
+    if (ch.statut !== "actif") continue;
+    if ((ch.montant_cents ?? 0) <= 0) continue; // 0 ou remboursement → rien à encaisser
+    const paye = ch.paiementStatut === "paye";
+    if (paye) continue;
+    if (ch.mode_reglement === "carte") return "a_finaliser"; // carte prime
+    if (ch.mode_reglement === "especes") cache = cache ?? "attente_especes";
+  }
+  return cache;
+}
+
+// Changements à ACTIVER (cas b carte, option B) : en attente de paiement, par
+// carte, dont le supplément lié est désormais encaissé. Renvoie l'index.
+export function changementActivable(ch: {
+  statut: string | null;
+  mode_reglement: string | null;
+  paiementStatut: string | null;
+}): boolean {
+  return (
+    ch.statut === "en_attente_paiement" &&
+    ch.mode_reglement === "carte" &&
+    ch.paiementStatut === "paye"
+  );
+}
+
 // ---- Contenu ADAPTATIF des mails de relance (PUR) ----
 export type MailRelanceChangement = {
   objet: string;

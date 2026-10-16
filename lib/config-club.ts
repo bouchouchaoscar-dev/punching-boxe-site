@@ -93,6 +93,8 @@ export const CONFIG_CLUB = {
       compteSansInscriptionH: 24, // relance compte Auth sans aucun dossier
       dossier1Jours: 3, // relance 1 dossier sans mode de paiement : >= N jours après création
       dossier2Jours: 7, // relance 2 : >= N jours après la relance 1
+      changement1Heures: 48, // relance 1 changement de formule : >= N h après le changement
+      changement2Jours: 7, // relance 2 changement de formule : >= N jours après le changement
     },
   },
 

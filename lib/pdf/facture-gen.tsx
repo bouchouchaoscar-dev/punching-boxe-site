@@ -114,11 +114,40 @@ export async function construireFacturePdf(
   const montantTotal = Number(a.montant_total || 0);
   const adhesion = a.nouveau_membre ? TARIFS.adhesion : 0;
   const cotisation = Math.round((montantTotal - adhesion) * 100) / 100;
-  const regleAJour = solde
+  let regleAJour = solde
     ? montantTotal
     : Math.round(
         echeancesReglees.reduce((sum, e) => sum + e.montant, 0) * 100,
       ) / 100;
+
+  // [018] Suppléments « changement de formule » : lignes distinctes + inclusion
+  // des suppléments ENCAISSÉS dans le total réglé. Tolérant si la table est absente.
+  let supplements: { label: string; montant: number; paye: boolean }[] = [];
+  try {
+    const { data: chs } = await supabase
+      .from("changements_formule")
+      .select("nouvelle_formule, montant_cents, paiement_id, created_at")
+      .eq("dossier_id", adherentId)
+      .eq("statut", "actif");
+    const chRows = (chs ?? []).filter((c) => Math.round(Number(c.montant_cents || 0)) > 0);
+    const supIds = chRows.map((c) => c.paiement_id).filter(Boolean) as string[];
+    const payeById = new Map<string, boolean>();
+    if (supIds.length) {
+      const { data: ps } = await supabase.from("paiements").select("id, statut").in("id", supIds);
+      for (const p of ps ?? []) payeById.set(p.id as string, p.statut === "paye");
+    }
+    supplements = chRows.map((c) => {
+      const dateStr = c.created_at ? new Intl.DateTimeFormat("fr-FR").format(new Date(c.created_at as string)) : "";
+      const estPrepa = String(c.nouvelle_formule ?? "").includes("prepa");
+      const label = estPrepa ? `Option préparation physique, ajoutée le ${dateStr}` : `Changement de formule, le ${dateStr}`;
+      const paye = c.paiement_id ? payeById.get(c.paiement_id as string) === true : false;
+      return { label, montant: Math.round(Number(c.montant_cents)) / 100, paye };
+    });
+    const supPaye = supplements.filter((s) => s.paye).reduce((s2, x) => s2 + x.montant, 0);
+    regleAJour = Math.round((regleAJour + supPaye) * 100) / 100;
+  } catch {
+    /* table 018 absente → pas de supplément (rien ne casse) */
+  }
 
   // Libellé lisible du mode de règlement (jamais la valeur brute "stripe_3x").
   const nbEchLabel = a.nb_echeances || 1;
@@ -173,6 +202,8 @@ export async function construireFacturePdf(
     // Période (dossier à tarif/durée libres) — affichée si présente.
     dateDebut: a.tarif_libre ? a.date_debut : null,
     dateFin: a.tarif_libre ? a.date_fin : null,
+    // [018] Lignes de supplément « changement de formule ».
+    supplements,
   };
 
   const buffer = await renderToBuffer(<FactureDoc data={factureData} />);
