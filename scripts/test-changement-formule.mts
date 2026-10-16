@@ -109,23 +109,25 @@ check("sens 'aucun' → changement de formule sans montant", (() => { const r = 
 
 console.log("\n== Diff de disciplines : les 6 transitions (texte ajout/retrait réel) ==");
 // Disciplines de chaque formule (déduites de la config, aucune liste en dur).
+// MATRICE (validée club) : boxe={BF} ; savate_prepa={Savate, Prépa} ;
+// boxe_prepa={BF, Savate, Prépa} (accès à TOUT).
 check("boxe = {Boxe française}", JSON.stringify(disciplinesDeFormule("boxe")) === JSON.stringify(["Boxe française"]));
-check("boxe_prepa = {Boxe française, Préparation physique}", JSON.stringify(disciplinesDeFormule("boxe_prepa")) === JSON.stringify(["Boxe française", "Préparation physique"]));
+check("boxe_prepa = {Boxe française, Savate, Préparation physique} (accès à tout)", JSON.stringify(disciplinesDeFormule("boxe_prepa")) === JSON.stringify(["Boxe française", "Savate", "Préparation physique"]));
 check("savate_prepa = {Savate, Préparation physique}", JSON.stringify(disciplinesDeFormule("savate_prepa")) === JSON.stringify(["Savate", "Préparation physique"]));
 const ph = (av: "boxe"|"boxe_prepa"|"savate_prepa", ap: "boxe"|"boxe_prepa"|"savate_prepa") => phrasesChangementDisciplines(diffDisciplines(av, ap)).join(" ");
-// 1. boxe → boxe_prepa : gagne la prépa.
-check("boxe→boxe_prepa : accès prépa, aucun retrait", ph("boxe", "boxe_prepa") === "Vous avez désormais accès aux cours de préparation physique.");
-// 2. boxe_prepa → boxe : perd la prépa.
-check("boxe_prepa→boxe : prépa retirée", ph("boxe_prepa", "boxe") === "Les cours de préparation physique ne font plus partie de votre formule.");
-// 3. boxe → savate_prepa : gagne savate + prépa, perd boxe française.
+// 1. Savate+Prépa → Boxe+Prépa : gagne SEULEMENT la boxe française, aucun retrait.
+check("savate_prepa→boxe_prepa : accès boxe française, AUCUN retrait", ph("savate_prepa", "boxe_prepa") === "Vous avez désormais accès aux cours de boxe française.");
+check("savate_prepa→boxe_prepa : ne retire RIEN (ni savate ni prépa)", !ph("savate_prepa", "boxe_prepa").includes("ne font plus partie"));
+// 2. Boxe → Boxe+Prépa : gagne savate + prépa.
+check("boxe→boxe_prepa : +savate +prépa", ph("boxe", "boxe_prepa") === "Vous avez désormais accès aux cours de savate et préparation physique.");
+// 3. Boxe+Prépa → Boxe : perd savate + prépa.
+check("boxe_prepa→boxe : −savate −prépa", ph("boxe_prepa", "boxe") === "Les cours de savate et préparation physique ne font plus partie de votre formule.");
+// 4. Boxe+Prépa → Savate+Prépa : perd la boxe française (savate+prépa conservées).
+check("boxe_prepa→savate_prepa : −boxe française seulement", ph("boxe_prepa", "savate_prepa") === "Les cours de boxe française ne font plus partie de votre formule.");
+// 5. Boxe → Savate+Prépa : gagne savate + prépa, perd boxe française.
 check("boxe→savate_prepa : +savate +prépa, −boxe française", ph("boxe", "savate_prepa") === "Vous avez désormais accès aux cours de savate et préparation physique. Les cours de boxe française ne font plus partie de votre formule.");
-// 4. savate_prepa → boxe : gagne boxe française, perd savate + prépa.
+// 6. Savate+Prépa → Boxe : gagne boxe française, perd savate + prépa.
 check("savate_prepa→boxe : +boxe française, −savate −prépa", ph("savate_prepa", "boxe") === "Vous avez désormais accès aux cours de boxe française. Les cours de savate et préparation physique ne font plus partie de votre formule.");
-// 5. boxe_prepa → savate_prepa : gagne savate, perd boxe française (prépa conservée, non citée).
-check("boxe_prepa→savate_prepa : +savate, −boxe française (prépa non citée)", ph("boxe_prepa", "savate_prepa") === "Vous avez désormais accès aux cours de savate. Les cours de boxe française ne font plus partie de votre formule.");
-// 6. savate_prepa → boxe_prepa : LE BUG — gagne boxe française, perd savate (JAMAIS « accès prépa »).
-check("savate_prepa→boxe_prepa : +boxe française, −savate (PAS « accès prépa »)", ph("savate_prepa", "boxe_prepa") === "Vous avez désormais accès aux cours de boxe française. Les cours de savate ne font plus partie de votre formule.");
-check("savate_prepa→boxe_prepa : ne mentionne PAS la préparation physique", !ph("savate_prepa", "boxe_prepa").toLowerCase().includes("préparation physique"));
 
 console.log("\n== Propagation : tout dérive de (package, option_prepa) ==");
 // Avant : BF seule. Après : BF + Prépa (flip de option_prepa_physique).
@@ -139,6 +141,21 @@ check("boxe française : toujours incluse (même package)", adherentDansDiscipli
 // Retrait d'une formule : savate_prepa → boxe seule → disparaît de savate/prépa.
 check("retrait savate+prépa → boxe : sort de savate", adherentDansDiscipline("boxe_classique", false, "savate") === false);
 check("retrait savate+prépa → boxe : sort de prépa", adherentDansDiscipline("boxe_classique", false, "prepa_physique") === false);
+
+console.log("\n== Ciblage par discipline = matrice du club (3 formules × 3 disciplines) ==");
+const dans = (pkg: "boxe_classique"|"savate_prepa", opt: boolean, d: string) => adherentDansDiscipline(pkg, opt, d);
+// Boxe (boxe_classique, sans option) : Boxe française UNIQUEMENT.
+check("Boxe → cours BF : concerné", dans("boxe_classique", false, "boxe_francaise") === true);
+check("Boxe → cours Savate : NON", dans("boxe_classique", false, "savate") === false);
+check("Boxe → cours Prépa : NON", dans("boxe_classique", false, "prepa_physique") === false);
+// Savate+Prépa : Savate + Prépa (pas de boxe française).
+check("Savate+Prépa → cours BF : NON", dans("savate_prepa", false, "boxe_francaise") === false);
+check("Savate+Prépa → cours Savate : concerné", dans("savate_prepa", false, "savate") === true);
+check("Savate+Prépa → cours Prépa : concerné", dans("savate_prepa", false, "prepa_physique") === true);
+// Boxe+Prépa (boxe_classique + option) : ACCÈS À TOUT.
+check("Boxe+Prépa → cours BF : concerné", dans("boxe_classique", true, "boxe_francaise") === true);
+check("Boxe+Prépa → cours Savate : concerné (CORRECTION)", dans("boxe_classique", true, "savate") === true);
+check("Boxe+Prépa → cours Prépa : concerné", dans("boxe_classique", true, "prepa_physique") === true);
 
 console.log(`\nRésultat : ${ok} OK / ${ko} KO`);
 process.exit(ko === 0 ? 0 : 1);

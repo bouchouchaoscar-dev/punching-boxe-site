@@ -395,10 +395,16 @@ console.log("[Présence — hors formule]");
   check(adherentDansDiscipline("savate_prepa", false, "prepa_physique"), "Savate+Prépa en cours de Prépa → OK");
   // BF+Prépa en cours de BF → OK.
   check(adherentDansDiscipline("boxe_classique", true, "boxe_francaise"), "BF+Prépa en cours de BF → OK");
+  // MATRICE : Boxe+Prépa a accès à TOUT → cours de Savate = PAS hors formule.
+  check(adherentDansDiscipline("boxe_classique", true, "savate"), "Boxe+Prépa en cours de Savate → OK (accès à tout)");
+  check(adherentDansDiscipline("boxe_classique", true, "prepa_physique"), "Boxe+Prépa en cours de Prépa → OK");
 
   const dossier = { statut_paiement: "paye", mode_paiement: "stripe_2x", nb_echeances: 2, echeances_payees: 2, engage_at: "x", annule_at: null, fiche_valide: true, reglement_valide: true, photo_valide: true, certificat_valide: true, certificat_medical_url: "u", package: "boxe_classique", option_prepa_physique: false };
   check(classerDossier(dossier, "savate").horsFormule === true, "classerDossier : BF en Savate → horsFormule true");
   check(classerDossier(dossier, "boxe_francaise").horsFormule === false, "classerDossier : BF en BF → horsFormule false");
+  // Boxe+Prépa en Savate → PAS hors formule (matrice : accès à tout).
+  const dossierBP = { ...dossier, option_prepa_physique: true };
+  check(classerDossier(dossierBP, "savate").horsFormule === false, "classerDossier : Boxe+Prépa en Savate → horsFormule false");
   // La couleur reste le paiement ; le hors-formule est une dimension séparée.
   check(classerDossier(dossier, "savate").couleur === "vert", "classerDossier : hors formule n'affecte pas la couleur de paiement");
 }

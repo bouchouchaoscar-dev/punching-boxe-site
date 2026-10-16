@@ -130,21 +130,25 @@ export const COULEUR_PROF_AFFECTE = accentPourTexteBlanc(
 /**
  * CIBLAGE MAILING — un adhérent (défini par sa FORMULE : package +
  * option_prepa_physique) est-il concerné par la discipline d'un cours ?
- * Recoupement clé : la prépa est incluse dans « Boxe française + Prépa »
- * (boxe_classique + option) ET dans « Savate + Prépa » (savate_prepa).
+ * SOURCE UNIQUE de la matrice formule → disciplines (validée par le club) :
+ *   - Boxe (boxe_classique, sans option)        → Boxe française.
+ *   - Savate + Prépa (savate_prepa)             → Savate + Préparation physique.
+ *   - Boxe + Prépa (boxe_classique + option)    → ACCÈS À TOUT : Boxe française
+ *                                                 + Savate + Préparation physique.
  */
 export function adherentDansDiscipline(
   pkg: string | null,
   optionPrepa: boolean,
   discipline: string,
 ): boolean {
+  const boxePrepa = pkg === "boxe_classique" && optionPrepa === true; // accès à tout
   switch (discipline) {
     case "boxe_francaise":
-      return pkg === "boxe_classique"; // BF pures ET BF+Prépa (même package)
+      return pkg === "boxe_classique"; // Boxe seule ET Boxe+Prépa (même package)
     case "savate":
-      return pkg === "savate_prepa";
+      return pkg === "savate_prepa" || boxePrepa; // Savate+Prépa ET Boxe+Prépa
     case "prepa_physique":
-      return (pkg === "boxe_classique" && optionPrepa === true) || pkg === "savate_prepa";
+      return pkg === "savate_prepa" || boxePrepa; // Savate+Prépa ET Boxe+Prépa
     default:
       return false;
   }
