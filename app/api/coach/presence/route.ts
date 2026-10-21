@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { hasRole } from "@/lib/admin-guard";
-import { presenceActif, partiesParis, construireLignesCoachPresence, coursOuverts, comparerBlocsPresence } from "@/lib/presence";
+import { presenceActif, partiesParis, construireLignesCoachPresence, coursEnCours, comparerBlocsPresence } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
 import { classerDossier, categoriesDeLigne, CATEGORIES, heureParis, type LigneAdmin, type Categorie } from "@/lib/presence-admin";
 import { photoDataUri } from "@/lib/trombi-server";
@@ -34,12 +34,10 @@ export async function GET(request: Request) {
   const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
 
-  // Détection « en cours » IDENTIQUE à l'admin (même fenêtre coursOuverts), et
-  // seulement si la date demandée est aujourd'hui.
+  // Badge « En cours » IDENTIQUE à l'admin : HORAIRE RÉEL (début → fin), pas la
+  // fenêtre de pointage. Seulement si la date demandée est aujourd'hui.
   const estAujourdhui = date === partiesParis(now).iso;
-  const ouvertsIds = new Set(
-    estAujourdhui ? coursOuverts(now, { cours, periodes }).map((o) => o.cours.id) : [],
-  );
+  const ouvertsIds = estAujourdhui ? coursEnCours(now, { cours, periodes }) : new Set<string>();
 
   const presRows = exigerData(
     await supabase

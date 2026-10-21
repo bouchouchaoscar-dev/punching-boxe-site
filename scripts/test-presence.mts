@@ -4,9 +4,11 @@
 import { readFileSync } from "node:fs";
 import {
   coursOuverts,
+  coursEnCours,
   rattacherCours,
   partiesParis,
   slugSalle,
+  messageFenetreFermee,
   chercherAdherentsPublic,
   mailRelanceEssai,
   construireLignesCoachPresence,
@@ -32,7 +34,10 @@ function check(cond: boolean, msg: string, got?: unknown) {
   }
 }
 
-const F = { ouvertureMinutesAvant: 30, fermetureMinutesApres: 40 };
+// Nouvelle règle : ouverture 30 min avant le début, fermeture 15 min après la FIN.
+const F = { ouvertureAvantDebutMin: 30, fermetureApresFinMin: 15, fermetureApresDebutMin: null, coursDureeDefautMin: 60 };
+// Ancien format (rétrocompat duplication) : fermeture 40 min après le DÉBUT.
+const FOLD = { ouvertureAvantDebutMin: 30, fermetureApresFinMin: null, fermetureApresDebutMin: 40, coursDureeDefautMin: 60 };
 function cours(p: Partial<Cours> & { id: string }): Cours {
   return {
     id: p.id,
@@ -71,19 +76,34 @@ console.log("[Présence — fenêtre & rattachement]");
   check(rEnfant.mode === "auto" && rEnfant.selectionId === "enf", "enfant 18h40 → auto enfants", rEnfant);
 }
 
-// ---- Retardataire +39 accepté / +41 refusé ; -31 refusé ----
+// ---- Nouvelle fenêtre : cours 18h00–19h30 (ouverture 30 avant début, fermeture 15 après fin) ----
 {
-  const js = partiesParis(new Date("2026-09-30T19:00:00+02:00")).jourSemaine;
-  const c19 = cours({ id: "c19", heure_debut: "19:00", jour_semaine: js });
-  const p39 = new Date("2026-09-30T19:39:00+02:00");
-  const p41 = new Date("2026-09-30T19:41:00+02:00");
-  check(coursOuverts(p39, { cours: [c19], periodes: [], fenetre: F }).length === 1, "+39 min accepté");
-  check(coursOuverts(p41, { cours: [c19], periodes: [], fenetre: F }).length === 0, "+41 min refusé");
-  const c18 = cours({ id: "c18", heure_debut: "18:00", jour_semaine: partiesParis(new Date("2026-09-30T17:29:00+02:00")).jourSemaine });
-  const avant31 = new Date("2026-09-30T17:29:00+02:00");
-  check(coursOuverts(avant31, { cours: [c18], periodes: [], fenetre: F }).length === 0, "-31 min refusé");
-  const avant30 = new Date("2026-09-30T17:30:00+02:00");
-  check(coursOuverts(avant30, { cours: [c18], periodes: [], fenetre: F }).length === 1, "-30 min accepté (bord)");
+  const jsFn = (iso: string) => partiesParis(new Date(iso)).jourSemaine;
+  const c = (iso: string) => cours({ id: "c", heure_debut: "18:00", heure_fin: "19:30", jour_semaine: jsFn(iso) });
+  const ouvert = (iso: string) => coursOuverts(new Date(iso), { cours: [c(iso)], periodes: [], fenetre: F }).length === 1;
+  check(!ouvert("2026-09-30T17:29:00+02:00"), "17h29 (−31 avant début) → refusé");
+  check(ouvert("2026-09-30T17:30:00+02:00"), "17h30 (−30 avant début, bord) → accepté");
+  check(ouvert("2026-09-30T19:30:00+02:00"), "19h30 (fin exacte) → accepté");
+  check(ouvert("2026-09-30T19:45:00+02:00"), "19h45 (+15 après fin, bord) → accepté");
+  check(!ouvert("2026-09-30T19:46:00+02:00"), "19h46 (+16 après fin) → refusé");
+}
+
+// ---- Repli : cours SANS heure de fin → durée par défaut (jamais infini) ----
+{
+  const js = partiesParis(new Date("2026-09-30T18:00:00+02:00")).jourSemaine;
+  const sansFin = cours({ id: "nf", heure_debut: "18:00", heure_fin: null, jour_semaine: js });
+  // Fin effective = 18:00 + 60 = 19:00 → fermeture 19:15.
+  check(coursOuverts(new Date("2026-09-30T19:14:00+02:00"), { cours: [sansFin], periodes: [], fenetre: F }).length === 1, "sans heure_fin : ouvert à 19h14 (repli 60 min + 15)");
+  check(coursOuverts(new Date("2026-09-30T19:16:00+02:00"), { cours: [sansFin], periodes: [], fenetre: F }).length === 0, "sans heure_fin : fermé à 19h16 (jamais infini)");
+}
+
+// ---- Rétrocompat : ancien format (fermeture 40 min après le DÉBUT) ----
+{
+  const js = partiesParis(new Date("2026-09-30T18:00:00+02:00")).jourSemaine;
+  const c = cours({ id: "old", heure_debut: "18:00", heure_fin: "19:30", jour_semaine: js });
+  // Ancien format : ferme à 18:00 + 40 = 18:40 (ignore la fin).
+  check(coursOuverts(new Date("2026-09-30T18:39:00+02:00"), { cours: [c], periodes: [], fenetre: FOLD }).length === 1, "ancien format : ouvert à 18h39 (+39 après début)");
+  check(coursOuverts(new Date("2026-09-30T18:41:00+02:00"), { cours: [c], periodes: [], fenetre: FOLD }).length === 0, "ancien format : fermé à 18h41 (+41 après début, sémantique conservée)");
 }
 
 // ---- Jour de fermeture ----
@@ -122,6 +142,42 @@ console.log("[Présence — fenêtre & rattachement]");
     "slug inconnu → mêmes cours ouverts que sans salle (générique)",
     idsOuverts(inconnu),
   );
+}
+
+// ---- Deux cours consécutifs (même discipline) : question + horaires + 2 présences ----
+{
+  // BF 18h00–19h00 puis BF 19h00–20h00. À 19h00, les deux fenêtres se chevauchent
+  // (c1 ferme 19h15, c2 ouvre 18h30) → l'adhérent BF voit les DEUX.
+  const js = partiesParis(new Date("2026-09-30T19:00:00+02:00")).jourSemaine;
+  const c1 = cours({ id: "bf1", libelle: "Boxe française", discipline: "boxe_francaise", type_adherent: null, heure_debut: "18:00", heure_fin: "19:00", jour_semaine: js });
+  const c2 = cours({ id: "bf2", libelle: "Boxe française", discipline: "boxe_francaise", type_adherent: null, heure_debut: "19:00", heure_fin: "20:00", jour_semaine: js });
+  const now = new Date("2026-09-30T19:00:00+02:00");
+  const ouverts = coursOuverts(now, { cours: [c1, c2], periodes: [], fenetre: F });
+  check(idsOuverts(ouverts).join(",") === "bf1,bf2", "deux cours consécutifs ouverts en même temps", idsOuverts(ouverts));
+  const r = rattacherCours(ouverts, { mineur: false, pkg: "boxe_classique", optionPrepa: false }, partiesParis(now).minutes);
+  check(r.mode === "choix" && r.cours.length === 2, "enchaînement → question « quel cours ? »", r);
+  // Les horaires de chaque cours sont distincts et affichables (début – fin).
+  check(ouverts[0].horaire === "18:00 – 19:00" && ouverts[1].horaire === "19:00 – 20:00", "horaires distincts affichés dans le choix", ouverts.map((o) => o.horaire));
+  // Deux présences possibles : l'unicité en base est par (cours_id, date, dossier),
+  // donc deux cours_id différents = deux présences le même jour (pas une par jour).
+  check(ouverts[0].cours.id !== ouverts[1].cours.id && ouverts[0].dateISO === ouverts[1].dateISO, "deux cours distincts le même jour → deux présences possibles");
+}
+
+// ---- Badge « En cours » = HORAIRE RÉEL (début → fin), pas la fenêtre ----
+{
+  const js = partiesParis(new Date("2026-09-30T18:00:00+02:00")).jourSemaine;
+  const c = cours({ id: "x", heure_debut: "18:00", heure_fin: "19:30", jour_semaine: js });
+  const ids = (iso: string) => coursEnCours(new Date(iso), { cours: [c], periodes: [] });
+  check(!ids("2026-09-30T17:45:00+02:00").has("x"), "17h45 (dans la fenêtre d'ouverture) → PAS « en cours »");
+  check(ids("2026-09-30T18:00:00+02:00").has("x"), "18h00 (début) → en cours");
+  check(ids("2026-09-30T19:30:00+02:00").has("x"), "19h30 (fin) → en cours");
+  check(!ids("2026-09-30T19:40:00+02:00").has("x"), "19h40 (après la fin, encore dans la fenêtre) → PAS « en cours »");
+}
+
+// ---- Message « fenêtre fermée » clair et config-driven ----
+{
+  const msg = messageFenetreFermee();
+  check(msg.includes("ouvre") && msg.includes("ferme") && (msg.includes("après la fin") || msg.includes("après le début")), "message fenêtre fermée : clair (ouvre/ferme)", msg);
 }
 
 // ---- Formule sans la discipline → jamais bloqué (choix parmi tous) ----
@@ -271,9 +327,9 @@ console.log("[Présence — admin ↔ coach : même logique]");
   const read = (p: string) => readFileSync(p, "utf8");
   const admin = read("app/api/admin/presence/jour/route.ts");
   const coach = read("app/api/coach/presence/route.ts");
-  check(admin.includes("coursOuverts(now"), "admin : détection via coursOuverts");
+  check(admin.includes("coursEnCours(now"), "admin : badge « En cours » via coursEnCours (horaire réel)");
   check(admin.includes("comparerBlocsPresence(a, b"), "admin : tri partagé comparerBlocsPresence");
-  check(coach.includes("coursOuverts(now"), "coach : détection via coursOuverts (même fenêtre)");
+  check(coach.includes("coursEnCours(now"), "coach : badge « En cours » via coursEnCours (horaire réel)");
   check(coach.includes("ouvert: ouvertsIds.has(c.id)"), "coach : bloc expose `ouvert`");
   check(coach.includes("comparerBlocsPresence(a, b"), "coach : tri partagé comparerBlocsPresence");
   // Anti-fuite : seuls `ouvert` (booléen) et `heureFin` (horaire, déjà public via

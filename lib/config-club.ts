@@ -73,7 +73,11 @@ export const CONFIG_CLUB = {
     // conservation = saison en cours + N saison(s) puis purge.
     presence: {
       actif: true,
-      fenetre: { ouvertureMinutesAvant: 30, fermetureMinutesApres: 40 },
+      // Fenêtre de pointage : ouverture N min avant le DÉBUT, fermeture M min après
+      // la FIN du cours. Repli `coursDureeDefautMin` si un cours n'a pas d'heure de
+      // fin (jamais de fenêtre infinie). L'ancien format { ouvertureMinutesAvant,
+      // fermetureMinutesApres } (après le DÉBUT) reste lu pour la rétrocompat.
+      fenetre: { ouvertureAvantDebutMin: 30, fermetureApresFinMin: 15, coursDureeDefautMin: 60 },
       relancesEssai: { premiereHeures: 24, secondeJours: 7 },
       conservationSaisons: 1,
       essaisGratuits: 1, // séances d'essai autorisées avant « essai déjà utilisé »

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { DatePicker } from "@/components/ui/DatePicker";
-import { presenceActif } from "@/lib/presence";
+import { presenceActif, messageFenetreFermee } from "@/lib/presence";
 import { estEmailValide } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
 import { CLUB } from "@/lib/constants";
@@ -52,7 +52,7 @@ export default function PresencePage() {
             {!chargeOuverts ? (
               <p className="text-center text-white/50">…</p>
             ) : ouverts.length === 0 ? (
-              <p className="text-center">{fr("Aucun cours en ce moment. Le pointage ouvre 30 minutes avant chaque cours.")}</p>
+              <p className="text-center">{fr(messageFenetreFermee())}</p>
             ) : (
               <ul className="space-y-1">
                 {ouverts.map((c) => (

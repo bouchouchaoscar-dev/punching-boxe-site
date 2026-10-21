@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
-import { presenceActif, coursOuverts, rattacherCours, partiesParis } from "@/lib/presence";
+import { presenceActif, coursOuverts, rattacherCours, partiesParis, messageFenetreFermee } from "@/lib/presence";
 import { chargerPlanning, profilDossier, type DossierPresence } from "@/lib/presence-server";
 import { autoriser, ipDe } from "@/lib/rate-limit";
 import { coursPublic } from "@/lib/presence-server";
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   const now = new Date();
   const ouverts = coursOuverts(now, { cours, periodes, salle: body.salle || undefined });
   if (ouverts.length === 0)
-    return NextResponse.json({ error: "Aucun cours en ce moment." }, { status: 400 });
+    return NextResponse.json({ error: messageFenetreFermee() }, { status: 400 });
 
   const profil = profilDossier(dossier as DossierPresence);
   const nowMin = partiesParis(now).minutes;

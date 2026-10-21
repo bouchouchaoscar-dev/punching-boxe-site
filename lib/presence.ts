@@ -68,13 +68,58 @@ export function presenceActif(): boolean {
   return CONFIG_CLUB.modules?.presence?.actif === true;
 }
 
-/** Config fenêtre (minutes avant / après le début du cours). */
-export function fenetrePresence(): { ouvertureMinutesAvant: number; fermetureMinutesApres: number } {
-  const f = CONFIG_CLUB.modules?.presence?.fenetre;
-  return {
-    ouvertureMinutesAvant: f?.ouvertureMinutesAvant ?? 30,
-    fermetureMinutesApres: f?.fermetureMinutesApres ?? 40,
-  };
+// Fenêtre de pointage NORMALISÉE. Ouverture relative au DÉBUT ; fermeture relative
+// à la FIN (`fermetureApresFinMin`) OU, en rétrocompat de l'ancien format, au DÉBUT
+// (`fermetureApresDebutMin`). `coursDureeDefautMin` = repli si pas d'heure de fin.
+export type FenetrePresence = {
+  ouvertureAvantDebutMin: number;
+  fermetureApresFinMin: number | null; // nouveau format (après la fin)
+  fermetureApresDebutMin: number | null; // ancien format (après le début)
+  coursDureeDefautMin: number;
+};
+
+/** Config fenêtre normalisée (lit le nouveau format, retombe sur l'ancien). */
+export function fenetrePresence(): FenetrePresence {
+  const f = (CONFIG_CLUB.modules?.presence?.fenetre ?? {}) as Record<string, number | undefined>;
+  const ouverture = f.ouvertureAvantDebutMin ?? f.ouvertureMinutesAvant ?? 30;
+  const duree = f.coursDureeDefautMin ?? 60;
+  // Nouveau format : fermeture après la FIN.
+  if (f.fermetureApresFinMin != null) {
+    return { ouvertureAvantDebutMin: ouverture, fermetureApresFinMin: f.fermetureApresFinMin, fermetureApresDebutMin: null, coursDureeDefautMin: duree };
+  }
+  // Ancien format : fermeture après le DÉBUT (sémantique d'origine conservée).
+  if (f.fermetureMinutesApres != null) {
+    return { ouvertureAvantDebutMin: ouverture, fermetureApresFinMin: null, fermetureApresDebutMin: f.fermetureMinutesApres, coursDureeDefautMin: duree };
+  }
+  // Défaut (aucune config) : nouvelle règle 30 min avant début / 15 min après fin.
+  return { ouvertureAvantDebutMin: 30, fermetureApresFinMin: 15, fermetureApresDebutMin: null, coursDureeDefautMin: duree };
+}
+
+// Message COURT et clair quand la fenêtre de pointage est fermée (config-driven,
+// aucun nombre en dur). S'adapte au format (après la fin / après le début).
+export function messageFenetreFermee(): string {
+  const f = fenetrePresence();
+  if (f.fermetureApresFinMin != null) {
+    return `Le pointage est fermé. Il ouvre ${f.ouvertureAvantDebutMin} min avant le début et ferme ${f.fermetureApresFinMin} min après la fin du cours.`;
+  }
+  return `Le pointage est fermé. Il ouvre ${f.ouvertureAvantDebutMin} min avant le début et ferme ${f.fermetureApresDebutMin} min après le début du cours.`;
+}
+
+// Bornes [ouverture ; fermeture] en minutes-du-jour pour un cours (Paris). La
+// fermeture utilise la FIN réelle (repli durée par défaut si absente) — JAMAIS
+// une fenêtre infinie.
+export function bornesFenetreCours(
+  startMin: number,
+  finMin: number | null,
+  fen: FenetrePresence,
+): { ouvre: number; ferme: number } {
+  const ouvre = startMin - fen.ouvertureAvantDebutMin;
+  const finEffective = finMin ?? startMin + fen.coursDureeDefautMin; // repli explicite
+  const ferme =
+    fen.fermetureApresFinMin != null
+      ? finEffective + fen.fermetureApresFinMin
+      : startMin + (fen.fermetureApresDebutMin ?? 40); // ancien format : après le début
+  return { ouvre, ferme };
 }
 
 /** Slug d'une salle (chaîne libre du planning) pour l'URL du QR. */
@@ -132,9 +177,9 @@ export type CoursOuvert = {
 };
 
 /**
- * Occurrences du jour dont `maintenant` est dans la fenêtre de pointage
- * [début − ouvertureMinutesAvant ; début + fermetureMinutesApres]. Exclut les
- * jours fermés et les cours inactifs. Filtre optionnel sur la salle (slug).
+ * Occurrences du jour dont `maintenant` est dans la FENÊTRE DE POINTAGE
+ * [début − ouverture ; fin + fermeture] (fin réelle ; repli durée par défaut).
+ * Exclut les jours fermés et les cours inactifs. Filtre optionnel sur la salle.
  */
 export function coursOuverts(
   maintenant: Date,
@@ -142,7 +187,7 @@ export function coursOuverts(
     cours: Cours[];
     periodes: PeriodeFermeture[];
     salle?: string | null; // slug de salle (optionnel)
-    fenetre?: { ouvertureMinutesAvant: number; fermetureMinutesApres: number };
+    fenetre?: FenetrePresence;
   },
 ): CoursOuvert[] {
   const { cours, periodes } = opts;
@@ -162,8 +207,9 @@ export function coursOuverts(
     if (c.jour_semaine !== now.jourSemaine) continue;
     const startMin = minutesDeHM(c.heure_debut);
     if (startMin == null) continue;
-    if (now.minutes < startMin - fen.ouvertureMinutesAvant) continue;
-    if (now.minutes > startMin + fen.fermetureMinutesApres) continue;
+    const { ouvre, ferme } = bornesFenetreCours(startMin, minutesDeHM(c.heure_fin), fen);
+    if (now.minutes < ouvre) continue;
+    if (now.minutes > ferme) continue;
     if (salleConnue && slugSalle(c.salle) !== opts.salle) continue;
     out.push({
       cours: c,
@@ -173,6 +219,30 @@ export function coursOuverts(
     });
   }
   return out.sort((a, b) => a.startMin - b.startMin);
+}
+
+/**
+ * Cours RÉELLEMENT EN COURS à `maintenant` : now ∈ [début ; fin] (horaire réel,
+ * repli durée par défaut si pas d'heure de fin). INDÉPENDANT de la fenêtre de
+ * pointage — sert au badge « En cours » de l'admin et du coach. Renvoie les IDs.
+ */
+export function coursEnCours(
+  maintenant: Date,
+  opts: { cours: Cours[]; periodes: PeriodeFermeture[] },
+): Set<string> {
+  const { cours, periodes } = opts;
+  const now = partiesParis(maintenant);
+  const ids = new Set<string>();
+  if (estFerme(now.iso, periodes)) return ids;
+  const dureeDefaut = fenetrePresence().coursDureeDefautMin;
+  for (const c of cours) {
+    if (!c.actif || c.jour_semaine !== now.jourSemaine) continue;
+    const startMin = minutesDeHM(c.heure_debut);
+    if (startMin == null) continue;
+    const finMin = minutesDeHM(c.heure_fin) ?? startMin + dureeDefaut;
+    if (now.minutes >= startMin && now.minutes <= finMin) ids.add(c.id);
+  }
+  return ids;
 }
 
 // Profil de la personne qui pointe.

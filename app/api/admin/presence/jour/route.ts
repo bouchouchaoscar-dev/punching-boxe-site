@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured, exigerData } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { presenceActif, coursOuverts, partiesParis, comparerBlocsPresence } from "@/lib/presence";
+import { presenceActif, coursEnCours, partiesParis, comparerBlocsPresence } from "@/lib/presence";
 import { chargerPlanning } from "@/lib/presence-server";
 import { construireLignesAdmin, categoriesDeLigne, CATEGORIES, type PresenceRow, type Categorie } from "@/lib/presence-admin";
 import { disciplineLabel, publicLabel, formatHeure } from "@/lib/planning";
@@ -31,11 +31,10 @@ export async function GET(request: Request) {
   const { cours, periodes } = await chargerPlanning(supabase);
   const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
 
-  // Fenêtre « ouvert maintenant » seulement si la date demandée est aujourd'hui.
+  // Badge « En cours » = HORAIRE RÉEL du cours (début → fin), pas la fenêtre de
+  // pointage. Seulement si la date demandée est aujourd'hui.
   const estAujourdhui = date === partiesParis(now).iso;
-  const ouvertsIds = new Set(
-    estAujourdhui ? coursOuverts(now, { cours, periodes }).map((o) => o.cours.id) : [],
-  );
+  const enCoursIds = estAujourdhui ? coursEnCours(now, { cours, periodes }) : new Set<string>();
 
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
   const presRows = exigerData(
@@ -62,7 +61,7 @@ export async function GET(request: Request) {
         heureFin: c.heure_fin,
         salle: c.salle,
         dateISO: date,
-        ouvert: ouvertsIds.has(c.id),
+        ouvert: enCoursIds.has(c.id),
         nbPresents: l.length,
         compteurs,
         lignes: l,
