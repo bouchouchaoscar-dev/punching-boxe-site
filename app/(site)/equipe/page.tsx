@@ -126,8 +126,10 @@ export default function EquipePage() {
           </div>
         </Reveal>
 
-        {/* Autres coachs (6 → deux rangées de 3 sur desktop, 2 colonnes sur tablette) */}
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Autres coachs (6 → deux rangées de 3 sur desktop, 2 colonnes sur tablette).
+            Grille VOLONTAIREMENT plus étroite et centrée (max-w-4xl) : les photos des
+            coachs restent plus petites que celle de Pascal, qui reste mis en avant. */}
+        <div className="mx-auto mt-6 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {coachs.map((c, i) => (
             <Reveal key={c.nom} delay={i * 0.08}>
               <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
