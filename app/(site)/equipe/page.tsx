@@ -75,6 +75,14 @@ const EQUIPE: Coach[] = [
       "Encadrement et accompagnement des adhérents sur les cours collectifs.",
     photo: "/images/equipe/killian.jpg",
   },
+  {
+    nom: "Nicolas",
+    badge: "Assistant moniteur",
+    role: "Assistant moniteur",
+    phrase:
+      "Encadrement et accompagnement des adhérents sur les cours collectifs.",
+    photo: "/images/equipe/nicolas.jpg",
+  },
 ];
 
 export default function EquipePage() {
@@ -118,8 +126,8 @@ export default function EquipePage() {
           </div>
         </Reveal>
 
-        {/* Autres coachs (5 → une rangée de 5 sur desktop, 2 colonnes sur tablette) */}
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
+        {/* Autres coachs (6 → deux rangées de 3 sur desktop, 2 colonnes sur tablette) */}
+        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {coachs.map((c, i) => (
             <Reveal key={c.nom} delay={i * 0.08}>
               <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
