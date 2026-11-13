@@ -14,6 +14,8 @@ import { notifierEchecPaiement } from "./echec-notify";
 import { estMineur, type FormuleCle } from "./pricing";
 import { cleVersDossier, labelFormuleCle, calculerSupplementStatut, changementActivable, diffDisciplines, phrasesChangementDisciplines } from "./changement-formule";
 import { totalEncaisseEspeces, resteDuEspeces, versementValide, type VersementRow } from "./encaissement";
+import { decalerDateMois, echeanceDecalable, validerNouvellesDates } from "./decalage-echeances";
+import { sendDecalageEcheances } from "./email";
 import type { Adherent, Paiement } from "./types";
 
 const round2money = (n: number) => Math.round(n * 100) / 100;
@@ -683,6 +685,165 @@ export async function supprimerVersementEspeces(
   return { ok: true, cible: after.ok ? after.cible : { du: 0, encaisse: 0, reste: 0 } };
 }
 
+export type EcheanceCalendrier = { numero: number; montant: number; date: string };
+
+/**
+ * [021] DÉCALAGE des échéances NON ENCAISSÉES d'un dossier fractionné (report à la
+ * demande de l'adhérent). CONCURRENCE AVEC LE CRON : chaque échéance n'est déplacée
+ * que par une MISE À JOUR CONDITIONNELLE qui exige l'état exact attendu au moment de
+ * l'écriture (même garde que le claim du cron) — si le cron l'a prise entre-temps
+ * ('en_cours', ou un PaymentIntent rattaché), l'update matche 0 ligne et l'échéance
+ * est REFUSÉE (jamais de croisement, jamais de double débit). L'idempotency key
+ * Stripe `echeance-<id>-<date>` change avec la date → aucune collision.
+ * Idempotence de l'action : `actionId` = PK du journal → un double-clic ne décale
+ * pas deux fois. recalculerEtatPaiement reste le seul à écrire les statuts dérivés.
+ */
+export async function decalerEcheances(
+  supabase: SupabaseClient,
+  p: {
+    adherentId: string;
+    actionId: string;
+    motif: string;
+    mode: "tout" | "dates";
+    mois?: number; // mode 'tout' (1..3)
+    dates?: Record<string, string>; // mode 'dates' : paiementId -> ISO
+    demainISO: string; // « demain » Paris (calculé par la route)
+  },
+): Promise<
+  | { ok: true; dejaTraite?: boolean; deplacees: number; refusees: number; calendrier: EcheanceCalendrier[] }
+  | { ok: false; status: number; error: string }
+> {
+  const adherent = exigerData(
+    await supabase
+      .from("adherents")
+      .select("id, prenom, nom, email, date_naissance, annule_at")
+      .eq("id", p.adherentId)
+      .maybeSingle(),
+    "décalage: lecture adhérent",
+  );
+  if (!adherent) return { ok: false, status: 404, error: "Dossier introuvable." };
+  if (adherent.annule_at) return { ok: false, status: 409, error: "Dossier annulé ou arrêté : aucune échéance à décaler." };
+
+  const echeances = exigerData(
+    await supabase
+      .from("paiements")
+      .select("id, montant, statut, numero_echeance, date_prevue, stripe_payment_intent_id")
+      .eq("adherent_id", p.adherentId)
+      .not("numero_echeance", "is", null),
+    "décalage: lecture échéances",
+  );
+  const eligibles = (echeances ?? [])
+    .filter((e) => echeanceDecalable(e as Parameters<typeof echeanceDecalable>[0]))
+    .sort((a, b) => (a.numero_echeance as number) - (b.numero_echeance as number));
+  if (eligibles.length === 0) return { ok: false, status: 409, error: "Aucune échéance non encaissée à décaler." };
+
+  // Date cible par échéance. Mode 'tout' : SERVEUR recalcule (+N mois, même jour /
+  // dernier jour du mois) → pleinement autoritaire. Mode 'dates' : dates fournies.
+  const mois = Math.min(3, Math.max(1, Math.round(Number(p.mois || 1))));
+  const cible = new Map<string, string>();
+  for (const e of eligibles) {
+    const id = e.id as string;
+    const iso = p.mode === "tout" ? decalerDateMois(e.date_prevue as string, mois) : (p.dates?.[id] ?? "");
+    if (!iso) return { ok: false, status: 400, error: `Nouvelle date manquante pour le prélèvement ${e.numero_echeance}.` };
+    cible.set(id, iso);
+  }
+
+  // Validation serveur (>= demain, ordre conservé).
+  const v = validerNouvellesDates(
+    eligibles.map((e) => ({ numero: e.numero_echeance as number, iso: cible.get(e.id as string)! })),
+    p.demainISO,
+  );
+  if (!v.ok) return { ok: false, status: 400, error: v.error };
+
+  const avant: EcheanceCalendrier[] = eligibles.map((e) => ({ numero: e.numero_echeance as number, montant: Number(e.montant || 0), date: e.date_prevue as string }));
+
+  // CLAIM idempotent : actionId = PK du journal. Déjà présent → on NE rejoue PAS.
+  const claim = await supabase
+    .from("decalages_echeances")
+    .insert({ id: p.actionId, adherent_id: p.adherentId, created_by: "admin", motif: p.motif.slice(0, 80), avant, apres: [] })
+    .select("id")
+    .maybeSingle();
+  if (claim.error) {
+    if (/duplicate key|23505/i.test(claim.error.message)) {
+      const prev = exigerData(
+        await supabase.from("decalages_echeances").select("apres").eq("id", p.actionId).maybeSingle(),
+        "décalage: relecture action",
+      );
+      const cal = (prev?.apres as EcheanceCalendrier[] | undefined) ?? [];
+      return { ok: true, dejaTraite: true, deplacees: cal.length, refusees: 0, calendrier: cal };
+    }
+    return { ok: false, status: 500, error: claim.error.message };
+  }
+
+  // Application : MISE À JOUR CONDITIONNELLE par échéance (anti-croisement cron).
+  let deplacees = 0;
+  let refusees = 0;
+  for (const e of eligibles) {
+    const id = e.id as string;
+    const nouvelle = cible.get(id)!;
+    if (e.statut === "echec") {
+      // Échec décalé → repasse « à venir » : PI effacé (nouvelle clé d'idempotence
+      // à la nouvelle date), relances d'impayé + rappel J+48h arrêtés.
+      const r = await supabase
+        .from("paiements")
+        .update({ date_prevue: nouvelle, statut: "en_attente", stripe_payment_intent_id: null, echec_a: null, rappel_echec_envoye: false, mail_echec_envoye: false, mail_echec_admin_envoye: false })
+        .eq("id", id)
+        .eq("statut", "echec")
+        .select("id")
+        .maybeSingle();
+      if (r.data) deplacees++; else refusees++;
+    } else {
+      // À venir jamais tentée : on ne change QUE la date, et seulement si toujours
+      // 'en_attente' sans PaymentIntent (sinon le cron l'a prise → refus).
+      const r = await supabase
+        .from("paiements")
+        .update({ date_prevue: nouvelle })
+        .eq("id", id)
+        .eq("statut", "en_attente")
+        .is("stripe_payment_intent_id", null)
+        .select("id")
+        .maybeSingle();
+      if (r.data) deplacees++; else refusees++;
+    }
+  }
+
+  // Statuts dérivés : recalcul (prochaine échéance, etc.) puis sortie de
+  // 'echec_paiement' s'il ne reste plus d'échec.
+  await recalculerEtatPaiement(p.adherentId, supabase);
+  await nettoyerStatutEchec(p.adherentId, supabase);
+
+  // Calendrier RÉEL après coup (échéances restantes non encaissées) → journal + mail.
+  const apresRows = exigerData(
+    await supabase
+      .from("paiements")
+      .select("montant, statut, numero_echeance, date_prevue")
+      .eq("adherent_id", p.adherentId)
+      .not("numero_echeance", "is", null)
+      .in("statut", ["en_attente", "en_cours", "echec"]),
+    "décalage: calendrier après",
+  );
+  const calendrier: EcheanceCalendrier[] = (apresRows ?? [])
+    .map((e) => ({ numero: e.numero_echeance as number, montant: Number(e.montant || 0), date: e.date_prevue as string }))
+    .sort((a, b) => a.numero - b.numero);
+  await supabase.from("decalages_echeances").update({ apres: calendrier }).eq("id", p.actionId);
+
+  // Un SEUL mail à l'adhérent (parent si mineur), chaleureux, sans le motif interne.
+  try {
+    if (adherent.email && calendrier.length > 0) {
+      await sendDecalageEcheances({
+        email: adherent.email as string,
+        prenom: (adherent.prenom as string) ?? "",
+        mineur: estMineur(adherent.date_naissance as string),
+        echeances: calendrier,
+      });
+    }
+  } catch (e) {
+    console.error("[DÉCALAGE] mail adhérent échoué:", p.adherentId, e);
+  }
+
+  return { ok: true, deplacees, refusees, calendrier };
+}
+
 /** Marque l'échéance liée à un PaymentIntent comme payée. */
 export async function marquerEcheancePayee(
   paymentIntentId: string,
@@ -713,8 +874,8 @@ export async function marquerEcheancePayee(
  * en échec, on repasse en 'en_attente' (badge "Engagé X/N" normal) — sauf s'il
  * est déjà soldé ('paye', posé par recalculerEtatPaiement).
  */
-export async function nettoyerStatutEchec(adherentId: string): Promise<void> {
-  const supabase = getSupabaseAdmin();
+export async function nettoyerStatutEchec(adherentId: string, supabaseArg?: SupabaseClient): Promise<void> {
+  const supabase = supabaseArg ?? getSupabaseAdmin();
   const a = exigerData(
     await supabase
       .from("adherents")

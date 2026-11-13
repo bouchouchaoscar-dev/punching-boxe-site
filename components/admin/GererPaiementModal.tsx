@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
 import { euro } from "@/lib/pricing";
+import { echeanceDecalable } from "@/lib/decalage-echeances";
+import { DecalerEcheancesModal } from "./DecalerEcheancesModal";
 import type { Adherent, Paiement } from "@/lib/types";
 
 // Panneau « Gérer le paiement » : découple le REMBOURSEMENT (montant, carte ou
@@ -57,6 +59,12 @@ export function GererPaiementModal({
   const [actionId, setActionId] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [decalerOpen, setDecalerOpen] = useState(false);
+
+  // Décalage possible uniquement s'il reste une échéance NON encaissée et que le
+  // dossier n'est ni annulé ni arrêté (annule_at posé par la fin d'inscription).
+  const nbDecalables = useMemo(() => paiements.filter((p) => echeanceDecalable(p)).length, [paiements]);
+  const peutDecaler = !adherent.annule_at && nbDecalables > 0;
 
   const montant =
     Math.round((parseFloat(montantStr.replace(",", ".")) || 0) * 100) / 100;
@@ -133,6 +141,25 @@ export function GererPaiementModal({
           <Box label="Remboursé" value={euro(dejaRembourse)} />
           <Box label="Encaissé" value={euro(encaisse)} accent />
         </div>
+
+        {/* Décaler les échéances : report des échéances non encaissées. */}
+        {step === "choix" && peutDecaler && (
+          <div className="mt-4 rounded-xl border border-line p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span className="block text-sm font-semibold text-ink">Décaler les échéances</span>
+                <span className="text-xs text-smoke">{nbDecalables} échéance(s) non encaissée(s) reportable(s)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDecalerOpen(true)}
+                className="shrink-0 rounded-full border border-orange px-4 py-2 text-sm font-bold text-orange hover:bg-orange-50"
+              >
+                Décaler
+              </button>
+            </div>
+          </div>
+        )}
 
         {step === "choix" ? (
           <div className="mt-5 space-y-4">
@@ -236,6 +263,15 @@ export function GererPaiementModal({
           </div>
         )}
       </div>
+
+      {decalerOpen && (
+        <DecalerEcheancesModal
+          adherent={adherent}
+          paiements={paiements}
+          onClose={() => setDecalerOpen(false)}
+          onDone={(msg) => { setDecalerOpen(false); onDone(msg); }}
+        />
+      )}
     </div>
   );
 }

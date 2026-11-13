@@ -185,6 +185,21 @@ create table if not exists public.remboursements (
 );
 create index if not exists remboursements_adherent_idx on public.remboursements (adherent_id);
 
+-- [021] Décalage d'échéances — journal admin (ancien/nouveau calendrier + motif).
+-- RLS activée SANS policy : lecture réservée au service role (jamais le coach).
+create table if not exists public.decalages_echeances (
+  id            uuid primary key,                       -- actionId client = claim idempotent
+  adherent_id   uuid not null references public.adherents(id) on delete cascade,
+  created_at    timestamptz not null default now(),
+  created_by    text,
+  motif         text not null check (char_length(motif) <= 80),
+  avant         jsonb not null,
+  apres         jsonb not null default '[]'::jsonb
+);
+create index if not exists decalages_echeances_adherent_idx
+  on public.decalages_echeances (adherent_id, created_at desc);
+alter table public.decalages_echeances enable row level security;
+
 -- ---------------------------------------------------------------------------
 -- 3bis) CHANGEMENTS DE FORMULE (migration 018) — historique + relances. Le
 --   supplément éventuel reste un paiement normal (table paiements).

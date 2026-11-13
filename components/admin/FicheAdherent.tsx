@@ -427,6 +427,8 @@ export function FicheAdherent({ id }: { id: string }) {
   // [018] Historique des changements de formule + modale « Gérer la formule ».
   const [gererFormule, setGererFormule] = useState(false);
   const [changements, setChangements] = useState<ChangementLigne[]>([]);
+  // [021] Historique des décalages d'échéances (admin only).
+  const [decalages, setDecalages] = useState<{ id: string; created_at: string; motif: string; avant: { numero: number; montant: number; date: string }[]; apres: { numero: number; montant: number; date: string }[] }[]>([]);
   const [supplement, setSupplement] = useState<{ changementId: string; montantEuros: number; dejaEncaisse: number; reste: number; mode: string; statut: string; versements?: { id: string; montant: number; date: string | null; note: string | null }[] } | null>(null);
   // [020] Encaissement espèces de la COTISATION (récap + versements) — GET dédié.
   const [encCotisation, setEncCotisation] = useState<{ du: number; encaisse: number; reste: number } | null>(null);
@@ -438,6 +440,14 @@ export function FicheAdherent({ id }: { id: string }) {
       .catch(() => {});
   }, [id]);
   useEffect(() => { chargerChangements(); }, [chargerChangements]);
+
+  const chargerDecalages = useCallback(() => {
+    fetch(`/api/admin/adherents/${id}/decaler-echeances`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setDecalages(d.decalages ?? []))
+      .catch(() => {});
+  }, [id]);
+  useEffect(() => { chargerDecalages(); }, [chargerDecalages]);
 
   // [020] Récap + historique des versements espèces de la cotisation.
   const chargerEncaissement = useCallback(() => {
@@ -1327,6 +1337,38 @@ export function FicheAdherent({ id }: { id: string }) {
         </div>
       )}
 
+      {/* [021] Historique des décalages d'échéances (admin seulement). */}
+      {decalages.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-line bg-white p-5">
+          <h3 className="font-display text-base font-extrabold uppercase text-ink">Décalages d&apos;échéances</h3>
+          <ul className="mt-3 space-y-2 text-sm">
+            {decalages.map((d) => {
+              const fr = (iso: string) => (iso ? formatDateFr(iso) : "—");
+              const mapN = new Map(d.avant.map((e) => [e.numero, e.date]));
+              return (
+                <li key={d.id} className="rounded-xl border border-line/70 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-ink">Report d&apos;échéances</span>
+                    <span className="text-xs text-smoke">{formatDateFr(d.created_at.slice(0, 10))}</span>
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs text-smoke">
+                    {d.apres.map((e) => {
+                      const ancienne = mapN.get(e.numero);
+                      return (
+                        <li key={e.numero}>
+                          Prélèvement {e.numero} · {euro(e.montant)} : {ancienne ? <><span className="line-through">{fr(ancienne)}</span> → </> : null}<strong className="text-ink">{fr(e.date)}</strong>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {d.motif ? <p className="mt-1 text-xs text-smoke">Motif : {d.motif}</p> : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Envoi d'un mail individuel */}
       {mailOpen && (
         <EnvoiMailModal
@@ -1358,6 +1400,7 @@ export function FicheAdherent({ id }: { id: string }) {
           onDone={(msg) => {
             setGererOpen(false);
             load();
+            chargerDecalages();
             showToast(msg);
           }}
         />

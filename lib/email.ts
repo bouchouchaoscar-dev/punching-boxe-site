@@ -914,6 +914,38 @@ export async function sendChangementSigne(d: {
   return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject: titre, html });
 }
 
+// [021] Décalage d'échéances — UN SEUL mail à l'adhérent (parent si mineur),
+// vouvoyé, ton chaleureux, avec le NOUVEL échéancier (date + montant de chaque
+// échéance restante). Aucune mention du motif interne.
+export async function sendDecalageEcheances(d: {
+  email: string;
+  prenom: string;
+  mineur: boolean;
+  echeances: { numero: number; montant: number; date: string }[];
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+  const salutation = d.mineur ? "Bonjour," : `Bonjour ${d.prenom},`;
+  const titre = "Votre nouvel échéancier";
+  const dateFr = (iso: string) => {
+    const [y, m, j] = iso.split("-");
+    return `${j}/${m}/${y}`;
+  };
+  const lignes = d.echeances
+    .map((e) => `<li style="margin:4px 0;color:#444">Prélèvement ${e.numero} : <strong>${euro(e.montant)}</strong> le <strong>${dateFr(e.date)}</strong></li>`)
+    .join("");
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 12px">${titre} 🗓️</h1>
+    <p style="line-height:1.6;color:#444">${salutation}</p>
+    <p style="line-height:1.6;color:#444">À la suite de votre demande, nous avons décalé vos prochaines échéances. Voici votre nouvel échéancier :</p>
+    <ul style="margin:12px 0 16px;padding-left:20px">${lignes}</ul>
+    <p style="line-height:1.6;color:#444">Rien d'autre à faire de votre côté : les prélèvements se feront automatiquement aux nouvelles dates, sur la carte déjà enregistrée.</p>
+    <p style="line-height:1.6;color:#444;margin-top:12px">À très bientôt au club,<br/>L'équipe ${CLUB.nomCourt}</p>
+    <p style="font-size:12px;color:#999;margin-top:22px"><a href="${unsubscribeUrl(d.email)}" style="color:#999;text-decoration:underline">Se désinscrire des communications</a></p>
+  `);
+  return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject: titre, html });
+}
+
 // [018] Relance d'un changement de formule (section 5). Contenu adaptatif fourni
 // par mailRelanceChangement (lib/changement-formule). Boutons payer/signer.
 export async function sendRelanceChangement(d: {
