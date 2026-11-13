@@ -94,8 +94,10 @@ export function DecalerEcheancesModal({
       if (res.ok && d.ok) {
         if (d.dejaTraite) onDone("Décalage déjà enregistré (aucun double décalage).");
         else {
-          const msg = `${d.deplacees} échéance(s) décalée(s)` + (d.refusees > 0 ? ` · ${d.refusees} refusée(s) (prélèvement en cours)` : "");
-          onDone(msg);
+          const bits = [`${d.deplacees} échéance(s) décalée(s)`];
+          if (d.aVerifier > 0) bits.push(`${d.aVerifier} à vérifier (paiement déjà en cours chez Stripe)`);
+          if (d.refusees > 0) bits.push(`${d.refusees} refusée(s) (prélèvement en cours)`);
+          onDone(bits.join(" · "));
         }
       } else {
         setError(d.error || "Échec du décalage.");

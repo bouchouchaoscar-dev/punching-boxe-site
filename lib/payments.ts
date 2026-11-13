@@ -709,8 +709,9 @@ export async function decalerEcheances(
     dates?: Record<string, string>; // mode 'dates' : paiementId -> ISO
     demainISO: string; // « demain » Paris (calculé par la route)
   },
+  stripeArg?: ReturnType<typeof getStripe>, // injectable (tests)
 ): Promise<
-  | { ok: true; dejaTraite?: boolean; deplacees: number; refusees: number; calendrier: EcheanceCalendrier[] }
+  | { ok: true; dejaTraite?: boolean; deplacees: number; refusees: number; aVerifier: number; calendrier: EcheanceCalendrier[] }
   | { ok: false; status: number; error: string }
 > {
   const adherent = exigerData(
@@ -755,7 +756,13 @@ export async function decalerEcheances(
   );
   if (!v.ok) return { ok: false, status: 400, error: v.error };
 
-  const avant: EcheanceCalendrier[] = eligibles.map((e) => ({ numero: e.numero_echeance as number, montant: Number(e.montant || 0), date: e.date_prevue as string }));
+  // `avant` conserve aussi l'ANCIEN PaymentIntent (traçabilité d'un échec décalé).
+  const avant = eligibles.map((e) => ({
+    numero: e.numero_echeance as number,
+    montant: Number(e.montant || 0),
+    date: e.date_prevue as string,
+    ...(e.statut === "echec" ? { pid: (e.stripe_payment_intent_id as string | null) ?? null } : {}),
+  }));
 
   // CLAIM idempotent : actionId = PK du journal. Déjà présent → on NE rejoue PAS.
   const claim = await supabase
@@ -770,7 +777,7 @@ export async function decalerEcheances(
         "décalage: relecture action",
       );
       const cal = (prev?.apres as EcheanceCalendrier[] | undefined) ?? [];
-      return { ok: true, dejaTraite: true, deplacees: cal.length, refusees: 0, calendrier: cal };
+      return { ok: true, dejaTraite: true, deplacees: cal.length, refusees: 0, aVerifier: 0, calendrier: cal };
     }
     return { ok: false, status: 500, error: claim.error.message };
   }
@@ -778,12 +785,57 @@ export async function decalerEcheances(
   // Application : MISE À JOUR CONDITIONNELLE par échéance (anti-croisement cron).
   let deplacees = 0;
   let refusees = 0;
+  let aVerifier = 0;
   for (const e of eligibles) {
     const id = e.id as string;
     const nouvelle = cible.get(id)!;
     if (e.statut === "echec") {
-      // Échec décalé → repasse « à venir » : PI effacé (nouvelle clé d'idempotence
-      // à la nouvelle date), relances d'impayé + rappel J+48h arrêtés.
+      // Un échec N'EST PAS forcément terminal : un PaymentIntent resté en
+      // requires_action (3D Secure off_session) peut encore aboutir plus tard.
+      // AVANT de détacher le PI, on l'inspecte chez Stripe pour éviter un 2e débit.
+      const pid = (e.stripe_payment_intent_id as string | null) ?? null;
+      if (pid) {
+        const stripe = stripeArg ?? getStripe();
+        let pi: { status: string };
+        try {
+          pi = await stripe.paymentIntents.retrieve(pid);
+        } catch {
+          refusees++; // fail-closed : appel Stripe en échec → on ne décale pas.
+          continue;
+        }
+        if (pi.status === "succeeded" || pi.status === "processing") {
+          // L'argent est arrivé (ou en cours) sur ce PI → NE PAS décaler. Filet
+          // « à vérifier » + alerte admin (arbitrage manuel, aucun décalage).
+          await supabase.from("adherents").update({ paiement_a_verifier: true }).eq("id", p.adherentId);
+          try {
+            await sendAdminAlertePaiement({
+              prenom: (adherent.prenom as string) ?? "",
+              nom: (adherent.nom as string) ?? "",
+              adherentId: p.adherentId,
+              montant: Number(e.montant || 0),
+              paymentIntentId: pid,
+              issue: `Décalage REFUSÉ : le prélèvement ${e.numero_echeance} a un paiement « ${pi.status} » sur Stripe. Dossier passé « à vérifier », aucun décalage — arbitrage manuel requis.`,
+            });
+          } catch (err) {
+            console.error("[DÉCALAGE] alerte à vérifier échouée:", p.adherentId, err);
+          }
+          aVerifier++;
+          continue;
+        }
+        // Annulable (requires_payment_method / requires_action / requires_confirmation…)
+        // → on ANNULE côté Stripe AVANT de détacher. Un PI canceled ne peut plus
+        // aboutir (pas de 2e débit) et le webhook l'ignore.
+        try {
+          const canceled = await stripe.paymentIntents.cancel(pid);
+          if (canceled.status !== "canceled") { refusees++; continue; } // fail-closed
+        } catch {
+          refusees++; // fail-closed
+          continue;
+        }
+      }
+      // PI absent ou désormais annulé → échec décalé : repasse « à venir », PI
+      // effacé (clé d'idempotence neuve à la nouvelle date), relances d'impayé +
+      // rappel J+48h arrêtés. Conditionnel sur statut='echec' (anti-croisement).
       const r = await supabase
         .from("paiements")
         .update({ date_prevue: nouvelle, statut: "en_attente", stripe_payment_intent_id: null, echec_a: null, rappel_echec_envoye: false, mail_echec_envoye: false, mail_echec_admin_envoye: false })
@@ -841,7 +893,7 @@ export async function decalerEcheances(
     console.error("[DÉCALAGE] mail adhérent échoué:", p.adherentId, e);
   }
 
-  return { ok: true, deplacees, refusees, calendrier };
+  return { ok: true, deplacees, refusees, aVerifier, calendrier };
 }
 
 /** Marque l'échéance liée à un PaymentIntent comme payée. */

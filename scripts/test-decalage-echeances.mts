@@ -114,6 +114,19 @@ function fakeDb(tables: Record<string, Row[]>) {
 
 const { decalerEcheances } = await import("../lib/payments");
 type SB = Parameters<typeof decalerEcheances>[0];
+type ST = Parameters<typeof decalerEcheances>[2];
+// Faux Stripe injectable : statut de retrieve + comportement de cancel, avec
+// compteur d'appels pour vérifier qu'on annule bien avant de détacher.
+function fakeStripe(opts: { retrieveStatus?: string; retrieveThrows?: boolean; cancelStatus?: string; cancelThrows?: boolean }) {
+  const calls = { retrieve: 0, cancel: 0 };
+  const stripe = {
+    paymentIntents: {
+      retrieve: async (id: string) => { calls.retrieve++; if (opts.retrieveThrows) throw new Error("stripe down"); return { id, status: opts.retrieveStatus ?? "requires_payment_method" }; },
+      cancel: async (id: string) => { calls.cancel++; if (opts.cancelThrows) throw new Error("cancel failed"); return { id, status: opts.cancelStatus ?? "canceled" }; },
+    },
+  };
+  return { stripe: stripe as unknown as ST, calls };
+}
 const adhBase = () => ({ id: "D", prenom: "Léa", nom: "T", email: "lea@test.fr", date_naissance: "2000-01-01", annule_at: null, engage_at: "2026-09-01", nb_echeances: 3, echeances_payees: 1, statut_paiement: "en_attente", mode_paiement: "stripe_3x", montant_total: 300, stripe_customer_id: "cus_x", supplement_statut: null });
 const ech = (o: Partial<Row> & { id: string }): Row => ({ adherent_id: "D", montant: 100, statut: "en_attente", numero_echeance: null, date_prevue: null, stripe_payment_intent_id: null, echec_a: null, rappel_echec_envoye: false, mail_echec_envoye: false, mail_echec_admin_envoye: false, ...o });
 
@@ -141,23 +154,70 @@ console.log("\n== Tout décaler de 1 mois : seules les non encaissées bougent =
   check("reste à encaisser = 200 € (p2+p3)", reste.get("D") === 200, reste.get("D"));
 }
 
-console.log("\n== Échéance échouée décalée : repasse à venir, relances arrêtées ==");
+console.log("\n== Échec décalé : PI requires_action ANNULÉ chez Stripe puis décalé ==");
 {
   const db = fakeDb({
     adherents: [{ ...adhBase(), statut_paiement: "echec_paiement" }],
     changements_formule: [],
     paiements: [
       ech({ id: "p1", numero_echeance: 1, statut: "paye", date_prevue: "2026-10-01", stripe_payment_intent_id: "pi_1" }),
-      ech({ id: "p2", numero_echeance: 2, statut: "echec", date_prevue: "2026-11-01", stripe_payment_intent_id: "pi_failed", echec_a: "2026-11-02T00:00:00Z", rappel_echec_envoye: true, mail_echec_envoye: true }),
+      ech({ id: "p2", numero_echeance: 2, statut: "echec", date_prevue: "2026-11-01", stripe_payment_intent_id: "pi_3ds", echec_a: "2026-11-02T00:00:00Z", rappel_echec_envoye: true, mail_echec_envoye: true }),
     ],
   });
-  const r = await decalerEcheances(db as unknown as SB, { adherentId: "D", actionId: "A2", motif: "report", mode: "dates", dates: { p2: "2027-01-15" }, demainISO: "2026-11-13" });
+  const { stripe, calls } = fakeStripe({ retrieveStatus: "requires_action", cancelStatus: "canceled" });
+  const r = await decalerEcheances(db as unknown as SB, { adherentId: "D", actionId: "A2", motif: "report", mode: "dates", dates: { p2: "2027-01-15" }, demainISO: "2026-11-13" }, stripe);
   const p2 = db._t.paiements.find((x) => x.id === "p2")!;
+  check("PI lu puis ANNULÉ chez Stripe avant détachement", calls.retrieve === 1 && calls.cancel === 1);
   check("échec → en_attente (à venir)", p2.statut === "en_attente", p2.statut);
   check("nouvelle date appliquée", p2.date_prevue === "2027-01-15");
-  check("PaymentIntent effacé (clé d'idempotence neuve à la nouvelle date)", p2.stripe_payment_intent_id === null);
-  check("relances d'impayé arrêtées (echec_a null, rappel/mails false)", p2.echec_a === null && p2.rappel_echec_envoye === false && p2.mail_echec_envoye === false);
-  check("statut dossier recalculé (sort de echec_paiement)", db._t.adherents[0].statut_paiement !== "echec_paiement", db._t.adherents[0].statut_paiement);
+  check("PaymentIntent effacé (clé d'idempotence neuve)", p2.stripe_payment_intent_id === null);
+  check("relances d'impayé arrêtées", p2.echec_a === null && p2.rappel_echec_envoye === false && p2.mail_echec_envoye === false);
+  check("décalée (deplacees=1, aVerifier=0)", r.ok && r.deplacees === 1 && r.aVerifier === 0, r);
+  check("ancien PID conservé dans le journal (avant)", (db._t.decalages_echeances[0].avant as { numero: number; pid?: string }[]).some((a) => a.pid === "pi_3ds"));
+}
+
+console.log("\n== Échec décalé : PI succeeded → REFUSÉ, passé « à vérifier » ==");
+{
+  const db = fakeDb({
+    adherents: [{ ...adhBase(), statut_paiement: "echec_paiement", paiement_a_verifier: false }],
+    changements_formule: [],
+    paiements: [ech({ id: "p2", numero_echeance: 2, statut: "echec", date_prevue: "2026-11-01", stripe_payment_intent_id: "pi_ok" })],
+  });
+  const { stripe, calls } = fakeStripe({ retrieveStatus: "succeeded" });
+  const r = await decalerEcheances(db as unknown as SB, { adherentId: "D", actionId: "A2b", motif: "report", mode: "dates", dates: { p2: "2027-01-15" }, demainISO: "2026-11-13" }, stripe);
+  const p2 = db._t.paiements.find((x) => x.id === "p2")!;
+  check("PI succeeded → jamais annulé", calls.cancel === 0);
+  check("échéance NON décalée (date + PI conservés)", p2.date_prevue === "2026-11-01" && p2.statut === "echec" && p2.stripe_payment_intent_id === "pi_ok");
+  check("dossier passé « à vérifier »", db._t.adherents[0].paiement_a_verifier === true);
+  check("compté en aVerifier, pas en déplacé", r.ok && r.aVerifier === 1 && r.deplacees === 0, r);
+}
+
+console.log("\n== Échec décalé : appel Stripe en échec → AUCUN décalage (fail-closed) ==");
+{
+  const db = fakeDb({
+    adherents: [{ ...adhBase(), statut_paiement: "echec_paiement" }],
+    changements_formule: [],
+    paiements: [ech({ id: "p2", numero_echeance: 2, statut: "echec", date_prevue: "2026-11-01", stripe_payment_intent_id: "pi_err" })],
+  });
+  const { stripe } = fakeStripe({ retrieveThrows: true });
+  const r = await decalerEcheances(db as unknown as SB, { adherentId: "D", actionId: "A2c", motif: "report", mode: "dates", dates: { p2: "2027-01-15" }, demainISO: "2026-11-13" }, stripe);
+  const p2 = db._t.paiements.find((x) => x.id === "p2")!;
+  check("échéance NON décalée (Stripe KO)", p2.date_prevue === "2026-11-01" && p2.statut === "echec" && p2.stripe_payment_intent_id === "pi_err");
+  check("refusée (refusees=1, deplacees=0)", r.ok && r.refusees === 1 && r.deplacees === 0, r);
+}
+
+console.log("\n== Échec décalé : cancel ne renvoie pas 'canceled' → AUCUN décalage ==");
+{
+  const db = fakeDb({
+    adherents: [{ ...adhBase(), statut_paiement: "echec_paiement" }],
+    changements_formule: [],
+    paiements: [ech({ id: "p2", numero_echeance: 2, statut: "echec", date_prevue: "2026-11-01", stripe_payment_intent_id: "pi_x" })],
+  });
+  const { stripe } = fakeStripe({ retrieveStatus: "requires_action", cancelStatus: "requires_action" });
+  const r = await decalerEcheances(db as unknown as SB, { adherentId: "D", actionId: "A2d", motif: "report", mode: "dates", dates: { p2: "2027-01-15" }, demainISO: "2026-11-13" }, stripe);
+  const p2 = db._t.paiements.find((x) => x.id === "p2")!;
+  check("échéance NON décalée (annulation non confirmée)", p2.date_prevue === "2026-11-01" && p2.statut === "echec");
+  check("refusée", r.ok && r.refusees === 1 && r.deplacees === 0, r);
 }
 
 console.log("\n== Date du jour/passée refusée par le serveur ; ordre respecté ==");

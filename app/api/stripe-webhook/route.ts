@@ -118,6 +118,12 @@ export async function POST(request: Request) {
       await appliquerLitige(dispute, issue);
       break;
     }
+    case "payment_intent.canceled": {
+      // [021] PI annulé (ex. échéance échouée décalée : on annule un PI resté en
+      // requires_action/requires_payment_method avant de détacher et reprogrammer).
+      // AUCUN effet sur le dossier : le statut vient des échéances, pas d'un PI mort.
+      break;
+    }
     default:
       break;
   }

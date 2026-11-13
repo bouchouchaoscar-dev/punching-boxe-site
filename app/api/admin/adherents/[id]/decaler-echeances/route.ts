@@ -64,5 +64,5 @@ export async function POST(request: Request, { params }: Ctx) {
     demainISO: demainParisISO(),
   });
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
-  return NextResponse.json({ ok: true, dejaTraite: !!r.dejaTraite, deplacees: r.deplacees, refusees: r.refusees, calendrier: r.calendrier });
+  return NextResponse.json({ ok: true, dejaTraite: !!r.dejaTraite, deplacees: r.deplacees, refusees: r.refusees, aVerifier: r.aVerifier, calendrier: r.calendrier });
 }
