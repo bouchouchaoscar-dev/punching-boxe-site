@@ -172,14 +172,14 @@ export default function EquipePage() {
 // plus petites que celle de Pascal. En colonne sur mobile, côte à côte dès sm.
 function CoachCard({ c, delay }: { c: Coach; delay: number }) {
   return (
-    <Reveal delay={delay} className="w-full sm:w-[14rem]">
+    <Reveal delay={delay} className="w-full sm:w-[15.5rem]">
       <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
         <div className="relative aspect-[4/5] overflow-hidden bg-ink">
           <Image
             src={c.photo}
             alt={`${c.nom}, ${c.role} du Punching Boxe`}
             fill
-            sizes="(max-width: 640px) 100vw, 14rem"
+            sizes="(max-width: 640px) 100vw, 15.5rem"
             className={c.objectClass ?? "object-cover object-top"}
           />
         </div>
