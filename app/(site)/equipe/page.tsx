@@ -87,6 +87,11 @@ const EQUIPE: Coach[] = [
 
 export default function EquipePage() {
   const [pascal, ...coachs] = EQUIPE;
+  // Hiérarchie : Pascal en tête, puis la ligne des moniteurs fédéraux, puis la
+  // ligne des assistants moniteurs. Chaque ligne est centrée, cartes à largeur FIXE
+  // (plus petites que Pascal) → toutes les photos des coachs ont la même taille.
+  const moniteurs = coachs.filter((c) => c.badge === "Moniteur fédéral");
+  const assistants = coachs.filter((c) => c.badge === "Assistant moniteur");
   return (
     <>
       <PageHero
@@ -126,38 +131,17 @@ export default function EquipePage() {
           </div>
         </Reveal>
 
-        {/* Autres coachs (6 → deux rangées de 3 sur desktop, 2 colonnes sur tablette).
-            Grille VOLONTAIREMENT plus étroite et centrée (max-w-4xl) : les photos des
-            coachs restent plus petites que celle de Pascal, qui reste mis en avant. */}
-        <div className="mx-auto mt-6 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {coachs.map((c, i) => (
-            <Reveal key={c.nom} delay={i * 0.08}>
-              <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
-                <div className="relative aspect-[4/5] overflow-hidden bg-ink">
-                  <Image
-                    src={c.photo}
-                    alt={`${c.nom}, ${c.role} du Punching Boxe`}
-                    fill
-                    sizes="(max-width: 640px) 100vw, 25vw"
-                    className={c.objectClass ?? "object-cover object-top"}
-                  />
-                </div>
-                <div className="p-6">
-                  <span className="rounded-full bg-orange px-3 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-white">
-                    {c.badge}
-                  </span>
-                  <h3 className="font-display mt-3 break-words text-xl font-extrabold uppercase text-ink">
-                    {c.nom}
-                  </h3>
-                  <p className="mt-1 text-sm font-semibold text-orange">
-                    {c.role}
-                  </p>
-                  <p className="mt-3 text-sm leading-relaxed text-smoke">
-                    {c.phrase}
-                  </p>
-                </div>
-              </div>
-            </Reveal>
+        {/* Ligne des moniteurs fédéraux, puis ligne des assistants moniteurs.
+            Cartes à largeur FIXE et rangées centrées : photos égales et plus petites
+            que celle de Pascal (mis en avant), même seul sur sa ligne. */}
+        <div className="mt-6 flex flex-wrap justify-center gap-6">
+          {moniteurs.map((c, i) => (
+            <CoachCard key={c.nom} c={c} delay={i * 0.08} />
+          ))}
+        </div>
+        <div className="mt-6 flex flex-wrap justify-center gap-6">
+          {assistants.map((c, i) => (
+            <CoachCard key={c.nom} c={c} delay={i * 0.08} />
           ))}
         </div>
       </section>
@@ -181,5 +165,35 @@ export default function EquipePage() {
 
       <CTABanner title="Venez les rencontrer" />
     </>
+  );
+}
+
+// Carte d'un coach (hors Pascal) : largeur FIXE → toutes les photos identiques et
+// plus petites que celle de Pascal. En colonne sur mobile, côte à côte dès sm.
+function CoachCard({ c, delay }: { c: Coach; delay: number }) {
+  return (
+    <Reveal delay={delay} className="w-full sm:w-[14rem]">
+      <div className="card-lift h-full overflow-hidden rounded-[1.75rem] border border-line bg-white">
+        <div className="relative aspect-[4/5] overflow-hidden bg-ink">
+          <Image
+            src={c.photo}
+            alt={`${c.nom}, ${c.role} du Punching Boxe`}
+            fill
+            sizes="(max-width: 640px) 100vw, 14rem"
+            className={c.objectClass ?? "object-cover object-top"}
+          />
+        </div>
+        <div className="p-5">
+          <span className="rounded-full bg-orange px-3 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-white">
+            {c.badge}
+          </span>
+          <h3 className="font-display mt-3 break-words text-lg font-extrabold uppercase text-ink">
+            {c.nom}
+          </h3>
+          <p className="mt-1 text-sm font-semibold text-orange">{c.role}</p>
+          <p className="mt-2 text-sm leading-relaxed text-smoke">{c.phrase}</p>
+        </div>
+      </div>
+    </Reveal>
   );
 }
