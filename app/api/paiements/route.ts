@@ -12,7 +12,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("paiements")
     .select(
-      "adherent_id, montant, montant_rembourse, statut, numero_echeance, date_paiement, created_at",
+      "adherent_id, montant, montant_rembourse, statut, numero_echeance, date_prevue, date_paiement, created_at",
     );
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

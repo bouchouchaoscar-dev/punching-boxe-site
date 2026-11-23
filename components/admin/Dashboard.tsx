@@ -25,6 +25,8 @@ import { estActifCompte } from "@/lib/adherents-actifs";
 import { estPaiementAFinaliser, estEspecesEnAttente, estCotisationAFinaliser } from "@/lib/paiement";
 import { CONFIG_CLUB } from "@/lib/config-club";
 import { resteParAdherent, type EcheanceRow } from "@/lib/encaissement";
+// Échéance enrichie de sa date prévue (infobulle « Échec de paiement »).
+type EcheanceDash = EcheanceRow & { date_prevue: string | null };
 import { formaterPrenom, formaterNom } from "@/lib/noms";
 import { Tooltip as InfoTooltip } from "@/components/ui/Tooltip";
 import { PageHeader } from "./PageHeader";
@@ -56,7 +58,7 @@ export function Dashboard() {
   >([]);
   // Lignes d'échéances BRUTES (tous statuts) — conservées pour le calcul DYNAMIQUE
   // du « reste à encaisser » (aucune nouvelle requête : même réponse /api/paiements).
-  const [echeanceRows, setEcheanceRows] = useState<EcheanceRow[]>([]);
+  const [echeanceRows, setEcheanceRows] = useState<EcheanceDash[]>([]);
 
   useEffect(() => {
     fetch("/api/admin/stats-saisons", { headers: adminAuthHeaders(), cache: "no-store" })
@@ -67,15 +69,16 @@ export function Dashboard() {
       .then((r) => r.json())
       .then((d) => {
         const rows: { adherent_id: string; net: number; date: string }[] = [];
-        const ech: EcheanceRow[] = [];
+        const ech: EcheanceDash[] = [];
         for (const p of d.paiements ?? []) {
           // Reste à encaisser : on CONSERVE les échéances (le helper filtre lui-même
-          // 'en_attente' + numero_echeance != null).
+          // 'en_attente' + numero_echeance != null). date_prevue sert à l'infobulle « échec ».
           ech.push({
             adherent_id: p.adherent_id,
             montant: p.montant,
             statut: p.statut,
             numero_echeance: p.numero_echeance,
+            date_prevue: p.date_prevue ?? null,
           });
           if (p.statut !== "paye" && p.statut !== "rembourse") continue;
           rows.push({
@@ -168,6 +171,25 @@ export function Dashboard() {
       .sort(parNom);
     const encaissementAVenir = listeAVenir.reduce((s, x) => s + x.montant, 0);
 
+    // Échecs : liste {nom, montant, date} — MÊME source que le compteur (dossiers
+    // non fermés en statut_paiement 'echec_paiement', dérivé des lignes réelles au
+    // commit e101611). Montant/date = échéance échouée la plus ancienne du dossier.
+    const echecByAdh = new Map<string, { montant: number; date: string | null }>();
+    for (const r of echeanceRows) {
+      if (!adhIds.has(r.adherent_id) || r.statut !== "echec" || r.numero_echeance == null) continue;
+      const prev = echecByAdh.get(r.adherent_id);
+      const d = r.date_prevue ?? "";
+      if (!prev || (d && (!prev.date || d < prev.date)))
+        echecByAdh.set(r.adherent_id, { montant: Number(r.montant || 0), date: r.date_prevue ?? null });
+    }
+    const listeEchecs = adherents
+      .filter((a) => !a.annule_at && a.statut_paiement === "echec_paiement")
+      .map((a) => {
+        const e = echecByAdh.get(a.id);
+        return { nom: nomAff(a), montant: e?.montant ?? 0, date: e?.date ?? null };
+      })
+      .sort(parNom);
+
     // Formules — clé partagée (source unique package + option_prepa_physique).
     const formuleBoxe = actifs.filter(
       (a) => formuleCle(a.package, a.option_prepa_physique) === "boxe",
@@ -223,6 +245,7 @@ export function Dashboard() {
       listeAFinaliser,
       listeAVenir,
       echecs,
+      listeEchecs,
       formuleBoxe,
       boxePrepa,
       savateForme,
@@ -300,6 +323,7 @@ type NatifData = {
   listeAFinaliser: { nom: string; montant: number }[];
   listeAVenir: { nom: string; montant: number }[];
   echecs: number;
+  listeEchecs: { nom: string; montant: number; date: string | null }[];
   formuleBoxe: number;
   boxePrepa: number;
   savateForme: number;
@@ -335,7 +359,12 @@ function SaisonNative({ data }: { data: NatifData }) {
           warn
           tooltip={<DetailList items={data.listeEspeces} />}
         />
-        <Kpi label="⚠️ Échecs paiement" value={String(data.echecs)} danger />
+        <Kpi
+          label="⚠️ Échecs paiement"
+          value={String(data.echecs)}
+          danger
+          tooltip={<DetailList items={data.listeEchecs} />}
+        />
         <Kpi label="Formule Boxe" value={String(data.formuleBoxe)} />
         <Kpi label="Boxe + Prépa" value={String(data.boxePrepa)} />
         <Kpi label="Savate et Prépa" value={String(data.savateForme)} />
@@ -581,17 +610,22 @@ function Kpi({
   return tooltip ? <InfoTooltip content={tooltip}>{card}</InfoTooltip> : card;
 }
 
-// Détail nom + montant par personne (+ total) pour les infobulles KPI.
-function DetailList({ items }: { items: { nom: string; montant: number }[] }) {
+// Détail nom + montant par personne (+ total) pour les infobulles KPI. `date`
+// optionnelle (JJ/MM/AAAA) affichée sous le nom — utilisée par « Échec de paiement ».
+function DetailList({ items }: { items: { nom: string; montant: number; date?: string | null }[] }) {
   if (!items.length)
     return <p className="min-w-[180px] text-xs text-smoke">Personne pour le moment.</p>;
   const total = items.reduce((s, x) => s + x.montant, 0);
+  const frDate = (iso: string) => { const [y, m, d] = iso.split("-"); return `${d}/${m}/${y}`; };
   return (
     <div className="min-w-[200px] text-xs">
       <ul className="space-y-1">
         {items.map((it, i) => (
           <li key={i} className="flex justify-between gap-4">
-            <span className="text-ink">{it.nom}</span>
+            <span className="text-ink">
+              {it.nom}
+              {it.date ? <span className="text-smoke"> · {frDate(it.date)}</span> : null}
+            </span>
             <span className="whitespace-nowrap font-semibold text-ink">{euro(it.montant)}</span>
           </li>
         ))}
