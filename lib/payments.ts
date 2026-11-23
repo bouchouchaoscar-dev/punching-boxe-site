@@ -317,6 +317,12 @@ export async function recalculerEtatPaiement(adherentId: string, supabaseArg?: S
       .sort()[0] ?? null;
 
   const complet = echeancesPayees >= (adherent.nb_echeances || 1);
+  // [BUG échec figé] Le statut d'échec est DÉRIVÉ des lignes réelles, jamais d'un
+  // drapeau qui survit à la régularisation : 'echec_paiement' SI ET SEULEMENT SI au
+  // moins une échéance est réellement en statut 'echec'. Ne concerne que les
+  // dossiers à échéances numérotées (carte/fractionné), pas les espèces/comptant 1x.
+  const hasEcheances = rows.some((r) => r.numero_echeance != null);
+  const aEchecReel = rows.some((r) => r.numero_echeance != null && r.statut === "echec");
   // Inscription confirmée dès la 1ère échéance réglée (welcome email).
   const premierPaiement = (adherent.echeances_payees || 0) < 1 && echeancesPayees >= 1;
   // Dossier "engagé" dès la 1re échéance payée → on fige engage_at une seule fois.
@@ -361,12 +367,17 @@ export async function recalculerEtatPaiement(adherentId: string, supabaseArg?: S
       ...(devientEngage || especesDevientEngage ? { engage_at: new Date().toISOString() } : {}),
       ...(bascule ? { mode_paiement: modeCarte } : {}),
       ...(doubleEncaissement ? { paiement_a_verifier: true } : {}),
-      ...(complet && !doubleEncaissement
-        ? {
-            statut_paiement: "paye",
-            derniere_erreur_stripe: null,
-            derniere_erreur_code: null,
-          }
+      // Statut carte/fractionné DÉRIVÉ des échéances (hors espèces et hors anomalie
+      // double encaissement) : échec réel → 'echec_paiement' (on conserve l'erreur) ;
+      // sinon soldé → 'paye', ou en cours → 'en_attente' (efface l'erreur résiduelle).
+      ...(!estEspeces && !doubleEncaissement && hasEcheances
+        ? aEchecReel
+          ? { statut_paiement: "echec_paiement" }
+          : {
+              statut_paiement: complet ? "paye" : "en_attente",
+              derniere_erreur_stripe: null,
+              derniere_erreur_code: null,
+            }
         : {}),
       ...(especesSolde ? { statut_paiement: "confirme_especes" } : {}),
       ...(especesPartielEnAttente ? { statut_paiement: "en_attente" } : {}),
@@ -859,10 +870,9 @@ export async function decalerEcheances(
     }
   }
 
-  // Statuts dérivés : recalcul (prochaine échéance, etc.) puis sortie de
-  // 'echec_paiement' s'il ne reste plus d'échec.
+  // Statut dérivé par la source unique (prochaine échéance, sortie d'échec si plus
+  // aucune ligne en echec, etc.).
   await recalculerEtatPaiement(p.adherentId, supabase);
-  await nettoyerStatutEchec(p.adherentId, supabase);
 
   // Calendrier RÉEL après coup (échéances restantes non encaissées) → journal + mail.
   const apresRows = exigerData(
@@ -899,8 +909,9 @@ export async function decalerEcheances(
 /** Marque l'échéance liée à un PaymentIntent comme payée. */
 export async function marquerEcheancePayee(
   paymentIntentId: string,
+  supabaseArg?: SupabaseClient,
 ): Promise<boolean> {
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseArg ?? getSupabaseAdmin();
   const paiement = exigerData(
     await supabase
       .from("paiements")
@@ -917,44 +928,18 @@ export async function marquerEcheancePayee(
       .update({ statut: "paye", date_paiement: new Date().toISOString() })
       .eq("id", paiement.id);
   }
-  await recalculerEtatPaiement(paiement.adherent_id);
+  // Statut dossier DÉRIVÉ par la source unique (sort d'échec si plus aucune ligne echec).
+  await recalculerEtatPaiement(paiement.adherent_id, supabase);
   return true;
 }
 
 /**
- * Si le dossier est en 'echec_paiement' mais qu'il ne reste plus AUCUNE échéance
- * en échec, on repasse en 'en_attente' (badge "Engagé X/N" normal) — sauf s'il
- * est déjà soldé ('paye', posé par recalculerEtatPaiement).
+ * Sortie de l'état d'échec quand plus aucune échéance n'est en échec. Désormais une
+ * SIMPLE DÉLÉGATION à recalculerEtatPaiement : le statut (dont 'echec_paiement') est
+ * DÉRIVÉ des lignes réelles par la source unique — plus de second écrivain.
  */
 export async function nettoyerStatutEchec(adherentId: string, supabaseArg?: SupabaseClient): Promise<void> {
-  const supabase = supabaseArg ?? getSupabaseAdmin();
-  const a = exigerData(
-    await supabase
-      .from("adherents")
-      .select("statut_paiement")
-      .eq("id", adherentId)
-      .maybeSingle(),
-    "nettoyerStatutEchec: lecture statut",
-  );
-  if (a?.statut_paiement !== "echec_paiement") return;
-  // CRITIQUE : `count ?? 0 === 0` sur une requête EN ÉCHEC repasserait le dossier
-  // en 'en_attente' à tort (comme s'il n'y avait plus d'échec). On lève d'abord.
-  const { count, error: cErr } = await supabase
-    .from("paiements")
-    .select("id", { count: "exact", head: true })
-    .eq("adherent_id", adherentId)
-    .eq("statut", "echec");
-  if (cErr) throw new Error(`nettoyerStatutEchec: comptage échecs: ${cErr.message}`);
-  if ((count ?? 0) === 0) {
-    await supabase
-      .from("adherents")
-      .update({
-        statut_paiement: "en_attente",
-        derniere_erreur_stripe: null,
-        derniere_erreur_code: null,
-      })
-      .eq("id", adherentId);
-  }
+  await recalculerEtatPaiement(adherentId, supabaseArg);
 }
 
 /**
@@ -966,10 +951,11 @@ export async function nettoyerStatutEchec(adherentId: string, supabaseArg?: Supa
  */
 export async function appliquerRegularisation(
   pi: Stripe.PaymentIntent,
+  supabaseArg?: SupabaseClient,
 ): Promise<void> {
   const adherentId = pi.metadata?.adherentId;
   if (!adherentId) return;
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseArg ?? getSupabaseAdmin();
 
   const pm = typeof pi.payment_method === "string" ? pi.payment_method : null;
   const customer = typeof pi.customer === "string" ? pi.customer : null;
@@ -987,8 +973,7 @@ export async function appliquerRegularisation(
     }
   }
 
-  await marquerEcheancePayee(pi.id);
-  await nettoyerStatutEchec(adherentId);
+  await marquerEcheancePayee(pi.id, supabase); // → recalculerEtatPaiement dérive le statut (sort d'échec)
 }
 
 // Extrait un id depuis un champ Stripe qui peut être une string ou un objet.
@@ -1166,8 +1151,9 @@ export async function marquerEcheanceEchec(
   paymentIntentId: string,
   message: string,
   code?: string | null,
+  supabaseArg?: SupabaseClient,
 ): Promise<void> {
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseArg ?? getSupabaseAdmin();
   const paiement = exigerData(
     await supabase
       .from("paiements")
@@ -1178,14 +1164,12 @@ export async function marquerEcheanceEchec(
   );
   if (!paiement) return;
   await supabase.from("paiements").update({ statut: "echec" }).eq("id", paiement.id);
+  // Détails de l'erreur (hors statut) ; statut_paiement est DÉRIVÉ par recalcul.
   await supabase
     .from("adherents")
-    .update({
-      derniere_erreur_stripe: message,
-      derniere_erreur_code: code ?? null,
-      statut_paiement: "echec_paiement",
-    })
+    .update({ derniere_erreur_stripe: message, derniere_erreur_code: code ?? null })
     .eq("id", paiement.adherent_id);
+  await recalculerEtatPaiement(paiement.adherent_id, supabase); // → 'echec_paiement' (ligne echec)
 
   // Mails (adhérent + admin), CLAIM-THEN-SEND idempotent → jamais de double
   // envoi même si l'échec est aussi posé par le catch du cron.
@@ -1220,8 +1204,9 @@ export async function marquerEcheanceEchec(
  */
 export async function chargerEcheance(
   paiementId: string,
+  supabaseArg?: SupabaseClient,
 ): Promise<{ ok: boolean; status?: string; error?: string }> {
-  const supabase = getSupabaseAdmin();
+  const supabase = supabaseArg ?? getSupabaseAdmin();
   // CRITIQUE (prélèvement) : une requête EN ÉCHEC ne doit pas passer pour
   // « échéance introuvable » (qui masquerait un débit à faire). exigerData lève.
   const p = exigerData(
@@ -1330,14 +1315,12 @@ export async function chargerEcheance(
       .from("paiements")
       .update({ statut: "echec", ...(piId ? { stripe_payment_intent_id: piId } : {}) })
       .eq("id", p.id);
+    // Détails de l'erreur (hors statut) ; statut_paiement est DÉRIVÉ par recalcul.
     await supabase
       .from("adherents")
-      .update({
-        derniere_erreur_stripe: message,
-        derniere_erreur_code: code,
-        statut_paiement: "echec_paiement",
-      })
+      .update({ derniere_erreur_stripe: message, derniere_erreur_code: code })
       .eq("id", a.id);
+    await recalculerEtatPaiement(a.id, supabase); // → 'echec_paiement' (ligne echec)
     await notifierEchecPaiement(supabase, {
       paiementId: p.id,
       adherentId: a.id,
