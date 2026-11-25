@@ -20,6 +20,18 @@ function optHeure(v: unknown): string | null {
   const s = typeof v === "string" ? v.trim() : "";
   return /^\d{2}:\d{2}$/.test(s) ? s : null;
 }
+// Date ISO "YYYY-MM-DD" valide, sinon null.
+function optDate(v: unknown): string | null {
+  const s = typeof v === "string" ? v.trim() : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+}
+// [024] Jour de semaine 1..7 (lundi..dimanche) d'une date ISO (calcul UTC, sans
+// dérive de fuseau) — pour caler le jour_semaine d'une séance ponctuelle.
+function jourDeDate(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=dim..6=sam
+  return dow === 0 ? 7 : dow;
+}
 // Liste de jours (1..7) dédupliquée à partir de `jours` (tableau) ou `jour_semaine`.
 function lireJours(body: Record<string, unknown>): number[] {
   const src = Array.isArray(body.jours)
@@ -74,6 +86,37 @@ export async function POST(request: Request) {
   if (!libelle) return NextResponse.json({ error: "Libellé requis." }, { status: 400 });
   if (!DISCIPLINES.includes(discipline)) return NextResponse.json({ error: "Discipline requise." }, { status: 400 });
   if (!TYPES.includes(type)) return NextResponse.json({ error: "Public requis (adultes, jeunes ou tous)." }, { status: 400 });
+
+  // [024] Séance PONCTUELLE : date_unique fournie → un seul cours à cette date
+  // (jour_semaine calé sur la date). Autorisée même pendant une fermeture.
+  const dateUnique = optDate(body.date_unique);
+  if (body.date_unique !== undefined && body.date_unique !== null && body.date_unique !== "" && !dateUnique) {
+    return NextResponse.json({ error: "Date de la séance invalide." }, { status: 400 });
+  }
+  if (dateUnique) {
+    const hd = optHeure(body.heure_debut);
+    const hf = optHeure(body.heure_fin);
+    if (!hd || !hf) return NextResponse.json({ error: "Horaires requis." }, { status: 400 });
+    if (hf <= hd) return NextResponse.json({ error: "L'heure de fin doit suivre le début." }, { status: 400 });
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("cours")
+      .insert({
+        libelle,
+        discipline,
+        type_adherent: typeStocke(type),
+        jour_semaine: jourDeDate(dateUnique),
+        heure_debut: hd,
+        heure_fin: hf,
+        salle,
+        ville,
+        date_unique: dateUnique,
+      })
+      .select("*")
+      .single();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ cours: data, crees: 1 });
+  }
 
   // Créneaux : soit une liste explicite [{jour_semaine, heure_debut, heure_fin, salle?}]
   // (horaire/salle par jour), soit les jours + horaire+salle communs (cas simple).
@@ -169,6 +212,13 @@ export async function PATCH(request: Request) {
   if (body.salle !== undefined) patch.salle = String(body.salle).trim() || null;
   if (body.ville !== undefined) patch.ville = String(body.ville).trim() || null;
   if (body.actif !== undefined) patch.actif = !!body.actif;
+  // [024] Édition d'une séance ponctuelle : sa date pilote son jour_semaine.
+  if (body.date_unique !== undefined) {
+    const du = optDate(body.date_unique);
+    if (body.date_unique && !du) return NextResponse.json({ error: "Date de la séance invalide." }, { status: 400 });
+    patch.date_unique = du;
+    if (du) patch.jour_semaine = jourDeDate(du);
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

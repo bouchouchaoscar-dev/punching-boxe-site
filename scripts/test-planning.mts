@@ -428,7 +428,7 @@ console.log("— non-fuite : /api/coach/planning (liste blanche) —");
     profs: [{ id: "p1", prenom: "Alice", nom: "Un", email: "a@a.fr", telephone: "0600000000", adresse: "12 rue X" }],
     periodes: [{ id: "f1", libelle: "Vac", date_debut: "2026-12-20", date_fin: "2026-12-31", note_interne: "secret" }],
   });
-  check(Object.keys(rep.cours[0]).sort().join(",") === "actif,avec_prepa,discipline,heure_debut,heure_fin,id,jour_semaine,libelle,package,salle,type_adherent,ville", "cours : liste blanche stricte");
+  check(Object.keys(rep.cours[0]).sort().join(",") === "actif,avec_prepa,date_unique,discipline,heure_debut,heure_fin,id,jour_semaine,libelle,package,salle,type_adherent,ville", "cours : liste blanche stricte");
   check(Object.keys(rep.profs[0]).sort().join(",") === "id,nom,prenom", "profs : uniquement id/prénom/nom");
   check(Object.keys(rep.affectations[0]).sort().join(",") === "cours_id,prof_id,semaine,statut", "affectations : liste blanche");
   check(Object.keys(rep.periodes[0]).sort().join(",") === "date_debut,date_fin,id,libelle", "fermetures : liste blanche");

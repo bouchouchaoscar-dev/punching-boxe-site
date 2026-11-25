@@ -29,7 +29,10 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
   const { cours, periodes } = await chargerPlanning(supabase);
-  const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
+  // [024] Récurrent : tous les <dow>. Ponctuelle : uniquement à sa date exacte.
+  const coursDuJour = cours.filter(
+    (c) => c.actif && c.jour_semaine === dow && (!c.date_unique || c.date_unique === date),
+  );
 
   // Badge « En cours » = HORAIRE RÉEL du cours (début → fin), pas la fenêtre de
   // pointage. Seulement si la date demandée est aujourd'hui.

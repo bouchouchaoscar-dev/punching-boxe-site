@@ -193,7 +193,10 @@ export function coursOuverts(
   const { cours, periodes } = opts;
   const fen = opts.fenetre ?? fenetrePresence();
   const now = partiesParis(maintenant);
-  if (estFerme(now.iso, periodes)) return []; // jour de fermeture → pas de pointage
+  // [024] On ne court-circuite PLUS sur une fermeture du jour : une séance
+  // ponctuelle (date_unique) reste pointable même pendant les vacances. Le filtre
+  // de fermeture s'applique séance par séance (uniquement aux cours récurrents).
+  const jourFerme = !!estFerme(now.iso, periodes);
 
   // Slug de salle DURCI : on ne filtre que si le slug correspond à une salle
   // réelle du planning. Un slug inconnu (salle renommée après impression du QR)
@@ -204,7 +207,14 @@ export function coursOuverts(
   const out: CoursOuvert[] = [];
   for (const c of cours) {
     if (!c.actif) continue;
-    if (c.jour_semaine !== now.jourSemaine) continue;
+    // Ponctuelle : uniquement le jour exact, fermeture ignorée. Récurrente :
+    // le bon jour de semaine, hors jour fermé.
+    if (c.date_unique) {
+      if (c.date_unique !== now.iso) continue;
+    } else {
+      if (jourFerme) continue;
+      if (c.jour_semaine !== now.jourSemaine) continue;
+    }
     const startMin = minutesDeHM(c.heure_debut);
     if (startMin == null) continue;
     const { ouvre, ferme } = bornesFenetreCours(startMin, minutesDeHM(c.heure_fin), fen);
@@ -233,10 +243,15 @@ export function coursEnCours(
   const { cours, periodes } = opts;
   const now = partiesParis(maintenant);
   const ids = new Set<string>();
-  if (estFerme(now.iso, periodes)) return ids;
+  const jourFerme = !!estFerme(now.iso, periodes); // [024] n'exclut QUE les récurrents
   const dureeDefaut = fenetrePresence().coursDureeDefautMin;
   for (const c of cours) {
-    if (!c.actif || c.jour_semaine !== now.jourSemaine) continue;
+    if (!c.actif) continue;
+    if (c.date_unique) {
+      if (c.date_unique !== now.iso) continue; // ponctuelle : jour exact, fermeture ignorée
+    } else {
+      if (jourFerme || c.jour_semaine !== now.jourSemaine) continue;
+    }
     const startMin = minutesDeHM(c.heure_debut);
     if (startMin == null) continue;
     const finMin = minutesDeHM(c.heure_fin) ?? startMin + dureeDefaut;

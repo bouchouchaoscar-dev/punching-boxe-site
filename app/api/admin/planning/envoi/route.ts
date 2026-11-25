@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
+import { partiesParis } from "@/lib/presence";
 import { sendPlanningProf } from "@/lib/email";
 import {
   planningActif,
@@ -74,6 +75,11 @@ async function calculer(supabase: SupabaseClient, semaine: string): Promise<Lign
   const snaps = new Map<string, CoursEnvoi[]>();
   for (const e of envRows ?? []) snaps.set(e.prof_id as string, (e.snapshot as CoursEnvoi[]) ?? []);
 
+  // [024] Règle « aucun mail pour le passé » : le diff ne porte QUE sur les séances
+  // d'aujourd'hui et futures, côté planning actuel COMME côté snapshot précédent.
+  // Une correction rétroactive n'apparaît jamais comme un changement à communiquer.
+  const today = partiesParis(new Date()).iso;
+
   // Profs concernés = ceux affectés cette semaine ∪ ceux ayant déjà reçu un envoi.
   const ids = new Set<string>();
   for (const a of affectations) if (a.prof_id) ids.add(a.prof_id);
@@ -84,8 +90,10 @@ async function calculer(supabase: SupabaseClient, semaine: string): Promise<Lign
   for (const id of ids) {
     const p = profById.get(id);
     if (!p) continue;
-    const actuel = planningProfSemaine(id, cours, affectations, semaine, periodes);
-    const diff = diffEnvoiDetaille(actuel, snaps.get(id) ?? null);
+    const actuel = planningProfSemaine(id, cours, affectations, semaine, periodes, today);
+    const snapPrec = snaps.get(id);
+    const precedent = snapPrec ? snapPrec.filter((c) => c.date >= today) : null;
+    const diff = diffEnvoiDetaille(actuel, precedent);
     lignes.push({
       prof_id: id,
       nom: [p.prenom, p.nom].filter(Boolean).join(" ") || "Prof",

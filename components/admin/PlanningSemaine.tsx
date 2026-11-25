@@ -106,6 +106,7 @@ function CarteCours({
   onAddProf,
   onRemoveProf,
   onPrevenir,
+  onEditPonctuelle,
 }: {
   c: Cours;
   profsDuCours: ProfMinimal[];
@@ -116,9 +117,11 @@ function CarteCours({
   onAddProf: (coursId: string) => void;
   onRemoveProf: (coursId: string, profId: string) => void;
   onPrevenir: (c: Cours) => void;
+  onEditPonctuelle?: (c: Cours) => void;
 }) {
   const col = couleurCours(c.discipline, c.type_adherent);
   const actionsVisibles = !readOnly;
+  const ponctuelle = !!c.date_unique;
   return (
     <div
       style={{ backgroundColor: col.bg, borderLeftColor: col.bar }}
@@ -146,6 +149,11 @@ function CarteCours({
             {selected ? "✓" : ""}
           </span>
         </button>
+      )}
+      {ponctuelle && (
+        <span className="mb-0.5 inline-flex items-center gap-1 rounded-full bg-ink px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">
+          Ponctuelle
+        </span>
       )}
       <div className="pr-5 text-[12px] font-bold leading-tight text-ink">{c.libelle}</div>
       <div className="text-[11px] leading-tight text-ink/70">
@@ -230,6 +238,18 @@ function CarteCours({
             label="Prévenir"
             title="Prévenir les adhérents de ce cours"
           />
+          {ponctuelle && onEditPonctuelle && (
+            <BoutonCarte
+              variant="neutre"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditPonctuelle(c);
+              }}
+              icon={<span aria-hidden className="text-[11px] leading-none">✎</span>}
+              label="Modifier"
+              title="Modifier ou supprimer cette séance ponctuelle"
+            />
+          )}
         </div>
       )}
     </div>
@@ -253,6 +273,7 @@ export function PlanningSemaine({
   onAddProf,
   onRemoveProf,
   onPrevenir,
+  onEditPonctuelle,
   renderCarte,
 }: {
   semaineISO: string;
@@ -271,18 +292,28 @@ export function PlanningSemaine({
   onAddProf?: (coursId: string) => void;
   onRemoveProf?: (coursId: string, profId: string) => void;
   onPrevenir?: (c: Cours) => void;
+  onEditPonctuelle?: (c: Cours) => void; // [024] éditer une séance ponctuelle (admin)
   // Remplace le rendu d'une carte de cours (réutilisé par l'Historique Présence
   // pour afficher un compteur cliquable à la place de la carte de prof).
   renderCarte?: (c: Cours) => ReactNode;
 }) {
-  // Jours affichés : Lun→Ven, + Sam/Dim si des cours actifs y existent.
+  // [024] Un cours est-il visible sur CE jour de CETTE semaine ? Récurrent : tous
+  // les jours de son jour_semaine. Ponctuelle (date_unique) : uniquement sa date.
+  const visibleLe = (c: Cours, jv: number, iso: string) =>
+    c.jour_semaine === jv && (!c.date_unique || c.date_unique === iso);
+
+  // Jours affichés : Lun→Ven, + Sam/Dim si des cours y existent CETTE semaine
+  // (une ponctuelle de week-end n'ajoute sa colonne que sur sa propre semaine).
   const jours = useMemo(() => {
     const base = JOURS.filter((j) => j.valeur <= 5).map((j) => j.valeur);
-    const weekend = JOURS.filter(
-      (j) => j.valeur >= 6 && cours.some((c) => c.jour_semaine === j.valeur),
-    ).map((j) => j.valeur);
+    const weekend = JOURS.filter((j) => {
+      if (j.valeur < 6) return false;
+      const iso = toISODate(dateDuJour(semaineISO, j.valeur));
+      return cours.some((c) => visibleLe(c, j.valeur, iso));
+    }).map((j) => j.valeur);
     return [...base, ...weekend];
-  }, [cours]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cours, semaineISO]);
 
   // Bandes = heures pleines de TOUS les cours de la grille (forme stable toute l'année).
   const bandes = useMemo(() => {
@@ -400,6 +431,7 @@ export function PlanningSemaine({
       onAddProf={onAddProf ?? noop}
       onRemoveProf={onRemoveProf ?? noop}
       onPrevenir={onPrevenir ?? noop}
+      onEditPonctuelle={onEditPonctuelle}
     />
   );
 
@@ -501,7 +533,7 @@ export function PlanningSemaine({
                       <div className="border-t border-line/40 pr-1 pt-1.5 text-right text-[11px] font-medium text-smoke/70">{h}h</div>
                       {infosJours.map((it) => {
                         const items = cours
-                          .filter((c) => c.jour_semaine === it.jv && bandeDe(c) === h)
+                          .filter((c) => visibleLe(c, it.jv, it.iso) && bandeDe(c) === h)
                           .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
                         const todayCls = it.isToday
                           ? `border-x-2 border-orange bg-orange-50/40 ${dernier ? "rounded-b-lg border-b-2" : ""}`
@@ -510,10 +542,14 @@ export function PlanningSemaine({
                           <div key={it.jv} className={`space-y-1.5 px-1.5 py-1.5 ${todayCls}`}>
                             {items.length === 0 ? (
                               <div className="h-1" />
-                            ) : it.ferme ? (
-                              items.map((c) => <CaseFermee key={c.id} libelle={it.ferme!.libelle} />)
                             ) : (
-                              items.map(carte)
+                              // [024] Jour fermé : les cours récurrents sont grisés, mais une
+                              // séance ponctuelle (stage) reste une carte active.
+                              items.map((c) =>
+                                it.ferme && !c.date_unique
+                                  ? <CaseFermee key={c.id} libelle={it.ferme!.libelle} />
+                                  : carte(c),
+                              )
                             )}
                           </div>
                         );
@@ -531,7 +567,7 @@ export function PlanningSemaine({
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${jours.length}, minmax(150px, 1fr))` }}>
                 {infosJours.map((it) => {
                   const coursDuJour = cours
-                    .filter((c) => c.jour_semaine === it.jv)
+                    .filter((c) => visibleLe(c, it.jv, it.iso))
                     .sort((a, b) => minutes(a.heure_debut) - minutes(b.heure_debut));
                   return (
                     <div
@@ -546,10 +582,12 @@ export function PlanningSemaine({
                       <div className="min-h-[64px] space-y-1.5 p-1.5">
                         {coursDuJour.length === 0 ? (
                           <div className="py-3 text-center text-[11px] text-smoke/50">—</div>
-                        ) : it.ferme ? (
-                          coursDuJour.map((c) => <CaseFermee key={c.id} libelle={it.ferme!.libelle} />)
                         ) : (
-                          coursDuJour.map(carte)
+                          coursDuJour.map((c) =>
+                            it.ferme && !c.date_unique
+                              ? <CaseFermee key={c.id} libelle={it.ferme!.libelle} />
+                              : carte(c),
+                          )
                         )}
                       </div>
                     </div>

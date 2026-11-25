@@ -52,6 +52,7 @@ function cours(p: Partial<Cours> & { id: string }): Cours {
     heure_fin: p.heure_fin ?? "19:00",
     salle: p.salle ?? "Dojo David Douillet",
     ville: p.ville ?? "Nogent",
+    date_unique: p.date_unique ?? null,
   };
 }
 const idsOuverts = (l: CoursOuvert[]) => l.map((o) => o.cours.id).sort();

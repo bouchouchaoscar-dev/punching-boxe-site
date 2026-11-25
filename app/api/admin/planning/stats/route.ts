@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { isAdminRequest } from "@/lib/admin-guard";
-import { planningActif, calculerHeuresProfs, type Cours, type Affectation, type PeriodeFermeture, type Prof } from "@/lib/planning";
+import { planningActif, calculerHeuresProfs, type Cours, type Affectation, type PeriodeFermeture, type Prof, type TauxHoraire } from "@/lib/planning";
 
 export const runtime = "nodejs";
 
@@ -25,12 +25,23 @@ export async function GET(request: Request) {
   const dm7 = new Date(y, m - 1, d - 7).toISOString().slice(0, 10);
 
   const supabase = getSupabaseAdmin();
-  const [{ data: coursRows }, { data: affRows }, { data: profRows }, { data: perRows }] = await Promise.all([
+  const [{ data: coursRows }, { data: affRows }, { data: profRows }, { data: perRows }, { data: tauxRows }] = await Promise.all([
     supabase.from("cours").select("*"), // inclut les désactivés (historique)
     supabase.from("affectations").select("cours_id, prof_id, semaine").gte("semaine", dm7).lte("semaine", fin),
     supabase.from("profs").select("id, prenom, nom, actif"),
     supabase.from("periodes_fermeture").select("*"),
+    supabase.from("taux_horaire_prof").select("prof_id, montant_horaire, date_effet"), // [024] admin only
   ]);
+
+  // [024] Taux historisés par prof (montants calculés SERVEUR, jamais côté client).
+  const tauxParProf = new Map<string, TauxHoraire[]>();
+  for (const t of tauxRows ?? []) {
+    const k = t.prof_id as string;
+    (tauxParProf.get(k) ?? tauxParProf.set(k, []).get(k)!).push({
+      montant_horaire: Number(t.montant_horaire),
+      date_effet: t.date_effet as string,
+    });
+  }
 
   const res = calculerHeuresProfs({
     cours: (coursRows ?? []) as Cours[],
@@ -39,6 +50,7 @@ export async function GET(request: Request) {
     periodes: (perRows ?? []) as PeriodeFermeture[],
     debutISO: debut,
     finISO: fin,
+    tauxParProf,
   });
   return NextResponse.json(res, { headers: { "Cache-Control": "no-store" } });
 }

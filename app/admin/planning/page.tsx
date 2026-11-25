@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mail, RotateCcw, CalendarRange } from "lucide-react";
+import { Mail, RotateCcw, CalendarRange, CalendarPlus } from "lucide-react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -27,6 +27,8 @@ import {
   publicLabel,
   couleurCours,
   formatDureeHeures,
+  formatMontant,
+  estFerme,
   MSG_HISTORIQUE_COURS,
   DISCIPLINES_COURS,
   JOURS,
@@ -43,6 +45,8 @@ import { lireCache, ecrireCache, CLES } from "@/lib/admin-cache";
 import { useDonneesAdmin } from "@/components/admin/useDonneesAdmin";
 import { AffecterPeriodeModal } from "@/components/admin/AffecterPeriodeModal";
 import { LotsAffectationModal } from "@/components/admin/LotsAffectationModal";
+import { SeancePonctuelleModal } from "@/components/admin/SeancePonctuelleModal";
+import { TauxHoraireModal } from "@/components/admin/TauxHoraireModal";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -93,6 +97,10 @@ export default function PlanningPage() {
   const [envoiModal, setEnvoiModal] = useState(false);
   const [periodeModal, setPeriodeModal] = useState(false);
   const [lotsModal, setLotsModal] = useState(false);
+  // [024] Séance ponctuelle : création (date pré-remplie) ou édition d'un cours à date.
+  const [ponctuelleModal, setPonctuelleModal] = useState<
+    { mode: "create"; date?: string } | { mode: "edit"; cours: Cours } | null
+  >(null);
   const [reprise, setReprise] = useState<{ source: string; sourceFermee: boolean; reprises: number; ignorees: number } | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
@@ -182,6 +190,12 @@ export default function PlanningPage() {
 
   const profsActifs = useMemo(() => profs.filter((p) => p.actif), [profs]);
   const coursActifs = useMemo(() => cours.filter((c) => c.actif), [cours]);
+  // [024] La semaine affichée contient-elle un jour fermé ? (met en avant le bouton
+  // « séance ponctuelle » : le cas typique est un stage pendant les vacances).
+  const semaineAFermeture = useMemo(
+    () => JOURS.some((j) => estFerme(toISODate(dateDuJour(semaineISO, j.valeur)), periodes)),
+    [semaineISO, periodes],
+  );
 
   function decalerSemaine(deltaJours: number) {
     const [y, m, d] = semaineISO.split("-").map(Number);
@@ -375,6 +389,17 @@ export default function PlanningPage() {
           <>
             {erreur && <ErreurPlanning message={erreur} onRetry={chargerBase} inline />}
             <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                onClick={() => setPonctuelleModal({ mode: "create", date: toISODate(dateDuJour(semaineISO, 1)) })}
+                className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-colors ${
+                  semaineAFermeture
+                    ? "bg-orange text-white hover:bg-orange-600"
+                    : "border border-line bg-white font-semibold text-ink hover:border-orange"
+                }`}
+                title={semaineAFermeture ? "Ajouter un stage / rattrapage pendant cette période de fermeture" : "Ajouter une séance à une date précise (stage, rattrapage, événement)"}
+              >
+                <CalendarPlus className="h-4 w-4" /> Ajouter une séance ponctuelle
+              </button>
               <button onClick={() => setPeriodeModal(true)} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
                 <CalendarRange className="h-4 w-4" /> Affecter sur une période
               </button>
@@ -445,13 +470,16 @@ export default function PlanningPage() {
               onAddProf={(coursId) => setProfPicker({ kind: "single", coursId })}
               onRemoveProf={retirerProf}
               onPrevenir={(c) => setPrevenir(c)}
+              onEditPonctuelle={(c) => setPonctuelleModal({ mode: "edit", cours: c })}
             />
           </>
           )
         )}
 
         {tab === "cours" && (
-          <CoursTab cours={cours} onChanged={chargerBase} flash={flash} />
+          // Les séances ponctuelles ([024]) se gèrent depuis le calendrier, pas la
+          // grille récurrente : on ne les liste pas ici.
+          <CoursTab cours={cours.filter((c) => !c.date_unique)} onChanged={chargerBase} flash={flash} />
         )}
         {tab === "profs" && (
           <ProfsTab profs={profs} onChanged={chargerBase} flash={flash} />
@@ -611,7 +639,7 @@ export default function PlanningPage() {
 
       {periodeModal && (
         <AffecterPeriodeModal
-          cours={coursActifs}
+          cours={coursActifs.filter((c) => !c.date_unique)}
           profs={profsActifs}
           onClose={() => setPeriodeModal(false)}
           onDone={(msg) => { setPeriodeModal(false); chargerAffectations(); flash(msg); }}
@@ -623,6 +651,15 @@ export default function PlanningPage() {
           profs={profs}
           onClose={() => setLotsModal(false)}
           onDone={(msg) => { chargerAffectations(); flash(msg); }}
+        />
+      )}
+      {ponctuelleModal && (
+        <SeancePonctuelleModal
+          mode={ponctuelleModal.mode}
+          cours={ponctuelleModal.mode === "edit" ? ponctuelleModal.cours : undefined}
+          dateInitiale={ponctuelleModal.mode === "create" ? ponctuelleModal.date : undefined}
+          onClose={() => setPonctuelleModal(null)}
+          onDone={(msg) => { setPonctuelleModal(null); chargerBase(); chargerAffectations(); flash(msg); }}
         />
       )}
 
@@ -1330,6 +1367,7 @@ function ProfsTab({
     } | null
   >(null);
   const [comprisPerte, setComprisPerte] = useState(false);
+  const [tauxProf, setTauxProf] = useState<Prof | null>(null); // [024] modale taux horaire
 
   const actifs = profs.filter((p) => p.actif);
   const archives = profs.filter((p) => !p.actif);
@@ -1449,6 +1487,9 @@ function ProfsTab({
           </button>
         ))}
       </div>
+      {tauxProf && (
+        <TauxHoraireModal prof={tauxProf} onClose={() => setTauxProf(null)} flash={flash} />
+      )}
       {vue === "heures" ? (
         <StatsHeures />
       ) : (
@@ -1529,6 +1570,7 @@ function ProfsTab({
                 </div>
                 <div className="flex shrink-0 gap-2">
                   <button onClick={() => editer(p)} className="text-xs font-semibold text-orange hover:underline">Modifier</button>
+                  <button onClick={() => setTauxProf(p)} className="text-xs font-semibold text-ink hover:underline">Taux</button>
                   <button onClick={() => demander(p, "archive")} className="text-xs font-semibold text-smoke hover:text-ink hover:underline">Archiver</button>
                   <button onClick={() => demander(p, "delete")} className="text-xs font-semibold text-red-600 hover:underline">Supprimer</button>
                 </div>
@@ -1660,6 +1702,9 @@ type StatsData = {
   totalHeuresPrevues: number;
   totalRealises: number;
   totalPrevus: number;
+  totalMontantRealise: number;
+  totalMontantPrevu: number;
+  tauxManquant: boolean;
 };
 function StatsHeures() {
   const now = new Date();
@@ -1707,14 +1752,23 @@ function StatsHeures() {
   }
 
   const csvCell = (s: string) => (/[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+  const eur = (n: number) => n.toFixed(2).replace(".", ",");
   function exportCSV() {
     if (!data) return;
     const sep = ";";
-    const lignes = [["Prof", "Date", "Jour", "Horaire", "Libellé", "Discipline", "Durée (h)", "Statut"].join(sep)];
+    // Montant par séance = durée × taux en vigueur à la date ; « Taux non renseigné »
+    // si aucun taux (jamais 0 €). Libellé neutre « Montant » (rému / défraiement).
+    const lignes = [["Prof", "Date", "Jour", "Horaire", "Libellé", "Discipline", "Ponctuelle", "Durée (h)", "Taux (€/h)", "Montant (€)", "Statut"].join(sep)];
     for (const p of data.parProf)
       for (const o of p.occurrences)
         lignes.push(
-          [p.nom, o.date, jourLong(o.jour), `${heureFr(o.heure_debut)}-${heureFr(o.heure_fin)}`, o.libelle, disciplineLabel(o.discipline), String(o.dureeH).replace(".", ","), o.realise ? "réalisé" : "prévu"]
+          [
+            p.nom, o.date, jourLong(o.jour), `${heureFr(o.heure_debut)}-${heureFr(o.heure_fin)}`, o.libelle,
+            disciplineLabel(o.discipline), o.ponctuelle ? "oui" : "non", String(o.dureeH).replace(".", ","),
+            o.taux == null ? "Taux non renseigné" : eur(o.taux),
+            o.montant == null ? "Taux non renseigné" : eur(o.montant),
+            o.realise ? "réalisé" : "prévu",
+          ]
             .map(csvCell)
             .join(sep),
         );
@@ -1784,6 +1838,17 @@ function StatsHeures() {
                           <> · à venir : {p.nbPrevus} cours · {formatDureeHeures(p.heuresPrevues)}</>
                         )}
                       </p>
+                      <p className="truncate text-xs">
+                        <span className="font-semibold text-ink">Montant : </span>
+                        {p.tauxManquant ? (
+                          <span className="font-semibold text-orange">Taux non renseigné</span>
+                        ) : (
+                          <span className="text-ink">
+                            {formatMontant(p.montantRealise)} réalisé
+                            {p.montantPrevu > 0 && <> · {formatMontant(p.montantPrevu)} à venir</>}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <span className={`shrink-0 text-smoke transition-transform ${ouvert ? "rotate-90" : ""}`}>›</span>
                   </button>
@@ -1793,9 +1858,13 @@ function StatsHeures() {
                         <li key={i} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                           <span className="text-ink">
                             {formatDateCours(o.date)} · {heureFr(o.heure_debut)}–{heureFr(o.heure_fin)} · {o.libelle}
+                            {o.ponctuelle && <span className="ml-1 rounded-full bg-ink px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">Ponctuelle</span>}
                           </span>
-                          <span className={`shrink-0 font-semibold ${o.realise ? "text-green-700" : "text-blue-600"}`}>
-                            {formatDureeHeures(o.dureeH)} · {o.realise ? "réalisé" : "prévu"}
+                          <span className="shrink-0 text-right">
+                            <span className={`font-semibold ${o.realise ? "text-green-700" : "text-blue-600"}`}>
+                              {formatDureeHeures(o.dureeH)} · {o.realise ? "réalisé" : "prévu"}
+                            </span>
+                            <span className="ml-1 text-ink">· {o.montant == null ? <span className="text-orange">Taux non renseigné</span> : formatMontant(o.montant)}</span>
                           </span>
                         </li>
                       ))}
@@ -1805,12 +1874,26 @@ function StatsHeures() {
               );
             })}
           </ul>
-          <div className="mt-3 flex justify-between rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white">
-            <span>Total</span>
-            <span>
-              Réalisé {formatDureeHeures(data!.totalHeuresRealisees)} ({data!.totalRealises} cours)
-              {data!.totalPrevus > 0 && <> · à venir {formatDureeHeures(data!.totalHeuresPrevues)} ({data!.totalPrevus})</>}
-            </span>
+          <div className="mt-3 rounded-xl bg-ink px-4 py-3 text-sm font-bold text-white">
+            <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+              <span>Total heures</span>
+              <span>
+                Réalisé {formatDureeHeures(data!.totalHeuresRealisees)} ({data!.totalRealises} cours)
+                {data!.totalPrevus > 0 && <> · à venir {formatDureeHeures(data!.totalHeuresPrevues)} ({data!.totalPrevus})</>}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-white/15 pt-1">
+              <span>Total montant</span>
+              <span>
+                {formatMontant(data!.totalMontantRealise)} réalisé
+                {data!.totalMontantPrevu > 0 && <> · {formatMontant(data!.totalMontantPrevu)} à venir</>}
+              </span>
+            </div>
+            {data!.tauxManquant && (
+              <p className="mt-1 text-right text-[11px] font-normal text-white/70">
+                Certaines séances n&apos;ont pas de taux renseigné (exclues du montant).
+              </p>
+            )}
           </div>
         </>
       )}

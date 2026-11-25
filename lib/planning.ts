@@ -191,8 +191,30 @@ export type Cours = {
   heure_fin: string | null;
   salle: string | null;
   ville: string | null;
+  date_unique: string | null; // [024] séance ponctuelle à cette date ISO (null = récurrent)
   created_at?: string;
 };
+
+// [024] Taux horaire d'un prof avec date d'effet (historique). SOURCE UNIQUE.
+export type TauxHoraire = { montant_horaire: number; date_effet: string };
+
+/**
+ * Taux en vigueur à une date : le plus récent dont la date d'effet est ≤ dateISO.
+ * Renvoie null si aucun taux n'est encore en vigueur à cette date (→ « Taux non
+ * renseigné » à l'affichage, JAMAIS 0 €).
+ */
+export function tauxPourDate(historique: TauxHoraire[], dateISO: string): number | null {
+  let choisi: TauxHoraire | null = null;
+  for (const t of historique) {
+    if (t.date_effet <= dateISO && (!choisi || t.date_effet > choisi.date_effet)) choisi = t;
+  }
+  return choisi ? choisi.montant_horaire : null;
+}
+
+/** Montant formaté en euros à deux décimales (séparateur virgule) : "42,50 €". */
+export function formatMontant(montant: number): string {
+  return `${montant.toFixed(2).replace(".", ",")} €`;
+}
 
 export type Affectation = {
   id: string;
@@ -252,7 +274,7 @@ export function dateDuJour(lundiISO: string, jourSemaine: number): Date {
 // UNIQUE réutilisée par l'aperçu (comptes), l'écriture du lot et le ciblage des mails.
 export type SeancePeriode = { coursId: string; semaine: string; date: string };
 export function genererSeancesPeriode(
-  cours: { id: string; jour_semaine: number | null }[],
+  cours: { id: string; jour_semaine: number | null; date_unique?: string | null }[],
   debutISO: string,
   finISO: string,
   periodes: PeriodeFermeture[],
@@ -263,7 +285,10 @@ export function genererSeancesPeriode(
   const [fy, fm, fd] = finISO.split("-").map(Number);
   const fin = new Date(fy, fm - 1, fd);
   const parJour = new Map<number, { id: string }[]>();
-  for (const c of cours) if (c.jour_semaine) (parJour.get(c.jour_semaine) ?? parJour.set(c.jour_semaine, []).get(c.jour_semaine)!).push({ id: c.id });
+  // [024] Les séances ponctuelles (date_unique) sont des cours à date fixe : elles
+  // ne font JAMAIS partie d'une affectation « sur une période » (leur prof est posé
+  // à l'unité sur leur propre semaine). On ne génère que la grille récurrente.
+  for (const c of cours) if (c.jour_semaine && !c.date_unique) (parJour.get(c.jour_semaine) ?? parJour.set(c.jour_semaine, []).get(c.jour_semaine)!).push({ id: c.id });
   for (const t = new Date(dy, dm - 1, dd); t <= fin; t.setDate(t.getDate() + 1)) {
     const dow = t.getDay() === 0 ? 7 : t.getDay(); // 1..7 (lundi..dimanche)
     const coursDuJour = parJour.get(dow);
@@ -380,20 +405,36 @@ export type CoursEnvoi = {
   ville: string | null;
 };
 
-/** Planning d'un prof pour une semaine : ses cours affectés, hors jours fermés, trié. */
+/**
+ * Planning d'un prof pour une semaine : ses cours affectés, hors jours fermés, trié.
+ * [024] Une séance ponctuelle (date_unique) n'apparaît QUE sur sa propre semaine
+ * et reste incluse même un jour fermé (stage pendant les vacances).
+ * `todayISO` (optionnel) : exclut les occurrences ANTÉRIEURES à aujourd'hui — le
+ * diff d'envoi ne communique jamais une séance passée (règle « aucun mail pour le
+ * passé »).
+ */
 export function planningProfSemaine(
   profId: string,
   cours: Cours[],
   affectations: { cours_id: string; prof_id: string | null }[],
   semaineISO: string,
   periodes: PeriodeFermeture[],
+  todayISO?: string,
 ): CoursEnvoi[] {
   const coursIds = new Set(affectations.filter((a) => a.prof_id === profId).map((a) => a.cours_id));
   const items: CoursEnvoi[] = [];
   for (const c of cours) {
     if (!coursIds.has(c.id) || !c.jour_semaine) continue;
-    const dISO = toISODate(dateDuJour(semaineISO, c.jour_semaine));
-    if (estFerme(dISO, periodes)) continue; // jour fermé → hors planning
+    let dISO: string;
+    if (c.date_unique) {
+      // Ponctuelle : visible seulement sur sa semaine, jamais grisée par une fermeture.
+      if (toISODate(lundiDeLaSemaine(new Date(`${c.date_unique}T00:00:00`))) !== semaineISO) continue;
+      dISO = c.date_unique;
+    } else {
+      dISO = toISODate(dateDuJour(semaineISO, c.jour_semaine));
+      if (estFerme(dISO, periodes)) continue; // jour fermé → hors planning
+    }
+    if (todayISO && dISO < todayISO) continue; // jamais de séance passée dans le diff
     items.push({
       cours_id: c.id,
       jour: c.jour_semaine,
@@ -633,6 +674,7 @@ export function construireReponseCoachPlanning(input: RawRows): {
     heure_fin: s(c.heure_fin),
     salle: s(c.salle),
     ville: s(c.ville),
+    date_unique: s(c.date_unique), // [024] ponctuelle (lecture seule coach)
     package: null,
     avec_prepa: false,
   })) as Cours[];
@@ -663,6 +705,9 @@ export type OccurrenceProf = {
   discipline: string | null;
   dureeH: number; // heures décimales
   realise: boolean; // occurrence passée (date+fin ≤ maintenant)
+  ponctuelle: boolean; // [024] séance ponctuelle (date fixe)
+  taux: number | null; // [024] taux horaire en vigueur à la date (null = non renseigné)
+  montant: number | null; // [024] dureeH × taux (null si pas de taux)
 };
 export type StatProf = {
   prof_id: string;
@@ -672,6 +717,9 @@ export type StatProf = {
   heuresRealisees: number;
   nbPrevus: number;
   heuresPrevues: number;
+  montantRealise: number; // [024] somme des montants réalisés (occurrences avec taux)
+  montantPrevu: number; // [024] somme des montants à venir (occurrences avec taux)
+  tauxManquant: boolean; // [024] au moins une occurrence sans taux en vigueur
   occurrences: OccurrenceProf[];
 };
 
@@ -690,7 +738,17 @@ export function calculerHeuresProfs(params: {
   debutISO: string;
   finISO: string;
   now?: Date;
-}): { parProf: StatProf[]; totalHeuresRealisees: number; totalHeuresPrevues: number; totalRealises: number; totalPrevus: number } {
+  tauxParProf?: Map<string, TauxHoraire[]>; // [024] taux horaires historisés par prof
+}): {
+  parProf: StatProf[];
+  totalHeuresRealisees: number;
+  totalHeuresPrevues: number;
+  totalRealises: number;
+  totalPrevus: number;
+  totalMontantRealise: number;
+  totalMontantPrevu: number;
+  tauxManquant: boolean;
+} {
   const now = params.now ?? new Date();
   const coursById = new Map(params.cours.map((c) => [c.id, c]));
   const profById = new Map(params.profs.map((p) => [p.id, p]));
@@ -700,10 +758,14 @@ export function calculerHeuresProfs(params: {
     if (!a.prof_id) continue;
     const c = coursById.get(a.cours_id);
     if (!c || !c.jour_semaine) continue;
-    const dISO = toISODate(dateDuJour(a.semaine, c.jour_semaine));
+    // [024] Ponctuelle : date fixe, JAMAIS exclue par une fermeture. Récurrente :
+    // occurrence à son jour dans la semaine, exclue si le jour est fermé.
+    const dISO = c.date_unique ?? toISODate(dateDuJour(a.semaine, c.jour_semaine));
     if (dISO < params.debutISO || dISO > params.finISO) continue; // hors période
-    if (estFerme(dISO, params.periodes)) continue; // jour fermé
+    if (!c.date_unique && estFerme(dISO, params.periodes)) continue; // jour fermé (récurrent)
     const dureeH = dureeHeures(c.heure_debut, c.heure_fin);
+    const taux = params.tauxParProf ? tauxPourDate(params.tauxParProf.get(a.prof_id) ?? [], dISO) : null;
+    const montant = taux == null ? null : Math.round(dureeH * taux * 100) / 100;
 
     // Réalisé si la fin de l'occurrence est passée (minuit=00 valide, pas 59).
     const [Y, M, D] = dISO.split("-").map(Number);
@@ -727,6 +789,9 @@ export function calculerHeuresProfs(params: {
         heuresRealisees: 0,
         nbPrevus: 0,
         heuresPrevues: 0,
+        montantRealise: 0,
+        montantPrevu: 0,
+        tauxManquant: false,
         occurrences: [],
       };
       acc.set(a.prof_id, st);
@@ -741,13 +806,19 @@ export function calculerHeuresProfs(params: {
       discipline: c.discipline,
       dureeH,
       realise,
+      ponctuelle: !!c.date_unique,
+      taux,
+      montant,
     });
+    if (montant == null && dureeH > 0) st.tauxManquant = true; // au moins une séance sans taux
     if (realise) {
       st.nbRealises++;
       st.heuresRealisees += dureeH;
+      if (montant != null) st.montantRealise += montant;
     } else {
       st.nbPrevus++;
       st.heuresPrevues += dureeH;
+      if (montant != null) st.montantPrevu += montant;
     }
   }
 
@@ -756,6 +827,8 @@ export function calculerHeuresProfs(params: {
     st.occurrences.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : (a.heure_debut ?? "").localeCompare(b.heure_debut ?? "")));
     st.heuresRealisees = Math.round(st.heuresRealisees * 100) / 100;
     st.heuresPrevues = Math.round(st.heuresPrevues * 100) / 100;
+    st.montantRealise = Math.round(st.montantRealise * 100) / 100;
+    st.montantPrevu = Math.round(st.montantPrevu * 100) / 100;
   }
   parProf.sort((a, b) => a.nom.localeCompare(b.nom));
 
@@ -765,6 +838,9 @@ export function calculerHeuresProfs(params: {
     totalHeuresPrevues: Math.round(parProf.reduce((s, p) => s + p.heuresPrevues, 0) * 100) / 100,
     totalRealises: parProf.reduce((s, p) => s + p.nbRealises, 0),
     totalPrevus: parProf.reduce((s, p) => s + p.nbPrevus, 0),
+    totalMontantRealise: Math.round(parProf.reduce((s, p) => s + p.montantRealise, 0) * 100) / 100,
+    totalMontantPrevu: Math.round(parProf.reduce((s, p) => s + p.montantPrevu, 0) * 100) / 100,
+    tauxManquant: parProf.some((p) => p.tauxManquant),
   };
 }
 

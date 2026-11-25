@@ -6,6 +6,7 @@ import { resoudreOuverture, joindrePrenoms, type PersonneEnvoi, type Destinatair
 import { estActifCompte } from "@/lib/adherents-actifs";
 import { estEmailValide } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
+import { partiesParis } from "@/lib/presence";
 import { saisonCourante } from "@/lib/saison";
 import {
   planningActif,
@@ -159,6 +160,13 @@ export async function POST(request: Request, { params }: Ctx) {
   const contenu = (body.contenu || "").trim();
   if (!objet || !contenu) return NextResponse.json({ error: "Objet et message requis." }, { status: 400 });
   if (emails.length === 0) return NextResponse.json({ error: "Aucun adhérent concerné." }, { status: 400 });
+
+  // Règle « aucun mail pour le passé » : on ne prévient jamais d'une séance dont
+  // l'occurrence d'origine est déjà passée (date < aujourd'hui, heure de Paris).
+  const origineISO = body.apercu?.origine?.dateISO ?? null;
+  if (origineISO && origineISO < partiesParis(new Date()).iso) {
+    return NextResponse.json({ error: "Cette séance est déjà passée : aucun mail ne peut être envoyé pour le passé." }, { status: 400 });
+  }
 
   // Encadré « Avant / Désormais » (facultatif, construit serveur depuis l'aperçu).
   const blocHtml = body.apercu ? construireBlocApercu(body.apercu) : "";

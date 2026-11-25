@@ -398,10 +398,12 @@ create table if not exists public.cours (
   heure_fin     time,
   salle         text,
   ville         text,
+  date_unique   date,                                  -- [024] séance ponctuelle à cette date (null = cours récurrent hebdo)
   created_at    timestamptz not null default now()
 );
 create index if not exists cours_jour_idx  on public.cours (jour_semaine);
 create index if not exists cours_actif_idx on public.cours (actif);
+create index if not exists cours_date_unique_idx on public.cours (date_unique) where date_unique is not null; -- [024]
 
 create table if not exists public.affectations (
   id         uuid primary key default gen_random_uuid(),
@@ -441,6 +443,20 @@ create table if not exists public.periodes_fermeture (
 );
 create index if not exists periodes_fermeture_dates_idx on public.periodes_fermeture (date_debut, date_fin);
 
+-- [024] Taux horaire des profs (historique avec date d'effet). Le taux d'une
+-- séance est celui en vigueur à sa date. Données STRICTEMENT admin : RLS activée
+-- + droits anon/authenticated RÉVOQUÉS (seul service_role lit), voir migration 024.
+create table if not exists public.taux_horaire_prof (
+  id              uuid primary key default gen_random_uuid(),
+  prof_id         uuid not null references public.profs(id) on delete cascade,
+  montant_horaire numeric(8,2) not null check (montant_horaire >= 0),
+  date_effet      date not null,
+  created_at      timestamptz not null default now(),
+  unique (prof_id, date_effet)
+);
+create index if not exists taux_horaire_prof_idx on public.taux_horaire_prof (prof_id, date_effet);
+-- revoke all on public.taux_horaire_prof from anon, authenticated; (migration 024 — jamais exposé hors service_role)
+
 -- ---------------------------------------------------------------------------
 -- 8) RLS — activé partout, AUCUNE policy publique (accès serveur uniquement)
 -- ---------------------------------------------------------------------------
@@ -464,6 +480,7 @@ alter table public.cours                   enable row level security;   -- [011]
 alter table public.affectations            enable row level security;   -- [011] planning
 alter table public.periodes_fermeture      enable row level security;   -- [011] planning
 alter table public.envois_planning         enable row level security;   -- [014] planning
+alter table public.taux_horaire_prof       enable row level security;   -- [024] planning (admin only)
 
 -- ---------------------------------------------------------------------------
 -- 8bis) GRANTS — privilèges standard Supabase sur le schéma public.
@@ -484,6 +501,11 @@ grant all on all functions in schema public to anon, authenticated, service_role
 alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
+-- [024] EXCEPTION : les taux horaires (montants) ne sont JAMAIS exposés hors du
+-- serveur. On retire le droit que le grant générique ci-dessus vient de poser.
+-- (La RLS sans policy les bloque déjà ; ce revoke est une défense supplémentaire.)
+revoke all on public.taux_horaire_prof from anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 9) STORAGE — bucket des documents adhérents.

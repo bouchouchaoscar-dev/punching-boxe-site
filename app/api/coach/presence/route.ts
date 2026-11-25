@@ -31,7 +31,10 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
   const { cours, periodes } = await chargerPlanning(supabase);
-  const coursDuJour = cours.filter((c) => c.actif && c.jour_semaine === dow);
+  // [024] Ponctuelle : uniquement à sa date exacte ; récurrent : tous les <dow>.
+  const coursDuJour = cours.filter(
+    (c) => c.actif && c.jour_semaine === dow && (!c.date_unique || c.date_unique === date),
+  );
   const disciplineByCours = new Map(cours.map((c) => [c.id, c.discipline]));
 
   // Badge « En cours » IDENTIQUE à l'admin : HORAIRE RÉEL (début → fin), pas la

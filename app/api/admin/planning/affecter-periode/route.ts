@@ -10,7 +10,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 async function chargerContexte(supabase: ReturnType<typeof getSupabaseAdmin>, coursIds: string[]) {
   const cours = (exigerData(
-    await supabase.from("cours").select("id, libelle, discipline, type_adherent, jour_semaine, heure_debut, heure_fin").in("id", coursIds),
+    await supabase.from("cours").select("id, libelle, discipline, type_adherent, jour_semaine, heure_debut, heure_fin, date_unique").in("id", coursIds),
     "affecter-période: cours",
   ) ?? []) as Cours[];
   const periodes = (exigerData(

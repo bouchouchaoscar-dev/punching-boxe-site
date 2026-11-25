@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const [{ data: coursRows }, { data: affRows }, { data: profRows }, { data: perRows }] = await Promise.all([
     supabase
       .from("cours")
-      .select("id, actif, libelle, discipline, type_adherent, jour_semaine, heure_debut, heure_fin, salle, ville")
+      .select("id, actif, libelle, discipline, type_adherent, jour_semaine, heure_debut, heure_fin, salle, ville, date_unique")
       .eq("actif", true),
     supabase.from("affectations").select("cours_id, prof_id, semaine, statut").eq("semaine", semaine),
     supabase.from("profs").select("id, prenom, nom"), // AUCUN email / téléphone
