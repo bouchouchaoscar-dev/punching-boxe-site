@@ -34,6 +34,7 @@ function cleComplete(cle: string): string | null {
 export const CLES = {
   presenceJour: "presence.jour",
   presenceCoach: "presence.coach",
+  presenceEssais: (periode: string) => `presence.essais.${periode}`,
   planningProfs: "planning.profs",
   planningCours: "planning.cours",
   planningPeriodes: "planning.periodes",

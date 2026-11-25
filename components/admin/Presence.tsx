@@ -9,6 +9,7 @@ import { useDonneesAdmin } from "./useDonneesAdmin";
 import { PageHeader } from "./PageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { PlanningSemaine } from "./PlanningSemaine";
+import { VueEssais } from "./VueEssais";
 import { IconButton } from "@/components/ui/IconButton";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { Download } from "lucide-react";
@@ -36,7 +37,7 @@ const CAT_LABEL: Record<Categorie, string> = {
 // Ordre d'affichage des filtres : situations à traiter d'abord.
 const CAT_ORDER: Categorie[] = ["non_finalise", "especes", "incomplet", "essai", "essai_utilise", "hors_formule", "regle"];
 
-type Ligne = {
+export type Ligne = {
   presenceId: string;
   coursId: string;
   dateSeance?: string;
@@ -90,24 +91,32 @@ export function Presence() {
   return <PresenceAdmin />;
 }
 
+const VUES_PRESENCE = [
+  ["aujourdhui", "Aujourd'hui"],
+  ["historique", "Historique"],
+  ["essais", "Essais"],
+] as const;
+
 function PresenceAdmin() {
-  const [vue, setVue] = useState<"aujourdhui" | "historique">("aujourdhui");
+  const [vue, setVue] = useState<"aujourdhui" | "historique" | "essais">("aujourdhui");
   const [affichesOpen, setAffichesOpen] = useState(false);
   return (
-    <div className="max-w-5xl">
+    <div className={vue === "essais" ? "max-w-6xl" : "max-w-5xl"}>
       <PageHeader
         title="Présence"
         description="Qui est dans la salle et où en est chacun de son inscription. Pointage par QR code, séances d'essai avec relances."
         actions={<IconButton icon={<Download className="h-5 w-5" />} label="Affiches QR à imprimer" onClick={() => setAffichesOpen(true)} />}
       />
       <div className="mt-6 inline-flex rounded-full border border-line bg-white p-0.5">
-        {(["aujourdhui", "historique"] as const).map((v) => (
+        {VUES_PRESENCE.map(([v, label]) => (
           <button key={v} onClick={() => setVue(v)} className={`rounded-full px-4 py-1.5 text-sm font-semibold ${vue === v ? "bg-ink text-white" : "text-ink/70"}`}>
-            {v === "aujourdhui" ? "Aujourd'hui" : "Historique"}
+            {label}
           </button>
         ))}
       </div>
-      <div className="mt-6">{vue === "aujourdhui" ? <PresenceVue /> : <VueHistorique />}</div>
+      <div className="mt-6">
+        {vue === "aujourdhui" ? <PresenceVue /> : vue === "historique" ? <VueHistorique /> : <VueEssais />}
+      </div>
       {affichesOpen && <AffichesModal onClose={() => setAffichesOpen(false)} />}
     </div>
   );
@@ -420,7 +429,7 @@ type EssaiDetail = {
   statut: { code: string; dateInscription: string | null; delaiJours: number | null };
 };
 
-function DetailEssaiModal({ ligne, onClose, onChange }: { ligne: Ligne; onClose: () => void; onChange: () => void }) {
+export function DetailEssaiModal({ ligne, onClose, onChange }: { ligne: Ligne; onClose: () => void; onChange: () => void }) {
   const relance = (v?: string | null) => (v ? new Date(v).toLocaleDateString("fr-FR") : "—");
   const [detail, setDetail] = useState<EssaiDetail | null>(null);
   const [busy, setBusy] = useState(false);
