@@ -216,6 +216,12 @@ export function formatMontant(montant: number): string {
   return `${montant.toFixed(2).replace(".", ",")} €`;
 }
 
+/** Suffixe « hors N séances sans taux » (vide si N = 0). Rend tout total HONNÊTE :
+ * un montant partiel indique toujours combien de séances en sont exclues. */
+export function mentionSansTaux(nb: number): string {
+  return nb > 0 ? ` hors ${nb} séance${nb > 1 ? "s" : ""} sans taux` : "";
+}
+
 export type Affectation = {
   id: string;
   cours_id: string;
@@ -720,6 +726,7 @@ export type StatProf = {
   montantRealise: number; // [024] somme des montants réalisés (occurrences avec taux)
   montantPrevu: number; // [024] somme des montants à venir (occurrences avec taux)
   tauxManquant: boolean; // [024] au moins une occurrence sans taux en vigueur
+  nbSansTaux: number; // [024] nombre de séances exclues du montant faute de taux
   occurrences: OccurrenceProf[];
 };
 
@@ -748,6 +755,7 @@ export function calculerHeuresProfs(params: {
   totalMontantRealise: number;
   totalMontantPrevu: number;
   tauxManquant: boolean;
+  totalSansTaux: number;
 } {
   const now = params.now ?? new Date();
   const coursById = new Map(params.cours.map((c) => [c.id, c]));
@@ -792,6 +800,7 @@ export function calculerHeuresProfs(params: {
         montantRealise: 0,
         montantPrevu: 0,
         tauxManquant: false,
+        nbSansTaux: 0,
         occurrences: [],
       };
       acc.set(a.prof_id, st);
@@ -810,7 +819,7 @@ export function calculerHeuresProfs(params: {
       taux,
       montant,
     });
-    if (montant == null && dureeH > 0) st.tauxManquant = true; // au moins une séance sans taux
+    if (montant == null && dureeH > 0) { st.tauxManquant = true; st.nbSansTaux++; } // séance exclue du montant
     if (realise) {
       st.nbRealises++;
       st.heuresRealisees += dureeH;
@@ -841,6 +850,7 @@ export function calculerHeuresProfs(params: {
     totalMontantRealise: Math.round(parProf.reduce((s, p) => s + p.montantRealise, 0) * 100) / 100,
     totalMontantPrevu: Math.round(parProf.reduce((s, p) => s + p.montantPrevu, 0) * 100) / 100,
     tauxManquant: parProf.some((p) => p.tauxManquant),
+    totalSansTaux: parProf.reduce((s, p) => s + p.nbSansTaux, 0),
   };
 }
 

@@ -28,6 +28,7 @@ import {
   couleurCours,
   formatDureeHeures,
   formatMontant,
+  mentionSansTaux,
   estFerme,
   MSG_HISTORIQUE_COURS,
   DISCIPLINES_COURS,
@@ -1705,6 +1706,7 @@ type StatsData = {
   totalMontantRealise: number;
   totalMontantPrevu: number;
   tauxManquant: boolean;
+  totalSansTaux: number;
 };
 function StatsHeures() {
   const now = new Date();
@@ -1772,6 +1774,15 @@ function StatsHeures() {
             .map(csvCell)
             .join(sep),
         );
+    // Synthèse par prof puis total général — toujours accompagnés du nombre de
+    // séances exclues faute de taux (jamais un total qui paraît complet).
+    lignes.push("");
+    lignes.push(["", "", "", "", "", "", "", "Synthèse", "Montant réalisé (€)", "Montant à venir (€)", "Séances sans taux"].join(sep));
+    for (const p of data.parProf)
+      lignes.push(["", "", "", "", "", "", "", p.nom, eur(p.montantRealise), eur(p.montantPrevu), String(p.nbSansTaux)].map(csvCell).join(sep));
+    lignes.push(["", "", "", "", "", "", "", "TOTAL", eur(data.totalMontantRealise), eur(data.totalMontantPrevu), String(data.totalSansTaux)].map(csvCell).join(sep));
+    if (data.totalSansTaux > 0)
+      lignes.push(["", "", "", "", "", "", "", `Total partiel :${mentionSansTaux(data.totalSansTaux)}`].map(csvCell).join(sep));
     const blob = new Blob(["﻿" + lignes.join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
@@ -1840,12 +1851,13 @@ function StatsHeures() {
                       </p>
                       <p className="truncate text-xs">
                         <span className="font-semibold text-ink">Montant : </span>
-                        {p.tauxManquant ? (
-                          <span className="font-semibold text-orange">Taux non renseigné</span>
+                        {p.montantRealise === 0 && p.montantPrevu === 0 && p.nbSansTaux > 0 ? (
+                          <span className="font-semibold text-orange">Taux non renseigné ({p.nbSansTaux} séance{p.nbSansTaux > 1 ? "s" : ""})</span>
                         ) : (
                           <span className="text-ink">
                             {formatMontant(p.montantRealise)} réalisé
                             {p.montantPrevu > 0 && <> · {formatMontant(p.montantPrevu)} à venir</>}
+                            {p.nbSansTaux > 0 && <span className="font-semibold text-orange">{mentionSansTaux(p.nbSansTaux)}</span>}
                           </span>
                         )}
                       </p>
@@ -1885,15 +1897,17 @@ function StatsHeures() {
             <div className="mt-1 flex flex-wrap justify-between gap-x-4 gap-y-1 border-t border-white/15 pt-1">
               <span>Total montant</span>
               <span>
-                {formatMontant(data!.totalMontantRealise)} réalisé
-                {data!.totalMontantPrevu > 0 && <> · {formatMontant(data!.totalMontantPrevu)} à venir</>}
+                {data!.totalMontantRealise === 0 && data!.totalMontantPrevu === 0 && data!.totalSansTaux > 0 ? (
+                  <span className="text-orange-300">Taux non renseigné ({data!.totalSansTaux} séance{data!.totalSansTaux > 1 ? "s" : ""})</span>
+                ) : (
+                  <>
+                    {formatMontant(data!.totalMontantRealise)} réalisé
+                    {data!.totalMontantPrevu > 0 && <> · {formatMontant(data!.totalMontantPrevu)} à venir</>}
+                    {data!.totalSansTaux > 0 && <span className="text-orange-300">{mentionSansTaux(data!.totalSansTaux)}</span>}
+                  </>
+                )}
               </span>
             </div>
-            {data!.tauxManquant && (
-              <p className="mt-1 text-right text-[11px] font-normal text-white/70">
-                Certaines séances n&apos;ont pas de taux renseigné (exclues du montant).
-              </p>
-            )}
           </div>
         </>
       )}

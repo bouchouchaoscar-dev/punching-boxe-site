@@ -10,6 +10,7 @@ import {
   planningProfSemaine,
   tauxPourDate,
   formatMontant,
+  mentionSansTaux,
   type Cours,
   type Prof,
   type PeriodeFermeture,
@@ -76,7 +77,11 @@ check("séance du 12/01 → 40,00 €", occ.find((o) => o.date === "2026-01-12")
 check("séance du 14/02 → 75,00 € (taux relevé)", occ.find((o) => o.date === "2026-02-14")?.montant === 75);
 check("montant total réalisé = 115,00 €", hm.parProf[0].montantRealise === 115, hm.parProf[0].montantRealise);
 check("pas de taux manquant ici", hm.parProf[0].tauxManquant === false);
+check("0 séance sans taux ici", hm.parProf[0].nbSansTaux === 0 && hm.totalSansTaux === 0);
 check("formatMontant deux décimales", formatMontant(115) === "115,00 €");
+check("mentionSansTaux vide si 0", mentionSansTaux(0) === "");
+check("mentionSansTaux pluriel", mentionSansTaux(6) === " hors 6 séances sans taux");
+check("mentionSansTaux singulier", mentionSansTaux(1) === " hors 1 séance sans taux");
 
 console.log("\n== Période SANS taux : « non renseigné », jamais 0 € ==");
 const hsans = calculerHeuresProfs({ cours: [recurrent], affectations: [{ cours_id: "R", prof_id: "P1", semaine: "2026-01-12" }], profs, periodes: [], debutISO: "2026-01-01", finISO: "2026-01-31", now: new Date("2026-03-01T00:00:00"), tauxParProf: new Map() });
@@ -84,6 +89,21 @@ check("occurrence sans taux → montant null", hsans.parProf[0].occurrences[0].m
 check("prof marqué tauxManquant", hsans.parProf[0].tauxManquant === true);
 check("montant réalisé reste 0 (non affiché comme €)", hsans.parProf[0].montantRealise === 0);
 check("total global tauxManquant", hsans.tauxManquant === true);
+check("nbSansTaux prof = 1", hsans.parProf[0].nbSansTaux === 1);
+check("totalSansTaux = 1", hsans.totalSansTaux === 1);
+
+// Cas MIXTE : une séance avec taux + une sans → total partiel + mention honnête.
+const histPartiel = new Map<string, TauxHoraire[]>([["P1", [{ montant_horaire: 20, date_effet: "2026-01-01" }]]]);
+const hmix = calculerHeuresProfs({
+  cours: [recurrent, cours({ id: "R2", jour_semaine: 1, heure_debut: "18:00", heure_fin: "19:00" })],
+  affectations: [
+    { cours_id: "R", prof_id: "P1", semaine: "2026-01-12" }, // 2h à 20 € = 40 €
+    { cours_id: "R2", prof_id: "P1", semaine: "2025-12-01" }, // avant le taux → sans taux
+  ],
+  profs, periodes: [], debutISO: "2025-11-01", finISO: "2026-01-31", now: new Date("2026-03-01T00:00:00"), tauxParProf: histPartiel,
+});
+check("mixte : montant partiel = 40 €", hmix.totalMontantRealise === 40, hmix.totalMontantRealise);
+check("mixte : 1 séance exclue signalée", hmix.totalSansTaux === 1 && hmix.parProf[0].nbSansTaux === 1);
 
 console.log("\n== planning prof : ponctuelle sur SA semaine, jamais grisée, passé exclu ==");
 const semStage = "2026-02-09";
