@@ -40,19 +40,16 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
 
-  // 1) Essais de la période (par date de séance). TOLÉRANT : si le cache de schéma
-  //    PostgREST n'a pas encore intégré les colonnes 022, on retombe sur les colonnes
-  //    de base (téléphone/provenance/rappel → null) → l'onglet marche quand même et
-  //    s'enrichit dès le rafraîchissement du cache.
-  const selFull = "id, nom, prenom, date_naissance, email, telephone, provenance, provenance_autre, cours_id, date_seance, rappele_at, converti_dossier_id";
-  const selBase = "id, nom, prenom, date_naissance, email, cours_id, date_seance, converti_dossier_id";
-  const resEssais = await supabase.from("essais").select(selFull).gte("date_seance", from).lte("date_seance", to);
-  const essais = resEssais.error
-    ? (((exigerData(
-        await supabase.from("essais").select(selBase).gte("date_seance", from).lte("date_seance", to),
-        "essais: liste période (base)",
-      ) ?? []) as Record<string, unknown>[]).map((e) => ({ ...e, telephone: null, provenance: null, provenance_autre: null, rappele_at: null })) as EssaiRow[])
-    : ((resEssais.data ?? []) as EssaiRow[]);
+  // 1) Essais de la période (par date de séance). exigerData : une colonne manquante
+  //    (schéma non à jour) LÈVE une erreur visible — jamais un affichage incomplet.
+  const essais = (exigerData(
+    await supabase
+      .from("essais")
+      .select("id, nom, prenom, date_naissance, email, telephone, provenance, provenance_autre, cours_id, date_seance, rappele_at, converti_dossier_id")
+      .gte("date_seance", from)
+      .lte("date_seance", to),
+    "essais: liste période",
+  ) ?? []) as EssaiRow[];
 
   // 2) Dossiers rattachés + leurs paiements (requêtes groupées).
   const dossierIds = [...new Set(essais.map((e) => e.converti_dossier_id).filter(Boolean))] as string[];
@@ -104,9 +101,10 @@ export async function GET(request: Request) {
 
   // 4) Provenance des NOUVEAUX adhérents de la saison SANS essai (vue complète).
   const clesEssais = new Set(essais.map((e) => matchKey(e.nom ?? "", e.prenom ?? "", e.date_naissance)).filter(Boolean) as string[]);
-  // Tolérant si adherents.provenance (022) pas encore dans le cache PostgREST.
-  const resNouveaux = await supabase.from("adherents").select("nom, prenom, date_naissance, provenance, provenance_autre").eq("saison", saisonRef).not("provenance", "is", null);
-  const nouveaux = resNouveaux.error ? [] : (resNouveaux.data ?? []);
+  const nouveaux = exigerData(
+    await supabase.from("adherents").select("nom, prenom, date_naissance, provenance, provenance_autre").eq("saison", saisonRef).not("provenance", "is", null),
+    "essais: nouveaux adhérents provenance",
+  );
   const nouveauxSansEssai = (nouveaux ?? [])
     .filter((a) => {
       const k = matchKey(a.nom ?? "", a.prenom ?? "", a.date_naissance as string | null);
