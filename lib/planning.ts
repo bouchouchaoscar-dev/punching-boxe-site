@@ -247,6 +247,35 @@ export function dateDuJour(lundiISO: string, jourSemaine: number): Date {
   return base;
 }
 
+// [023] Séances d'une PÉRIODE pour un ensemble de cours récurrents : une entrée par
+// occurrence (cours × jour) comprise dans [debut;fin], VACANCES EXCLUES. SOURCE
+// UNIQUE réutilisée par l'aperçu (comptes), l'écriture du lot et le ciblage des mails.
+export type SeancePeriode = { coursId: string; semaine: string; date: string };
+export function genererSeancesPeriode(
+  cours: { id: string; jour_semaine: number | null }[],
+  debutISO: string,
+  finISO: string,
+  periodes: PeriodeFermeture[],
+): SeancePeriode[] {
+  const out: SeancePeriode[] = [];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(debutISO) || !/^\d{4}-\d{2}-\d{2}$/.test(finISO) || debutISO > finISO) return out;
+  const [dy, dm, dd] = debutISO.split("-").map(Number);
+  const [fy, fm, fd] = finISO.split("-").map(Number);
+  const fin = new Date(fy, fm - 1, fd);
+  const parJour = new Map<number, { id: string }[]>();
+  for (const c of cours) if (c.jour_semaine) (parJour.get(c.jour_semaine) ?? parJour.set(c.jour_semaine, []).get(c.jour_semaine)!).push({ id: c.id });
+  for (const t = new Date(dy, dm - 1, dd); t <= fin; t.setDate(t.getDate() + 1)) {
+    const dow = t.getDay() === 0 ? 7 : t.getDay(); // 1..7 (lundi..dimanche)
+    const coursDuJour = parJour.get(dow);
+    if (!coursDuJour) continue;
+    const iso = toISODate(t);
+    if (estFerme(iso, periodes)) continue; // séance en vacances → ignorée
+    const semaine = toISODate(lundiDeLaSemaine(t));
+    for (const c of coursDuJour) out.push({ coursId: c.id, semaine, date: iso });
+  }
+  return out;
+}
+
 /** "HH:MM" à partir d'un champ time Postgres ("HH:MM" ou "HH:MM:SS"). */
 export function formatHeure(t: string | null): string {
   if (!t) return "";

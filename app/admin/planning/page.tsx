@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mail, RotateCcw } from "lucide-react";
+import { Mail, RotateCcw, CalendarRange } from "lucide-react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
 import { CLUB } from "@/lib/constants";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -41,6 +41,8 @@ import { remplacerVariables, jetonsInconnus, type DestinataireVars } from "@/lib
 import { estEmailValide } from "@/lib/email-format";
 import { lireCache, ecrireCache, CLES } from "@/lib/admin-cache";
 import { useDonneesAdmin } from "@/components/admin/useDonneesAdmin";
+import { AffecterPeriodeModal } from "@/components/admin/AffecterPeriodeModal";
+import { LotsAffectationModal } from "@/components/admin/LotsAffectationModal";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -89,6 +91,8 @@ export default function PlanningPage() {
   // Aperçu d'envoi de planning (badge + bouton) et modales récap.
   const [envoiPreview, setEnvoiPreview] = useState<{ aEnvoyer: number; profs: { prof_id: string; nom: string; sansEmail: boolean; statut: string; nbCours: number }[] } | null>(null);
   const [envoiModal, setEnvoiModal] = useState(false);
+  const [periodeModal, setPeriodeModal] = useState(false);
+  const [lotsModal, setLotsModal] = useState(false);
   const [reprise, setReprise] = useState<{ source: string; sourceFermee: boolean; reprises: number; ignorees: number } | null>(null);
   const [busyAction, setBusyAction] = useState(false);
 
@@ -370,6 +374,14 @@ export default function PlanningPage() {
           ) : (
           <>
             {erreur && <ErreurPlanning message={erreur} onRetry={chargerBase} inline />}
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button onClick={() => setPeriodeModal(true)} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
+                <CalendarRange className="h-4 w-4" /> Affecter sur une période
+              </button>
+              <button onClick={() => setLotsModal(true)} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-orange">
+                Gérer les lots
+              </button>
+            </div>
             <PlanningSemaine
               semaineISO={semaineISO}
               cours={coursActifs}
@@ -595,6 +607,23 @@ export default function PlanningPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {periodeModal && (
+        <AffecterPeriodeModal
+          cours={coursActifs}
+          profs={profsActifs}
+          onClose={() => setPeriodeModal(false)}
+          onDone={(msg) => { setPeriodeModal(false); chargerAffectations(); flash(msg); }}
+        />
+      )}
+      {lotsModal && (
+        <LotsAffectationModal
+          cours={cours}
+          profs={profs}
+          onClose={() => setLotsModal(false)}
+          onDone={(msg) => { chargerAffectations(); flash(msg); }}
+        />
       )}
 
       {toast && (

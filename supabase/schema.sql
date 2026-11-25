@@ -410,8 +410,14 @@ create table if not exists public.affectations (
   semaine    date not null,                            -- lundi de la semaine concernée
   statut     text not null default 'prevu' check (statut in ('prevu','annule')),
   created_at timestamptz not null default now(),
+  lot_affectation_id uuid,                             -- [023] regroupe un lot « affecter sur une période » (null si unitaire)
   unique (cours_id, semaine, prof_id)                  -- [014] un prof au plus une fois par occurrence
 );
+create index if not exists affectations_lot_idx on public.affectations (lot_affectation_id) where lot_affectation_id is not null;
+-- [023] Écriture d'un lot d'affectations en une seule opération (voir migration 023).
+-- function public.appliquer_affectations_lot(p_pairs jsonb, p_profs uuid[], p_lot uuid, p_remplacer boolean) returns integer
+-- grant execute … to service_role ; puis REVOKE EXECUTE … FROM public, anon, authenticated
+-- (fonction réservée au serveur ; jamais appelable via l'API publique).
 create index if not exists affectations_semaine_idx on public.affectations (semaine);
 create index if not exists affectations_prof_idx    on public.affectations (prof_id);
 

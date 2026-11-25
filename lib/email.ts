@@ -946,6 +946,36 @@ export async function sendDecalageEcheances(d: {
   return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject: titre, html });
 }
 
+// [023] Affectation sur une période — UN SEUL mail récapitulatif par prof (jamais un
+// mail par séance ; jamais pour une séance passée : l'appelant ne transmet que les
+// séances d'aujourd'hui et futures). Liste des cours + période + nombre de séances.
+export async function sendAffectationPeriode(d: {
+  email: string;
+  prenom: string;
+  cours: { libelle: string; jour: string; horaire: string }[];
+  premiereSeance: string; // "samedi 6 septembre"
+  derniereSeance: string;
+  nbSeances: number;
+}) {
+  const client = getResend();
+  if (!client) return { skipped: true as const };
+  const titre = "Vos cours à venir";
+  // Sans accord de genre, sans tiret long. « Libellé, le mardi de 19h30 à 21h ».
+  const lignes = d.cours
+    .map((c) => `<li style="margin:4px 0;color:#444">${escapeHtml(c.libelle)}, le ${escapeHtml(c.jour.toLowerCase())} ${escapeHtml(c.horaire)}</li>`)
+    .join("");
+  const periode = d.premiereSeance === d.derniereSeance ? `le ${d.premiereSeance}` : `du ${d.premiereSeance} au ${d.derniereSeance}`;
+  const html = wrap(`
+    <h1 style="font-size:20px;margin:0 0 12px">${titre}</h1>
+    <p style="line-height:1.6;color:#444">Bonjour ${escapeHtml(d.prenom)},</p>
+    <p style="line-height:1.6;color:#444">Voici les cours qui vous sont confiés ${periode} :</p>
+    <ul style="margin:12px 0 16px;padding-left:20px">${lignes}</ul>
+    <p style="line-height:1.6;color:#444">Soit <strong>${d.nbSeances}</strong> séance${d.nbSeances > 1 ? "s" : ""} à venir. Merci pour votre engagement !</p>
+    <p style="line-height:1.6;color:#444;margin-top:12px">L'équipe ${CLUB.nomCourt}</p>
+  `);
+  return client.emails.send({ from: FROM, to: d.email, replyTo: REPLY_TO, subject: titre, html });
+}
+
 // [018] Relance d'un changement de formule (section 5). Contenu adaptatif fourni
 // par mailRelanceChangement (lib/changement-formule). Boutons payer/signer.
 export async function sendRelanceChangement(d: {
