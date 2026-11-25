@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { adminAuthHeaders, getAdminRole } from "@/lib/admin-auth";
@@ -184,7 +184,7 @@ function PresenceVue({ readOnly = false }: { readOnly?: boolean }) {
           onAjouter={() => setAjout(b)}
         />
       ))}
-      {detailEssai && !readOnly && <DetailEssaiModal ligne={detailEssai} onClose={() => setDetailEssai(null)} />}
+      {detailEssai && !readOnly && <DetailEssaiModal ligne={detailEssai} onClose={() => setDetailEssai(null)} onChange={() => { setDetailEssai(null); charger(); }} />}
       {ajout && !readOnly && <AjouterPresentModal bloc={ajout} onClose={() => setAjout(null)} onAjoute={() => { setAjout(null); charger(); }} />}
       {aRetirer && !readOnly && (
         <ConfirmDialog
@@ -279,8 +279,13 @@ function BlocCours({
   );
 }
 
-function Badge({ tone, children }: { tone: "rouge" | "bleu" | "ambre"; children: React.ReactNode }) {
-  const cls = tone === "rouge" ? "bg-red-50 text-red-700" : tone === "bleu" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700";
+function Badge({ tone, children }: { tone: "rouge" | "bleu" | "ambre" | "vert" | "gris"; children: React.ReactNode }) {
+  const cls =
+    tone === "rouge" ? "bg-red-50 text-red-700"
+    : tone === "bleu" ? "bg-blue-50 text-blue-700"
+    : tone === "vert" ? "bg-green-50 text-green-700"
+    : tone === "gris" ? "bg-paper-2 text-smoke"
+    : "bg-amber-50 text-amber-700";
   return <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${cls}`}>{children}</span>;
 }
 
@@ -401,22 +406,107 @@ function SeanceModal({ coursId, date, onClose }: { coursId: string; date: string
   );
 }
 
-function DetailEssaiModal({ ligne, onClose }: { ligne: Ligne; onClose: () => void }) {
+const STATUT_ESSAI_LABEL: Record<string, string> = {
+  inscrit: "Inscrit",
+  dossier_en_cours: "Dossier en cours",
+  en_attente: "En attente",
+  a_rappeler: "À rappeler",
+  rappele: "Rappelé",
+};
+
+type EssaiDetail = {
+  essai: { id: string; telephone: string | null; telephoneAffiche: string; email: string | null; provenance: string; premiereSeance: string; rappele_at: string | null; rappel_note: string | null; converti_dossier_id: string | null };
+  dossier: { id: string; nom: string | null } | null;
+  statut: { code: string; dateInscription: string | null; delaiJours: number | null };
+};
+
+function DetailEssaiModal({ ligne, onClose, onChange }: { ligne: Ligne; onClose: () => void; onChange: () => void }) {
   const relance = (v?: string | null) => (v ? new Date(v).toLocaleDateString("fr-FR") : "—");
+  const [detail, setDetail] = useState<EssaiDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [rattachOpen, setRattachOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [res, setRes] = useState<{ id: string; prenom: string; nom: string; annee?: number }[]>([]);
+
+  const charger = useCallback(() => {
+    if (!ligne.essaiId) return;
+    fetch(`/api/admin/presence/essai-detail?id=${ligne.essaiId}`, { headers: adminAuthHeaders(), cache: "no-store" })
+      .then((r) => r.json()).then((d) => { if (d.essai) setDetail(d as EssaiDetail); }).catch(() => {});
+  }, [ligne.essaiId]);
+  useEffect(() => { charger(); }, [charger]);
+
+  useEffect(() => {
+    if (q.trim().length < 3) { setRes([]); return; }
+    const t = setTimeout(() => {
+      fetch(`/api/presence/recherche?q=${encodeURIComponent(q.trim())}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setRes(d.resultats ?? [])).catch(() => {});
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  async function post(url: string, body: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...adminAuthHeaders() }, body: JSON.stringify(body) });
+      if (r.ok) onChange();
+    } finally { setBusy(false); }
+  }
+
+  const rappele = !!detail?.essai.rappele_at;
+  const converti = !!detail?.essai.converti_dossier_id;
+  const statutCode = detail?.statut.code;
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-5" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[88vh] w-full max-w-sm overflow-y-auto rounded-[1.5rem] bg-white p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge tone="bleu">Séance d&apos;essai</Badge>
           {ligne.essaiDejaUtilise && <Badge tone="rouge">déjà utilisée</Badge>}
+          {statutCode && <Badge tone={statutCode === "inscrit" ? "vert" : statutCode === "a_rappeler" ? "rouge" : "gris"}>{STATUT_ESSAI_LABEL[statutCode] ?? statutCode}</Badge>}
         </div>
         <h3 className="mt-2 font-display text-lg font-extrabold uppercase text-ink">{ligne.prenom} {ligne.nom.toUpperCase()}</h3>
         <dl className="mt-3 space-y-1.5 text-sm">
+          <div className="flex justify-between gap-2"><dt className="text-smoke">Téléphone</dt><dd className="text-ink">{detail?.essai.telephone ? <a href={`tel:${detail.essai.telephone}`} className="font-semibold text-orange underline">{detail.essai.telephoneAffiche}</a> : "—"}</dd></div>
           <div className="flex justify-between gap-2"><dt className="text-smoke">Email</dt><dd className="text-ink [overflow-wrap:anywhere]">{ligne.email || "—"}</dd></div>
+          <div className="flex justify-between gap-2"><dt className="text-smoke">Provenance</dt><dd className="text-ink">{detail?.essai.provenance || "—"}</dd></div>
           <div className="flex justify-between gap-2"><dt className="text-smoke">Relance 1</dt><dd className="text-ink">{relance(ligne.relance1)}</dd></div>
           <div className="flex justify-between gap-2"><dt className="text-smoke">Relance 2</dt><dd className="text-ink">{relance(ligne.relance2)}</dd></div>
-          <div className="flex justify-between gap-2"><dt className="text-smoke">Inscrit(e)</dt><dd className="text-ink">{ligne.converti ? "Oui ✓" : "Pas encore"}</dd></div>
+          <div className="flex justify-between gap-2"><dt className="text-smoke">Dossier</dt><dd className="text-ink">{detail?.dossier ? (detail.dossier.nom ?? "lié") : "aucun"}</dd></div>
+          {rappele && <div className="flex justify-between gap-2"><dt className="text-smoke">Rappelé</dt><dd className="text-ink">{relance(detail?.essai.rappele_at)}{detail?.essai.rappel_note ? ` · ${detail.essai.rappel_note}` : ""}</dd></div>}
         </dl>
+
+        {/* Rattachement manuel (filet humain : fautes de frappe sur le nom). */}
+        {converti ? (
+          <button disabled={busy} onClick={() => post("/api/admin/presence/rattacher", { essaiId: ligne.essaiId, detacher: true })} className="mt-3 w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-50">Détacher du dossier</button>
+        ) : (
+          <div className="mt-3">
+            {!rattachOpen ? (
+              <button onClick={() => setRattachOpen(true)} className="w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-orange">Rattacher à un adhérent</button>
+            ) : (
+              <>
+                <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="3 lettres du nom…" className="focus-ring w-full rounded-xl border border-line bg-white px-4 py-2 text-sm outline-none focus:border-orange" />
+                <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                  {res.map((r) => (
+                    <li key={r.id}>
+                      <button disabled={busy} onClick={() => post("/api/admin/presence/rattacher", { essaiId: ligne.essaiId, dossierId: r.id })} className="w-full rounded-lg border border-line px-3 py-2 text-left text-sm hover:border-orange disabled:opacity-50">{r.prenom} {r.nom.toUpperCase()}{r.annee ? ` · ${r.annee}` : ""}</button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Suivi du rappel téléphonique. */}
+        {rappele ? (
+          <button disabled={busy} onClick={() => post("/api/admin/presence/rappeler", { essaiId: ligne.essaiId, annuler: true })} className="mt-2 w-full rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-orange disabled:opacity-50">Annuler le rappel</button>
+        ) : (
+          <div className="mt-2 flex gap-2">
+            <input value={note} onChange={(e) => setNote(e.target.value.slice(0, 120))} maxLength={120} placeholder="Note (facultatif)" className="focus-ring min-w-0 flex-1 rounded-xl border border-line bg-white px-3 py-2 text-sm outline-none focus:border-orange" />
+            <button disabled={busy} onClick={() => post("/api/admin/presence/rappeler", { essaiId: ligne.essaiId, note })} className="shrink-0 rounded-full bg-ink px-4 py-2 text-sm font-bold text-white hover:bg-orange disabled:opacity-50">Rappelé</button>
+          </div>
+        )}
+
         <button onClick={onClose} className="mt-4 w-full rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">Fermer</button>
       </div>
     </div>

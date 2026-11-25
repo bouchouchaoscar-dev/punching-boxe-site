@@ -93,11 +93,13 @@ export async function GET(request: Request) {
 
   async function passer(numero: 1 | 2): Promise<void> {
     const colClaim = numero === 1 ? "relance_1_at" : "relance_2_at";
+    // [022] On ne lit plus `essais.desinscrit` (colonne jamais écrite = critère mort) :
+    // la désinscription réelle est `desinscriptions_mailing` (par email), appliquée
+    // via `exclusions` AVANT le claim (plus bas). Source unique, pas de doublon.
     let q = supabase
       .from("essais")
       .select("*")
       .is(colClaim, null)
-      .eq("desinscrit", false)
       .is("converti_dossier_id", null);
     q =
       numero === 1
@@ -127,6 +129,11 @@ export async function GET(request: Request) {
     // 3) Pour chaque groupe : claim idempotent PAR ESSAI (jamais deux mails pour la
     //    même relance), puis UN SEUL envoi pour les essais effectivement réservés.
     for (const membres of groupes.values()) {
+      // [022] Exclusion (désinscrit / bounce / email vide) testée AVANT le claim →
+      // un groupe exclu ne « consomme » jamais le créneau de relance (compteur juste).
+      const email = normaliserEmail(membres[0].email);
+      if (!email || exclusions.has(email)) continue;
+
       const reserves: Essai[] = [];
       for (const e of membres) {
         const { data: claimed } = await supabase
@@ -139,9 +146,6 @@ export async function GET(request: Request) {
         if (claimed) reserves.push(e);
       }
       if (reserves.length === 0) continue; // tout a été pris par un autre passage
-
-      const email = normaliserEmail(reserves[0].email);
-      if (!email || exclusions.has(email)) continue; // bounce / désinscrit (créneau déjà réservé)
 
       // Libellé de cours : commun si tous sur le même cours, sinon omis (on ne
       // met pas en avant un seul cours pour une fratrie répartie).
@@ -156,6 +160,19 @@ export async function GET(request: Request) {
       });
       if (numero === 1) envoyes1++;
       else envoyes2++;
+    }
+  }
+
+  // [022] FILET de conversion SANS limite de délai : rattache TOUT essai encore non
+  // rattaché dont le triplet correspond à un dossier de la saison (la conversion
+  // principale se fait désormais à la création du dossier). Arrête les relances.
+  {
+    const data = exigerData(
+      await supabase.from("essais").select("id, nom, prenom, date_naissance").is("converti_dossier_id", null),
+      "cron présence: filet conversion",
+    );
+    for (const e of (data ?? []) as Essai[]) {
+      if (await marquerSiConverti(e)) continue; // pose converti_dossier_id si dossier trouvé
     }
   }
 

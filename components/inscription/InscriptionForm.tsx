@@ -38,7 +38,10 @@ import {
   type InscriptionPayload,
   type LienParente,
 } from "@/lib/inscription";
+import { CONFIG_CLUB } from "@/lib/config-club";
 import { useAdherentSession } from "@/components/auth/useSession";
+
+const PROVENANCES = CONFIG_CLUB.modules.presence.provenances;
 import { saisonCourante, estJuin, saisonQuiSeTermine } from "@/lib/saison";
 import type { Adherent } from "@/lib/types";
 import { ficheBaseDepuisAdherent } from "@/lib/pdf/fiche-data";
@@ -108,6 +111,10 @@ export function InscriptionForm({
   const [adresse, setAdresse] = useState("");
   const [ville, setVille] = useState("");
   const [codePostal, setCodePostal] = useState("");
+  // [022] Provenance « comment avez-vous connu le club ? » — FACULTATIVE, ne bloque
+  // jamais. Si un essai rattaché a déjà une provenance, le serveur la reprend.
+  const [provenance, setProvenance] = useState("");
+  const [provenanceAutre, setProvenanceAutre] = useState("");
 
   const [lienParente, setLienParente] = useState<LienParente | "">("");
   const [saisonEnCoursChoisie, setSaisonEnCoursChoisie] = useState(false);
@@ -341,6 +348,8 @@ export function InscriptionForm({
       adresse,
       ville,
       code_postal: codePostal,
+      provenance: provenance || undefined,
+      provenance_autre: provenanceAutre || undefined,
       package: packageType,
       nouveau_membre: paieAdhesion,
       option_prepa_physique: prepa,
@@ -748,6 +757,30 @@ export function InscriptionForm({
                   ville={ville}
                   setVille={setVille}
                 />
+                <div className="sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-semibold text-ink">
+                    Comment avez-vous connu le club ? <span className="font-normal text-smoke">(facultatif)</span>
+                  </label>
+                  <select
+                    value={provenance}
+                    onChange={(e) => setProvenance(e.target.value)}
+                    className="focus-ring w-full rounded-xl border border-line bg-paper-2 px-3 py-3 text-sm outline-none focus:border-orange"
+                  >
+                    <option value="">—</option>
+                    {PROVENANCES.map((p) => (
+                      <option key={p.code} value={p.code}>{p.label}</option>
+                    ))}
+                  </select>
+                  {provenance === "autre" && (
+                    <input
+                      value={provenanceAutre}
+                      onChange={(e) => setProvenanceAutre(e.target.value.slice(0, 80))}
+                      maxLength={80}
+                      placeholder="Précisez"
+                      className="focus-ring mt-2 w-full rounded-xl border border-line bg-paper-2 px-3 py-3 text-sm outline-none focus:border-orange"
+                    />
+                  )}
+                </div>
                 {dateNaissance && (
                   <p className="sm:col-span-2 text-sm text-smoke">
                     Catégorie détectée :{" "}

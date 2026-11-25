@@ -13,6 +13,8 @@ import { estEmailValide, normaliserEmail } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
 import { autoriser, ipDe } from "@/lib/rate-limit";
+import { normaliserTelephoneFr } from "@/lib/telephone";
+import { provenanceValide } from "@/lib/statut-essai";
 
 export const runtime = "nodejs";
 
@@ -32,6 +34,9 @@ export async function POST(request: Request) {
     nom?: string;
     date_naissance?: string;
     email?: string;
+    telephone?: string;
+    provenance?: string;
+    provenance_autre?: string;
     coursId?: string;
     salle?: string;
   };
@@ -47,6 +52,13 @@ export async function POST(request: Request) {
   if (!prenom || !nom) return NextResponse.json({ error: "Prénom et nom requis." }, { status: 400 });
   if (!date_naissance) return NextResponse.json({ error: "Date de naissance requise." }, { status: 400 });
   if (!estEmailValide(email)) return NextResponse.json({ error: "Adresse email invalide" }, { status: 400 });
+  // Téléphone OBLIGATOIRE, normalisé E.164 (numéro français mobile ou fixe).
+  const telephone = normaliserTelephoneFr(body.telephone);
+  if (!telephone) return NextResponse.json({ error: "Numéro de téléphone français invalide." }, { status: 400 });
+  // Provenance FACULTATIVE (code de la config club) ; 'autre' → texte libre court.
+  const provenance = (body.provenance || "").trim() || null;
+  if (!provenanceValide(provenance)) return NextResponse.json({ error: "Provenance invalide." }, { status: 400 });
+  const provenance_autre = provenance === "autre" ? ((body.provenance_autre || "").trim().slice(0, 80) || null) : null;
 
   const supabase = getSupabaseAdmin();
   const { cours, periodes } = await chargerPlanning(supabase);
@@ -79,6 +91,9 @@ export async function POST(request: Request) {
     nom,
     date_naissance,
     email,
+    telephone,
+    provenance,
+    provenance_autre,
     source: "qr",
     dossiers,
   });

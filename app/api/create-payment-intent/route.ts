@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getStripe, isStripeConfigured } from "@/lib/stripe";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { apresCreationDossier } from "@/lib/presence-server";
 import {
   buildAdherentInsert,
   validatePayload,
@@ -259,6 +260,14 @@ export async function POST(request: Request) {
   if (!adherent) {
     return NextResponse.json({ error: "Insertion impossible." }, { status: 500 });
   }
+
+  // [022] Rattache les essais (triplet) dès la CRÉATION du dossier carte + reprend
+  // la provenance d'un essai si aucune n'existe. Idempotent, best-effort.
+  await apresCreationDossier(
+    supabase,
+    { id: adherent.id, nom: adherent.nom, prenom: adherent.prenom, date_naissance: adherent.date_naissance },
+    !!record.provenance || !!adherent.provenance,
+  );
 
   const stripe = getStripe();
   try {

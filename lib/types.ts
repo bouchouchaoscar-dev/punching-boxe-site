@@ -121,6 +121,9 @@ export interface Adherent {
   // Dossier dont le COMPTE a été créé par l'admin (pas une auto-inscription).
   // Posé true UNIQUEMENT par /api/admin/adherents/creer ; défaut false.
   cree_par_admin?: boolean;
+  // [022] Provenance « comment avez-vous connu le club ? » (facultatif).
+  provenance?: string | null;
+  provenance_autre?: string | null;
 }
 
 export type NewAdherent = Omit<Adherent, "id" | "created_at">;

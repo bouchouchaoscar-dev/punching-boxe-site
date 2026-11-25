@@ -122,7 +122,11 @@ create table if not exists public.adherents (
   fiche_a_resigner          boolean not null default false,   -- doc à re-signer par l'adhérent
   reglement_a_resigner      boolean not null default false,   -- doc à re-signer par l'adhérent
   resignature_demandee_at   timestamptz,                      -- quand l'admin a demandé la re-signature
-  responsable               text                              -- représentant légal (persisté à la re-signature)
+  responsable               text,                             -- représentant légal (persisté à la re-signature)
+  -- [022] Provenance « comment avez-vous connu le club ? » (facultatif à l'inscription)
+  provenance                text,
+  provenance_autre          text,
+  constraint adherents_provenance_autre_len check (provenance_autre is null or char_length(provenance_autre) <= 80)
 );
 
 create index if not exists adherents_saison_idx      on public.adherents (saison);
@@ -504,8 +508,19 @@ create table if not exists public.essais (
   relance_1_at         timestamptz,
   relance_2_at         timestamptz,
   converti_dossier_id  uuid references public.adherents(id) on delete set null,
-  desinscrit           boolean not null default false
+  desinscrit           boolean not null default false,
+  -- [022] Suivi des essais : coordonnée de rappel + provenance + rappel téléphonique.
+  telephone            text,                         -- E.164 normalisé (app-side)
+  provenance           text,                         -- code (liste en config club)
+  provenance_autre     text,                         -- texte libre si provenance='autre' (<=80)
+  rappele_at           timestamptz,                  -- rappel téléphonique effectué
+  rappel_note          text,                         -- note courte du rappel (<=120)
+  rappele_par          text,                         -- admin ayant rappelé
+  constraint essais_provenance_autre_len check (provenance_autre is null or char_length(provenance_autre) <= 80),
+  constraint essais_rappel_note_len      check (rappel_note is null or char_length(rappel_note) <= 120)
 );
+create index if not exists essais_converti_idx on public.essais (converti_dossier_id) where converti_dossier_id is not null;
+create index if not exists essais_date_seance_idx on public.essais (date_seance);
 create index if not exists essais_email_idx on public.essais (email);
 create index if not exists essais_created_idx on public.essais (created_at);
 alter table public.essais enable row level security;

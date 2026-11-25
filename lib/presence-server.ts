@@ -112,6 +112,65 @@ export function trouverDossierCorrespondant(
 }
 
 /**
+ * [022] Rattache à un dossier TOUS ses essais encore non rattachés (triplet
+ * matchKey, jamais l'email). Pose `converti_dossier_id` → arrête les relances mail
+ * d'essai (le cron exclut converti_dossier_id non nul) et fiabilise la conversion
+ * (plus seulement le cron). Idempotent. Renvoie le nombre rattaché + la provenance
+ * reprise du plus récent essai qui en a une (pour l'inscription).
+ */
+export async function rattacherEssaisAuDossier(
+  supabase: SupabaseClient,
+  dossier: { id: string; nom?: string | null; prenom?: string | null; date_naissance?: string | null },
+): Promise<{ count: number; provenance: string | null; provenance_autre: string | null }> {
+  const vide = { count: 0, provenance: null as string | null, provenance_autre: null as string | null };
+  const cle = matchKey(dossier.nom ?? "", dossier.prenom ?? "", dossier.date_naissance);
+  if (!cle) return vide;
+  const { data, error } = await supabase
+    .from("essais")
+    .select("id, nom, prenom, date_naissance, date_seance, provenance, provenance_autre")
+    .is("converti_dossier_id", null);
+  if (error || !data) return vide; // table/colonnes absentes (pré-migration) → no-op
+  const cibles = (data as Record<string, unknown>[]).filter(
+    (e) => matchKey(e.nom as string, e.prenom as string, e.date_naissance as string | null) === cle,
+  );
+  if (cibles.length === 0) return vide;
+  await supabase.from("essais").update({ converti_dossier_id: dossier.id }).in("id", cibles.map((e) => e.id as string));
+  // Provenance reprise = celle de l'essai le plus récent qui en a une.
+  const avecProv = cibles
+    .filter((e) => !!e.provenance)
+    .sort((a, b) => String(b.date_seance).localeCompare(String(a.date_seance)))[0];
+  return {
+    count: cibles.length,
+    provenance: (avecProv?.provenance as string | null) ?? null,
+    provenance_autre: (avecProv?.provenance_autre as string | null) ?? null,
+  };
+}
+
+/**
+ * [022] À appeler APRÈS la création d'un dossier (inscription en ligne ou admin).
+ * Rattache les essais de la personne et, si aucune provenance n'a été saisie à
+ * l'inscription, REPREND celle d'un essai rattaché (ne repose pas la question).
+ * BEST-EFFORT : n'échoue jamais le tunnel d'inscription (try/catch + log).
+ */
+export async function apresCreationDossier(
+  supabase: SupabaseClient,
+  dossier: { id: string; nom?: string | null; prenom?: string | null; date_naissance?: string | null },
+  provenanceFournie: boolean,
+): Promise<void> {
+  try {
+    const r = await rattacherEssaisAuDossier(supabase, dossier);
+    if (!provenanceFournie && r.provenance) {
+      await supabase
+        .from("adherents")
+        .update({ provenance: r.provenance, provenance_autre: r.provenance_autre })
+        .eq("id", dossier.id);
+    }
+  } catch (e) {
+    console.error("[ESSAIS] rattachement/ provenance à la création échoué:", dossier.id, e);
+  }
+}
+
+/**
  * Retrait admin d'une présence. Si la présence est liée à un ESSAI et que c'était
  * sa DERNIÈRE présence, on supprime aussi la fiche d'essai (→ plus de relances) —
  * cohérent avec la modale de confirmation. Si l'essai a d'autres présences, seule
@@ -188,6 +247,9 @@ export async function attacherPresenceEssai(
     nom: string;
     date_naissance: string;
     email: string; // déjà normalisé
+    telephone?: string | null; // E.164 normalisé (ou null)
+    provenance?: string | null;
+    provenance_autre?: string | null;
     source: "qr" | "manuel";
     createdBy?: string | null;
     dossiers?: DossierPresence[]; // évite un rechargement si déjà en main
@@ -234,7 +296,17 @@ export async function attacherPresenceEssai(
     if (!essaiId) {
       const { data: cree, error: eEssai } = await supabase
         .from("essais")
-        .insert({ nom: p.nom, prenom: p.prenom, date_naissance: p.date_naissance, email: p.email, cours_id: p.coursId, date_seance: p.dateSeance })
+        .insert({
+          nom: p.nom,
+          prenom: p.prenom,
+          date_naissance: p.date_naissance,
+          email: p.email,
+          telephone: p.telephone ?? null,
+          provenance: p.provenance ?? null,
+          provenance_autre: p.provenance === "autre" ? (p.provenance_autre ?? null) : null,
+          cours_id: p.coursId,
+          date_seance: p.dateSeance,
+        })
         .select("id")
         .single();
       if (eEssai || !cree) return { ok: false, error: "Enregistrement impossible." };

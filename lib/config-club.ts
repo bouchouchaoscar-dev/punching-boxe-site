@@ -81,6 +81,19 @@ export const CONFIG_CLUB = {
       relancesEssai: { premiereHeures: 24, secondeJours: 7 },
       conservationSaisons: 1,
       essaisGratuits: 1, // séances d'essai autorisées avant « essai déjà utilisé »
+      // Seuil (jours) à partir duquel un essai SANS dossier rattaché passe de
+      // « en attente » à « à rappeler ». Aucun nombre en dur ailleurs.
+      conversionSeuilJours: 14,
+      // « Comment avez-vous connu le club ? » — liste SOURCE UNIQUE (codes + libellés),
+      // en config pour la duplication. 'autre' ouvre un champ texte libre facultatif.
+      provenances: [
+        { code: "bouche_a_oreille", label: "Bouche-à-oreille" },
+        { code: "recommandation_adherent", label: "Recommandation d'un adhérent" },
+        { code: "site_internet", label: "Site internet" },
+        { code: "affiche_rue", label: "Affiche dans la rue" },
+        { code: "communication_ville", label: "Communication de la ville (magazine, site de la mairie)" },
+        { code: "autre", label: "Autre" },
+      ] as { code: string; label: string }[],
     },
   },
 

@@ -5,8 +5,12 @@ import { DatePicker } from "@/components/ui/DatePicker";
 import { presenceActif, messageFenetreFermee } from "@/lib/presence";
 import { estEmailValide } from "@/lib/email-format";
 import { estMineur } from "@/lib/pricing";
+import { telephoneFrValide } from "@/lib/telephone";
 import { CLUB } from "@/lib/constants";
+import { CONFIG_CLUB } from "@/lib/config-club";
 import { fr } from "@/lib/typo";
+
+const PROVENANCES = CONFIG_CLUB.modules.presence.provenances;
 
 type CoursPublic = { id: string; libelle: string | null; discipline: string; public: string; horaire: string; salle: string | null };
 type Resultat = { id: string; prenom: string; nom: string; annee?: number };
@@ -253,14 +257,19 @@ function VueEssai({
   const [nom, setNom] = useState("");
   const [dateNaissance, setDateNaissance] = useState("");
   const [email, setEmail] = useState("");
+  const [telephone, setTelephone] = useState("");
+  const [provenance, setProvenance] = useState("");
+  const [provenanceAutre, setProvenanceAutre] = useState("");
   const [choix, setChoix] = useState<{ cours: CoursPublic[]; selectionId: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [erreur, setErreur] = useState("");
 
   const mineur = useMemo(() => (dateNaissance ? estMineur(dateNaissance) : false), [dateNaissance]);
   const emailLabel = mineur ? "Email d'un parent ou du représentant légal" : "Ton email";
+  const telLabel = mineur ? "Téléphone d'un parent ou du représentant légal" : "Téléphone";
   const emailOk = email.length > 3 ? estEmailValide(email) : true;
-  const pret = prenom.trim() && nom.trim() && dateNaissance && estEmailValide(email);
+  const telOk = telephone.trim().length > 3 ? telephoneFrValide(telephone) : true;
+  const pret = prenom.trim() && nom.trim() && dateNaissance && estEmailValide(email) && telephoneFrValide(telephone);
 
   async function envoyer(coursId?: string) {
     setBusy(true);
@@ -269,7 +278,7 @@ function VueEssai({
       const r = await fetch("/api/presence/essai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prenom, nom, date_naissance: dateNaissance, email, coursId, salle }),
+        body: JSON.stringify({ prenom, nom, date_naissance: dateNaissance, email, telephone, provenance: provenance || undefined, provenance_autre: provenanceAutre || undefined, coursId, salle }),
       });
       const d = await r.json();
       if (!r.ok) { setErreur(d.error || "Impossible d'enregistrer."); return; }
@@ -300,6 +309,41 @@ function VueEssai({
           placeholder="email@exemple.fr"
         />
         {!emailOk && <p className="mt-1 text-xs font-semibold text-red-300">Adresse email invalide</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-white/80">{telLabel}</label>
+        <input
+          type="tel"
+          inputMode="tel"
+          value={telephone}
+          onChange={(e) => setTelephone(e.target.value)}
+          className="mt-1 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-orange"
+          placeholder="06 12 34 56 78"
+        />
+        <p className="mt-1 text-xs text-white/50">Utilisé uniquement par le club pour vous recontacter.</p>
+        {!telOk && <p className="mt-1 text-xs font-semibold text-red-300">Numéro de téléphone français invalide</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-semibold text-white/80">Comment avez-vous connu le club ? <span className="font-normal text-white/40">(facultatif)</span></label>
+        <select
+          value={provenance}
+          onChange={(e) => setProvenance(e.target.value)}
+          className="mt-1 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white outline-none focus:border-orange"
+        >
+          <option value="" className="text-ink">—</option>
+          {PROVENANCES.map((p) => (
+            <option key={p.code} value={p.code} className="text-ink">{p.label}</option>
+          ))}
+        </select>
+        {provenance === "autre" && (
+          <input
+            value={provenanceAutre}
+            onChange={(e) => setProvenanceAutre(e.target.value.slice(0, 80))}
+            maxLength={80}
+            placeholder="Précisez"
+            className="mt-2 w-full rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-white placeholder-white/40 outline-none focus:border-orange"
+          />
+        )}
       </div>
       {erreur && <p className="rounded-xl bg-red-500/20 p-3 text-sm text-red-200">{erreur}</p>}
       <button onClick={() => envoyer()} disabled={busy || !pret} className="w-full rounded-full bg-orange py-3 font-bold text-white disabled:opacity-50">

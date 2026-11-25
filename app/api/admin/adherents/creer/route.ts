@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { apresCreationDossier } from "@/lib/presence-server";
 import { isAdminRequest } from "@/lib/admin-guard";
 import { TARIFS, PACKAGE_LABEL, type PackageType } from "@/lib/pricing";
 import { saisonCourante } from "@/lib/saison";
@@ -183,6 +184,14 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  // [022] Rattache les essais de la personne (triplet). No-op tant que la date de
+  // naissance n'est pas renseignée (complétion) ; le cron sert alors de filet.
+  await apresCreationDossier(
+    supabase,
+    { id: inserted.id as string, nom, prenom, date_naissance: null },
+    false,
+  );
 
   // --- Lien d'activation (définition du mot de passe) → notre mail Resend ---
   // Helper partagé (lib/activation.ts) : lien 'recovery' vers /auth/reset-password,

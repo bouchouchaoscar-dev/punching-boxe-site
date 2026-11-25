@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { apresCreationDossier } from "@/lib/presence-server";
 import { signerDocsAdherents } from "@/lib/storage-url";
 import {
   buildAdherentInsert,
@@ -187,6 +188,14 @@ export async function POST(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // [022] Rattache les essais de la personne au dossier (triplet) + reprend la
+  // provenance d'un essai si non saisie. Best-effort (ne casse pas l'inscription).
+  await apresCreationDossier(
+    supabase,
+    { id: data.id, nom: data.nom, prenom: data.prenom, date_naissance: data.date_naissance },
+    !!record.provenance,
+  );
 
   // Emails d'inscription (best-effort, n'interrompent pas la réponse).
   // Exactly-once via claim atomique (protège aussi d'une double soumission).

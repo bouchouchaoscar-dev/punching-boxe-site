@@ -73,6 +73,9 @@ export interface InscriptionPayload {
   nb_membres_famille: number;
   mode_paiement: ModePaiement;
   lien_parente: LienParente;
+  // [022] « Comment avez-vous connu le club ? » (facultatif, code de la config club).
+  provenance?: string;
+  provenance_autre?: string;
   // Intention (juin) de s'inscrire pour la saison qui se termine plutôt que la
   // suivante. La VALEUR de saison est calculée serveur, jamais reçue du client.
   saison_en_cours?: boolean;
@@ -173,6 +176,9 @@ export function buildAdherentInsert(
       p.package === "savate_prepa" ? true : !!p.option_prepa_physique,
     nb_membres_famille: Number(p.nb_membres_famille) || 0,
     montant_total: tarif.total,
+    // [022] Provenance facultative (jamais bloquante) ; 'autre' → texte libre (<=80).
+    provenance: p.provenance?.trim() || null,
+    provenance_autre: p.provenance === "autre" ? (p.provenance_autre?.trim().slice(0, 80) || null) : null,
     mode_paiement: p.mode_paiement,
     statut_paiement: statut,
     titulaire_id: titulaireId,
