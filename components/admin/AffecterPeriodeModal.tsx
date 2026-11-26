@@ -31,6 +31,9 @@ export function AffecterPeriodeModal({ cours, profs, onClose, onDone }: {
   const [error, setError] = useState("");
 
   const parJour = useMemo(() => JOURS.map((j) => ({ jour: j, liste: cours.filter((c) => c.jour_semaine === j.valeur) })).filter((g) => g.liste.length), [cours]);
+  // Libellé dynamique des profs sélectionnés (prénom si un seul, « ces profs » sinon).
+  const multiProfs = profSel.size > 1;
+  const nomProfs = multiProfs ? "ces profs" : (profs.find((p) => profSel.has(p.id))?.prenom || "ce prof");
   const pret = coursSel.size > 0 && profSel.size > 0 && /^\d{4}-\d{2}-\d{2}$/.test(debut) && /^\d{4}-\d{2}-\d{2}$/.test(fin) && debut <= fin;
   const toggle = (set: Set<string>, id: string, setter: (s: Set<string>) => void) => { const n = new Set(set); n.has(id) ? n.delete(id) : n.add(id); setter(n); };
 
@@ -114,9 +117,18 @@ export function AffecterPeriodeModal({ cours, profs, onClose, onDone }: {
             <div className="space-y-2 text-left text-sm">
               <p><strong>{recap.seancesTotal}</strong> séance{recap.seancesTotal > 1 ? "s" : ""} à affecter{recap.deja > 0 ? <>, dont <strong>{recap.deja}</strong> {recap.deja > 1 ? "ont" : "a"} déjà un prof.</> : "."}</p>
               {recap.deja > 0 && (
-                <div className="space-y-1">
-                  <label className="flex items-center gap-2"><input type="radio" checked={!remplacer} onChange={() => setRemplacer(false)} className="accent-orange" /> Conserver les affectations existantes</label>
-                  <label className="flex items-center gap-2"><input type="radio" checked={remplacer} onChange={() => setRemplacer(true)} className="accent-orange" /> Remplacer par {profSel.size > 1 ? "ces profs" : "ce prof"}</label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2">
+                    <input type="radio" checked={!remplacer} onChange={() => setRemplacer(false)} className="mt-0.5 accent-orange" />
+                    <span>
+                      Garder les profs déjà en place sur ces <strong>{recap.deja}</strong> séance{recap.deja > 1 ? "s" : ""}{" "}
+                      <span className="text-smoke">({nomProfs} {multiProfs ? "ne sont ajoutés" : "n'est ajouté"} que sur {recap.seancesTotal - recap.deja > 1 ? `les ${recap.seancesTotal - recap.deja} autres` : "l'autre séance"})</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2">
+                    <input type="radio" checked={remplacer} onChange={() => setRemplacer(true)} className="mt-0.5 accent-orange" />
+                    <span>Remplacer par {nomProfs} sur ces <strong>{recap.deja}</strong> séance{recap.deja > 1 ? "s" : ""}</span>
+                  </label>
                 </div>
               )}
               <p className="text-smoke">Les séances passées ne déclenchent aucun mail. Un seul mail récapitulatif par prof pour les séances à venir.</p>

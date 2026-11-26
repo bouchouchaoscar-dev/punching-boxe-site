@@ -28,7 +28,16 @@ export function ConfirmDialog({
       ? "bg-red-600 hover:bg-red-700"
       : "bg-orange hover:brightness-95";
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/40 p-4" role="dialog" aria-modal="true">
+    // stopPropagation : ce dialogue peut être rendu À L'INTÉRIEUR d'une modale dont
+    // le fond ferme au clic (onClick={onClose}). Sans cela, cliquer un bouton ou un
+    // radio du dialogue remonte jusqu'à ce fond et ferme tout (bug « Remplacer » qui
+    // fermait la fenêtre). Un overlay de dialogue ne doit jamais fuir ses clics.
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-ink/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => e.stopPropagation()}
+    >
       <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6">
         <h2 className="font-display text-lg font-extrabold uppercase text-ink">{title}</h2>
         {message && <div className="mt-3 text-sm text-smoke">{message}</div>}
