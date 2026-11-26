@@ -400,6 +400,67 @@ export function estFerme(dateISO: string, periodes: PeriodeFermeture[]): Periode
   return null;
 }
 
+// ---- Impact d'une modification/suppression de fermeture (PUR, testable) ------
+type Plage = { debut: string; fin: string };
+const dansPlage = (iso: string, p: Plage | null) => !!p && iso >= p.debut && iso <= p.fin;
+
+/**
+ * [025] Jours dont l'état « ouvert/fermé » CHANGE quand une fermeture passe de
+ * `ancien` à `nouveau` (null = inexistant : création / suppression). `autres` =
+ * les AUTRES fermetures (hors celle qu'on modifie) : un jour déjà fermé par une
+ * autre période ne change pas d'état. Renvoie les jours (ISO) qui :
+ *   - deviennentFermes : nouvellement couverts et pas déjà fermés par ailleurs ;
+ *   - redeviennentOuverts : quittés par la fermeture et pas fermés par ailleurs.
+ */
+export function joursImpactesFermeture(
+  ancien: Plage | null,
+  nouveau: Plage | null,
+  autres: PeriodeFermeture[],
+): { deviennentFermes: string[]; redeviennentOuverts: string[] } {
+  const bornes: string[] = [];
+  for (const p of [ancien, nouveau]) if (p) bornes.push(p.debut, p.fin);
+  const deviennentFermes: string[] = [];
+  const redeviennentOuverts: string[] = [];
+  if (!bornes.length) return { deviennentFermes, redeviennentOuverts };
+  const min = bornes.reduce((a, b) => (a < b ? a : b));
+  const max = bornes.reduce((a, b) => (a > b ? a : b));
+  const [y, m, d] = min.split("-").map(Number);
+  const [fy, fm, fd] = max.split("-").map(Number);
+  const fin = new Date(fy, fm - 1, fd);
+  for (const t = new Date(y, m - 1, d); t <= fin; t.setDate(t.getDate() + 1)) {
+    const iso = toISODate(t);
+    const avant = dansPlage(iso, ancien);
+    const apres = dansPlage(iso, nouveau);
+    if (avant === apres) continue; // pas de changement pour ce jour
+    if (estFerme(iso, autres)) continue; // déjà fermé par une autre période → inchangé
+    if (apres) deviennentFermes.push(iso);
+    else redeviennentOuverts.push(iso);
+  }
+  return { deviennentFermes, redeviennentOuverts };
+}
+
+/**
+ * Séances RÉCURRENTES tombant sur une liste de jours ISO (une par cours dont le
+ * jour_semaine correspond). Exclut les séances PONCTUELLES (date_unique), non
+ * concernées par les fermetures. Renvoie (coursId, date, semaine=lundi).
+ */
+export function seancesSurJours(
+  jours: string[],
+  coursRecurrents: { id: string; jour_semaine: number | null; date_unique?: string | null }[],
+): { coursId: string; date: string; semaine: string }[] {
+  const out: { coursId: string; date: string; semaine: string }[] = [];
+  for (const iso of jours) {
+    const [y, mo, d] = iso.split("-").map(Number);
+    const dow = new Date(y, mo - 1, d).getDay() === 0 ? 7 : new Date(y, mo - 1, d).getDay();
+    const semaine = toISODate(lundiDeLaSemaine(new Date(y, mo - 1, d)));
+    for (const c of coursRecurrents) {
+      if (c.date_unique) continue; // ponctuelle : pas concernée par les fermetures
+      if (c.jour_semaine === dow) out.push({ coursId: c.id, date: iso, semaine });
+    }
+  }
+  return out;
+}
+
 // ---- Envoi de planning aux profs : snapshot + diff (PUR, testable) ----------
 export type CoursEnvoi = {
   cours_id: string;

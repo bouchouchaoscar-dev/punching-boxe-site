@@ -51,6 +51,40 @@ export async function POST(request: Request) {
   return NextResponse.json({ periode: data });
 }
 
+// PATCH — modifier une période (nom, dates) SANS la supprimer. Validation :
+// nom requis, dates ISO, fin ≥ début. Aucune donnée dérivée n'est touchée
+// (affectations/présences restent) ; aucun mail. Admin only, fail-closed.
+export async function PATCH(request: Request) {
+  if (!planningActif()) return NextResponse.json({ error: "Module désactivé." }, { status: 404 });
+  if (!isAdminRequest(request)) return NextResponse.json({ error: "Non autorisé." }, { status: 401 });
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Supabase non configuré." }, { status: 503 });
+
+  let body: { id?: string; libelle?: string; date_debut?: string; date_fin?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Corps invalide." }, { status: 400 });
+  }
+  const id = (body.id || "").trim();
+  const libelle = (body.libelle || "").trim();
+  const dd = (body.date_debut || "").trim();
+  const df = (body.date_fin || "").trim();
+  if (!id) return NextResponse.json({ error: "Identifiant requis." }, { status: 400 });
+  if (!libelle) return NextResponse.json({ error: "Le nom de la fermeture est requis." }, { status: 400 });
+  if (!ISO.test(dd) || !ISO.test(df)) return NextResponse.json({ error: "Dates de début et de fin requises." }, { status: 400 });
+  if (df < dd) return NextResponse.json({ error: "La date de fin précède le début." }, { status: 400 });
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("periodes_fermeture")
+    .update({ libelle, date_debut: dd, date_fin: df })
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ periode: data });
+}
+
 // DELETE — supprimer une période (id dans le corps).
 export async function DELETE(request: Request) {
   if (!planningActif()) return NextResponse.json({ error: "Module désactivé." }, { status: 404 });

@@ -48,6 +48,7 @@ import { AffecterPeriodeModal } from "@/components/admin/AffecterPeriodeModal";
 import { LotsAffectationModal } from "@/components/admin/LotsAffectationModal";
 import { SeancePonctuelleModal } from "@/components/admin/SeancePonctuelleModal";
 import { TauxHoraireModal } from "@/components/admin/TauxHoraireModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 type Tab = "calendrier" | "profs" | "cours" | "fermetures";
 
@@ -1916,8 +1917,37 @@ function StatsHeures() {
 }
 
 // ============================================================================
-// Onglet FERMETURES
+// Onglet FERMETURES — création, MODIFICATION (nom + dates) et suppression, avec
+// récap d'impact calculé serveur dès que les dates changent (ou à la suppression).
 // ============================================================================
+type ImpactFermeture = {
+  deviennentFermees: { seances: number; avecProf: number; avecPresences: number };
+  redeviennentOuvertes: { seances: number };
+};
+
+// Phrase de récap style « 6 séances deviennent fermées, dont 4 avec un prof
+// affecté et 1 avec des présences pointées. 2 séances redeviennent ouvertes. »
+function phraseImpact(i: ImpactFermeture): string {
+  const f = i.deviennentFermees;
+  const o = i.redeviennentOuvertes;
+  const parts: string[] = [];
+  if (f.seances > 0) {
+    const pl = f.seances > 1;
+    let s = `${f.seances} séance${pl ? "s" : ""} ${pl ? "deviennent fermées" : "devient fermée"}`;
+    const sub: string[] = [];
+    if (f.avecProf > 0) sub.push(`${f.avecProf} avec un prof affecté`);
+    if (f.avecPresences > 0) sub.push(`${f.avecPresences} avec des présences pointées`);
+    if (sub.length) s += `, dont ${sub.join(" et ")}`;
+    parts.push(s);
+  }
+  if (o.seances > 0) {
+    const pl = o.seances > 1;
+    parts.push(`${o.seances} séance${pl ? "s" : ""} ${pl ? "redeviennent ouvertes" : "redevient ouverte"}`);
+  }
+  if (!parts.length) return "Aucune séance récurrente impactée. Les séances ponctuelles ne sont pas concernées.";
+  return parts.join(". ") + ". Aucune donnée n'est supprimée (affectations et présences restent) ; seul le calendrier suit les nouvelles dates.";
+}
+
 function FermeturesTab({
   periodes,
   onChanged,
@@ -1936,15 +1966,32 @@ function FermeturesTab({
   };
 
   const aujourdhui = toISODate(new Date());
+  const [editId, setEditId] = useState<string | null>(null);
   const [libelle, setLibelle] = useState("");
-  // Début pré-rempli à aujourd'hui ; fin à +2 semaines (modifiable ensuite).
   const [debut, setDebut] = useState(aujourdhui);
   const [fin, setFin] = useState(() => plus2Semaines(aujourdhui));
   const [finTouchee, setFinTouchee] = useState(false); // ne pas écraser une fin saisie main
   const [busy, setBusy] = useState(false);
+  // ConfirmDialog : modification (dates changées) ou suppression, avec impact serveur.
+  const [confirm, setConfirm] = useState<{ kind: "edit" | "delete"; periode: PeriodeFermeture; impact: ImpactFermeture } | null>(null);
 
-  // Changer le début recalcule la fin à +2 semaines, SAUF si l'admin a déjà
-  // ajusté la fin manuellement.
+  const enEdition = editId !== null;
+
+  function reinitForm() {
+    setEditId(null);
+    setLibelle("");
+    setDebut(aujourdhui);
+    setFin(plus2Semaines(aujourdhui));
+    setFinTouchee(false);
+  }
+  function editer(p: PeriodeFermeture) {
+    setEditId(p.id);
+    setLibelle(p.libelle ?? "");
+    setDebut(p.date_debut);
+    setFin(p.date_fin);
+    setFinTouchee(true); // dates réelles : ne pas recalculer la fin automatiquement
+  }
+
   function onChangeDebut(v: string) {
     setDebut(v);
     if (!finTouchee) setFin(plus2Semaines(v));
@@ -1954,50 +2001,88 @@ function FermeturesTab({
     setFinTouchee(true);
   }
 
+  async function fetchImpact(payload: { id: string; date_debut?: string; date_fin?: string; suppression?: boolean }): Promise<ImpactFermeture | null> {
+    const res = await fetch("/api/admin/planning/fermetures/impact", { method: "POST", headers: jsonHeaders(), body: JSON.stringify(payload) });
+    const d = await res.json();
+    if (!res.ok) { flash(d.error || "Impossible de calculer l'impact."); return null; }
+    return d as ImpactFermeture;
+  }
+
   async function ajouter() {
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/planning/fermetures", {
-        method: "POST",
-        headers: jsonHeaders(),
-        body: JSON.stringify({ libelle, date_debut: debut, date_fin: fin }),
-      });
+      const res = await fetch("/api/admin/planning/fermetures", { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ libelle, date_debut: debut, date_fin: fin }) });
       const d = await res.json();
-      if (!res.ok) {
-        flash(d.error || "Échec de l'ajout.");
-        return;
-      }
+      if (!res.ok) { flash(d.error || "Échec de l'ajout."); return; }
       flash("Période ajoutée ✓");
-      setLibelle("");
-      setDebut(aujourdhui);
-      setFin(plus2Semaines(aujourdhui));
-      setFinTouchee(false);
+      reinitForm();
       onChanged();
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
-  async function supprimer(id: string) {
-    const res = await fetch("/api/admin/planning/fermetures", {
-      method: "DELETE",
-      headers: jsonHeaders(),
-      body: JSON.stringify({ id }),
-    });
-    if (res.ok) {
-      flash("Période supprimée");
+  async function appliquerEdit() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/planning/fermetures", { method: "PATCH", headers: jsonHeaders(), body: JSON.stringify({ id: editId, libelle, date_debut: debut, date_fin: fin }) });
+      const d = await res.json();
+      setConfirm(null);
+      if (!res.ok) { flash(d.error || "Échec de la modification."); return; }
+      flash("Fermeture modifiée ✓");
+      reinitForm();
       onChanged();
-    }
+    } finally { setBusy(false); }
   }
+
+  // Enregistrer : création, ou édition. Si les dates changent → récap d'impact
+  // AVANT d'appliquer ; si seul le nom change → application directe (aucun récap).
+  async function soumettre() {
+    if (!enEdition) return ajouter();
+    const orig = periodes.find((p) => p.id === editId);
+    const datesChangees = !orig || orig.date_debut !== debut || orig.date_fin !== fin;
+    if (!datesChangees) return appliquerEdit();
+    setBusy(true);
+    try {
+      const impact = await fetchImpact({ id: editId!, date_debut: debut, date_fin: fin });
+      if (impact && orig) setConfirm({ kind: "edit", periode: orig, impact });
+    } finally { setBusy(false); }
+  }
+
+  async function demanderSuppression(p: PeriodeFermeture) {
+    setBusy(true);
+    try {
+      const impact = await fetchImpact({ id: p.id, suppression: true });
+      if (impact) setConfirm({ kind: "delete", periode: p, impact });
+    } finally { setBusy(false); }
+  }
+
+  async function supprimer() {
+    if (!confirm) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/planning/fermetures", { method: "DELETE", headers: jsonHeaders(), body: JSON.stringify({ id: confirm.periode.id }) });
+      setConfirm(null);
+      if (res.ok) {
+        flash("Période supprimée");
+        if (editId === confirm.periode.id) reinitForm();
+        onChanged();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        flash(d.error || "Échec de la suppression.");
+      }
+    } finally { setBusy(false); }
+  }
+
+  // Nom requis en édition ; optionnel à la création (comportement existant).
+  const peutEnregistrer = !!debut && !!fin && (!enEdition || !!libelle.trim());
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
       <div className="rounded-xl border border-line p-4">
         <h3 className="font-display text-base font-extrabold uppercase text-ink">
-          Nouvelle fermeture
+          {enEdition ? "Modifier la fermeture" : "Nouvelle fermeture"}
         </h3>
         <div className="mt-3 space-y-3">
-          <Field label="Libellé (option)">
+          <Field label={enEdition ? "Nom" : "Libellé (option)"}>
             <input
               value={libelle}
               onChange={(e) => setLibelle(e.target.value)}
@@ -2007,13 +2092,20 @@ function FermeturesTab({
           </Field>
           <DatePicker label="Début" value={debut} onChange={onChangeDebut} />
           <DatePicker label="Fin" value={fin} onChange={onChangeFin} />
-          <button
-            onClick={ajouter}
-            disabled={busy || !debut || !fin}
-            className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
-          >
-            Ajouter
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={soumettre}
+              disabled={busy || !peutEnregistrer}
+              className="rounded-full bg-orange px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-40"
+            >
+              {busy ? "…" : enEdition ? "Enregistrer" : "Ajouter"}
+            </button>
+            {enEdition && (
+              <button onClick={reinitForm} disabled={busy} className="rounded-full border border-line px-5 py-2.5 text-sm font-semibold text-ink">
+                Annuler
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -2025,7 +2117,7 @@ function FermeturesTab({
             {periodes.map((p) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-line bg-white p-3"
+                className={`flex items-center justify-between gap-3 rounded-xl border bg-white p-3 ${editId === p.id ? "border-orange" : "border-line"}`}
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-ink">{p.libelle || "Fermeture"}</p>
@@ -2034,17 +2126,32 @@ function FermeturesTab({
                     {new Date(p.date_fin).toLocaleDateString("fr-FR")}
                   </p>
                 </div>
-                <button
-                  onClick={() => supprimer(p.id)}
-                  className="shrink-0 text-xs font-semibold text-red-600 hover:underline"
-                >
-                  Supprimer
-                </button>
+                <div className="flex shrink-0 gap-2">
+                  <button onClick={() => editer(p)} className="text-xs font-semibold text-orange hover:underline">Modifier</button>
+                  <button onClick={() => demanderSuppression(p)} disabled={busy} className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50">Supprimer</button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </div>
+
+      {confirm && (
+        <ConfirmDialog
+          title={confirm.kind === "delete" ? "Supprimer la fermeture" : "Modifier les dates de la fermeture"}
+          message={
+            <div className="space-y-2 text-left text-sm">
+              <p className="font-semibold text-ink">{confirm.periode.libelle || "Fermeture"}</p>
+              <p>{phraseImpact(confirm.impact)}</p>
+            </div>
+          }
+          variant={confirm.kind === "delete" ? "danger" : "accent"}
+          confirmLabel={busy ? "…" : confirm.kind === "delete" ? "Supprimer" : "Appliquer les dates"}
+          busy={busy}
+          onConfirm={confirm.kind === "delete" ? supprimer : appliquerEdit}
+          onCancel={() => !busy && setConfirm(null)}
+        />
+      )}
     </div>
   );
 }
